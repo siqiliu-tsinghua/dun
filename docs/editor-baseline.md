@@ -67,6 +67,25 @@ testing on modest SSH/server environments.
 The future log viewer can use a different chunked/streaming model, but that is
 not part of the first editor baseline.
 
+## Buffer Model
+
+The first `dun-core` text buffer uses `Vec<String>` lines.
+
+This is deliberately simple and testable:
+
+- the buffer always has at least one line;
+- internal line separators are modeled as line boundaries, not stored inside
+  each line;
+- `Position.column` is a UTF-8 byte offset and must fall on a character
+  boundary;
+- cursor movement is UTF-8 character-boundary aware, not display-width aware;
+- LF and CRLF files round trip through the buffer's `LineEnding` setting;
+- edits are recorded as replace transactions for undo/redo.
+
+This model is sufficient for the first editor baseline. If large-file testing
+shows it is not acceptable, the public concepts should remain while the storage
+can move to a rope or chunked representation.
+
 ## UI Theme
 
 The default theme should feel like Microsoft Edit:

@@ -59,8 +59,8 @@ terminal.
 - [x] Implement split resize by ratio.
 - [x] Implement collapse/expand state.
 - [x] Add unit tests for each layout transition.
-- [ ] Choose first text buffer representation.
-- [ ] Define cursor, selection, edit transactions, and dirty-state tracking.
+- [x] Choose first text buffer representation.
+- [x] Define cursor, selection, edit transactions, and dirty-state tracking.
 
 Primary crate: `dun-core`.
 
@@ -68,15 +68,15 @@ Primary crate: `dun-core`.
 
 Goal: a small but correct editable UTF-8 buffer.
 
-- Choose first buffer representation.
-- Implement cursor movement.
-- Implement insert/delete/newline.
-- Implement selection model.
-- Implement edit transactions.
-- Implement undo/redo.
-- Track dirty state.
-- Preserve newline style where possible.
-- Add buffer edit tests.
+- [x] Choose first buffer representation.
+- [x] Implement cursor movement.
+- [x] Implement insert/delete/newline.
+- [x] Implement selection model.
+- [x] Implement edit transactions.
+- [x] Implement undo/redo.
+- [x] Track dirty state.
+- [x] Preserve newline style where possible.
+- [x] Add buffer edit tests.
 
 Primary crate: `dun-core`.
 

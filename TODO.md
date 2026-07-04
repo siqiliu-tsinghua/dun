@@ -16,18 +16,18 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 ## `dun-core`
 
 - [x] Replace placeholder id types with an allocation strategy.
-- [ ] Define first real text buffer representation.
-- [ ] Define cursor and selection types.
-- [ ] Define edit transaction type.
-- [ ] Implement insert/delete/newline.
-- [ ] Implement undo/redo.
-- [ ] Implement dirty-state tracking.
+- [x] Define first real text buffer representation.
+- [x] Define cursor and selection types.
+- [x] Define edit transaction type.
+- [x] Implement insert/delete/newline.
+- [x] Implement undo/redo.
+- [x] Implement dirty-state tracking.
 - [x] Implement split focused window.
 - [x] Implement close focused window and tree repair.
 - [x] Implement directional focus movement.
 - [x] Implement split ratio resize.
 - [x] Implement collapse/expand.
-- [ ] Add unit tests for buffer edits.
+- [x] Add unit tests for buffer edits.
 - [x] Add unit tests for split-tree transitions.
 
 ## `dun-term`

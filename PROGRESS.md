@@ -59,3 +59,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   resolution.
 - Added `dun-core` unit tests for split-tree transitions and workspace edge
   cases. `cargo test --workspace` passes.
+- Implemented the first `dun-core` text buffer baseline with line-based UTF-8
+  storage, cursor and selection types, insert/delete/newline, replace
+  transactions, undo/redo, dirty tracking, line-ending round trips, and
+  read-only edit rejection.
+- Added buffer unit tests for UTF-8 boundaries, CRLF/LF parsing, selection
+  replacement, multiline deletion, undo/redo, dirty tracking, and read-only
+  behavior. `cargo test --workspace` passes.
