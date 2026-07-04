@@ -68,7 +68,7 @@ fn pty_smoke_quits_cleanly_for_common_terminal_profiles() -> io::Result<()> {
     ];
 
     for case in cases {
-        let run = run_dun_in_pty(&expect, case, &[], CTRL_Q)?;
+        let run = run_dun_in_pty(&expect, case, &[], "Untitled", CTRL_Q)?;
         assert!(
             run.status.success(),
             "{} failed with status {:?}\n{}",
@@ -109,7 +109,7 @@ fn pty_smoke_opens_utf8_file_and_renders_initial_content() -> io::Result<()> {
         expected_profile: "UTF-8/256",
     };
 
-    let run = run_dun_in_pty(&expect, case, &[file_path.as_os_str()], CTRL_Q);
+    let run = run_dun_in_pty(&expect, case, &[file_path.as_os_str()], "alpha", CTRL_Q);
     let _ = fs::remove_file(&file_path);
     let run = run?;
 
@@ -132,10 +132,14 @@ fn run_dun_in_pty(
     expect: &Path,
     case: TerminalCase,
     args: &[&OsStr],
+    ready_marker: &str,
     input: &[u8],
 ) -> io::Result<PtyRun> {
     let script_path = temp_path("dun-pty-expect", "tcl");
-    fs::write(&script_path, expect_script_for_dun(args, input))?;
+    fs::write(
+        &script_path,
+        expect_script_for_dun(args, ready_marker, input),
+    )?;
 
     let result = run_expect_script(expect, case, &script_path);
     let _ = fs::remove_file(&script_path);
@@ -177,13 +181,27 @@ fn run_expect_script(expect: &Path, case: TerminalCase, script_path: &Path) -> i
     })
 }
 
-fn expect_script_for_dun(args: &[&OsStr], input: &[u8]) -> String {
+fn expect_script_for_dun(args: &[&OsStr], ready_marker: &str, input: &[u8]) -> String {
     format!(
         "\
-set timeout 5
+set timeout 10
 log_user 1
 spawn -noecho /bin/sh -lc {}
-after 500
+expect {{
+    -re {} {{}}
+    eof {{
+        catch {{wait}}
+        exit 125
+    }}
+    timeout {{
+        catch {{close}}
+        catch {{wait}}
+        exit 124
+    }}
+}}
+after 100
+send -- {}
+after 100
 send -- {}
 expect {{
     eof {{}}
@@ -201,6 +219,8 @@ if {{$exit_code eq \"\"}} {{
 exit $exit_code
 ",
         tcl_brace_quote(&shell_command_for_dun(args)),
+        tcl_brace_quote(&regex_literal(ready_marker)),
+        tcl_escaped_bytes(input),
         tcl_escaped_bytes(input)
     )
 }
@@ -237,6 +257,20 @@ fn tcl_brace_quote(value: &str) -> String {
     }
     quoted.push('}');
     quoted
+}
+
+fn regex_literal(value: &str) -> String {
+    let mut literal = String::new();
+    for ch in value.chars() {
+        if matches!(
+            ch,
+            '.' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '\\' | '|'
+        ) {
+            literal.push('\\');
+        }
+        literal.push(ch);
+    }
+    literal
 }
 
 fn tcl_escaped_bytes(bytes: &[u8]) -> String {

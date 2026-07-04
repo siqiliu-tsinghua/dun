@@ -142,5 +142,7 @@ drawing.
 - [docs/editor-baseline.md](./docs/editor-baseline.md): first-version product
   decisions around encoding, large files, theme, keybindings, mouse, and log
   deferral.
+- [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md):
+  PTY smoke coverage and manual SSH terminal compatibility checklist.
 - [docs/crate-map.md](./docs/crate-map.md): current Rust workspace crate
   boundaries and dependency rules.

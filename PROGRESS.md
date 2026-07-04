@@ -187,3 +187,12 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Recorded future optional Microsoft Edit reference/differential tests in
   `TODO.md`, to be added only when Dun's own baseline behavior is mature enough
   for useful comparison.
+- Added `docs/terminal-compatibility-checks.md` with the current PTY regression
+  gate, manual SSH terminal matrix, startup/edit/search/tiling checklist, and
+  pass criteria for terminal restoration and fallback rendering.
+- Closed the Phase 8 manual terminal-check item for the current workspace by
+  documenting current-environment coverage. Real external SSH host coverage is
+  kept as a release-hardening task rather than implied by local automation.
+- Stabilized the PTY smoke harness so it waits for a rendered ready marker
+  before sending `Ctrl+Q`, reducing timing-sensitive missed-key failures.
+  `cargo test -p dun-cli --test pty_smoke` and `cargo test --workspace` pass.

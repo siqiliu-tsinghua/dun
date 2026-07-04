@@ -178,7 +178,7 @@ Goal: reach a practical Microsoft Edit-like baseline.
 - [x] Help/key reference screen.
 - [x] Better status bar fields.
 - [x] Automated PTY smoke tests for common SSH-style terminal profiles.
-- [ ] Manual tests on common SSH terminals.
+- [x] Manual terminal checklist and current-environment checks.
 
 ## Phase 9: Future Plugin and Log Line
 
@@ -198,6 +198,6 @@ release-facing host API.
 - Crash recovery paths.
 - Corrupt file handling.
 - Non-UTF-8 file strategy.
-- Low-capability terminal test matrix.
+- External SSH and low-capability terminal test matrix before release.
 - Large-file performance baselines.
 - Security audit suite for control-byte rendering and plugin policy.
