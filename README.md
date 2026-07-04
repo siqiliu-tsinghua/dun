@@ -20,6 +20,7 @@ selected match highlighting, Replace can replace the current or next match,
 and Go To Line moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty marker, and `Ln`/`Col` status.
+`F1` opens a read-only Help window with the default key reference.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
 

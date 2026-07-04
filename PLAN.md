@@ -175,7 +175,7 @@ Goal: reach a practical Microsoft Edit-like baseline.
 - [x] File open/save-as dialogs or command-line equivalents.
 - [x] Unsaved changes confirmation.
 - [ ] Error log dialog.
-- [ ] Help/key reference screen.
+- [x] Help/key reference screen.
 - [ ] Better status bar fields.
 - [ ] Manual tests on common SSH terminals.
 

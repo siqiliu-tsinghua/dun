@@ -17,8 +17,9 @@ use crossterm::terminal::{
 };
 use dun_config::{Key, KeyModifiers, KeySequence, KeyStroke};
 use dun_core::{
-    AppCommand, Axis, BufferError, BufferId, Direction, EditCommand, EditorCommand, FileCommand,
-    Position, Rect, SearchMatch, TextBuffer, TextRange, WindowCommand, Workspace,
+    AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
+    FileCommand, Position, Rect, SearchMatch, TextBuffer, TextRange, WindowCommand, WindowId,
+    WindowKind, Workspace,
 };
 use dun_ui::{BufferView, UiShell};
 use ratatui::Terminal;
@@ -143,11 +144,17 @@ impl AppState {
     }
 
     fn handle_app_command(&mut self, command: &AppCommand) {
-        if matches!(command, AppCommand::Quit) {
-            if self.confirm_any_dirty(PendingAction::Quit) {
-                return;
+        match command {
+            AppCommand::Help => self.open_help_screen(),
+            AppCommand::Quit => {
+                if self.confirm_any_dirty(PendingAction::Quit) {
+                    return;
+                }
+                self.should_quit = true;
             }
-            self.should_quit = true;
+            AppCommand::CommandLine => {
+                self.set_status("Command line is not implemented yet");
+            }
         }
     }
 
@@ -450,6 +457,48 @@ impl AppState {
                 TextBuffer::new_untitled(),
             ));
         }
+    }
+
+    fn open_help_screen(&mut self) {
+        if let Some(window_id) = self.help_window_id() {
+            self.workspace.focused = window_id;
+            self.set_status("Help");
+            return;
+        }
+
+        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+            self.set_status("Help failed: focused window is missing");
+            return;
+        };
+        let Ok(window) = self.workspace.window(window_id) else {
+            self.set_status("Help failed: help window is missing");
+            return;
+        };
+        let buffer_id = window.buffer_id;
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = BufferState::new(buffer_id, help_buffer());
+        } else {
+            self.buffers
+                .push(BufferState::new(buffer_id, help_buffer()));
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = "Help".to_string();
+            window.kind = WindowKind::Help;
+            window.buffer_kind = BufferKind::ReadOnly;
+            window.collapsed = false;
+        }
+
+        self.set_status("Help");
+    }
+
+    fn help_window_id(&self) -> Option<WindowId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::Help)
+            .map(|window| window.id)
     }
 
     fn close_focused_window_unchecked(&mut self) {
@@ -1339,6 +1388,57 @@ fn text_input_from_crossterm(event: CrosstermKeyEvent) -> Option<char> {
     }
 }
 
+fn help_buffer() -> TextBuffer {
+    TextBuffer::from_text_with_kind(BufferKind::ReadOnly, HELP_TEXT)
+}
+
+const HELP_TEXT: &str = "\
+Dun Help
+
+File
+  Ctrl+N          New untitled buffer
+  Ctrl+O          Open file
+  Ctrl+S          Save
+  Ctrl+Shift+S    Save As
+  Ctrl+W,Q        Close focused window
+  Ctrl+Q          Quit
+
+Edit
+  Arrow keys      Move cursor
+  Home / End      Move to line start / end
+  Enter           Insert newline
+  Backspace       Delete backward
+  Delete          Delete forward
+  Ctrl+Z          Undo
+  Ctrl+Y          Redo
+  Ctrl+A          Select all
+  Ctrl+F          Find
+  F3              Find next
+  Shift+F3        Find previous
+  Ctrl+R          Replace current or next match
+  Ctrl+G          Go to line
+
+Windows
+  Ctrl+W,H        Split horizontally
+  Ctrl+W,V        Split vertically
+  Alt+Arrows      Focus neighboring pane
+  Alt+Shift+Arrows Resize focused split
+  Ctrl+W,=        Equalize splits
+  Ctrl+W,R        Rotate focused split
+  Ctrl+W,C        Collapse or expand focused pane
+  Ctrl+W,X        Close focused window
+
+Prompts
+  Enter           Submit prompt
+  Esc             Cancel prompt
+  Backspace       Edit prompt input
+
+Notes
+  Help opens as a read-only tiled window.
+  Close this window with Ctrl+W,X or Ctrl+W,Q.
+  Dirty buffers ask for confirmation before changes are discarded.
+";
+
 fn buffer_end_position(buffer: &TextBuffer) -> Position {
     let last_line = buffer.line_count().saturating_sub(1);
     let last_column = buffer.line(last_line).map(str::len).unwrap_or(0);
@@ -1465,6 +1565,51 @@ mod tests {
         assert_eq!(app.workspace.window_count(), 1);
         assert_eq!(app.buffers.len(), 1);
         assert!(app.buffer_state(closed_buffer_id).is_none());
+    }
+
+    #[test]
+    fn help_command_opens_read_only_help_window_once() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::Help));
+
+        let help_window = app.workspace.focused_window().unwrap();
+        let help_window_id = help_window.id;
+        let help_buffer_id = help_window.buffer_id;
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(help_window.title, "Help");
+        assert_eq!(help_window.kind, WindowKind::Help);
+        assert_eq!(help_window.buffer_kind, BufferKind::ReadOnly);
+
+        let help_buffer = app.buffer_state(help_buffer_id).unwrap();
+        assert!(help_buffer.buffer.is_read_only());
+        assert!(help_buffer.buffer.to_text().contains("Ctrl+G"));
+        assert_eq!(app.status_message, Some("Help".to_string()));
+
+        app.handle_command(&EditorCommand::App(AppCommand::Help));
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(app.workspace.focused, help_window_id);
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+        assert_eq!(app.workspace.window_count(), 1);
+        assert!(app.buffer_state(help_buffer_id).is_none());
+    }
+
+    #[test]
+    fn f1_key_opens_help_screen() {
+        let mut app = AppState::new();
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Help
+        );
     }
 
     #[test]

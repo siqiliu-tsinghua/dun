@@ -153,3 +153,10 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added CLI tests for successful Go To Line movement and invalid/out-of-range
   input, plus a config test for the default `Ctrl+G` binding. `cargo test
   --workspace` passes.
+- Added the first Help/key reference screen: `F1` or the Help menu command
+  opens a read-only tiled Help window, focuses an existing Help window instead
+  of creating duplicates, and lists the current default editor/window/prompt
+  keys.
+- Added CLI tests for Help window creation, read-only help content, duplicate
+  prevention, cleanup on close, and F1 dispatch. `cargo test --workspace`
+  passes.
