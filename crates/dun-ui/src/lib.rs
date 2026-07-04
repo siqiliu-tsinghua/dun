@@ -2,10 +2,17 @@
 
 use dun_config::{Config, KeySequence, KeyStroke, Keymap};
 use dun_core::{
-    BufferId, DisplaySanitizer, EditorCommand, Rect, SanitizedLine, TextBuffer, WindowId,
-    WindowState, Workspace,
+    BufferId, DisplayClass, DisplaySanitizer, DisplaySegment, EditorCommand, Rect, SanitizedLine,
+    TextBuffer, WindowId, WindowState, Workspace,
 };
-use dun_term::{BorderGlyphs, EncodingProfile, GlyphSet, TerminalProfile, Theme};
+use dun_term::{
+    AnsiColor, BorderGlyphs, EncodingProfile, GlyphSet, Style as DunStyle, StyleAttrs,
+    TerminalColor, TerminalProfile, Theme,
+};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect as TuiRect;
+use ratatui::prelude::{Color, Frame, Line, Modifier, Span, Style};
+use ratatui::widgets::{Block, Paragraph};
 
 #[derive(Clone, Debug)]
 pub struct UiShell {
@@ -74,6 +81,10 @@ impl UiShell {
             self.glyphs.border.horizontal,
             self.glyphs.border.top_right,
         )
+    }
+
+    pub fn render(&self, frame: &mut Frame<'_>, ui_frame: &UiFrame) {
+        render_ui_frame(frame, self, ui_frame);
     }
 
     fn window_model(
@@ -150,6 +161,301 @@ impl UiShell {
             right: format!("theme={} colors={:?}", self.theme.name, self.profile.colors),
             focused_window: workspace.focused,
         }
+    }
+}
+
+pub fn render_ui_frame(frame: &mut Frame<'_>, shell: &UiShell, ui_frame: &UiFrame) {
+    let area = frame.area();
+    render_background(frame, area, shell.theme.palette.editor);
+
+    if area.height == 0 || area.width == 0 {
+        return;
+    }
+
+    let menu_area = TuiRect::new(area.x, area.y, area.width, 1);
+    render_menu(frame, shell, &ui_frame.menu, menu_area);
+
+    if area.height == 1 {
+        return;
+    }
+
+    let status_area = TuiRect::new(area.x, area.y + area.height - 1, area.width, 1);
+    render_status(frame, shell, &ui_frame.status, status_area);
+
+    if area.height <= 2 {
+        return;
+    }
+
+    let workspace_area = TuiRect::new(area.x, area.y + 1, area.width, area.height - 2);
+    for window in &ui_frame.windows {
+        render_window(frame, shell, window, workspace_area);
+    }
+}
+
+fn render_background(frame: &mut Frame<'_>, area: TuiRect, style: DunStyle) {
+    frame.render_widget(Block::default().style(to_ratatui_style(style)), area);
+}
+
+fn render_menu(frame: &mut Frame<'_>, shell: &UiShell, menu: &MenuBar, area: TuiRect) {
+    let mut spans = Vec::new();
+    spans.push(Span::styled(
+        " ",
+        to_ratatui_style(shell.theme.palette.menu_text),
+    ));
+
+    for item in &menu.items {
+        spans.push(Span::styled(
+            " ",
+            to_ratatui_style(shell.theme.palette.menu_text),
+        ));
+        let mut chars = item.label.chars();
+        if let Some(first) = chars.next() {
+            spans.push(Span::styled(
+                first.to_string(),
+                to_ratatui_style(shell.theme.palette.menu_hotkey),
+            ));
+            spans.push(Span::styled(
+                chars.collect::<String>(),
+                to_ratatui_style(shell.theme.palette.menu_text),
+            ));
+        }
+        spans.push(Span::styled(
+            " ",
+            to_ratatui_style(shell.theme.palette.menu_text),
+        ));
+    }
+
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).style(to_ratatui_style(shell.theme.palette.menu_bar)),
+        area,
+    );
+}
+
+fn render_status(frame: &mut Frame<'_>, shell: &UiShell, status: &StatusBar, area: TuiRect) {
+    let mut text = status.left.clone();
+    let right = &status.right;
+    let width = area.width as usize;
+
+    if width > text.len() + right.len() {
+        text.push_str(&" ".repeat(width - text.len() - right.len()));
+        text.push_str(right);
+    } else if width > text.len() {
+        text.push(' ');
+        text.push_str(right);
+    }
+
+    frame.render_widget(
+        Paragraph::new(text).style(to_ratatui_style(shell.theme.palette.status_bar)),
+        area,
+    );
+}
+
+fn render_window(frame: &mut Frame<'_>, shell: &UiShell, window: &UiWindow, workspace: TuiRect) {
+    let area = offset_rect(window.rect, workspace);
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    frame.render_widget(
+        Block::default().style(to_ratatui_style(shell.theme.palette.editor)),
+        area,
+    );
+
+    let border_style = if window.focused {
+        shell.theme.palette.window_border_focused
+    } else {
+        shell.theme.palette.window_border
+    };
+    render_border(
+        frame.buffer_mut(),
+        area,
+        window.border,
+        to_ratatui_style(border_style),
+    );
+    render_window_title(frame.buffer_mut(), shell, window, area);
+
+    if window.collapsed || area.width <= 2 || area.height <= 2 {
+        return;
+    }
+
+    let body_area = TuiRect::new(area.x + 1, area.y + 1, area.width - 2, area.height - 2);
+    let body_lines = window
+        .body
+        .iter()
+        .map(|line| sanitized_line_to_ratatui(shell, line))
+        .collect::<Vec<_>>();
+    frame.render_widget(
+        Paragraph::new(body_lines).style(to_ratatui_style(shell.theme.palette.editor_text)),
+        body_area,
+    );
+}
+
+fn offset_rect(rect: Rect, origin: TuiRect) -> TuiRect {
+    TuiRect::new(
+        origin.x.saturating_add(rect.x),
+        origin.y.saturating_add(rect.y),
+        rect.width.min(origin.width.saturating_sub(rect.x)),
+        rect.height.min(origin.height.saturating_sub(rect.y)),
+    )
+}
+
+fn render_border(buffer: &mut Buffer, area: TuiRect, glyphs: BorderGlyphs, style: Style) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    let right = area.x + area.width - 1;
+    let bottom = area.y + area.height - 1;
+
+    if area.width == 1 || area.height == 1 {
+        for y in area.y..=bottom {
+            for x in area.x..=right {
+                buffer[(x, y)].set_char(glyphs.horizontal).set_style(style);
+            }
+        }
+        return;
+    }
+
+    buffer[(area.x, area.y)]
+        .set_char(glyphs.top_left)
+        .set_style(style);
+    buffer[(right, area.y)]
+        .set_char(glyphs.top_right)
+        .set_style(style);
+    buffer[(area.x, bottom)]
+        .set_char(glyphs.bottom_left)
+        .set_style(style);
+    buffer[(right, bottom)]
+        .set_char(glyphs.bottom_right)
+        .set_style(style);
+
+    for x in (area.x + 1)..right {
+        buffer[(x, area.y)]
+            .set_char(glyphs.horizontal)
+            .set_style(style);
+        buffer[(x, bottom)]
+            .set_char(glyphs.horizontal)
+            .set_style(style);
+    }
+
+    for y in (area.y + 1)..bottom {
+        buffer[(area.x, y)]
+            .set_char(glyphs.vertical)
+            .set_style(style);
+        buffer[(right, y)]
+            .set_char(glyphs.vertical)
+            .set_style(style);
+    }
+}
+
+fn render_window_title(frame: &mut Buffer, shell: &UiShell, window: &UiWindow, area: TuiRect) {
+    if area.width <= 4 {
+        return;
+    }
+
+    let mut title = String::new();
+    title.push(' ');
+    if window.focused {
+        title.push(shell.glyphs.indicators.focused);
+        title.push(' ');
+    }
+    title.push_str(&window.title);
+    if window.dirty {
+        title.push(' ');
+        title.push(shell.glyphs.indicators.dirty);
+    }
+    if window.read_only {
+        title.push(' ');
+        title.push(shell.glyphs.indicators.read_only);
+    }
+    if window.collapsed {
+        title.push(' ');
+        title.push(shell.glyphs.indicators.collapsed);
+    }
+    title.push(' ');
+
+    let max_width = area.width.saturating_sub(4) as usize;
+    if title.chars().count() > max_width {
+        title = title.chars().take(max_width.saturating_sub(1)).collect();
+        title.push(shell.glyphs.indicators.truncation);
+    }
+
+    let style = if window.focused {
+        shell.theme.palette.title_focused
+    } else {
+        shell.theme.palette.title
+    };
+    frame.set_string(area.x + 2, area.y, title, to_ratatui_style(style));
+}
+
+fn sanitized_line_to_ratatui<'a>(shell: &UiShell, line: &'a SanitizedLine) -> Line<'a> {
+    let spans = line
+        .segments
+        .iter()
+        .map(|segment| Span::styled(segment.text.clone(), display_segment_style(shell, segment)))
+        .collect::<Vec<_>>();
+    Line::from(spans)
+}
+
+fn display_segment_style(shell: &UiShell, segment: &DisplaySegment) -> Style {
+    let style = match segment.class {
+        DisplayClass::Text => shell.theme.palette.editor_text,
+        DisplayClass::Control => shell.theme.palette.control,
+        DisplayClass::Escape => shell.theme.palette.escape,
+        DisplayClass::Truncation => shell.theme.palette.truncation,
+    };
+    to_ratatui_style(style)
+}
+
+fn to_ratatui_style(style: DunStyle) -> Style {
+    let mut out = Style::default()
+        .fg(to_ratatui_color(style.fg))
+        .bg(to_ratatui_color(style.bg));
+
+    let attrs = to_ratatui_modifier(style.attrs);
+    if !attrs.is_empty() {
+        out = out.add_modifier(attrs);
+    }
+
+    out
+}
+
+fn to_ratatui_modifier(attrs: StyleAttrs) -> Modifier {
+    let mut modifier = Modifier::empty();
+    if attrs.bold {
+        modifier |= Modifier::BOLD;
+    }
+    if attrs.underline {
+        modifier |= Modifier::UNDERLINED;
+    }
+    if attrs.reverse {
+        modifier |= Modifier::REVERSED;
+    }
+    modifier
+}
+
+fn to_ratatui_color(color: TerminalColor) -> Color {
+    match color {
+        TerminalColor::Default => Color::Reset,
+        TerminalColor::Indexed(index) => Color::Indexed(index),
+        TerminalColor::Ansi(color) => match color {
+            AnsiColor::Black => Color::Black,
+            AnsiColor::Red => Color::Red,
+            AnsiColor::Green => Color::Green,
+            AnsiColor::Yellow => Color::Yellow,
+            AnsiColor::Blue => Color::Blue,
+            AnsiColor::Magenta => Color::Magenta,
+            AnsiColor::Cyan => Color::Cyan,
+            AnsiColor::White => Color::White,
+            AnsiColor::BrightBlack => Color::DarkGray,
+            AnsiColor::BrightRed => Color::LightRed,
+            AnsiColor::BrightGreen => Color::LightGreen,
+            AnsiColor::BrightYellow => Color::LightYellow,
+            AnsiColor::BrightBlue => Color::LightBlue,
+            AnsiColor::BrightMagenta => Color::LightMagenta,
+            AnsiColor::BrightCyan => Color::LightCyan,
+            AnsiColor::BrightWhite => Color::Gray,
+        },
     }
 }
 
@@ -235,6 +541,8 @@ mod tests {
 
     use dun_config::{ColorProfile, EncodingProfile, KeySequence, TerminalOverrides};
     use dun_core::{AppCommand, Axis, BufferKind, FileCommand, Position};
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     use super::*;
 
@@ -352,5 +660,21 @@ mod tests {
                 .iter()
                 .any(|item| item.command == EditorCommand::App(AppCommand::Quit))
         );
+    }
+
+    #[test]
+    fn ratatui_renderer_draws_frame_without_panicking() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "hello\nworld");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let ui_frame =
+            shell.frame_for_workspace(&workspace, Rect::new(0, 0, 60, 8), &[buffer_view]);
+        let backend = TestBackend::new(60, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
     }
 }

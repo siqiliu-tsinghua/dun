@@ -79,3 +79,8 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Connected `dun-ui` to config/core/term with a backend-neutral frame model
   that resolves theme, glyphs, keybindings, sanitized buffer lines, menu data,
   status data, and tiled window rectangles without file I/O.
+- Added the first runnable `ratatui` shell using `ratatui 0.29.0` and
+  `crossterm 0.28.1`, selected by Cargo as compatible with Rust `1.85`.
+- Added terminal lifecycle handling in `dun-cli`: raw mode, alternate screen,
+  restoration guard, redraw loop, terminal profile detection from environment,
+  crossterm key event conversion, keymap lookup, and `Ctrl+Q` quit.

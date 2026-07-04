@@ -116,13 +116,15 @@ Goal: a running editor frame that restores the terminal correctly.
 - [x] Build a backend-neutral UI frame model from config, workspace, and buffer
   snapshots.
 - [x] Resolve theme, glyph, keymap, and display sanitizer settings in `dun-ui`.
-- [ ] Add `ratatui` and terminal backend dependencies compatible with Rust
+- [x] Add `ratatui` and terminal backend dependencies compatible with Rust
   `1.85`.
-- [ ] Enter raw/alternate-screen mode and always restore terminal state.
-- [ ] Render menu bar, editor area, line number gutter, and status bar.
-- [ ] Render Microsoft Edit-style single-line borders for tiled child windows.
-- [ ] Translate keyboard input into `EditorCommand`.
-- [ ] Support quit, cursor movement, text insertion, save, open, find entry
+- [x] Enter raw/alternate-screen mode and always restore terminal state.
+- [x] Render menu bar, editor area, and status bar.
+- [ ] Render line number gutter.
+- [x] Render Microsoft Edit-style single-line borders for tiled child windows.
+- [x] Translate keyboard input into `EditorCommand`.
+- [x] Support quit.
+- [ ] Support cursor movement, text insertion, save, open, find entry
   point.
 - [ ] Keep mouse support deferred.
 
@@ -132,14 +134,14 @@ Primary crates: `dun-cli`, `dun-ui`, `dun-core`, `dun-term`.
 
 Goal: keyboard-first split workflow.
 
-- Render multiple tiled windows.
-- Implement split horizontal/vertical commands.
-- Implement focus left/right/up/down.
-- Implement resize left/right/up/down.
-- Implement close focused window.
-- Implement collapse/expand focused window.
-- Implement equalize and rotate split.
-- Ensure single-buffer startup still looks like Microsoft Edit.
+- [x] Render multiple tiled windows.
+- [ ] Implement split horizontal/vertical commands.
+- [ ] Implement focus left/right/up/down.
+- [ ] Implement resize left/right/up/down.
+- [ ] Implement close focused window.
+- [ ] Implement collapse/expand focused window.
+- [ ] Implement equalize and rotate split.
+- [x] Ensure single-buffer startup still looks like Microsoft Edit.
 
 Primary crates: `dun-core`, `dun-ui`.
 

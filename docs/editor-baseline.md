@@ -166,6 +166,17 @@ The first UI integration consumes this model before ratatui is introduced. It
 builds a backend-neutral frame containing menu items, a status bar, tiled
 windows, resolved glyphs/theme, and sanitized buffer lines.
 
+The first runnable terminal shell uses `ratatui 0.29` and `crossterm 0.28`.
+Cargo selected these versions as Rust `1.85` compatible. The shell currently
+supports:
+
+- raw mode and alternate screen setup;
+- restoration on normal exit and drop;
+- environment-based terminal profile detection;
+- rendering the menu, tiled window frame, sanitized body, and status line;
+- crossterm key events mapped into the typed keymap;
+- `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
+
 ## Mouse
 
 Mouse support is useful but not required for the first baseline.

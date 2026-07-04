@@ -45,14 +45,14 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Build backend-neutral frame model from config, workspace, and buffers.
 - [x] Resolve theme, glyph, keymap, and display sanitizer in `UiShell`.
 - [x] Sanitize buffer lines before they enter the UI frame model.
-- [ ] Select `ratatui` and backend versions compatible with Rust `1.85`.
-- [ ] Render menu bar.
-- [ ] Render status bar.
+- [x] Select `ratatui` and backend versions compatible with Rust `1.85`.
+- [x] Render menu bar.
+- [x] Render status bar.
 - [ ] Render single editor area with line-number gutter.
-- [ ] Render Microsoft Edit-style single-line borders for tiled windows.
-- [ ] Render ASCII fallback borders.
-- [ ] Render multiple tiled windows from resolved layout rectangles.
-- [ ] Keep rendering free of file I/O.
+- [x] Render Microsoft Edit-style single-line borders for tiled windows.
+- [x] Render ASCII fallback borders.
+- [x] Render multiple tiled windows from resolved layout rectangles.
+- [x] Keep rendering free of file I/O.
 
 ## `dun-config`
 
@@ -67,10 +67,10 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 ## `dun-cli`
 
 - [ ] Add argument parsing.
-- [ ] Add terminal setup and restoration guard.
-- [ ] Create initial untitled workspace.
+- [x] Add terminal setup and restoration guard.
+- [x] Create initial untitled workspace.
 - [ ] Open file path passed on command line.
-- [ ] Wire config/profile/workspace/UI construction.
+- [x] Wire config/profile/workspace/UI construction.
 - [ ] Return stable exit codes.
 
 ## File and Display Safety
