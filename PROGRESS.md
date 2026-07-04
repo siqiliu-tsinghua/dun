@@ -141,3 +141,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   prompt before continuing the pending action.
 - Added CLI tests for new/open/quit/close dirty-buffer protection, save-before
   quit, and Save As-before-quit. `cargo test --workspace` passes.
+- Added the first replace baseline in `dun-cli`: `Ctrl+R` prompts for search
+  text and replacement text, then replaces the current selected match or the
+  next match from the cursor with wraparound. Empty replacement text is valid
+  and deletes the match.
+- Added replace tests for prompt flow, selected-match replacement, empty
+  replacement, and missing-match status. `cargo test --workspace` passes.

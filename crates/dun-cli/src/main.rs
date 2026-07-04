@@ -17,8 +17,8 @@ use crossterm::terminal::{
 };
 use dun_config::{Key, KeyModifiers, KeySequence, KeyStroke};
 use dun_core::{
-    AppCommand, Axis, BufferId, Direction, EditCommand, EditorCommand, FileCommand, Position, Rect,
-    SearchMatch, TextBuffer, TextRange, WindowCommand, Workspace,
+    AppCommand, Axis, BufferError, BufferId, Direction, EditCommand, EditorCommand, FileCommand,
+    Position, Rect, SearchMatch, TextBuffer, TextRange, WindowCommand, Workspace,
 };
 use dun_ui::{BufferView, UiShell};
 use ratatui::Terminal;
@@ -48,6 +48,7 @@ struct AppState {
     prompt: Option<PromptState>,
     confirm: Option<ConfirmState>,
     last_find_query: Option<String>,
+    pending_replace_query: Option<String>,
 }
 
 impl AppState {
@@ -67,6 +68,7 @@ impl AppState {
             prompt: None,
             confirm: None,
             last_find_query: None,
+            pending_replace_query: None,
         }
     }
 
@@ -195,7 +197,10 @@ impl AppState {
                 return;
             }
             EditCommand::Replace => {
-                self.set_status("Replace is not implemented yet");
+                self.start_prompt(
+                    PromptKind::ReplaceFind,
+                    self.last_find_query.clone().unwrap_or_default(),
+                );
                 return;
             }
             _ => {}
@@ -492,6 +497,9 @@ impl AppState {
         self.pending_keys.clear();
         self.status_message = None;
         self.confirm = None;
+        if !matches!(kind, PromptKind::ReplaceWith) {
+            self.pending_replace_query = None;
+        }
         self.prompt = Some(PromptState::new(kind, initial_input, after_success));
     }
 
@@ -640,6 +648,9 @@ impl AppState {
 
     fn cancel_prompt(&mut self) {
         if let Some(prompt) = self.prompt.take() {
+            if prompt.kind.is_replace() {
+                self.pending_replace_query = None;
+            }
             self.set_status(format!("{} cancelled", prompt.kind.name()));
         }
     }
@@ -649,19 +660,25 @@ impl AppState {
             return;
         };
 
-        let input = prompt.input.trim().to_string();
-        if input.is_empty() {
-            self.set_status(format!("{} cancelled", prompt.kind.name()));
-            return;
-        }
-
         match prompt.kind {
             PromptKind::Open => {
+                let input = prompt.input.trim().to_string();
+                if input.is_empty() {
+                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    return;
+                }
+
                 if let Err(error) = self.open_file_path(PathBuf::from(&input)) {
                     self.set_status(format!("Open failed: {error}"));
                 }
             }
             PromptKind::SaveAs => {
+                let input = prompt.input.trim().to_string();
+                if input.is_empty() {
+                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    return;
+                }
+
                 if let Err(error) = self.save_focused_buffer_as(PathBuf::from(&input)) {
                     self.set_status(format!("Save As failed: {error}"));
                 } else if let Some(action) = prompt.after_success {
@@ -669,8 +686,34 @@ impl AppState {
                 }
             }
             PromptKind::Find => {
+                let input = prompt.input.trim().to_string();
+                if input.is_empty() {
+                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    return;
+                }
+
                 self.last_find_query = Some(input.clone());
                 self.find_in_focused_buffer(&input, SearchDirection::Forward);
+            }
+            PromptKind::ReplaceFind => {
+                let input = prompt.input.trim().to_string();
+                if input.is_empty() {
+                    self.pending_replace_query = None;
+                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    return;
+                }
+
+                self.pending_replace_query = Some(input);
+                self.start_prompt(PromptKind::ReplaceWith, String::new());
+            }
+            PromptKind::ReplaceWith => {
+                let Some(query) = self.pending_replace_query.take() else {
+                    self.set_status("Replace: no query");
+                    return;
+                };
+
+                self.last_find_query = Some(query.clone());
+                self.replace_in_focused_buffer(&query, &prompt.input);
             }
         }
     }
@@ -724,6 +767,47 @@ impl AppState {
             selection.index + 1,
             matches.len()
         ));
+    }
+
+    fn replace_in_focused_buffer(&mut self, query: &str, replacement: &str) {
+        if query.is_empty() {
+            self.set_status("Replace: no query");
+            return;
+        }
+
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Replace: focused buffer is missing");
+            return;
+        };
+
+        let matches = buffer.buffer.find_all(query);
+        if matches.is_empty() {
+            buffer.buffer.clear_selection();
+            self.set_status(format!("Replace: no matches for {query}"));
+            return;
+        }
+
+        let selection = current_match_selection(&buffer.buffer, &matches).unwrap_or_else(|| {
+            let origin = buffer
+                .buffer
+                .selection_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| buffer.buffer.cursor_position());
+            choose_search_match(&matches, origin, SearchDirection::Forward)
+        });
+        let target = matches[selection.index].range;
+
+        match buffer.buffer.replace_range(target, replacement) {
+            Ok(()) => {
+                let suffix = if selection.wrapped { " (wrapped)" } else { "" };
+                self.set_status(format!(
+                    "Replace: {}/{} {query}{suffix}",
+                    selection.index + 1,
+                    matches.len()
+                ));
+            }
+            Err(error) => self.set_status(format!("Replace failed: {}", buffer_error_text(error))),
+        }
     }
 
     fn prompt_status_text(&self) -> Option<String> {
@@ -895,6 +979,8 @@ enum PromptKind {
     Open,
     SaveAs,
     Find,
+    ReplaceFind,
+    ReplaceWith,
 }
 
 impl PromptKind {
@@ -903,6 +989,8 @@ impl PromptKind {
             Self::Open => "Open: ",
             Self::SaveAs => "Save As: ",
             Self::Find => "Find: ",
+            Self::ReplaceFind => "Replace Find: ",
+            Self::ReplaceWith => "Replace With: ",
         }
     }
 
@@ -911,7 +999,12 @@ impl PromptKind {
             Self::Open => "Open",
             Self::SaveAs => "Save As",
             Self::Find => "Find",
+            Self::ReplaceFind | Self::ReplaceWith => "Replace",
         }
+    }
+
+    const fn is_replace(self) -> bool {
+        matches!(self, Self::ReplaceFind | Self::ReplaceWith)
     }
 }
 
@@ -969,6 +1062,28 @@ fn choose_search_match(
                 index: matches.len().saturating_sub(1),
                 wrapped: true,
             }),
+    }
+}
+
+fn current_match_selection(
+    buffer: &TextBuffer,
+    matches: &[SearchMatch],
+) -> Option<SearchSelection> {
+    let range = buffer.selection_range()?;
+    matches
+        .iter()
+        .position(|item| item.range == range)
+        .map(|index| SearchSelection {
+            index,
+            wrapped: false,
+        })
+}
+
+const fn buffer_error_text(error: BufferError) -> &'static str {
+    match error {
+        BufferError::InvalidPosition(_) => "invalid position",
+        BufferError::InvalidRange(_) => "invalid range",
+        BufferError::ReadOnly => "buffer is read-only",
     }
 }
 
@@ -1557,6 +1672,105 @@ mod tests {
         assert_eq!(
             app.status_message,
             Some("Find: no matches for z".to_string())
+        );
+        assert_eq!(state.buffer.selection_range(), None);
+    }
+
+    #[test]
+    fn replace_command_prompts_and_replaces_next_match() {
+        let mut app = app_with_text("one two one");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Replace));
+        assert_eq!(app.prompt_status_text(), Some("Replace Find: ".to_string()));
+
+        send_text(&mut app, "one");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.prompt_status_text(), Some("Replace With: ".to_string()));
+
+        send_text(&mut app, "uno");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "uno two one");
+        assert!(state.buffer.is_dirty());
+        assert_eq!(app.last_find_query, Some("one".to_string()));
+        assert_eq!(app.status_message, Some("Replace: 1/2 one".to_string()));
+    }
+
+    #[test]
+    fn replace_prefers_current_selected_match() {
+        let mut app = app_with_text("one two one");
+        app.last_find_query = Some("one".to_string());
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Replace));
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Replace Find: one".to_string())
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, "uno");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "one two uno");
+        assert_eq!(app.status_message, Some("Replace: 2/2 one".to_string()));
+    }
+
+    #[test]
+    fn replace_accepts_empty_replacement_as_delete() {
+        let mut app = app_with_text("one two");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Replace));
+        send_text(&mut app, "one");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), " two");
+        assert_eq!(app.status_message, Some("Replace: 1/1 one".to_string()));
+    }
+
+    #[test]
+    fn replace_reports_missing_match() {
+        let mut app = app_with_text("abc");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Replace));
+        send_text(&mut app, "z");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, "x");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "abc");
+        assert_eq!(
+            app.status_message,
+            Some("Replace: no matches for z".to_string())
         );
         assert_eq!(state.buffer.selection_range(), None);
     }

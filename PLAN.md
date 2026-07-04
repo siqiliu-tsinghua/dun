@@ -170,7 +170,7 @@ Primary crate: `dun-config`.
 
 Goal: reach a practical Microsoft Edit-like baseline.
 
-- [ ] Search and replace.
+- [x] Search and replace baseline.
 - [ ] Go to line.
 - [x] File open/save-as dialogs or command-line equivalents.
 - [x] Unsaved changes confirmation.

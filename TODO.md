@@ -81,6 +81,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Track pending multi-stroke key sequences.
 - [x] Keep the focused cursor line visible while drawing.
 - [x] Implement find result navigation.
+- [x] Implement replace current/next match baseline.
 - [x] Show focused buffer name, dirty state, and line/column status.
 - [x] Confirm before quit/new/open/close would discard dirty buffers.
 - [ ] Return stable exit codes.
