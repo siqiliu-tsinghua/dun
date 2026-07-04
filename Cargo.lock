@@ -145,6 +145,7 @@ dependencies = [
  "dun-core",
  "dun-term",
  "ratatui",
+ "unicode-width 0.2.0",
 ]
 
 [[package]]

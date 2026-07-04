@@ -10,9 +10,10 @@ use dun_term::{
     TerminalColor, TerminalProfile, Theme,
 };
 use ratatui::buffer::Buffer;
-use ratatui::layout::Rect as TuiRect;
+use ratatui::layout::{Position as TuiPosition, Rect as TuiRect};
 use ratatui::prelude::{Color, Frame, Line, Modifier, Span, Style};
 use ratatui::widgets::{Block, Paragraph};
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Clone, Debug)]
 pub struct UiShell {
@@ -100,6 +101,11 @@ impl UiShell {
             (false, Some(buffer)) => self.sanitize_buffer_body(buffer, rect),
             (false, None) => vec![self.display_sanitizer.sanitize_line("[missing buffer]")],
         };
+        let cursor = if window.id == focused && !window.collapsed {
+            buffer.and_then(|buffer| self.cursor_for_buffer(buffer, rect))
+        } else {
+            None
+        };
 
         UiWindow {
             id: window.id,
@@ -115,6 +121,7 @@ impl UiShell {
                 .map(|buffer| buffer.buffer.is_read_only())
                 .unwrap_or(matches!(window.buffer_kind, dun_core::BufferKind::ReadOnly)),
             border: self.glyphs.border,
+            cursor,
             body,
         }
     }
@@ -136,6 +143,39 @@ impl UiShell {
         }
 
         lines
+    }
+
+    fn cursor_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> Option<UiCursor> {
+        let body_width = rect.width.checked_sub(2)? as usize;
+        let body_height = rect.height.checked_sub(2)? as usize;
+        if body_width == 0 || body_height == 0 {
+            return None;
+        }
+
+        let position = buffer.buffer.cursor_position();
+        if position.line < buffer.first_line {
+            return None;
+        }
+
+        let visible_line = position.line - buffer.first_line;
+        if visible_line >= body_height {
+            return None;
+        }
+
+        let line = buffer.buffer.line(position.line)?;
+        let prefix = line.get(..position.column)?;
+        let display_sanitizer = DisplaySanitizer {
+            ascii_only: self.display_sanitizer.ascii_only,
+            max_bytes: usize::MAX,
+        };
+        let display_text = display_sanitizer.sanitize_line(prefix).as_plain_text();
+        let display_column = UnicodeWidthStr::width(display_text.as_str());
+        let display_column = display_column.min(body_width.saturating_sub(1));
+
+        Some(UiCursor {
+            x: 1 + display_column as u16,
+            y: 1 + visible_line as u16,
+        })
     }
 
     fn menu_bar(&self) -> MenuBar {
@@ -288,6 +328,14 @@ fn render_window(frame: &mut Frame<'_>, shell: &UiShell, window: &UiWindow, work
         Paragraph::new(body_lines).style(to_ratatui_style(shell.theme.palette.editor_text)),
         body_area,
     );
+
+    if let Some(cursor) = window.cursor {
+        let x = area.x.saturating_add(cursor.x);
+        let y = area.y.saturating_add(cursor.y);
+        if x < area.x.saturating_add(area.width) && y < area.y.saturating_add(area.height) {
+            frame.set_cursor_position(TuiPosition::new(x, y));
+        }
+    }
 }
 
 fn offset_rect(rect: Rect, origin: TuiRect) -> TuiRect {
@@ -532,7 +580,14 @@ pub struct UiWindow {
     pub dirty: bool,
     pub read_only: bool,
     pub border: BorderGlyphs,
+    pub cursor: Option<UiCursor>,
     pub body: Vec<SanitizedLine>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UiCursor {
+    pub x: u16,
+    pub y: u16,
 }
 
 #[cfg(test)]
@@ -589,6 +644,41 @@ mod tests {
         assert_eq!(frame.windows.len(), 1);
         assert_eq!(frame.windows[0].body[0].as_plain_text(), "safe␛]0;x␇");
         assert!(frame.windows[0].body[0].has_non_text_segments());
+        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 1, y: 1 }));
+    }
+
+    #[test]
+    fn frame_maps_buffer_cursor_to_window_body() {
+        let workspace = Workspace::new_untitled();
+        let mut buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abc\né");
+        buffer.set_cursor(dun_core::Position::new(1, 2)).unwrap();
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 80, 10),
+            &[buffer_view],
+        );
+
+        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 2, y: 2 }));
+    }
+
+    #[test]
+    fn frame_maps_cursor_after_wide_utf8_text() {
+        let workspace = Workspace::new_untitled();
+        let mut buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "中x");
+        buffer
+            .set_cursor(dun_core::Position::new(0, "中".len()))
+            .unwrap();
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 80, 10),
+            &[buffer_view],
+        );
+
+        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 3, y: 1 }));
     }
 
     #[test]

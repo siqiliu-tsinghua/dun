@@ -122,10 +122,11 @@ Goal: a running editor frame that restores the terminal correctly.
 - [x] Render menu bar, editor area, and status bar.
 - [ ] Render line number gutter.
 - [x] Render Microsoft Edit-style single-line borders for tiled child windows.
-- [x] Translate keyboard input into `EditorCommand`.
+- [x] Translate keyboard input, including multi-stroke sequences, into
+  `EditorCommand`.
 - [x] Support quit.
-- [ ] Support cursor movement, text insertion, save, open, find entry
-  point.
+- [x] Support cursor movement and text insertion.
+- [ ] Support save, open, and find entry point.
 - [ ] Keep mouse support deferred.
 
 Primary crates: `dun-cli`, `dun-ui`, `dun-core`, `dun-term`.
@@ -135,12 +136,12 @@ Primary crates: `dun-cli`, `dun-ui`, `dun-core`, `dun-term`.
 Goal: keyboard-first split workflow.
 
 - [x] Render multiple tiled windows.
-- [ ] Implement split horizontal/vertical commands.
-- [ ] Implement focus left/right/up/down.
-- [ ] Implement resize left/right/up/down.
-- [ ] Implement close focused window.
-- [ ] Implement collapse/expand focused window.
-- [ ] Implement equalize and rotate split.
+- [x] Implement split horizontal/vertical commands.
+- [x] Implement focus left/right/up/down.
+- [x] Implement resize left/right/up/down.
+- [x] Implement close focused window.
+- [x] Implement collapse/expand focused window.
+- [x] Implement equalize and rotate split.
 - [x] Ensure single-buffer startup still looks like Microsoft Edit.
 
 Primary crates: `dun-core`, `dun-ui`.

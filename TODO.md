@@ -52,6 +52,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Render Microsoft Edit-style single-line borders for tiled windows.
 - [x] Render ASCII fallback borders.
 - [x] Render multiple tiled windows from resolved layout rectangles.
+- [x] Render focused buffer cursor inside the active window body.
 - [x] Keep rendering free of file I/O.
 
 ## `dun-config`
@@ -59,6 +60,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define typed config defaults.
 - [x] Define typed keybinding schema.
 - [x] Define default keymap.
+- [x] Support multi-stroke key sequence prefix matching.
 - [x] Define theme selection config.
 - [x] Define terminal override config.
 - [x] Define large-file and display limits.
@@ -71,6 +73,10 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Create initial untitled workspace.
 - [ ] Open file path passed on command line.
 - [x] Wire config/profile/workspace/UI construction.
+- [x] Apply editor commands to the focused buffer/window.
+- [x] Route printable text input into the focused buffer.
+- [x] Track pending multi-stroke key sequences.
+- [x] Keep the focused cursor line visible while drawing.
 - [ ] Return stable exit codes.
 
 ## File and Display Safety

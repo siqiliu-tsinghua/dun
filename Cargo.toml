@@ -22,3 +22,4 @@ dun-core = { path = "crates/dun-core" }
 dun-term = { path = "crates/dun-term" }
 dun-ui = { path = "crates/dun-ui" }
 ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
+unicode-width = "0.2"

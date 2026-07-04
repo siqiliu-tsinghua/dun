@@ -115,6 +115,18 @@ impl Keymap {
                 KeyBinding::new("Ctrl+F", EditorCommand::Edit(EditCommand::Find)),
                 KeyBinding::new("Ctrl+R", EditorCommand::Edit(EditCommand::Replace)),
                 KeyBinding::new("Ctrl+A", EditorCommand::Edit(EditCommand::SelectAll)),
+                KeyBinding::new("Left", EditorCommand::Edit(EditCommand::MoveLeft)),
+                KeyBinding::new("Right", EditorCommand::Edit(EditCommand::MoveRight)),
+                KeyBinding::new("Up", EditorCommand::Edit(EditCommand::MoveUp)),
+                KeyBinding::new("Down", EditorCommand::Edit(EditCommand::MoveDown)),
+                KeyBinding::new("Home", EditorCommand::Edit(EditCommand::MoveLineStart)),
+                KeyBinding::new("End", EditorCommand::Edit(EditCommand::MoveLineEnd)),
+                KeyBinding::new("Enter", EditorCommand::Edit(EditCommand::InsertNewline)),
+                KeyBinding::new(
+                    "Backspace",
+                    EditorCommand::Edit(EditCommand::DeleteBackward),
+                ),
+                KeyBinding::new("Delete", EditorCommand::Edit(EditCommand::DeleteForward)),
                 KeyBinding::new(
                     "Ctrl+W,H",
                     EditorCommand::Window(WindowCommand::SplitHorizontal),
@@ -185,6 +197,17 @@ impl Keymap {
 
     pub fn command_for_stroke(&self, stroke: KeyStroke) -> Option<&EditorCommand> {
         self.command_for_sequence(&KeySequence::single(stroke))
+    }
+
+    pub fn has_sequence_prefix(&self, sequence: &KeySequence) -> bool {
+        if sequence.strokes.is_empty() {
+            return false;
+        }
+
+        self.bindings.iter().any(|binding| {
+            binding.sequence.strokes.len() > sequence.strokes.len()
+                && binding.sequence.strokes.starts_with(&sequence.strokes)
+        })
     }
 }
 
@@ -480,6 +503,15 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Edit(EditCommand::Copy) => "edit.copy",
         EditorCommand::Edit(EditCommand::Paste) => "edit.paste",
         EditorCommand::Edit(EditCommand::SelectAll) => "edit.select_all",
+        EditorCommand::Edit(EditCommand::MoveLeft) => "edit.move_left",
+        EditorCommand::Edit(EditCommand::MoveRight) => "edit.move_right",
+        EditorCommand::Edit(EditCommand::MoveUp) => "edit.move_up",
+        EditorCommand::Edit(EditCommand::MoveDown) => "edit.move_down",
+        EditorCommand::Edit(EditCommand::MoveLineStart) => "edit.move_line_start",
+        EditorCommand::Edit(EditCommand::MoveLineEnd) => "edit.move_line_end",
+        EditorCommand::Edit(EditCommand::InsertNewline) => "edit.insert_newline",
+        EditorCommand::Edit(EditCommand::DeleteBackward) => "edit.delete_backward",
+        EditorCommand::Edit(EditCommand::DeleteForward) => "edit.delete_forward",
         EditorCommand::Edit(EditCommand::Find) => "edit.find",
         EditorCommand::Edit(EditCommand::Replace) => "edit.replace",
         EditorCommand::Window(WindowCommand::SplitHorizontal) => "window.split_horizontal",
@@ -518,6 +550,15 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "edit.copy" => Ok(EditorCommand::Edit(EditCommand::Copy)),
         "edit.paste" => Ok(EditorCommand::Edit(EditCommand::Paste)),
         "edit.select_all" => Ok(EditorCommand::Edit(EditCommand::SelectAll)),
+        "edit.move_left" => Ok(EditorCommand::Edit(EditCommand::MoveLeft)),
+        "edit.move_right" => Ok(EditorCommand::Edit(EditCommand::MoveRight)),
+        "edit.move_up" => Ok(EditorCommand::Edit(EditCommand::MoveUp)),
+        "edit.move_down" => Ok(EditorCommand::Edit(EditCommand::MoveDown)),
+        "edit.move_line_start" => Ok(EditorCommand::Edit(EditCommand::MoveLineStart)),
+        "edit.move_line_end" => Ok(EditorCommand::Edit(EditCommand::MoveLineEnd)),
+        "edit.insert_newline" => Ok(EditorCommand::Edit(EditCommand::InsertNewline)),
+        "edit.delete_backward" => Ok(EditorCommand::Edit(EditCommand::DeleteBackward)),
+        "edit.delete_forward" => Ok(EditorCommand::Edit(EditCommand::DeleteForward)),
         "edit.find" => Ok(EditorCommand::Edit(EditCommand::Find)),
         "edit.replace" => Ok(EditorCommand::Edit(EditCommand::Replace)),
         "window.split_horizontal" => Ok(EditorCommand::Window(WindowCommand::SplitHorizontal)),
@@ -696,6 +737,15 @@ mod tests {
             keymap.command_for_sequence(&sequence),
             Some(&EditorCommand::File(FileCommand::Save))
         );
+    }
+
+    #[test]
+    fn keymap_reports_sequence_prefixes() {
+        let keymap = Keymap::default_editor();
+
+        assert!(keymap.has_sequence_prefix(&KeySequence::from_str("Ctrl+W").unwrap()));
+        assert!(!keymap.has_sequence_prefix(&KeySequence::from_str("Ctrl+W,H").unwrap()));
+        assert!(!keymap.has_sequence_prefix(&KeySequence::from_str("Alt+Left").unwrap()));
     }
 
     #[test]

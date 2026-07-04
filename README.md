@@ -9,8 +9,9 @@ style inspired by classic editor interfaces such as `msedit`.
 
 ## Status
 
-This repository has a minimal Cargo/git baseline and is otherwise at the
-planning and architecture stage. The editor core has not been implemented yet.
+This repository now has a Rust workspace baseline with the first pure editor
+core, terminal profile/theme layer, typed configuration/keymap layer,
+backend-neutral UI model, and a minimal runnable `ratatui` shell.
 
 The current baseline decisions are:
 
@@ -52,19 +53,24 @@ For the initial line, `dun` is not:
 
 ## Architecture Sketch
 
-The codebase is a Cargo workspace with these initial boundaries:
+The current codebase is a Cargo workspace with these boundaries:
 
 - `dun-core`: buffers, cursors, selections, undo/redo, edits, search, and
-  future log view data structures.
+  tiled workspace state.
 - `dun-term`: terminal capability detection, color profile, glyph profile, and
-  input normalization.
-- `dun-ui`: `ratatui` views, menus, dialogs, status lines, command palette,
-  layout, and lightweight tiled-window rendering.
-- `dun-command`: typed editor commands and command validation.
-- `dun-config`: configuration loading and validation.
+  theme selection.
+- `dun-config`: typed configuration defaults, key sequences, command ids, and
+  validation.
+- `dun-ui`: `ratatui` views, menus, status lines, layout, sanitization, cursor
+  placement, and lightweight tiled-window rendering.
+- `dun-cli`: terminal lifecycle, event loop, key input routing, and command
+  application.
+
+Future plugin crates remain planned but intentionally absent until `rum` has a
+stable release-facing host API:
+
 - `dun-plugin-api`: plugin roles, policies, input snapshots, and output intents.
-- `dun-plugin-rum`: future `rum` runtime adapter, added only after `rum` has a
-  stable release-facing host API.
+- `dun-plugin-rum`: pure `rum` runtime adapter.
 
 ## Plugin Boundary
 

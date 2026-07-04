@@ -11,3 +11,4 @@ dun-config.workspace = true
 dun-core.workspace = true
 dun-term.workspace = true
 ratatui.workspace = true
+unicode-width.workspace = true

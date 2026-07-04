@@ -84,3 +84,17 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added terminal lifecycle handling in `dun-cli`: raw mode, alternate screen,
   restoration guard, redraw loop, terminal profile detection from environment,
   crossterm key event conversion, keymap lookup, and `Ctrl+Q` quit.
+- Added the first editor command application layer in `dun-cli`: commands now
+  dispatch to app, file, edit, and window handlers over focused buffers/windows.
+- Added text input routing for printable characters, edit commands for cursor
+  movement/newline/backspace/delete/undo/redo/select-all, and scroll tracking
+  to keep the focused cursor line visible.
+- Added multi-stroke key sequence prefix tracking so configured bindings such
+  as `Ctrl+W,H` can trigger tiled-window commands.
+- Added close-window cleanup for unreferenced CLI buffer state.
+- Added focused cursor placement to the `dun-ui` frame/rendering model, mapped
+  through sanitized display text, terminal display width, and per-buffer
+  vertical scroll offsets.
+- Extended tests for CLI command application, text input filtering, key
+  sequence dispatch, config sequence prefixes, and UI cursor mapping.
+  `cargo test --workspace` passes.
