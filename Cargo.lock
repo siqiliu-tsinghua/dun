@@ -3,5 +3,34 @@
 version = 4
 
 [[package]]
-name = "dun"
+name = "dun-cli"
 version = "0.1.0"
+dependencies = [
+ "dun-config",
+ "dun-core",
+ "dun-term",
+ "dun-ui",
+]
+
+[[package]]
+name = "dun-config"
+version = "0.1.0"
+dependencies = [
+ "dun-term",
+]
+
+[[package]]
+name = "dun-core"
+version = "0.1.0"
+
+[[package]]
+name = "dun-term"
+version = "0.1.0"
+
+[[package]]
+name = "dun-ui"
+version = "0.1.0"
+dependencies = [
+ "dun-core",
+ "dun-term",
+]

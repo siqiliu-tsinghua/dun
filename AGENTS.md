@@ -76,10 +76,10 @@ checks to the rest of the UI.
 
 ## Current Build Stage
 
-At repository creation, the codebase is not implemented. The first code should
+The repository is a Rust workspace. Keep crate boundaries aligned with
+[docs/crate-map.md](./docs/crate-map.md). The first implementation line should
 establish:
 
-- a Rust workspace or package pinned to Rust `1.85`;
 - core editor types independent of `ratatui`;
 - a command model;
 - terminal profile detection;

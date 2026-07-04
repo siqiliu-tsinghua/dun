@@ -1,115 +1,185 @@
 # PLAN
 
-`dun` should grow from a reliable terminal editor core into an operations
-oriented log inspection tool with a future pure-plugin layer.
+`dun` should first become a reliable Microsoft Edit-like terminal editor with a
+lightweight tiled workspace. After that foundation is stable, it can grow into
+an operations-oriented log inspection tool with a future pure-plugin layer.
 
 ## Design Principles
 
 1. Core first, plugins later.
 2. Rust owns state and side effects.
-3. Plugins compute; `dun` authorizes and executes.
+3. Rendering is never allowed to emit untrusted control bytes.
 4. Terminal compatibility is a first-class feature.
-5. Log workflows must work on large files and remote machines.
-6. Architecture should allow `rum` later without depending on an unstable API
-   now.
+5. The first usable line is a text editor; log workflows wait until the editor
+   foundation and future `rum` integration are ready.
+6. Architecture should allow `rum` later without depending on an unstable API.
+7. The UI supports multiple simultaneous views through a lightweight tiling
+   split tree, not sidebars, tabs, or floating windows.
+8. Keybindings are configurable because terminals and KVM devices vary.
 
-## Target Architecture
+## Workspace Shape
 
-The long-term architecture can be represented as:
+The workspace is intentionally small:
 
 ```text
-CLI / process layer
-  argument parsing, startup, exit codes
-
-Editor core
-  buffers, edits, undo/redo, search, log views
-
-Command layer
-  typed commands, validation, dispatch, keymap bindings
-
-Terminal layer
-  capability detection, input normalization, colors, glyphs
-
-UI layer
-  ratatui widgets, dialogs, menus, status, command palette
-
-Plugin API layer
-  roles, policies, input snapshots, output intents
-
-Runtime adapters
-  built-in Rust plugins now; future pure rum adapter later
+dun-core    terminal-independent editor state and commands
+dun-term    terminal profile, glyphs, and themes
+dun-ui      ratatui-facing rendering shell
+dun-config  typed configuration and keymap model
+dun-cli     process entry point
 ```
 
-## Phase 0: Repository Baseline
+See [docs/crate-map.md](./docs/crate-map.md) for crate boundaries.
 
-- Establish project documents.
-- Record the plugin security boundary.
-- Record terminal compatibility requirements.
-- Keep the repository free of unstable runtime dependencies.
+## Phase 0: Baseline
 
-## Phase 1: Minimal Editor Shell
+Status: mostly complete.
 
-- Create a Rust `1.85` project.
-- Add a minimal TUI event loop.
-- Detect terminal profile conservatively.
-- Render a simple editor frame with menu/status/edit area.
-- Normalize keyboard input into typed commands.
-- Exit cleanly and restore terminal state.
+- [x] Establish project documents.
+- [x] Record plugin security boundary.
+- [x] Record terminal compatibility requirements.
+- [x] Record first-version editor baseline decisions.
+- [x] Initialize git and Cargo.
+- [x] Convert the package into a lightweight workspace.
+- [x] Add minimal crate skeletons.
+- [ ] Commit the workspace/documentation baseline.
 
-## Phase 2: Text Editing Core
+## Phase 1: Core Types and Pure State
 
-- Implement text buffer data structures.
-- Implement cursor movement and scrolling.
+Goal: enough pure data model to test editor and tiling behavior without a
+terminal.
+
+- Define stable id types: `BufferId`, `WindowId`.
+- Define buffer metadata and editable/read-only state.
+- Define `EditorCommand` families.
+- Define `Workspace`, `LayoutNode`, and `WindowState`.
+- Implement split focused window.
+- Implement close focused window and layout tree repair.
+- Implement directional focus movement.
+- Implement split resize by ratio.
+- Implement collapse/expand.
+- Add unit tests for each layout transition.
+
+Primary crate: `dun-core`.
+
+## Phase 2: Text Buffer Baseline
+
+Goal: a small but correct editable UTF-8 buffer.
+
+- Choose first buffer representation.
+- Implement cursor movement.
 - Implement insert/delete/newline.
-- Implement open/save through Rust host code.
-- Implement dirty-state tracking.
-- Implement focused undo/redo.
-- Add tests for edit operations and file round trips.
+- Implement selection model.
+- Implement edit transactions.
+- Implement undo/redo.
+- Track dirty state.
+- Preserve newline style where possible.
+- Add buffer edit tests.
 
-## Phase 3: Search and Log Viewing
+Primary crate: `dun-core`.
 
-- Add search within buffers.
-- Add read-only log view mode.
-- Add streaming or chunked reading for large files.
-- Add tail-follow mode if practical.
-- Add built-in grep-like filtering.
-- Add extracted field display for structured log views.
+## Phase 3: File Loading and Display Safety
 
-## Phase 4: Plugin Boundary Without rum
+Goal: safe file round trips and safe terminal display.
+
+- Implement UTF-8-first file loading.
+- Define invalid-byte fallback behavior.
+- Add read-only fallback state for unsafe/lossy opens.
+- Implement save/save-as through host-owned file I/O.
+- Define large-file soft limit behavior.
+- Add visible diagnostics for fallback/large-file state.
+- Implement display sanitizer for ASCII controls and terminal escapes.
+- Add tests for `ESC`, OSC, BEL, NUL, DEL, CR, backspace, tabs, and long lines.
+
+Primary crates: `dun-core`, `dun-cli`, later `dun-ui`.
+
+## Phase 4: Terminal Profile, Themes, and Glyphs
+
+Goal: render consistently across common SSH terminals.
+
+- Detect or configure UTF-8 vs ASCII rendering.
+- Detect or configure 256-color, 16-color, and mono color modes.
+- Define Microsoft Edit-like default theme.
+- Define ASCII and 16-color fallback styles.
+- Keep Turbo Vision/dark/Dun themes as optional later additions.
+- Add glyph-set tests for Unicode and ASCII borders.
+
+Primary crate: `dun-term`.
+
+## Phase 5: Minimal TUI Shell
+
+Goal: a running editor frame that restores the terminal correctly.
+
+- Add `ratatui` and terminal backend dependencies compatible with Rust `1.85`.
+- Enter raw/alternate-screen mode and always restore terminal state.
+- Render menu bar, editor area, line number gutter, and status bar.
+- Render Microsoft Edit-style single-line borders for tiled child windows.
+- Translate keyboard input into `EditorCommand`.
+- Support quit, cursor movement, text insertion, save, open, find entry point.
+- Keep mouse support deferred.
+
+Primary crates: `dun-cli`, `dun-ui`, `dun-core`, `dun-term`.
+
+## Phase 6: Tiling Workspace UI
+
+Goal: keyboard-first split workflow.
+
+- Render multiple tiled windows.
+- Implement split horizontal/vertical commands.
+- Implement focus left/right/up/down.
+- Implement resize left/right/up/down.
+- Implement close focused window.
+- Implement collapse/expand focused window.
+- Implement equalize and rotate split.
+- Ensure single-buffer startup still looks like Microsoft Edit.
+
+Primary crates: `dun-core`, `dun-ui`.
+
+## Phase 7: Config and Keybindings
+
+Goal: make the app usable across inconsistent terminals.
+
+- Define typed config defaults.
+- Define keybinding schema.
+- Load a config file through Rust-owned parsing first.
+- Support terminal profile overrides.
+- Support theme selection.
+- Validate duplicate or invalid keybindings.
+- Keep future `rum` config evaluation as a producer of the same typed config.
+
+Primary crate: `dun-config`.
+
+## Phase 8: Editor Polish
+
+Goal: reach a practical Microsoft Edit-like baseline.
+
+- Search and replace.
+- Go to line.
+- File open/save-as dialogs or command-line equivalents.
+- Unsaved changes confirmation.
+- Error log dialog.
+- Help/key reference screen.
+- Better status bar fields.
+- Manual tests on common SSH terminals.
+
+## Phase 9: Future Plugin and Log Line
+
+Starts only after the editor baseline is usable and `rum` has a stable
+release-facing host API.
 
 - Define `PluginRole`.
 - Define `PluginPolicy`.
-- Define `PluginRequest`.
-- Define `PluginResponse`.
-- Define command-intent validation.
-- Add built-in Rust plugin implementations for syntax highlighting and log
-  filtering.
-- Add fixture runtime tests for policy enforcement.
-
-## Phase 5: Configuration
-
-- Define a typed configuration model.
-- Support keymap, theme, terminal overrides, and plugin registration.
-- Initially load configuration through Rust-owned parsing.
-- Keep the model compatible with a future pure `rum` configuration evaluator.
-
-## Phase 6: Future rum Adapter
-
-This phase starts only after `rum` has a stable release-facing host API.
-
-- Add a `dun-plugin-rum` adapter.
+- Define plugin input snapshots and output intents.
+- Add fixture runtime tests.
+- Add `dun-plugin-rum`.
 - Run untrusted code with pure-only capability policy.
-- Encode plugin input snapshots into `rum`.
-- Decode structured plugin output.
-- Enforce time, work, and memory limits at the host boundary.
-- Keep all file operations in `dun`.
-- Add adversarial tests for forbidden side effects and invalid outputs.
+- Add log/filter workflows after the sandbox boundary is working.
 
-## Phase 7: Hardening
+## Phase 10: Hardening
 
 - Crash recovery paths.
 - Corrupt file handling.
 - Non-UTF-8 file strategy.
 - Low-capability terminal test matrix.
-- Large log performance baselines.
-- Security audit suite for plugin policy enforcement.
+- Large-file performance baselines.
+- Security audit suite for control-byte rendering and plugin policy.

@@ -1,0 +1,17 @@
+[package]
+name = "dun-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Command-line entry point for dun."
+
+[[bin]]
+name = "dun"
+path = "src/main.rs"
+
+[dependencies]
+dun-config.workspace = true
+dun-core.workspace = true
+dun-term.workspace = true
+dun-ui.workspace = true

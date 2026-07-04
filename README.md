@@ -1,8 +1,8 @@
 # dun
 
 `dun` is a planned terminal text editor for remote operations work: SSH into a
-Linux or macOS host, inspect and edit text files, read large logs, filter
-custom log formats, and keep working even on conservative terminal setups.
+Linux or macOS host, inspect and edit text files, and keep working even on
+conservative terminal setups.
 
 The intended UI is a `ratatui`-based TUI with a restrained, keyboard-first
 style inspired by classic editor interfaces such as `msedit`.
@@ -19,20 +19,22 @@ The current baseline decisions are:
 - SSH and server-side troubleshooting are primary use cases.
 - UTF-8 and 256 colors are the default rendering target.
 - 16-color, low-capability, and ASCII-only fallback modes are required.
+- The first usable version is a Microsoft Edit-like text editor, not the full
+  log/plugin product.
 - A future plugin system will be designed around `rum`, but `rum` is not a
   dependency until its release API is stable enough to embed.
 
 ## Product Goal
 
-`dun` should make the common operational loop fast:
+The first product line should make the common remote editing loop fast:
 
-1. Open or tail a service log.
-2. Search, narrow, and filter records.
-3. Use small, local custom filters for non-standard log formats.
-4. Inspect related files.
-5. Apply small edits safely when needed.
+1. Open a text file or start an untitled buffer.
+2. Navigate and edit safely over SSH.
+3. Search and replace.
+4. Split the workspace when comparing files.
+5. Save with predictable host-owned file I/O.
 
-The long-term plugin story is especially aimed at operational filters:
+The long-term plugin story is still aimed at operational filters:
 operators should be able to write concise rule-style filters for custom logs
 without granting those filters filesystem, process, or network access.
 
@@ -46,18 +48,18 @@ For the initial line, `dun` is not:
 - a shell automation environment;
 - a terminal emulator;
 - a replacement for `less`, `vim`, or `emacs` in every workflow.
+- a log-analysis engine in the first usable version.
 
 ## Architecture Sketch
 
-The code should keep these boundaries clear even if the first implementation
-starts as a single Cargo package:
+The codebase is a Cargo workspace with these initial boundaries:
 
-- `dun-core`: buffers, cursors, selections, undo/redo, edits, search, and log
-  view data structures.
+- `dun-core`: buffers, cursors, selections, undo/redo, edits, search, and
+  future log view data structures.
 - `dun-term`: terminal capability detection, color profile, glyph profile, and
   input normalization.
-- `dun-ui`: `ratatui` views, menus, dialogs, status lines, command palette, and
-  layout.
+- `dun-ui`: `ratatui` views, menus, dialogs, status lines, command palette,
+  layout, and lightweight tiled-window rendering.
 - `dun-command`: typed editor commands and command validation.
 - `dun-config`: configuration loading and validation.
 - `dun-plugin-api`: plugin roles, policies, input snapshots, and output intents.
@@ -103,3 +105,12 @@ drawing.
 - [TODO.md](./TODO.md): active and near-term task list.
 - [PROGRESS.md](./PROGRESS.md): append-only progress log.
 - [AUDIT.md](./AUDIT.md): security boundary and audit checklist.
+- [docs/msedit-reference.md](./docs/msedit-reference.md): local notes from
+  studying Microsoft Edit as a visual and interaction reference.
+- [docs/window-management.md](./docs/window-management.md): lightweight
+  tiling-window workspace model inspired by `tmux`/`i3`/`awesome`.
+- [docs/editor-baseline.md](./docs/editor-baseline.md): first-version product
+  decisions around encoding, large files, theme, keybindings, mouse, and log
+  deferral.
+- [docs/crate-map.md](./docs/crate-map.md): current Rust workspace crate
+  boundaries and dependency rules.

@@ -107,6 +107,22 @@ Required controls:
 - keep filtering streaming-friendly;
 - keep UI responsive under slow filters.
 
+## Buffer Display Safety
+
+Every byte that came from a file, paste, log, config, plugin, or error payload
+is untrusted for terminal rendering.
+
+Required controls:
+
+- do not emit C0/C1 control bytes directly to the terminal;
+- never emit `ESC` or OSC sequences from buffer content;
+- render controls using visible notation such as `^[`, `^G`, `^@`, and `^?`;
+- cap display work for very long lines;
+- keep original bytes separate from display cells;
+- make lossy or read-only fallback decoding visible to the user.
+
+Saving must not silently corrupt files opened through a fallback or lossy path.
+
 ## Future rum Integration Requirements
 
 Before adding a `rum` adapter:
@@ -119,6 +135,7 @@ Before adding a `rum` adapter:
 - The adapter must enforce timeout/cancel limits.
 - A memory budget strategy must be documented before enabling long-running
   plugin workflows.
+- Log/filter workflows should wait until this boundary can be used deliberately.
 
 ## Audit Test Checklist
 
@@ -130,6 +147,9 @@ Add tests for:
 - log lines containing terminal escape sequences;
 - huge log records;
 - invalid UTF-8 handling strategy;
+- buffer text containing `ESC`, OSC, BEL, NUL, DEL, CR, and backspace;
+- save behavior for lossy/fallback opened files;
+- large-file threshold behavior;
 - plugin timeout;
 - plugin cancellation;
 - plugin crash or runtime failure;

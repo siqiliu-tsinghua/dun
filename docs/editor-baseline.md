@@ -1,0 +1,135 @@
+# Editor Baseline Decisions
+
+This document records the first usable product line for `dun`.
+
+The initial target is a lightweight Microsoft Edit-style terminal editor with a
+tiling split workspace. Log processing, `rum` plugins, and programmable filters
+remain important long-term goals, but they are not part of the first editor
+baseline.
+
+## Initial Scope
+
+First baseline:
+
+- open one file or start with one untitled buffer;
+- show a Microsoft Edit-like menu/status/editor surface;
+- edit UTF-8 text;
+- save and save-as;
+- search and replace;
+- undo/redo;
+- basic tiled splits;
+- configurable keybindings;
+- safe rendering of all file content.
+
+Deferred:
+
+- log tailing and structured log filtering;
+- `rum` integration;
+- plugin execution;
+- mouse-first workflows;
+- broad encoding conversion;
+- regex-heavy search/filter tooling.
+
+## Encoding
+
+Default encoding is UTF-8.
+
+The first fallback should be deliberately simple:
+
+- valid UTF-8 is editable;
+- invalid UTF-8 is displayed safely with visible byte escapes or replacement
+  markers;
+- editing invalid-byte files may be read-only until a clearer byte-preserving
+  edit model exists;
+- ASCII-only terminals use ASCII-safe rendering, not a different file encoding
+  model.
+
+Saving must not silently corrupt unknown bytes. If a buffer was opened in a
+lossy/read-only fallback mode, the UI must make that state visible.
+
+## Large Files
+
+Use a Vim-inspired conservative policy rather than promising arbitrary large
+editable files.
+
+Principles:
+
+- normal editable buffers have a size threshold;
+- files over the threshold open with a prompt or in a protected read-only mode;
+- expensive features can be disabled for large files;
+- scanning operations must be cancelable;
+- very long lines need display caps;
+- saving should use predictable host-owned file I/O.
+
+The exact threshold is not fixed yet. It should be configurable and informed by
+testing on modest SSH/server environments.
+
+The future log viewer can use a different chunked/streaming model, but that is
+not part of the first editor baseline.
+
+## UI Theme
+
+The default theme should feel like Microsoft Edit:
+
+- colored top menu bar;
+- colored bottom status bar;
+- dark editor background;
+- focused tiled window visible but not visually heavy;
+- single-line Unicode borders for dialogs and tiled windows.
+
+Required fallback:
+
+- ASCII borders: `+`, `-`, `|`;
+- 16-color palette;
+- monochrome-safe style.
+
+Optional later themes:
+
+- `msedit`: default;
+- `turbo`: more classic Turbo Vision-inspired colors;
+- `dark`: restrained generic dark theme;
+- `dun`: a project-owned theme tuned for long SSH sessions.
+
+The theme layer must be independent from the editor core.
+
+## Keybindings
+
+Keybindings must be configurable from the start.
+
+Reasons:
+
+- terminals differ;
+- KVM/IPMI devices often handle modifier keys poorly;
+- SSH clients vary;
+- users may prefer Microsoft Edit, Vim-like, or tmux-like split commands.
+
+The initial implementation may hard-code defaults internally, but the command
+model must not assume those defaults are permanent.
+
+## Mouse
+
+Mouse support is useful but not required for the first baseline.
+
+Deferred mouse features:
+
+- selection;
+- right-click paste where terminal support allows it;
+- split resize by dragging;
+- menu clicks.
+
+Every feature must remain keyboard accessible.
+
+## Log and rum Work
+
+Do not implement the log/filter product line before `rum` is ready enough to
+embed deliberately.
+
+When `rum` is available, it can power:
+
+- safe custom log filters;
+- richer search/replace;
+- internal safety-audit plugins;
+- text transformation plugins.
+
+Until then, `dun` should stay focused on the editor foundation and the tiling
+workspace.

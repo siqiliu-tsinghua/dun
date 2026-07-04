@@ -1,0 +1,11 @@
+[package]
+name = "dun-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Ratatui-facing UI shell for dun."
+
+[dependencies]
+dun-core.workspace = true
+dun-term.workspace = true

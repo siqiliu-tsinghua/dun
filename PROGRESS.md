@@ -19,3 +19,37 @@ This is an append-only progress log. Keep new entries dated and factual.
   `TODO.md`, `PROGRESS.md`, and `AUDIT.md`.
 - Initialized the git repository and minimal Cargo binary package.
 - Confirmed the local toolchain is `cargo 1.85.0` and `rustc 1.85.0`.
+- Added `/reference/` to `.gitignore` and cloned `microsoft/edit` there as a
+  local-only reference checkout.
+- Inspected Microsoft Edit commit `10cbfcc7330c894f2173611029df44ca5cb6fd77`
+  for visual layout, menu/status/dialog organization, and state model.
+- Added `docs/msedit-reference.md` to record reference observations and Dun's
+  own planned ratatui-oriented UI model.
+- Found the Rust Turbo Vision port: `turbo-vision` / `aovestdipaperino/turbo-vision-4-rust`.
+- Added a local-only checkout at `reference/turbo-vision-4-rust` and inspected
+  commit `8a4c93d93efecc672a3e7ce330af35514ce1baf7`.
+- Rejected the heavier desktop model for Dun's core UI: no sidebars, tabs,
+  floating windows, z-order, or desktop-style maximize/minimize in the baseline.
+- Decided Dun should keep a Microsoft Edit-inspired single-buffer opening
+  screen, then grow through a lightweight tiling split tree inspired by
+  `tmux`/`i3`/`awesome`.
+- Rewrote `docs/window-management.md` around tiled child windows, split
+  commands, directional focus, resizing, collapse/expand, and tree repair.
+- Confirmed first-version product scope: build the Microsoft Edit-like editor
+  foundation first; defer log/filter workflows until `rum` integration is ready.
+- Chose UTF-8 as the default file encoding with a conservative invalid-byte
+  fallback path.
+- Chose Microsoft Edit-style default colors and single-line borders, with
+  ASCII/16-color fallback and optional future Turbo Vision/dark/Dun themes.
+- Decided keybindings must be configurable because terminals and KVM devices
+  vary.
+- Deferred mouse selection/paste and split dragging until the keyboard-first
+  baseline works.
+- Added `docs/editor-baseline.md`.
+- Converted the root package into a Cargo workspace with five initial crates:
+  `dun-core`, `dun-term`, `dun-ui`, `dun-config`, and `dun-cli`.
+- Added minimal compile-tested skeleton types for commands, workspace layout,
+  terminal profiles, glyphs, themes, config limits, and the CLI entry point.
+- Added `docs/crate-map.md`.
+- Rewrote `PLAN.md` and `TODO.md` into crate-specific implementation phases
+  and task lists.

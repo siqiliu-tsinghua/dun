@@ -1,9 +1,22 @@
-[package]
-name = "dun"
+[workspace]
+resolver = "3"
+members = [
+    "crates/dun-cli",
+    "crates/dun-config",
+    "crates/dun-core",
+    "crates/dun-term",
+    "crates/dun-ui",
+]
+default-members = ["crates/dun-cli"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
-description = "Terminal editor and log inspection tool for remote operations workflows."
 
-[dependencies]
+[workspace.dependencies]
+dun-config = { path = "crates/dun-config" }
+dun-core = { path = "crates/dun-core" }
+dun-term = { path = "crates/dun-term" }
+dun-ui = { path = "crates/dun-ui" }
