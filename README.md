@@ -14,9 +14,10 @@ core, terminal profile/theme layer, typed configuration/keymap layer,
 backend-neutral UI model, and a minimal runnable `ratatui` shell.
 It can open one UTF-8 file path supplied on the command line and save the
 focused buffer back to that path.
-Interactive status-line prompts are available for Open, Save As, Find, and
-Replace entry. Find now supports next/previous navigation and selected match
-highlighting, and Replace can replace the current or next match.
+Interactive status-line prompts are available for Open, Save As, Find,
+Replace, and Go To Line entry. Find now supports next/previous navigation and
+selected match highlighting, Replace can replace the current or next match,
+and Go To Line moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty marker, and `Ln`/`Col` status.
 Dirty buffers are protected by a status-line confirmation before quit, new,

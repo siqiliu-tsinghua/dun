@@ -36,6 +36,7 @@ pub enum EditCommand {
     FindNext,
     FindPrevious,
     Replace,
+    GoToLine,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

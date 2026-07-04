@@ -82,6 +82,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Keep the focused cursor line visible while drawing.
 - [x] Implement find result navigation.
 - [x] Implement replace current/next match baseline.
+- [x] Implement go-to-line prompt.
 - [x] Show focused buffer name, dirty state, and line/column status.
 - [x] Confirm before quit/new/open/close would discard dirty buffers.
 - [ ] Return stable exit codes.

@@ -332,6 +332,7 @@ impl UiShell {
                 MenuItem::new("Open", EditorCommand::File(dun_core::FileCommand::Open)),
                 MenuItem::new("Save", EditorCommand::File(dun_core::FileCommand::Save)),
                 MenuItem::new("Find", EditorCommand::Edit(dun_core::EditCommand::Find)),
+                MenuItem::new("Go", EditorCommand::Edit(dun_core::EditCommand::GoToLine)),
                 MenuItem::new(
                     "Split",
                     EditorCommand::Window(dun_core::WindowCommand::SplitHorizontal),

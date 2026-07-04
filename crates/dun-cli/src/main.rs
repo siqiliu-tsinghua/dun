@@ -203,6 +203,10 @@ impl AppState {
                 );
                 return;
             }
+            EditCommand::GoToLine => {
+                self.start_prompt(PromptKind::GoToLine, String::new());
+                return;
+            }
             _ => {}
         }
 
@@ -254,7 +258,8 @@ impl AppState {
             | EditCommand::Find
             | EditCommand::FindNext
             | EditCommand::FindPrevious
-            | EditCommand::Replace => {}
+            | EditCommand::Replace
+            | EditCommand::GoToLine => {}
         }
     }
 
@@ -715,6 +720,15 @@ impl AppState {
                 self.last_find_query = Some(query.clone());
                 self.replace_in_focused_buffer(&query, &prompt.input);
             }
+            PromptKind::GoToLine => {
+                let input = prompt.input.trim();
+                if input.is_empty() {
+                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    return;
+                }
+
+                self.go_to_line(input);
+            }
         }
     }
 
@@ -807,6 +821,48 @@ impl AppState {
                 ));
             }
             Err(error) => self.set_status(format!("Replace failed: {}", buffer_error_text(error))),
+        }
+    }
+
+    fn go_to_line(&mut self, input: &str) {
+        let Ok(line_number) = input.parse::<usize>() else {
+            self.set_status(format!("Go to line failed: invalid line number {input}"));
+            return;
+        };
+        if line_number == 0 {
+            self.set_status("Go to line failed: line numbers start at 1");
+            return;
+        }
+
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Go to line failed: focused buffer is missing");
+            return;
+        };
+
+        let line_count = buffer.buffer.line_count();
+        if line_number > line_count {
+            self.set_status(format!(
+                "Go to line failed: line {line_number} is past end ({line_count} lines)"
+            ));
+            return;
+        }
+
+        let target_line = line_number - 1;
+        let current_column = buffer.buffer.cursor_position().column;
+        let target_column = buffer
+            .buffer
+            .line(target_line)
+            .map(|line| clamp_to_char_boundary(line, current_column))
+            .unwrap_or(0);
+
+        match buffer
+            .buffer
+            .set_cursor(Position::new(target_line, target_column))
+        {
+            Ok(()) => self.set_status(format!("Go to line: {line_number}")),
+            Err(error) => {
+                self.set_status(format!("Go to line failed: {}", buffer_error_text(error)))
+            }
         }
     }
 
@@ -981,6 +1037,7 @@ enum PromptKind {
     Find,
     ReplaceFind,
     ReplaceWith,
+    GoToLine,
 }
 
 impl PromptKind {
@@ -991,6 +1048,7 @@ impl PromptKind {
             Self::Find => "Find: ",
             Self::ReplaceFind => "Replace Find: ",
             Self::ReplaceWith => "Replace With: ",
+            Self::GoToLine => "Go To Line: ",
         }
     }
 
@@ -1000,6 +1058,7 @@ impl PromptKind {
             Self::SaveAs => "Save As",
             Self::Find => "Find",
             Self::ReplaceFind | Self::ReplaceWith => "Replace",
+            Self::GoToLine => "Go To Line",
         }
     }
 
@@ -1284,6 +1343,14 @@ fn buffer_end_position(buffer: &TextBuffer) -> Position {
     let last_line = buffer.line_count().saturating_sub(1);
     let last_column = buffer.line(last_line).map(str::len).unwrap_or(0);
     Position::new(last_line, last_column)
+}
+
+fn clamp_to_char_boundary(line: &str, column: usize) -> usize {
+    let mut column = column.min(line.len());
+    while !line.is_char_boundary(column) {
+        column -= 1;
+    }
+    column
 }
 
 fn load_text_buffer(path: &Path) -> io::Result<TextBuffer> {
@@ -1773,6 +1840,76 @@ mod tests {
             Some("Replace: no matches for z".to_string())
         );
         assert_eq!(state.buffer.selection_range(), None);
+    }
+
+    #[test]
+    fn go_to_line_prompt_moves_cursor_to_requested_line() {
+        let mut app = app_with_text("ab\ncd\nef");
+        app.buffers[0]
+            .buffer
+            .set_cursor(Position::new(0, 1))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::GoToLine));
+        assert_eq!(app.prompt_status_text(), Some("Go To Line: ".to_string()));
+
+        send_text(&mut app, "3");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.cursor_position(), Position::new(2, 1));
+        assert_eq!(state.buffer.selection_range(), None);
+        assert_eq!(app.status_message, Some("Go to line: 3".to_string()));
+    }
+
+    #[test]
+    fn go_to_line_rejects_invalid_or_out_of_range_input() {
+        let mut app = app_with_text("ab\ncd");
+        app.buffers[0]
+            .buffer
+            .set_cursor(Position::new(1, 1))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::GoToLine));
+        send_text(&mut app, "abc");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.status_message,
+            Some("Go to line failed: invalid line number abc".to_string())
+        );
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .cursor_position(),
+            Position::new(1, 1)
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::GoToLine));
+        send_text(&mut app, "9");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.status_message,
+            Some("Go to line failed: line 9 is past end (2 lines)".to_string())
+        );
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .cursor_position(),
+            Position::new(1, 1)
+        );
     }
 
     #[test]

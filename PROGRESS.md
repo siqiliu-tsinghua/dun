@@ -147,3 +147,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   and deletes the match.
 - Added replace tests for prompt flow, selected-match replacement, empty
   replacement, and missing-match status. `cargo test --workspace` passes.
+- Added Go To Line baseline: `Ctrl+G` and the menu command open a status-line
+  prompt, accept a 1-based line number, preserve the current column where
+  possible, and report invalid or out-of-range input.
+- Added CLI tests for successful Go To Line movement and invalid/out-of-range
+  input, plus a config test for the default `Ctrl+G` binding. `cargo test
+  --workspace` passes.

@@ -116,6 +116,7 @@ impl Keymap {
                 KeyBinding::new("F3", EditorCommand::Edit(EditCommand::FindNext)),
                 KeyBinding::new("Shift+F3", EditorCommand::Edit(EditCommand::FindPrevious)),
                 KeyBinding::new("Ctrl+R", EditorCommand::Edit(EditCommand::Replace)),
+                KeyBinding::new("Ctrl+G", EditorCommand::Edit(EditCommand::GoToLine)),
                 KeyBinding::new("Ctrl+A", EditorCommand::Edit(EditCommand::SelectAll)),
                 KeyBinding::new("Left", EditorCommand::Edit(EditCommand::MoveLeft)),
                 KeyBinding::new("Right", EditorCommand::Edit(EditCommand::MoveRight)),
@@ -518,6 +519,7 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Edit(EditCommand::FindNext) => "edit.find_next",
         EditorCommand::Edit(EditCommand::FindPrevious) => "edit.find_previous",
         EditorCommand::Edit(EditCommand::Replace) => "edit.replace",
+        EditorCommand::Edit(EditCommand::GoToLine) => "edit.go_to_line",
         EditorCommand::Window(WindowCommand::SplitHorizontal) => "window.split_horizontal",
         EditorCommand::Window(WindowCommand::SplitVertical) => "window.split_vertical",
         EditorCommand::Window(WindowCommand::FocusLeft) => "window.focus_left",
@@ -567,6 +569,7 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "edit.find_next" => Ok(EditorCommand::Edit(EditCommand::FindNext)),
         "edit.find_previous" => Ok(EditorCommand::Edit(EditCommand::FindPrevious)),
         "edit.replace" => Ok(EditorCommand::Edit(EditCommand::Replace)),
+        "edit.go_to_line" => Ok(EditorCommand::Edit(EditCommand::GoToLine)),
         "window.split_horizontal" => Ok(EditorCommand::Window(WindowCommand::SplitHorizontal)),
         "window.split_vertical" => Ok(EditorCommand::Window(WindowCommand::SplitVertical)),
         "window.focus_left" => Ok(EditorCommand::Window(WindowCommand::FocusLeft)),
@@ -742,6 +745,11 @@ mod tests {
         assert_eq!(
             keymap.command_for_sequence(&sequence),
             Some(&EditorCommand::File(FileCommand::Save))
+        );
+
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Ctrl+G").unwrap()),
+            Some(&EditorCommand::Edit(EditCommand::GoToLine))
         );
     }
 
