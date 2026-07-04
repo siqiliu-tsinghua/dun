@@ -18,9 +18,10 @@ use crossterm::terminal::{
 use dun_config::{Key, KeyModifiers, KeySequence, KeyStroke};
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
-    FileCommand, Position, Rect, SearchMatch, TextBuffer, TextRange, WindowCommand, WindowId,
-    WindowKind, Workspace,
+    FileCommand, LineEnding, Position, Rect, SearchMatch, TextBuffer, TextRange, WindowCommand,
+    WindowId, WindowKind, Workspace,
 };
+use dun_term::{ColorProfile, EncodingProfile, TerminalProfile};
 use dun_ui::{BufferView, UiShell};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
@@ -1106,17 +1107,14 @@ impl AppState {
         format!("{name}{dirty}{read_only}")
     }
 
-    fn focused_position_status(&self) -> String {
-        let Some(buffer_id) = self
-            .workspace
-            .focused_window()
-            .ok()
-            .map(|window| window.buffer_id)
-        else {
-            return "Ln -, Col -".to_string();
+    fn focused_detail_status(&self) -> String {
+        let profile = terminal_profile_status(self.shell.profile);
+        let window = self.focused_window_status();
+        let Some(buffer_id) = self.focused_buffer_id() else {
+            return format!("Ln -, Col - | {profile} | {window}");
         };
         let Some(buffer) = self.buffer_state(buffer_id) else {
-            return "Ln -, Col -".to_string();
+            return format!("Ln -, Col - | {profile} | {window}");
         };
 
         let position = buffer.buffer.cursor_position();
@@ -1127,7 +1125,37 @@ impl AppState {
             .map(|prefix| UnicodeWidthStr::width(prefix) + 1)
             .unwrap_or(1);
 
-        format!("Ln {}, Col {}", position.line + 1, column)
+        let mut parts = vec![
+            format!(
+                "Ln {}/{}, Col {}",
+                position.line + 1,
+                buffer.buffer.line_count(),
+                column
+            ),
+            line_ending_status(buffer.buffer.line_ending()).to_string(),
+            profile,
+            window,
+        ];
+        if let Some(selection) = selection_status(&buffer.buffer) {
+            parts.insert(1, selection);
+        }
+
+        parts.join(" | ")
+    }
+
+    fn focused_window_status(&self) -> String {
+        let total = self.workspace.window_count();
+        let Some(index) = self
+            .workspace
+            .windows
+            .iter()
+            .position(|window| window.id == self.workspace.focused)
+            .map(|index| index + 1)
+        else {
+            return format!("Win -/{total}");
+        };
+
+        format!("Win {index}/{total}")
     }
 
     fn drop_buffer_if_unreferenced(&mut self, id: BufferId) {
@@ -1284,6 +1312,51 @@ fn current_match_selection(
         })
 }
 
+fn selection_status(buffer: &TextBuffer) -> Option<String> {
+    let range = buffer.selection_range()?;
+    if range.is_empty() {
+        return None;
+    }
+
+    if range.start.line == range.end.line {
+        let line = buffer.line(range.start.line)?;
+        let selected = &line[range.start.column..range.end.column];
+        return Some(format!("Sel {}c", UnicodeWidthStr::width(selected)));
+    }
+
+    Some(format!("Sel {}L", range.end.line - range.start.line + 1))
+}
+
+const fn line_ending_status(line_ending: LineEnding) -> &'static str {
+    match line_ending {
+        LineEnding::Lf => "LF",
+        LineEnding::CrLf => "CRLF",
+    }
+}
+
+fn terminal_profile_status(profile: TerminalProfile) -> String {
+    format!(
+        "{}/{}",
+        encoding_status(profile.encoding),
+        color_status(profile.colors)
+    )
+}
+
+const fn encoding_status(encoding: EncodingProfile) -> &'static str {
+    match encoding {
+        EncodingProfile::Utf8 => "UTF-8",
+        EncodingProfile::Ascii => "ASCII",
+    }
+}
+
+const fn color_status(colors: ColorProfile) -> &'static str {
+    match colors {
+        ColorProfile::Color256 => "256c",
+        ColorProfile::Color16 => "16c",
+        ColorProfile::Mono => "mono",
+    }
+}
+
 const fn buffer_error_text(error: BufferError) -> &'static str {
     match error {
         BufferError::InvalidPosition(_) => "invalid position",
@@ -1409,7 +1482,7 @@ fn run_event_loop(
             } else {
                 ui_frame.status.left = app.focused_buffer_status();
             }
-            ui_frame.status.right = app.focused_position_status();
+            ui_frame.status.right = app.focused_detail_status();
             app.shell.render(frame, &ui_frame);
             if let Some(column) = app.prompt_cursor_column() {
                 let area = frame.area();
@@ -2291,14 +2364,53 @@ mod tests {
     }
 
     #[test]
-    fn focused_position_status_uses_display_column() {
+    fn focused_detail_status_reports_position_and_buffer_metadata() {
         let mut app = app_with_text("a\n中x");
+        app.shell.profile = TerminalProfile::new(EncodingProfile::Ascii, ColorProfile::Mono);
         app.buffers[0]
             .buffer
             .set_cursor(Position::new(1, "中".len()))
             .unwrap();
 
-        assert_eq!(app.focused_position_status(), "Ln 2, Col 3");
+        assert_eq!(
+            app.focused_detail_status(),
+            "Ln 2/2, Col 3 | LF | ASCII/mono | Win 1/1"
+        );
+    }
+
+    #[test]
+    fn focused_detail_status_reports_crlf_and_focused_window_index() {
+        let mut app = AppState::new();
+        app.shell.profile = TerminalProfile::new(EncodingProfile::Utf8, ColorProfile::Color16);
+        app.buffers[0].buffer = TextBuffer::from_text("one\r\ntwo");
+        app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+
+        assert_eq!(
+            app.focused_detail_status(),
+            "Ln 1/1, Col 1 | LF | UTF-8/16c | Win 2/2"
+        );
+
+        app.workspace.focused = WindowId(1);
+
+        assert_eq!(
+            app.focused_detail_status(),
+            "Ln 1/2, Col 1 | CRLF | UTF-8/16c | Win 1/2"
+        );
+    }
+
+    #[test]
+    fn focused_detail_status_reports_selection_summary() {
+        let mut app = app_with_text("abc def");
+        app.shell.profile = TerminalProfile::utf8_256();
+        app.buffers[0]
+            .buffer
+            .select(Position::new(0, 0), Position::new(0, 3))
+            .unwrap();
+
+        assert_eq!(
+            app.focused_detail_status(),
+            "Ln 1/1, Col 4 | Sel 3c | LF | UTF-8/256c | Win 1/1"
+        );
     }
 
     #[test]

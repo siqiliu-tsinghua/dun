@@ -19,7 +19,8 @@ Replace, and Go To Line entry. Find now supports next/previous navigation and
 selected match highlighting, Replace can replace the current or next match,
 and Go To Line moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
-dirty marker, and `Ln`/`Col` status.
+dirty/read-only markers, and status fields for position, total lines,
+selection, line ending, terminal profile, and focused window index.
 `F1` opens a read-only Help window with the default key reference.
 `F2` opens a read-only Status History window with recent status and error
 messages.

@@ -166,3 +166,9 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added tests for status history window creation, duplicate prevention, close
   cleanup, live refresh, capped history length, F2 dispatch, default keymap,
   and Status menu exposure. `cargo test --workspace` passes.
+- Expanded the right status bar details in `dun-cli`: it now shows current
+  line over total line count, display column, active selection summary,
+  line-ending style, terminal encoding/color profile, and focused window index.
+- Added CLI tests for UTF-8 display columns, CRLF metadata, terminal profile
+  labels, focused window index, and selection summaries. `cargo test
+  --workspace` passes.

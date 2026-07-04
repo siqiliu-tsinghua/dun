@@ -176,7 +176,7 @@ Goal: reach a practical Microsoft Edit-like baseline.
 - [x] Unsaved changes confirmation.
 - [x] Error log/status history baseline.
 - [x] Help/key reference screen.
-- [ ] Better status bar fields.
+- [x] Better status bar fields.
 - [ ] Manual tests on common SSH terminals.
 
 ## Phase 9: Future Plugin and Log Line

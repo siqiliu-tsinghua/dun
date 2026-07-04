@@ -85,6 +85,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Implement go-to-line prompt.
 - [x] Implement read-only help/key reference window.
 - [x] Implement status history window.
+- [x] Expand status bar detail fields.
 - [x] Show focused buffer name, dirty state, and line/column status.
 - [x] Confirm before quit/new/open/close would discard dirty buffers.
 - [ ] Return stable exit codes.
