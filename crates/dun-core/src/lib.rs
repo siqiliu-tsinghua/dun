@@ -6,4 +6,7 @@ pub mod workspace;
 
 pub use buffer::{BufferId, BufferKind};
 pub use command::{AppCommand, EditCommand, EditorCommand, FileCommand, WindowCommand};
-pub use workspace::{Axis, LayoutNode, WindowId, WindowKind, WindowState, Workspace};
+pub use workspace::{
+    Axis, Direction, LayoutNode, Rect, WindowId, WindowKind, WindowLayout, WindowState, Workspace,
+    WorkspaceError,
+};

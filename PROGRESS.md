@@ -53,3 +53,9 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added `docs/crate-map.md`.
 - Rewrote `PLAN.md` and `TODO.md` into crate-specific implementation phases
   and task lists.
+- Implemented the first pure `dun-core` tiling workspace model: split focused
+  window, close focused window with tree repair, directional focus, ratio
+  resize, collapse/expand state, equalize, rotate split, and rectangle
+  resolution.
+- Added `dun-core` unit tests for split-tree transitions and workspace edge
+  cases. `cargo test --workspace` passes.

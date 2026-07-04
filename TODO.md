@@ -11,24 +11,24 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Create initial crates: `dun-core`, `dun-term`, `dun-ui`, `dun-config`,
   `dun-cli`.
 - [x] Add crate boundary documentation.
-- [ ] Commit the current workspace/documentation baseline.
+- [x] Commit the current workspace/documentation baseline.
 
 ## `dun-core`
 
-- [ ] Replace placeholder id types with an allocation strategy.
+- [x] Replace placeholder id types with an allocation strategy.
 - [ ] Define first real text buffer representation.
 - [ ] Define cursor and selection types.
 - [ ] Define edit transaction type.
 - [ ] Implement insert/delete/newline.
 - [ ] Implement undo/redo.
 - [ ] Implement dirty-state tracking.
-- [ ] Implement split focused window.
-- [ ] Implement close focused window and tree repair.
-- [ ] Implement directional focus movement.
-- [ ] Implement split ratio resize.
-- [ ] Implement collapse/expand.
+- [x] Implement split focused window.
+- [x] Implement close focused window and tree repair.
+- [x] Implement directional focus movement.
+- [x] Implement split ratio resize.
+- [x] Implement collapse/expand.
 - [ ] Add unit tests for buffer edits.
-- [ ] Add unit tests for split-tree transitions.
+- [x] Add unit tests for split-tree transitions.
 
 ## `dun-term`
 

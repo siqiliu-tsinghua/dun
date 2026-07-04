@@ -33,7 +33,7 @@ See [docs/crate-map.md](./docs/crate-map.md) for crate boundaries.
 
 ## Phase 0: Baseline
 
-Status: mostly complete.
+Status: complete.
 
 - [x] Establish project documents.
 - [x] Record plugin security boundary.
@@ -42,23 +42,25 @@ Status: mostly complete.
 - [x] Initialize git and Cargo.
 - [x] Convert the package into a lightweight workspace.
 - [x] Add minimal crate skeletons.
-- [ ] Commit the workspace/documentation baseline.
+- [x] Commit the workspace/documentation baseline.
 
 ## Phase 1: Core Types and Pure State
 
 Goal: enough pure data model to test editor and tiling behavior without a
 terminal.
 
-- Define stable id types: `BufferId`, `WindowId`.
-- Define buffer metadata and editable/read-only state.
-- Define `EditorCommand` families.
-- Define `Workspace`, `LayoutNode`, and `WindowState`.
-- Implement split focused window.
-- Implement close focused window and layout tree repair.
-- Implement directional focus movement.
-- Implement split resize by ratio.
-- Implement collapse/expand.
-- Add unit tests for each layout transition.
+- [x] Define stable id types: `BufferId`, `WindowId`.
+- [x] Define buffer metadata and editable/read-only state.
+- [x] Define `EditorCommand` families.
+- [x] Define `Workspace`, `LayoutNode`, and `WindowState`.
+- [x] Implement split focused window.
+- [x] Implement close focused window and layout tree repair.
+- [x] Implement directional focus movement.
+- [x] Implement split resize by ratio.
+- [x] Implement collapse/expand state.
+- [x] Add unit tests for each layout transition.
+- [ ] Choose first text buffer representation.
+- [ ] Define cursor, selection, edit transactions, and dirty-state tracking.
 
 Primary crate: `dun-core`.
 
