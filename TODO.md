@@ -96,7 +96,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Reject invalid UTF-8 files instead of opening them lossy.
 - [ ] Define invalid-byte fallback behavior.
 - [ ] Prevent save from silently corrupting lossy/fallback buffers.
-- [ ] Define large-file soft limit behavior.
+- [x] Define large-file soft limit behavior.
 - [x] Implement display sanitizer for C0/C1 controls.
 - [x] Render `ESC`, OSC, BEL, NUL, DEL, CR, and backspace visibly.
 - [x] Add tests for terminal-injection payloads.

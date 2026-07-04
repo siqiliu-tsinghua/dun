@@ -196,3 +196,10 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Stabilized the PTY smoke harness so it waits for a rendered ready marker
   before sending `Ctrl+Q`, reducing timing-sensitive missed-key failures.
   `cargo test -p dun-cli --test pty_smoke` and `cargo test --workspace` pass.
+- Implemented editable file soft-limit enforcement in `dun-cli`. Startup and
+  interactive Open now reject files above
+  `Config::limits.editable_file_soft_limit_bytes` before they become editable
+  buffers, with the current default remaining 16 MiB.
+- Added CLI tests for accepting files exactly at the soft limit, rejecting
+  files over the limit on startup, and reporting over-limit files through the
+  Open prompt status path.

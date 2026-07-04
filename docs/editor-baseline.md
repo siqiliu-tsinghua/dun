@@ -68,6 +68,12 @@ Principles:
 The exact threshold is not fixed yet. It should be configurable and informed by
 testing on modest SSH/server environments.
 
+Current implementation note: editable file loading uses the typed
+`Config::limits.editable_file_soft_limit_bytes` value. The default is 16 MiB.
+Files larger than the limit are rejected before becoming editable buffers, and
+interactive Open reports the failure through the status line. A protected
+read-only large-file mode remains a later step.
+
 The future log viewer can use a different chunked/streaming model, but that is
 not part of the first editor baseline.
 

@@ -3,7 +3,7 @@
 use std::env;
 use std::ffi::OsString;
 use std::fs;
-use std::io::{self, Stdout};
+use std::io::{self, Read, Stdout};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
@@ -16,7 +16,7 @@ use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use dun_config::{Key, KeyModifiers, KeySequence, KeyStroke};
+use dun_config::{Config, Key, KeyModifiers, KeySequence, KeyStroke, Limits};
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
     FileCommand, LineEnding, Position, Rect, SearchMatch, TextBuffer, WindowCommand, WindowId,
@@ -226,6 +226,7 @@ struct AppState {
     workspace: Workspace,
     buffers: Vec<BufferState>,
     shell: UiShell,
+    limits: Limits,
     should_quit: bool,
     workspace_area: Rect,
     pending_keys: Vec<KeyStroke>,
@@ -239,14 +240,19 @@ struct AppState {
 
 impl AppState {
     fn new() -> Self {
-        let config = dun_config::Config::default();
+        Self::from_config(Config::default())
+    }
+
+    fn from_config(config: Config) -> Self {
         let detected_profile = detect_terminal_profile();
         let shell = UiShell::from_config(&config, detected_profile);
+        let limits = config.limits;
 
         Self {
             workspace: Workspace::new_untitled(),
             buffers: vec![BufferState::new(BufferId(1), TextBuffer::new_untitled())],
             shell,
+            limits,
             should_quit: false,
             workspace_area: Rect::default(),
             pending_keys: Vec::new(),
@@ -261,6 +267,15 @@ impl AppState {
 
     fn from_path(path: Option<PathBuf>) -> io::Result<Self> {
         let mut app = Self::new();
+        if let Some(path) = path {
+            app.open_file_path(path)?;
+        }
+        Ok(app)
+    }
+
+    #[cfg(test)]
+    fn from_config_path(config: Config, path: Option<PathBuf>) -> io::Result<Self> {
+        let mut app = Self::from_config(config);
         if let Some(path) = path {
             app.open_file_path(path)?;
         }
@@ -529,7 +544,7 @@ impl AppState {
     }
 
     fn open_file_path(&mut self, path: PathBuf) -> io::Result<()> {
-        let buffer = load_text_buffer(&path)?;
+        let buffer = load_text_buffer(&path, self.limits)?;
         self.replace_focused_buffer_with_file(path, buffer);
         Ok(())
     }
@@ -1830,8 +1845,8 @@ fn clamp_to_char_boundary(line: &str, column: usize) -> usize {
     column
 }
 
-fn load_text_buffer(path: &Path) -> io::Result<TextBuffer> {
-    let bytes = fs::read(path)?;
+fn load_text_buffer(path: &Path, limits: Limits) -> io::Result<TextBuffer> {
+    let bytes = read_editable_file(path, limits.editable_file_soft_limit_bytes)?;
     let text = String::from_utf8(bytes).map_err(|error| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -1839,6 +1854,40 @@ fn load_text_buffer(path: &Path) -> io::Result<TextBuffer> {
         )
     })?;
     Ok(TextBuffer::from_text(&text))
+}
+
+fn read_editable_file(path: &Path, soft_limit: u64) -> io::Result<Vec<u8>> {
+    let file = fs::File::open(path)?;
+    let metadata = file.metadata()?;
+    if metadata.is_file() && metadata.len() > soft_limit {
+        return Err(editable_file_soft_limit_error(
+            path,
+            metadata.len(),
+            soft_limit,
+        ));
+    }
+
+    let mut reader = file.take(soft_limit.saturating_add(1));
+    let mut bytes = Vec::new();
+    reader.read_to_end(&mut bytes)?;
+    let bytes_read = bytes.len() as u64;
+    if bytes_read > soft_limit {
+        return Err(editable_file_soft_limit_error(path, bytes_read, soft_limit));
+    }
+
+    Ok(bytes)
+}
+
+fn editable_file_soft_limit_error(path: &Path, size: u64, soft_limit: u64) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "{} is too large for editable mode: {} bytes exceeds the {} byte soft limit",
+            path.display(),
+            size,
+            soft_limit,
+        ),
+    )
 }
 
 fn title_for_path(path: &Path) -> String {
@@ -2224,6 +2273,63 @@ mod tests {
         };
 
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn file_at_editable_soft_limit_is_accepted() {
+        let path = temp_file_path("soft-limit-ok.txt");
+        std::fs::write(&path, "abcd").unwrap();
+        let config = config_with_editable_file_soft_limit(4);
+
+        let app = AppState::from_config_path(config, Some(path.clone())).unwrap();
+
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "abcd"
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn file_over_editable_soft_limit_is_rejected_before_editing() {
+        let path = temp_file_path("soft-limit-large.txt");
+        std::fs::write(&path, "abcd").unwrap();
+        let config = config_with_editable_file_soft_limit(3);
+
+        let error = match AppState::from_config_path(config, Some(path.clone())) {
+            Ok(_) => panic!("file above editable soft limit should be rejected"),
+            Err(error) => error,
+        };
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("too large for editable mode"));
+        assert!(error.to_string().contains("3 byte soft limit"));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn open_prompt_reports_file_over_editable_soft_limit() {
+        let path = temp_file_path("prompt-soft-limit-large.txt");
+        std::fs::write(&path, "abcd").unwrap();
+        let mut app = AppState::from_config(config_with_editable_file_soft_limit(3));
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "");
+        assert_eq!(state.path, None);
+        let status = app.status_message.as_deref().unwrap_or_default();
+        assert!(status.starts_with("Open failed: "));
+        assert!(status.contains("too large for editable mode"));
 
         let _ = std::fs::remove_file(path);
     }
@@ -2838,6 +2944,16 @@ mod tests {
             app.status_message,
             Some("Unsaved changes cancelled".to_string())
         );
+    }
+
+    fn config_with_editable_file_soft_limit(limit: u64) -> Config {
+        Config {
+            limits: Limits {
+                editable_file_soft_limit_bytes: limit,
+                ..Limits::default()
+            },
+            ..Config::default()
+        }
     }
 
     fn temp_file_path(name: &str) -> PathBuf {

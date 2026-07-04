@@ -14,6 +14,8 @@ core, terminal profile/theme layer, typed configuration/keymap layer,
 backend-neutral UI model, and a minimal runnable `ratatui` shell.
 It can open one UTF-8 file path supplied on the command line and save the
 focused buffer back to that path.
+Editable file loading enforces the configured soft limit before reading large
+files into memory; the default editable limit is 16 MiB.
 Interactive status-line prompts are available for Open, Save As, Find,
 Replace, and Go To Line entry. Find now supports next/previous navigation and
 selected match highlighting, Replace can replace the current or next match,

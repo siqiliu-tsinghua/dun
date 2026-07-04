@@ -88,7 +88,7 @@ Goal: safe file round trips and safe terminal display.
 - [ ] Define invalid-byte fallback behavior.
 - [ ] Add read-only fallback state for unsafe/lossy opens.
 - [ ] Implement save/save-as through host-owned file I/O.
-- [ ] Define large-file soft limit behavior.
+- [x] Define large-file soft limit behavior.
 - [ ] Add visible diagnostics for fallback/large-file state.
 - [x] Implement display sanitizer for ASCII controls and terminal escapes.
 - [x] Add tests for `ESC`, OSC, BEL, NUL, DEL, CR, backspace, tabs, and long
