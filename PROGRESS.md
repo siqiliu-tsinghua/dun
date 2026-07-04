@@ -179,3 +179,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   success/help/version, `1` for runtime or file I/O errors, and `2` for
   command-line usage errors. Added parser and exit-code tests. `cargo test
   --workspace` passes.
+- Added the first PTY smoke test harness for `dun-cli` using the system
+  `expect(1)` command when available. The tests run the real `dun` binary in a
+  fixed-size pseudo-terminal, send `Ctrl+Q`, and check clean startup/exit under
+  `xterm-256color`, `screen-256color`, and `vt100`-style profiles, plus startup
+  rendering for an opened UTF-8 file.
+- Recorded future optional Microsoft Edit reference/differential tests in
+  `TODO.md`, to be added only when Dun's own baseline behavior is mature enough
+  for useful comparison.

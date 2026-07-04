@@ -102,6 +102,13 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add tests for terminal-injection payloads.
 - [x] Cap display work for very long lines.
 
+## Terminal Compatibility Testing
+
+- [x] Add PTY smoke tests for common SSH-style terminal profiles.
+- [ ] Run manual checks on real common SSH terminals.
+- [ ] Add optional Microsoft Edit reference/differential tests when Dun's
+  baseline UI and command behavior are stable enough to compare usefully.
+
 ## Deferred
 
 - [ ] Mouse selection, right-click paste, and split dragging.
