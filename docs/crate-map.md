@@ -13,10 +13,12 @@ dun-cli
   -> dun-ui
 
 dun-ui
+  -> dun-config
   -> dun-core
   -> dun-term
 
 dun-config
+  -> dun-core
   -> dun-term
 
 dun-core
@@ -93,6 +95,7 @@ Responsibilities:
 - theme selection;
 - terminal override settings;
 - resource/large-file limits;
+- command id mapping for typed keybindings;
 - future config validation.
 
 The first config format can be Rust defaults. Future `rum` config evaluation

@@ -7,4 +7,5 @@ license.workspace = true
 description = "Typed configuration model for dun."
 
 [dependencies]
+dun-core.workspace = true
 dun-term.workspace = true

@@ -152,6 +152,20 @@ Reasons:
 The initial implementation may hard-code defaults internally, but the command
 model must not assume those defaults are permanent.
 
+The first config schema is typed:
+
+- `KeySequence` is a comma-separated list of `KeyStroke` values;
+- `KeyStroke` contains a key plus Shift/Ctrl/Alt modifiers;
+- `Keymap` resolves key sequences to `EditorCommand`;
+- duplicate key sequences are rejected by validation;
+- command ids such as `file.save` and `window.split_horizontal` round trip to
+  typed commands;
+- theme and terminal profile overrides live in the same typed `Config`.
+
+The first UI integration consumes this model before ratatui is introduced. It
+builds a backend-neutral frame containing menu items, a status bar, tiled
+windows, resolved glyphs/theme, and sanitized buffer lines.
+
 ## Mouse
 
 Mouse support is useful but not required for the first baseline.

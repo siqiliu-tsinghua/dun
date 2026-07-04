@@ -7,5 +7,6 @@ license.workspace = true
 description = "Ratatui-facing UI shell for dun."
 
 [dependencies]
+dun-config.workspace = true
 dun-core.workspace = true
 dun-term.workspace = true

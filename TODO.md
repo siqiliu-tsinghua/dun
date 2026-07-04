@@ -42,6 +42,9 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 ## `dun-ui`
 
+- [x] Build backend-neutral frame model from config, workspace, and buffers.
+- [x] Resolve theme, glyph, keymap, and display sanitizer in `UiShell`.
+- [x] Sanitize buffer lines before they enter the UI frame model.
 - [ ] Select `ratatui` and backend versions compatible with Rust `1.85`.
 - [ ] Render menu bar.
 - [ ] Render status bar.
@@ -53,12 +56,13 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 ## `dun-config`
 
-- [ ] Define typed keybinding schema.
-- [ ] Define default keymap.
-- [ ] Define theme selection config.
-- [ ] Define terminal override config.
-- [ ] Define large-file and display limits.
-- [ ] Add config validation tests.
+- [x] Define typed config defaults.
+- [x] Define typed keybinding schema.
+- [x] Define default keymap.
+- [x] Define theme selection config.
+- [x] Define terminal override config.
+- [x] Define large-file and display limits.
+- [x] Add config validation tests.
 
 ## `dun-cli`
 

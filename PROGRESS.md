@@ -73,3 +73,9 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Implemented `dun-core::DisplaySanitizer` for safe display of untrusted text,
   including visible control rendering, OSC/escape neutralization, ASCII
   fallback escaping, and long-line caps.
+- Implemented the first `dun-config` typed configuration schema: theme
+  selection, terminal overrides, limits validation, typed key sequences,
+  default keymap, command ids, duplicate binding validation, and tests.
+- Connected `dun-ui` to config/core/term with a backend-neutral frame model
+  that resolves theme, glyphs, keybindings, sanitized buffer lines, menu data,
+  status data, and tiled window rectangles without file I/O.

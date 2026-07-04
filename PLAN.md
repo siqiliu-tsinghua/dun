@@ -113,13 +113,18 @@ Primary crate: `dun-term`.
 
 Goal: a running editor frame that restores the terminal correctly.
 
-- Add `ratatui` and terminal backend dependencies compatible with Rust `1.85`.
-- Enter raw/alternate-screen mode and always restore terminal state.
-- Render menu bar, editor area, line number gutter, and status bar.
-- Render Microsoft Edit-style single-line borders for tiled child windows.
-- Translate keyboard input into `EditorCommand`.
-- Support quit, cursor movement, text insertion, save, open, find entry point.
-- Keep mouse support deferred.
+- [x] Build a backend-neutral UI frame model from config, workspace, and buffer
+  snapshots.
+- [x] Resolve theme, glyph, keymap, and display sanitizer settings in `dun-ui`.
+- [ ] Add `ratatui` and terminal backend dependencies compatible with Rust
+  `1.85`.
+- [ ] Enter raw/alternate-screen mode and always restore terminal state.
+- [ ] Render menu bar, editor area, line number gutter, and status bar.
+- [ ] Render Microsoft Edit-style single-line borders for tiled child windows.
+- [ ] Translate keyboard input into `EditorCommand`.
+- [ ] Support quit, cursor movement, text insertion, save, open, find entry
+  point.
+- [ ] Keep mouse support deferred.
 
 Primary crates: `dun-cli`, `dun-ui`, `dun-core`, `dun-term`.
 
@@ -142,13 +147,14 @@ Primary crates: `dun-core`, `dun-ui`.
 
 Goal: make the app usable across inconsistent terminals.
 
-- Define typed config defaults.
-- Define keybinding schema.
-- Load a config file through Rust-owned parsing first.
-- Support terminal profile overrides.
-- Support theme selection.
-- Validate duplicate or invalid keybindings.
-- Keep future `rum` config evaluation as a producer of the same typed config.
+- [x] Define typed config defaults.
+- [x] Define keybinding schema.
+- [ ] Load a config file through Rust-owned parsing first.
+- [x] Support terminal profile overrides.
+- [x] Support theme selection.
+- [x] Validate duplicate or invalid keybindings.
+- [x] Keep future `rum` config evaluation as a producer of the same typed
+  config.
 
 Primary crate: `dun-config`.
 

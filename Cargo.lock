@@ -16,6 +16,7 @@ dependencies = [
 name = "dun-config"
 version = "0.1.0"
 dependencies = [
+ "dun-core",
  "dun-term",
 ]
 
@@ -31,6 +32,7 @@ version = "0.1.0"
 name = "dun-ui"
 version = "0.1.0"
 dependencies = [
+ "dun-config",
  "dun-core",
  "dun-term",
 ]
