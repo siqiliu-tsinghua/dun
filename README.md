@@ -27,6 +27,16 @@ messages.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
 
+## CLI Usage
+
+```text
+dun [OPTIONS] [--] [PATH]
+```
+
+Supported options are `--help`/`-h` and `--version`/`-V`. `dun` exits with
+`0` for success/help/version, `1` for runtime or file I/O errors, and `2` for
+command-line usage errors.
+
 The current baseline decisions are:
 
 - Rust `1.85` is the target toolchain.

@@ -5,6 +5,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Stdout};
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 use std::time::Duration;
 
 use crossterm::event::{
@@ -18,8 +19,8 @@ use crossterm::terminal::{
 use dun_config::{Key, KeyModifiers, KeySequence, KeyStroke};
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
-    FileCommand, LineEnding, Position, Rect, SearchMatch, TextBuffer, TextRange, WindowCommand,
-    WindowId, WindowKind, Workspace,
+    FileCommand, LineEnding, Position, Rect, SearchMatch, TextBuffer, WindowCommand, WindowId,
+    WindowKind, Workspace,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile};
 use dun_ui::{BufferView, UiShell};
@@ -28,8 +29,38 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Position as TuiPosition;
 use unicode_width::UnicodeWidthStr;
 
-fn main() -> io::Result<()> {
-    let mut app = AppState::from_args(env::args_os().skip(1))?;
+const EXIT_RUNTIME_ERROR: u8 = 1;
+const EXIT_USAGE_ERROR: u8 = 2;
+
+fn main() -> ExitCode {
+    match run_cli(env::args_os().skip(1)) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::from(error.exit_code())
+        }
+    }
+}
+
+fn run_cli<I>(args: I) -> Result<(), CliError>
+where
+    I: IntoIterator<Item = OsString>,
+{
+    match parse_cli_args(args)? {
+        CliAction::Help => {
+            print!("{}", cli_help_text());
+            Ok(())
+        }
+        CliAction::Version => {
+            println!("{}", cli_version_text());
+            Ok(())
+        }
+        CliAction::Run { path } => run_tui(path).map_err(CliError::Io),
+    }
+}
+
+fn run_tui(path: Option<PathBuf>) -> io::Result<()> {
+    let mut app = AppState::from_path(path)?;
     let _guard = TerminalGuard::enter()?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
@@ -37,6 +68,158 @@ fn main() -> io::Result<()> {
     let result = run_event_loop(&mut terminal, &mut app);
     terminal.show_cursor()?;
     result
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CliAction {
+    Help,
+    Version,
+    Run { path: Option<PathBuf> },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct UsageError {
+    message: String,
+}
+
+impl UsageError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for UsageError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}", self.message)
+    }
+}
+
+#[derive(Debug)]
+enum CliError {
+    Usage(UsageError),
+    Io(io::Error),
+}
+
+impl CliError {
+    const fn exit_code(&self) -> u8 {
+        match self {
+            Self::Usage(_) => EXIT_USAGE_ERROR,
+            Self::Io(_) => EXIT_RUNTIME_ERROR,
+        }
+    }
+}
+
+impl From<UsageError> for CliError {
+    fn from(error: UsageError) -> Self {
+        Self::Usage(error)
+    }
+}
+
+impl std::fmt::Display for CliError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Usage(error) => write!(formatter, "dun: {error}\n\n{}", cli_usage_text()),
+            Self::Io(error) => write!(formatter, "dun: {error}"),
+        }
+    }
+}
+
+fn parse_cli_args<I>(args: I) -> Result<CliAction, UsageError>
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    let mut action = None;
+    let mut paths = Vec::new();
+    let mut parse_options = true;
+
+    for arg in args {
+        let arg = arg.into();
+        if parse_options && arg == "--" {
+            parse_options = false;
+            continue;
+        }
+
+        if parse_options {
+            match arg.to_string_lossy().as_ref() {
+                "-h" | "--help" => {
+                    set_cli_action(&mut action, CliAction::Help)?;
+                    continue;
+                }
+                "-V" | "--version" => {
+                    set_cli_action(&mut action, CliAction::Version)?;
+                    continue;
+                }
+                option if option.starts_with('-') && option != "-" => {
+                    return Err(UsageError::new(format!("unknown option {option}")));
+                }
+                _ => {}
+            }
+        }
+
+        paths.push(PathBuf::from(arg));
+    }
+
+    if let Some(action) = action {
+        if paths.is_empty() {
+            return Ok(action);
+        }
+        return Err(UsageError::new(
+            "options --help and --version cannot be combined with paths",
+        ));
+    }
+
+    match paths.len() {
+        0 => Ok(CliAction::Run { path: None }),
+        1 => Ok(CliAction::Run {
+            path: paths.into_iter().next(),
+        }),
+        count => Err(UsageError::new(format!(
+            "expected at most one path, got {count}"
+        ))),
+    }
+}
+
+fn set_cli_action(action: &mut Option<CliAction>, new_action: CliAction) -> Result<(), UsageError> {
+    if action.is_some() {
+        return Err(UsageError::new(
+            "only one of --help or --version may be used",
+        ));
+    }
+
+    *action = Some(new_action);
+    Ok(())
+}
+
+fn cli_version_text() -> String {
+    format!("dun {}", env!("CARGO_PKG_VERSION"))
+}
+
+fn cli_usage_text() -> &'static str {
+    "Usage: dun [OPTIONS] [--] [PATH]\nTry 'dun --help' for more information."
+}
+
+fn cli_help_text() -> &'static str {
+    "\
+dun - Microsoft Edit-like terminal editor
+
+Usage:
+  dun [OPTIONS] [--] [PATH]
+
+Arguments:
+  PATH              Open one UTF-8 text file at startup.
+
+Options:
+  -h, --help        Show this help text and exit.
+  -V, --version     Show version information and exit.
+
+Exit codes:
+  0                 Success, --help, or --version.
+  1                 Runtime, terminal, or file I/O error.
+  2                 Command-line usage error.
+"
 }
 
 struct AppState {
@@ -76,24 +259,11 @@ impl AppState {
         }
     }
 
-    fn from_args<I>(args: I) -> io::Result<Self>
-    where
-        I: IntoIterator<Item = OsString>,
-    {
-        let mut args = args.into_iter();
-        let Some(path) = args.next() else {
-            return Ok(Self::new());
-        };
-
-        if args.next().is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "dun currently accepts at most one file path",
-            ));
-        }
-
+    fn from_path(path: Option<PathBuf>) -> io::Result<Self> {
         let mut app = Self::new();
-        app.open_file_path(PathBuf::from(path))?;
+        if let Some(path) = path {
+            app.open_file_path(path)?;
+        }
         Ok(app)
     }
 
@@ -1697,6 +1867,71 @@ fn detect_terminal_profile() -> dun_term::TerminalProfile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dun_core::TextRange;
+
+    #[test]
+    fn parse_cli_args_accepts_no_path_or_single_path() {
+        assert_eq!(
+            parse_cli_args(Vec::<&str>::new()).unwrap(),
+            CliAction::Run { path: None }
+        );
+
+        assert_eq!(
+            parse_cli_args(["sample.txt"]).unwrap(),
+            CliAction::Run {
+                path: Some(PathBuf::from("sample.txt"))
+            }
+        );
+    }
+
+    #[test]
+    fn parse_cli_args_accepts_help_version_and_separator() {
+        assert_eq!(parse_cli_args(["--help"]).unwrap(), CliAction::Help);
+        assert_eq!(parse_cli_args(["-h"]).unwrap(), CliAction::Help);
+        assert_eq!(parse_cli_args(["--version"]).unwrap(), CliAction::Version);
+        assert_eq!(parse_cli_args(["-V"]).unwrap(), CliAction::Version);
+        assert_eq!(
+            parse_cli_args(["--", "--literal-path"]).unwrap(),
+            CliAction::Run {
+                path: Some(PathBuf::from("--literal-path"))
+            }
+        );
+    }
+
+    #[test]
+    fn parse_cli_args_reports_usage_errors() {
+        assert_eq!(
+            parse_cli_args(["--bad"]).unwrap_err().to_string(),
+            "unknown option --bad"
+        );
+        assert_eq!(
+            parse_cli_args(["one", "two"]).unwrap_err().to_string(),
+            "expected at most one path, got 2"
+        );
+        assert_eq!(
+            parse_cli_args(["--help", "file.txt"])
+                .unwrap_err()
+                .to_string(),
+            "options --help and --version cannot be combined with paths"
+        );
+        assert_eq!(
+            parse_cli_args(["--help", "--version"])
+                .unwrap_err()
+                .to_string(),
+            "only one of --help or --version may be used"
+        );
+    }
+
+    #[test]
+    fn cli_error_exit_codes_are_stable() {
+        assert_eq!(CliError::Usage(UsageError::new("bad")).exit_code(), 2);
+        assert_eq!(CliError::Io(io::Error::other("boom")).exit_code(), 1);
+        assert!(cli_help_text().contains("Exit codes:"));
+        assert_eq!(
+            cli_version_text(),
+            format!("dun {}", env!("CARGO_PKG_VERSION"))
+        );
+    }
 
     #[test]
     fn translates_ctrl_q_to_config_key_stroke() {
@@ -1958,11 +2193,11 @@ mod tests {
     }
 
     #[test]
-    fn from_args_opens_utf8_file_path() {
+    fn from_path_opens_utf8_file_path() {
         let path = temp_file_path("open.txt");
         std::fs::write(&path, "one\r\ntwo").unwrap();
 
-        let app = AppState::from_args([path.clone().into_os_string()]).unwrap();
+        let app = AppState::from_path(Some(path.clone())).unwrap();
         let state = app.buffer_state(BufferId(1)).unwrap();
 
         assert_eq!(state.path.as_ref(), Some(&path));
@@ -1983,7 +2218,7 @@ mod tests {
         let path = temp_file_path("invalid.txt");
         std::fs::write(&path, [0xff, b'a']).unwrap();
 
-        let error = match AppState::from_args([path.clone().into_os_string()]) {
+        let error = match AppState::from_path(Some(path.clone())) {
             Ok(_) => panic!("invalid UTF-8 input should be rejected"),
             Err(error) => error,
         };
@@ -1997,7 +2232,7 @@ mod tests {
     fn save_command_writes_focused_file_buffer() {
         let path = temp_file_path("save.txt");
         std::fs::write(&path, "old").unwrap();
-        let mut app = AppState::from_args([path.clone().into_os_string()]).unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
 
         app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
         app.handle_text_input('!');
@@ -2030,7 +2265,7 @@ mod tests {
     fn new_command_clears_loaded_file_metadata() {
         let path = temp_file_path("new.txt");
         std::fs::write(&path, "loaded").unwrap();
-        let mut app = AppState::from_args([path.clone().into_os_string()]).unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
 
         app.handle_command(&EditorCommand::File(FileCommand::New));
 
@@ -2522,7 +2757,7 @@ mod tests {
     fn quit_confirms_dirty_file_and_saves_before_exit() {
         let path = temp_file_path("confirm-quit-save.txt");
         std::fs::write(&path, "old").unwrap();
-        let mut app = AppState::from_args([path.clone().into_os_string()]).unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
 
         app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
         app.handle_text_input('!');

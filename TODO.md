@@ -69,7 +69,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 ## `dun-cli`
 
-- [ ] Add argument parsing.
+- [x] Add argument parsing.
 - [x] Add terminal setup and restoration guard.
 - [x] Create initial untitled workspace.
 - [x] Open file path passed on command line.
@@ -88,7 +88,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Expand status bar detail fields.
 - [x] Show focused buffer name, dirty state, and line/column status.
 - [x] Confirm before quit/new/open/close would discard dirty buffers.
-- [ ] Return stable exit codes.
+- [x] Return stable exit codes.
 
 ## File and Display Safety
 

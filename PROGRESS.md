@@ -172,3 +172,10 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added CLI tests for UTF-8 display columns, CRLF metadata, terminal profile
   labels, focused window index, and selection summaries. `cargo test
   --workspace` passes.
+- Added stable CLI argument parsing in `dun-cli`: `--help`/`-h`,
+  `--version`/`-V`, optional single startup path, `--` path separator,
+  unknown-option errors, and multi-path usage errors.
+- Changed the process entry point to return explicit exit codes: `0` for
+  success/help/version, `1` for runtime or file I/O errors, and `2` for
+  command-line usage errors. Added parser and exit-code tests. `cargo test
+  --workspace` passes.
