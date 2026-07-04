@@ -66,3 +66,10 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added buffer unit tests for UTF-8 boundaries, CRLF/LF parsing, selection
   replacement, multiline deletion, undo/redo, dirty tracking, and read-only
   behavior. `cargo test --workspace` passes.
+- Implemented the first `dun-term` terminal rendering baseline: profile
+  selection for UTF-8/ASCII and 256-color/16-color/mono, Unicode and ASCII
+  glyph sets, Microsoft Edit-style 256-color and 16-color themes, mono
+  fallback, and optional Turbo/dark/Dun theme entries.
+- Implemented `dun-core::DisplaySanitizer` for safe display of untrusted text,
+  including visible control rendering, OSC/escape neutralization, ASCII
+  fallback escaping, and long-line caps.

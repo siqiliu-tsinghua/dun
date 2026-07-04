@@ -84,14 +84,15 @@ Primary crate: `dun-core`.
 
 Goal: safe file round trips and safe terminal display.
 
-- Implement UTF-8-first file loading.
-- Define invalid-byte fallback behavior.
-- Add read-only fallback state for unsafe/lossy opens.
-- Implement save/save-as through host-owned file I/O.
-- Define large-file soft limit behavior.
-- Add visible diagnostics for fallback/large-file state.
-- Implement display sanitizer for ASCII controls and terminal escapes.
-- Add tests for `ESC`, OSC, BEL, NUL, DEL, CR, backspace, tabs, and long lines.
+- [ ] Implement UTF-8-first file loading.
+- [ ] Define invalid-byte fallback behavior.
+- [ ] Add read-only fallback state for unsafe/lossy opens.
+- [ ] Implement save/save-as through host-owned file I/O.
+- [ ] Define large-file soft limit behavior.
+- [ ] Add visible diagnostics for fallback/large-file state.
+- [x] Implement display sanitizer for ASCII controls and terminal escapes.
+- [x] Add tests for `ESC`, OSC, BEL, NUL, DEL, CR, backspace, tabs, and long
+  lines.
 
 Primary crates: `dun-core`, `dun-cli`, later `dun-ui`.
 
@@ -99,12 +100,12 @@ Primary crates: `dun-core`, `dun-cli`, later `dun-ui`.
 
 Goal: render consistently across common SSH terminals.
 
-- Detect or configure UTF-8 vs ASCII rendering.
-- Detect or configure 256-color, 16-color, and mono color modes.
-- Define Microsoft Edit-like default theme.
-- Define ASCII and 16-color fallback styles.
-- Keep Turbo Vision/dark/Dun themes as optional later additions.
-- Add glyph-set tests for Unicode and ASCII borders.
+- [x] Detect or configure UTF-8 vs ASCII rendering.
+- [x] Detect or configure 256-color, 16-color, and mono color modes.
+- [x] Define Microsoft Edit-like default theme.
+- [x] Define ASCII and 16-color fallback styles.
+- [x] Keep Turbo Vision/dark/Dun themes as optional later additions.
+- [x] Add glyph-set tests for Unicode and ASCII borders.
 
 Primary crate: `dun-term`.
 

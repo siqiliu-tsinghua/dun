@@ -32,13 +32,13 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 ## `dun-term`
 
-- [ ] Define full `TerminalProfile`.
-- [ ] Detect UTF-8 vs ASCII rendering mode.
-- [ ] Detect or configure 256-color vs 16-color vs mono.
-- [ ] Define Microsoft Edit-like default palette.
-- [ ] Define ASCII border and indicator glyphs.
-- [ ] Define 16-color fallback theme.
-- [ ] Add tests for glyph fallback selection.
+- [x] Define full `TerminalProfile`.
+- [x] Detect UTF-8 vs ASCII rendering mode.
+- [x] Detect or configure 256-color vs 16-color vs mono.
+- [x] Define Microsoft Edit-like default palette.
+- [x] Define ASCII border and indicator glyphs.
+- [x] Define 16-color fallback theme.
+- [x] Add tests for glyph fallback selection.
 
 ## `dun-ui`
 
@@ -75,10 +75,10 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [ ] Define invalid-byte fallback behavior.
 - [ ] Prevent save from silently corrupting lossy/fallback buffers.
 - [ ] Define large-file soft limit behavior.
-- [ ] Implement display sanitizer for C0/C1 controls.
-- [ ] Render `ESC`, OSC, BEL, NUL, DEL, CR, and backspace visibly.
-- [ ] Add tests for terminal-injection payloads.
-- [ ] Cap display work for very long lines.
+- [x] Implement display sanitizer for C0/C1 controls.
+- [x] Render `ESC`, OSC, BEL, NUL, DEL, CR, and backspace visibly.
+- [x] Add tests for terminal-injection payloads.
+- [x] Cap display work for very long lines.
 
 ## Deferred
 

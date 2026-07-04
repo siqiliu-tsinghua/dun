@@ -111,6 +111,33 @@ Optional later themes:
 
 The theme layer must be independent from the editor core.
 
+The first theme baseline is terminal-backend independent:
+
+- `TerminalProfile` chooses UTF-8 vs ASCII and 256-color vs 16-color vs mono;
+- `GlyphSet` chooses Unicode single-line borders or ASCII-safe borders;
+- `Theme` carries a named `Palette` of abstract colors and attributes;
+- the default profile is UTF-8 plus 256 colors;
+- VT100/low-capability fallback uses ASCII glyphs and the 16-color palette;
+- mono fallback uses bold/reverse attributes rather than color assumptions.
+
+The ratatui layer should map these abstract styles into backend-specific
+styles. It should not decide terminal capability policy by itself.
+
+## Display Safety
+
+Buffer, log, paste, config, plugin, and error text must be sanitized before
+rendering.
+
+The first sanitizer emits display segments rather than raw strings:
+
+- printable UTF-8 text passes through in UTF-8 mode;
+- ASCII mode escapes non-ASCII text as `\u{...}`;
+- C0 and C1 controls are never emitted directly;
+- UTF-8 mode renders C0 controls with Unicode control pictures;
+- ASCII mode renders C0 controls with caret notation such as `^[` and `^G`;
+- OSC payloads become visible text because `ESC` and `BEL` are replaced;
+- long lines are capped without splitting UTF-8 characters.
+
 ## Keybindings
 
 Keybindings must be configurable from the start.

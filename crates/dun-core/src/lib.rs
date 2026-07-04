@@ -2,6 +2,7 @@
 
 pub mod buffer;
 pub mod command;
+pub mod display;
 pub mod workspace;
 
 pub use buffer::{
@@ -9,6 +10,7 @@ pub use buffer::{
     TextBuffer, TextEdit, TextRange,
 };
 pub use command::{AppCommand, EditCommand, EditorCommand, FileCommand, WindowCommand};
+pub use display::{DisplayClass, DisplaySanitizer, DisplaySegment, SanitizedLine};
 pub use workspace::{
     Axis, Direction, LayoutNode, Rect, WindowId, WindowKind, WindowLayout, WindowState, Workspace,
     WorkspaceError,

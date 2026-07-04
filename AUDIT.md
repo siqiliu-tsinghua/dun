@@ -123,6 +123,19 @@ Required controls:
 
 Saving must not silently corrupt files opened through a fallback or lossy path.
 
+Current implementation:
+
+- `dun-core::DisplaySanitizer` converts untrusted text into `DisplaySegment`
+  values before UI rendering.
+- UTF-8 mode uses Unicode control pictures for C0 controls.
+- ASCII mode uses caret notation and escapes non-ASCII characters as
+  `\u{...}`.
+- C1 controls are rendered as visible code point markers.
+- Long-line display work is capped by byte count without splitting a UTF-8
+  character.
+- Tests cover OSC-style payloads, `ESC`, BEL, NUL, DEL, CR, backspace, tabs,
+  C1 controls, ASCII fallback, and truncation.
+
 ## Future rum Integration Requirements
 
 Before adding a `rum` adapter:
