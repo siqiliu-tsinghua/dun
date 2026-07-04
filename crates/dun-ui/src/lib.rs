@@ -3,7 +3,7 @@
 use dun_config::{Config, KeySequence, KeyStroke, Keymap};
 use dun_core::{
     BufferId, DisplayClass, DisplaySanitizer, DisplaySegment, EditorCommand, Rect, SanitizedLine,
-    TextBuffer, WindowId, WindowState, Workspace,
+    TextBuffer, TextRange, WindowId, WindowState, Workspace,
 };
 use dun_term::{
     AnsiColor, BorderGlyphs, EncodingProfile, GlyphSet, Style as DunStyle, StyleAttrs,
@@ -106,6 +106,13 @@ impl UiShell {
         } else {
             None
         };
+        let selection = if !window.collapsed {
+            buffer
+                .map(|buffer| self.selection_for_buffer(buffer, rect))
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
 
         UiWindow {
             id: window.id,
@@ -122,6 +129,7 @@ impl UiShell {
                 .unwrap_or(matches!(window.buffer_kind, dun_core::BufferKind::ReadOnly)),
             border: self.glyphs.border,
             cursor,
+            selection,
             body,
         }
     }
@@ -163,19 +171,90 @@ impl UiShell {
         }
 
         let line = buffer.buffer.line(position.line)?;
-        let prefix = line.get(..position.column)?;
-        let display_sanitizer = DisplaySanitizer {
-            ascii_only: self.display_sanitizer.ascii_only,
-            max_bytes: usize::MAX,
-        };
-        let display_text = display_sanitizer.sanitize_line(prefix).as_plain_text();
-        let display_column = UnicodeWidthStr::width(display_text.as_str());
+        let display_column = self.display_column(line, position.column)?;
         let display_column = display_column.min(body_width.saturating_sub(1));
 
         Some(UiCursor {
             x: 1 + display_column as u16,
             y: 1 + visible_line as u16,
         })
+    }
+
+    fn selection_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> Vec<UiSelectionLine> {
+        let Some(range) = buffer.buffer.selection_range() else {
+            return Vec::new();
+        };
+        let Some(body_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
+            return Vec::new();
+        };
+        let Some(body_height) = rect.height.checked_sub(2).map(|height| height as usize) else {
+            return Vec::new();
+        };
+        if body_width == 0 || body_height == 0 || range.is_empty() {
+            return Vec::new();
+        }
+
+        let mut lines = Vec::new();
+        let visible_start = buffer.first_line;
+        let visible_end = buffer.first_line.saturating_add(body_height);
+        let start_line = range.start.line.max(visible_start);
+        let end_line = range.end.line.min(visible_end.saturating_sub(1));
+        if start_line > end_line {
+            return Vec::new();
+        }
+
+        for line_index in start_line..=end_line {
+            if let Some(line) = self.selection_line(buffer, line_index, range, body_width) {
+                lines.push(line);
+            }
+        }
+
+        lines
+    }
+
+    fn selection_line(
+        &self,
+        buffer: &BufferView<'_>,
+        line_index: usize,
+        range: TextRange,
+        body_width: usize,
+    ) -> Option<UiSelectionLine> {
+        let line = buffer.buffer.line(line_index)?;
+        let start_column = if line_index == range.start.line {
+            range.start.column
+        } else {
+            0
+        };
+        let end_column = if line_index == range.end.line {
+            range.end.column
+        } else {
+            line.len()
+        };
+        if start_column >= end_column {
+            return None;
+        }
+
+        let start_x = self.display_column(line, start_column)?.min(body_width);
+        let end_x = self.display_column(line, end_column)?.min(body_width);
+        if start_x >= end_x {
+            return None;
+        }
+
+        Some(UiSelectionLine {
+            y: 1 + (line_index - buffer.first_line) as u16,
+            start_x: 1 + start_x as u16,
+            end_x: 1 + end_x as u16,
+        })
+    }
+
+    fn display_column(&self, line: &str, byte_column: usize) -> Option<usize> {
+        let prefix = line.get(..byte_column)?;
+        let display_sanitizer = DisplaySanitizer {
+            ascii_only: self.display_sanitizer.ascii_only,
+            max_bytes: usize::MAX,
+        };
+        let display_text = display_sanitizer.sanitize_line(prefix).as_plain_text();
+        Some(UnicodeWidthStr::width(display_text.as_str()))
     }
 
     fn menu_bar(&self) -> MenuBar {
@@ -328,12 +407,39 @@ fn render_window(frame: &mut Frame<'_>, shell: &UiShell, window: &UiWindow, work
         Paragraph::new(body_lines).style(to_ratatui_style(shell.theme.palette.editor_text)),
         body_area,
     );
+    render_selection(
+        frame.buffer_mut(),
+        area,
+        &window.selection,
+        to_ratatui_style(shell.theme.palette.selection_text),
+    );
 
     if let Some(cursor) = window.cursor {
         let x = area.x.saturating_add(cursor.x);
         let y = area.y.saturating_add(cursor.y);
         if x < area.x.saturating_add(area.width) && y < area.y.saturating_add(area.height) {
             frame.set_cursor_position(TuiPosition::new(x, y));
+        }
+    }
+}
+
+fn render_selection(
+    buffer: &mut Buffer,
+    window_area: TuiRect,
+    selection: &[UiSelectionLine],
+    style: Style,
+) {
+    for line in selection {
+        let y = window_area.y.saturating_add(line.y);
+        if y >= window_area.y.saturating_add(window_area.height) {
+            continue;
+        }
+
+        let start = window_area.x.saturating_add(line.start_x);
+        let end = window_area.x.saturating_add(line.end_x);
+        let right = window_area.x.saturating_add(window_area.width);
+        for x in start..end.min(right) {
+            buffer[(x, y)].set_style(style);
         }
     }
 }
@@ -581,6 +687,7 @@ pub struct UiWindow {
     pub read_only: bool,
     pub border: BorderGlyphs,
     pub cursor: Option<UiCursor>,
+    pub selection: Vec<UiSelectionLine>,
     pub body: Vec<SanitizedLine>,
 }
 
@@ -588,6 +695,13 @@ pub struct UiWindow {
 pub struct UiCursor {
     pub x: u16,
     pub y: u16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UiSelectionLine {
+    pub y: u16,
+    pub start_x: u16,
+    pub end_x: u16,
 }
 
 #[cfg(test)]
@@ -679,6 +793,31 @@ mod tests {
         );
 
         assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 3, y: 1 }));
+    }
+
+    #[test]
+    fn frame_maps_buffer_selection_to_window_body() {
+        let workspace = Workspace::new_untitled();
+        let mut buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abc\n中x");
+        buffer
+            .select(Position::new(1, 0), Position::new(1, "中".len()))
+            .unwrap();
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 80, 10),
+            &[buffer_view],
+        );
+
+        assert_eq!(
+            frame.windows[0].selection,
+            vec![UiSelectionLine {
+                y: 2,
+                start_x: 1,
+                end_x: 3,
+            }]
+        );
     }
 
     #[test]

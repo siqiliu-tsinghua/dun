@@ -18,7 +18,7 @@ use crossterm::terminal::{
 use dun_config::{Key, KeyModifiers, KeySequence, KeyStroke};
 use dun_core::{
     AppCommand, Axis, BufferId, Direction, EditCommand, EditorCommand, FileCommand, Position, Rect,
-    TextBuffer, WindowCommand, Workspace,
+    SearchMatch, TextBuffer, TextRange, WindowCommand, Workspace,
 };
 use dun_ui::{BufferView, UiShell};
 use ratatui::Terminal;
@@ -173,6 +173,14 @@ impl AppState {
                 );
                 return;
             }
+            EditCommand::FindNext => {
+                self.repeat_find(SearchDirection::Forward);
+                return;
+            }
+            EditCommand::FindPrevious => {
+                self.repeat_find(SearchDirection::Backward);
+                return;
+            }
             EditCommand::Replace => {
                 self.set_status("Replace is not implemented yet");
                 return;
@@ -226,6 +234,8 @@ impl AppState {
             | EditCommand::Copy
             | EditCommand::Paste
             | EditCommand::Find
+            | EditCommand::FindNext
+            | EditCommand::FindPrevious
             | EditCommand::Replace => {}
         }
     }
@@ -504,9 +514,60 @@ impl AppState {
             }
             PromptKind::Find => {
                 self.last_find_query = Some(input.to_string());
-                self.set_status(format!("Find query: {input}"));
+                self.find_in_focused_buffer(input, SearchDirection::Forward);
             }
         }
+    }
+
+    fn repeat_find(&mut self, direction: SearchDirection) {
+        let Some(query) = self.last_find_query.clone() else {
+            self.set_status("Find: no query");
+            return;
+        };
+
+        if query.is_empty() {
+            self.set_status("Find: no query");
+            return;
+        }
+
+        self.find_in_focused_buffer(&query, direction);
+    }
+
+    fn find_in_focused_buffer(&mut self, query: &str, direction: SearchDirection) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Find: focused buffer is missing");
+            return;
+        };
+
+        let matches = buffer.buffer.find_all(query);
+        if matches.is_empty() {
+            buffer.buffer.clear_selection();
+            self.set_status(format!("Find: no matches for {query}"));
+            return;
+        }
+
+        let origin = match direction {
+            SearchDirection::Forward => buffer
+                .buffer
+                .selection_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| buffer.buffer.cursor_position()),
+            SearchDirection::Backward => buffer
+                .buffer
+                .selection_range()
+                .map(|range| range.start)
+                .unwrap_or_else(|| buffer.buffer.cursor_position()),
+        };
+        let selection = choose_search_match(&matches, origin, direction);
+        let selected = matches[selection.index].range;
+        let _ = buffer.buffer.select(selected.start, selected.end);
+
+        let suffix = if selection.wrapped { " (wrapped)" } else { "" };
+        self.set_status(format!(
+            "Find: {}/{} {query}{suffix}",
+            selection.index + 1,
+            matches.len()
+        ));
     }
 
     fn prompt_status_text(&self) -> Option<String> {
@@ -597,6 +658,49 @@ impl PromptKind {
             Self::SaveAs => "Save As",
             Self::Find => "Find",
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SearchDirection {
+    Forward,
+    Backward,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SearchSelection {
+    index: usize,
+    wrapped: bool,
+}
+
+fn choose_search_match(
+    matches: &[SearchMatch],
+    origin: Position,
+    direction: SearchDirection,
+) -> SearchSelection {
+    match direction {
+        SearchDirection::Forward => matches
+            .iter()
+            .position(|item| item.range.start >= origin)
+            .map(|index| SearchSelection {
+                index,
+                wrapped: false,
+            })
+            .unwrap_or(SearchSelection {
+                index: 0,
+                wrapped: true,
+            }),
+        SearchDirection::Backward => matches
+            .iter()
+            .rposition(|item| item.range.start < origin)
+            .map(|index| SearchSelection {
+                index,
+                wrapped: false,
+            })
+            .unwrap_or(SearchSelection {
+                index: matches.len().saturating_sub(1),
+                wrapped: true,
+            }),
     }
 }
 
@@ -1095,20 +1199,89 @@ mod tests {
     }
 
     #[test]
-    fn find_command_uses_prompt_to_capture_query() {
-        let mut app = AppState::new();
+    fn find_command_selects_first_match_from_prompt() {
+        let mut app = app_with_text("one two one");
 
         app.handle_command(&EditorCommand::Edit(EditCommand::Find));
         assert_eq!(app.prompt_status_text(), Some("Find: ".to_string()));
 
-        send_text(&mut app, "needle");
+        send_text(&mut app, "one");
         handle_key_event(
             &mut app,
             CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
         );
 
-        assert_eq!(app.last_find_query, Some("needle".to_string()));
-        assert_eq!(app.status_message, Some("Find query: needle".to_string()));
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(app.last_find_query, Some("one".to_string()));
+        assert_eq!(app.status_message, Some("Find: 1/2 one".to_string()));
+        assert_eq!(
+            state.buffer.selection_range(),
+            Some(TextRange::new(Position::new(0, 0), Position::new(0, 3)))
+        );
+    }
+
+    #[test]
+    fn find_next_repeats_query_and_wraps() {
+        let mut app = app_with_text("one two one");
+        app.last_find_query = Some("one".to_string());
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(app.status_message, Some("Find: 2/2 one".to_string()));
+        assert_eq!(
+            state.buffer.selection_range(),
+            Some(TextRange::new(Position::new(0, 8), Position::new(0, 11)))
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(
+            app.status_message,
+            Some("Find: 1/2 one (wrapped)".to_string())
+        );
+        assert_eq!(
+            state.buffer.selection_range(),
+            Some(TextRange::new(Position::new(0, 0), Position::new(0, 3)))
+        );
+    }
+
+    #[test]
+    fn find_previous_repeats_query_and_wraps() {
+        let mut app = app_with_text("one two one");
+        app.last_find_query = Some("one".to_string());
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindPrevious));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(
+            app.status_message,
+            Some("Find: 2/2 one (wrapped)".to_string())
+        );
+        assert_eq!(
+            state.buffer.selection_range(),
+            Some(TextRange::new(Position::new(0, 8), Position::new(0, 11)))
+        );
+    }
+
+    #[test]
+    fn find_reports_missing_query_and_missing_match() {
+        let mut app = app_with_text("abc");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+        assert_eq!(app.status_message, Some("Find: no query".to_string()));
+
+        app.last_find_query = Some("z".to_string());
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(
+            app.status_message,
+            Some("Find: no matches for z".to_string())
+        );
+        assert_eq!(state.buffer.selection_range(), None);
     }
 
     #[test]
@@ -1165,5 +1338,12 @@ mod tests {
                 CrosstermKeyEvent::new(CrosstermKeyCode::Char(ch), CrosstermKeyModifiers::NONE),
             );
         }
+    }
+
+    fn app_with_text(text: &str) -> AppState {
+        let mut app = AppState::new();
+        app.buffers[0].buffer =
+            TextBuffer::from_text_with_kind(dun_core::BufferKind::Untitled, text);
+        app
     }
 }

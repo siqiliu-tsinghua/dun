@@ -130,6 +130,11 @@ pub enum BufferError {
     ReadOnly,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SearchMatch {
+    pub range: TextRange,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextBuffer {
     kind: BufferKind,
@@ -194,6 +199,25 @@ impl TextBuffer {
 
     pub fn to_text(&self) -> String {
         self.lines.join(self.line_ending.as_str())
+    }
+
+    pub fn find_all(&self, query: &str) -> Vec<SearchMatch> {
+        if query.is_empty() {
+            return Vec::new();
+        }
+
+        let mut matches = Vec::new();
+        for (line_index, line) in self.lines.iter().enumerate() {
+            for (column, text) in line.match_indices(query) {
+                matches.push(SearchMatch {
+                    range: TextRange::new(
+                        Position::new(line_index, column),
+                        Position::new(line_index, column + text.len()),
+                    ),
+                });
+            }
+        }
+        matches
     }
 
     pub fn cursor(&self) -> Cursor {
@@ -932,5 +956,31 @@ mod tests {
         assert_eq!(buffer.delete_forward(), Err(BufferError::ReadOnly));
         assert_eq!(buffer.undo(), Err(BufferError::ReadOnly));
         assert_eq!(buffer.to_text(), "locked");
+    }
+
+    #[test]
+    fn find_all_returns_utf8_match_ranges() {
+        let buffer = TextBuffer::from_text("one\né one é");
+
+        let matches = buffer.find_all("é");
+
+        assert_eq!(
+            matches,
+            vec![
+                SearchMatch {
+                    range: TextRange::new(Position::new(1, 0), Position::new(1, 2)),
+                },
+                SearchMatch {
+                    range: TextRange::new(Position::new(1, 7), Position::new(1, 9)),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn find_all_ignores_empty_query() {
+        let buffer = TextBuffer::from_text("text");
+
+        assert!(buffer.find_all("").is_empty());
     }
 }

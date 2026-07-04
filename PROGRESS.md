@@ -113,3 +113,12 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added prompt tests for open, save-as, find query capture, cancel behavior,
   and keeping prompt input out of the editor buffer. `cargo test --workspace`
   passes.
+- Added the first find baseline: `dun-core::TextBuffer::find_all` returns
+  UTF-8-safe match ranges, `Ctrl+F` prompts for a query and selects the first
+  match, `F3` moves to the next match, and `Shift+F3` moves to the previous
+  match with wraparound status feedback.
+- Added selected-range rendering in `dun-ui`, using the existing selection
+  theme colors and display-width mapping for UTF-8 text.
+- Added tests for core search ranges, find prompt navigation, next/previous
+  wraparound, missing-query/missing-match status, and UI selection mapping.
+  `cargo test --workspace` passes.

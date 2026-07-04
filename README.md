@@ -15,7 +15,8 @@ backend-neutral UI model, and a minimal runnable `ratatui` shell.
 It can open one UTF-8 file path supplied on the command line and save the
 focused buffer back to that path.
 Interactive status-line prompts are available for Open, Save As, and Find
-entry; find navigation is still a follow-up.
+entry. Find now supports next/previous navigation and selected match
+highlighting.
 
 The current baseline decisions are:
 

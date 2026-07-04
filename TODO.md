@@ -53,6 +53,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Render ASCII fallback borders.
 - [x] Render multiple tiled windows from resolved layout rectangles.
 - [x] Render focused buffer cursor inside the active window body.
+- [x] Render selected text ranges in the active window body.
 - [x] Keep rendering free of file I/O.
 
 ## `dun-config`
@@ -79,7 +80,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Route printable text input into the focused buffer.
 - [x] Track pending multi-stroke key sequences.
 - [x] Keep the focused cursor line visible while drawing.
-- [ ] Implement find result navigation.
+- [x] Implement find result navigation.
 - [ ] Return stable exit codes.
 
 ## File and Display Safety

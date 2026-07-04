@@ -33,6 +33,8 @@ pub enum EditCommand {
     DeleteBackward,
     DeleteForward,
     Find,
+    FindNext,
+    FindPrevious,
     Replace,
 }
 
