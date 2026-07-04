@@ -105,3 +105,11 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added CLI file tests for command-line open, CRLF preservation, invalid UTF-8
   rejection, save-to-path, save-without-path status, and clearing file metadata
   on `FileCommand::New`. `cargo test --workspace` passes.
+- Added an interactive status-line prompt mode in `dun-cli` with `Enter`
+  submit, `Esc` cancel, and `Backspace` editing. `FileCommand::Open` now
+  prompts for a path and opens it, `FileCommand::SaveAs` prompts for a path and
+  attaches the focused buffer to that file, and `EditCommand::Find` captures a
+  query for the future find baseline.
+- Added prompt tests for open, save-as, find query capture, cancel behavior,
+  and keeping prompt input out of the editor buffer. `cargo test --workspace`
+  passes.

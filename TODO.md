@@ -75,9 +75,11 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Save focused buffer back to its loaded file path.
 - [x] Wire config/profile/workspace/UI construction.
 - [x] Apply editor commands to the focused buffer/window.
+- [x] Add interactive status-line prompts for open, save-as, and find entry.
 - [x] Route printable text input into the focused buffer.
 - [x] Track pending multi-stroke key sequences.
 - [x] Keep the focused cursor line visible while drawing.
+- [ ] Implement find result navigation.
 - [ ] Return stable exit codes.
 
 ## File and Display Safety

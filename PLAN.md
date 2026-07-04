@@ -128,7 +128,8 @@ Goal: a running editor frame that restores the terminal correctly.
 - [x] Support cursor movement and text insertion.
 - [x] Open one UTF-8 file path from the command line.
 - [x] Save the focused buffer back to its loaded file path.
-- [ ] Support interactive open, save-as, and find entry point.
+- [x] Support interactive open, save-as, and find entry point.
+- [ ] Implement find result navigation.
 - [ ] Keep mouse support deferred.
 
 Primary crates: `dun-cli`, `dun-ui`, `dun-core`, `dun-term`.

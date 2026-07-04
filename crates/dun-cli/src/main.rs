@@ -23,6 +23,8 @@ use dun_core::{
 use dun_ui::{BufferView, UiShell};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
+use ratatui::layout::Position as TuiPosition;
+use unicode_width::UnicodeWidthStr;
 
 fn main() -> io::Result<()> {
     let mut app = AppState::from_args(env::args_os().skip(1))?;
@@ -43,6 +45,8 @@ struct AppState {
     workspace_area: Rect,
     pending_keys: Vec<KeyStroke>,
     status_message: Option<String>,
+    prompt: Option<PromptState>,
+    last_find_query: Option<String>,
 }
 
 impl AppState {
@@ -59,6 +63,8 @@ impl AppState {
             workspace_area: Rect::default(),
             pending_keys: Vec::new(),
             status_message: None,
+            prompt: None,
+            last_find_query: None,
         }
     }
 
@@ -147,10 +153,10 @@ impl AppState {
                 }
             }
             FileCommand::Open => {
-                self.set_status("Open command needs a file path; prompt is not implemented yet");
+                self.start_prompt(PromptKind::Open, String::new());
             }
             FileCommand::SaveAs => {
-                self.set_status("Save As is not implemented yet");
+                self.start_prompt(PromptKind::SaveAs, self.focused_path_text());
             }
             FileCommand::Close => {
                 self.handle_window_command(&WindowCommand::Close);
@@ -159,6 +165,21 @@ impl AppState {
     }
 
     fn handle_edit_command(&mut self, command: &EditCommand) {
+        match command {
+            EditCommand::Find => {
+                self.start_prompt(
+                    PromptKind::Find,
+                    self.last_find_query.clone().unwrap_or_default(),
+                );
+                return;
+            }
+            EditCommand::Replace => {
+                self.set_status("Replace is not implemented yet");
+                return;
+            }
+            _ => {}
+        }
+
         let Some(buffer) = self.focused_buffer_mut() else {
             return;
         };
@@ -356,6 +377,35 @@ impl AppState {
         Ok(())
     }
 
+    fn save_focused_buffer_as(&mut self, path: PathBuf) -> io::Result<()> {
+        let window = self
+            .workspace
+            .focused_window()
+            .map_err(|_| io::Error::other("focused window is missing"))?;
+        let window_id = window.id;
+        let buffer_id = window.buffer_id;
+        let text = self
+            .buffer_state(buffer_id)
+            .map(|buffer| buffer.buffer.to_text())
+            .ok_or_else(|| io::Error::other("focused buffer is missing"))?;
+
+        fs::write(&path, text.as_bytes())?;
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            buffer.path = Some(path.clone());
+            buffer.buffer.set_kind(dun_core::BufferKind::File);
+            buffer.buffer.mark_saved();
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = title_for_path(&path);
+            window.buffer_kind = dun_core::BufferKind::File;
+        }
+
+        self.set_status(format!("Saved {}", path.display()));
+        Ok(())
+    }
+
     fn split_focused(&mut self, axis: Axis) {
         let Ok(window_id) = self.workspace.split_focused(axis) else {
             return;
@@ -389,6 +439,101 @@ impl AppState {
         self.status_message = Some(message.into());
     }
 
+    fn start_prompt(&mut self, kind: PromptKind, initial_input: String) {
+        self.pending_keys.clear();
+        self.status_message = None;
+        self.prompt = Some(PromptState::new(kind, initial_input));
+    }
+
+    fn handle_prompt_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+        if self.prompt.is_none() {
+            return false;
+        }
+
+        match event.code {
+            CrosstermKeyCode::Esc => {
+                self.cancel_prompt();
+            }
+            CrosstermKeyCode::Enter => {
+                self.submit_prompt();
+            }
+            CrosstermKeyCode::Backspace => {
+                if let Some(prompt) = &mut self.prompt {
+                    prompt.input.pop();
+                }
+            }
+            _ => {
+                if let Some(ch) = text_input_from_crossterm(event) {
+                    if let Some(prompt) = &mut self.prompt {
+                        prompt.input.push(ch);
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
+    fn cancel_prompt(&mut self) {
+        if let Some(prompt) = self.prompt.take() {
+            self.set_status(format!("{} cancelled", prompt.kind.name()));
+        }
+    }
+
+    fn submit_prompt(&mut self) {
+        let Some(prompt) = self.prompt.take() else {
+            return;
+        };
+
+        let input = prompt.input.trim();
+        if input.is_empty() {
+            self.set_status(format!("{} cancelled", prompt.kind.name()));
+            return;
+        }
+
+        match prompt.kind {
+            PromptKind::Open => {
+                if let Err(error) = self.open_file_path(PathBuf::from(input)) {
+                    self.set_status(format!("Open failed: {error}"));
+                }
+            }
+            PromptKind::SaveAs => {
+                if let Err(error) = self.save_focused_buffer_as(PathBuf::from(input)) {
+                    self.set_status(format!("Save As failed: {error}"));
+                }
+            }
+            PromptKind::Find => {
+                self.last_find_query = Some(input.to_string());
+                self.set_status(format!("Find query: {input}"));
+            }
+        }
+    }
+
+    fn prompt_status_text(&self) -> Option<String> {
+        self.prompt.as_ref().map(PromptState::status_text)
+    }
+
+    fn prompt_cursor_column(&self) -> Option<usize> {
+        self.prompt_status_text()
+            .map(|text| UnicodeWidthStr::width(text.as_str()))
+    }
+
+    fn focused_path_text(&self) -> String {
+        let Some(buffer_id) = self
+            .workspace
+            .focused_window()
+            .ok()
+            .map(|window| window.buffer_id)
+        else {
+            return String::new();
+        };
+
+        self.buffer_state(buffer_id)
+            .and_then(|buffer| buffer.path.as_ref())
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    }
+
     fn drop_buffer_if_unreferenced(&mut self, id: BufferId) {
         if self
             .workspace
@@ -411,6 +556,47 @@ impl AppState {
             .find(|layout| layout.id == window.id)?;
         let body_height = layout.rect.height.saturating_sub(2) as usize;
         Some((window.buffer_id, body_height))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PromptState {
+    kind: PromptKind,
+    input: String,
+}
+
+impl PromptState {
+    fn new(kind: PromptKind, input: String) -> Self {
+        Self { kind, input }
+    }
+
+    fn status_text(&self) -> String {
+        format!("{}{}", self.kind.label(), self.input)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PromptKind {
+    Open,
+    SaveAs,
+    Find,
+}
+
+impl PromptKind {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Open => "Open: ",
+            Self::SaveAs => "Save As: ",
+            Self::Find => "Find: ",
+        }
+    }
+
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Open => "Open",
+            Self::SaveAs => "Save As",
+            Self::Find => "Find",
+        }
     }
 }
 
@@ -490,10 +676,22 @@ fn run_event_loop(
             let mut ui_frame =
                 app.shell
                     .frame_for_workspace(&app.workspace, workspace_area, &buffer_views);
-            if let Some(message) = &app.status_message {
+            if let Some(prompt) = app.prompt_status_text() {
+                ui_frame.status.left = prompt;
+            } else if let Some(message) = &app.status_message {
                 ui_frame.status.left = message.clone();
             }
             app.shell.render(frame, &ui_frame);
+            if let Some(column) = app.prompt_cursor_column() {
+                let area = frame.area();
+                if area.width > 0 && area.height > 0 {
+                    let x = column.min(area.width.saturating_sub(1) as usize) as u16;
+                    frame.set_cursor_position(TuiPosition::new(
+                        area.x + x,
+                        area.y + area.height - 1,
+                    ));
+                }
+            }
         })?;
 
         if event::poll(Duration::from_millis(250))? {
@@ -510,6 +708,10 @@ fn run_event_loop(
 
 fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
     if matches!(event.kind, CrosstermKeyEventKind::Release) {
+        return;
+    }
+
+    if app.handle_prompt_key_event(event) {
         return;
     }
 
@@ -838,6 +1040,113 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
+    #[test]
+    fn open_command_uses_prompt_to_load_file() {
+        let path = temp_file_path("prompt-open.txt");
+        std::fs::write(&path, "opened").unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        assert_eq!(app.prompt_status_text(), Some("Open: ".to_string()));
+
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "opened");
+        assert_eq!(state.path.as_ref(), Some(&path));
+        assert_eq!(
+            app.status_message,
+            Some(format!("Opened {}", path.display()))
+        );
+        assert_eq!(app.prompt_status_text(), None);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn save_as_prompt_writes_and_attaches_path() {
+        let path = temp_file_path("prompt-save-as.txt");
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::File(FileCommand::SaveAs));
+        assert_eq!(app.prompt_status_text(), Some("Save As: ".to_string()));
+
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        let window = app.workspace.focused_window().unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "x");
+        assert_eq!(state.path.as_ref(), Some(&path));
+        assert_eq!(state.buffer.kind(), dun_core::BufferKind::File);
+        assert!(!state.buffer.is_dirty());
+        assert_eq!(window.buffer_kind, dun_core::BufferKind::File);
+        assert_eq!(window.title, title_for_path(&path));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn find_command_uses_prompt_to_capture_query() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Find));
+        assert_eq!(app.prompt_status_text(), Some("Find: ".to_string()));
+
+        send_text(&mut app, "needle");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.last_find_query, Some("needle".to_string()));
+        assert_eq!(app.status_message, Some("Find query: needle".to_string()));
+    }
+
+    #[test]
+    fn prompt_cancel_restores_editor_input() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, "abc");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(app.status_message, Some("Open cancelled".to_string()));
+        assert_eq!(state.buffer.to_text(), "x");
+    }
+
+    #[test]
+    fn prompt_backspace_edits_prompt_not_buffer() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Find));
+        send_text(&mut app, "abc");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(app.prompt_status_text(), Some("Find: ab".to_string()));
+        assert_eq!(state.buffer.to_text(), "");
+    }
+
     fn temp_file_path(name: &str) -> PathBuf {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -847,5 +1156,14 @@ mod tests {
             "dun-cli-test-{}-{unique}-{name}",
             std::process::id()
         ))
+    }
+
+    fn send_text(app: &mut AppState, text: &str) {
+        for ch in text.chars() {
+            handle_key_event(
+                app,
+                CrosstermKeyEvent::new(CrosstermKeyCode::Char(ch), CrosstermKeyModifiers::NONE),
+            );
+        }
     }
 }
