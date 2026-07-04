@@ -98,3 +98,10 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Extended tests for CLI command application, text input filtering, key
   sequence dispatch, config sequence prefixes, and UI cursor mapping.
   `cargo test --workspace` passes.
+- Added the first file open/save baseline in `dun-cli`: startup accepts one
+  file path, UTF-8 text files load into the focused buffer, invalid UTF-8 is
+  rejected before entering the TUI, `Ctrl+S` saves loaded buffers back to their
+  path, and status messages report open/save results.
+- Added CLI file tests for command-line open, CRLF preservation, invalid UTF-8
+  rejection, save-to-path, save-without-path status, and clearing file metadata
+  on `FileCommand::New`. `cargo test --workspace` passes.

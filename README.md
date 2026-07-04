@@ -12,6 +12,8 @@ style inspired by classic editor interfaces such as `msedit`.
 This repository now has a Rust workspace baseline with the first pure editor
 core, terminal profile/theme layer, typed configuration/keymap layer,
 backend-neutral UI model, and a minimal runnable `ratatui` shell.
+It can open one UTF-8 file path supplied on the command line and save the
+focused buffer back to that path.
 
 The current baseline decisions are:
 

@@ -47,6 +47,10 @@ The first fallback should be deliberately simple:
 Saving must not silently corrupt unknown bytes. If a buffer was opened in a
 lossy/read-only fallback mode, the UI must make that state visible.
 
+Current implementation note: the first open/save baseline accepts valid UTF-8
+files and rejects invalid UTF-8 before entering the editor. Byte-preserving or
+read-only invalid-byte fallback remains a later step.
+
 ## Large Files
 
 Use a Vim-inspired conservative policy rather than promising arbitrary large

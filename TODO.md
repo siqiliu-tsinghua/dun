@@ -71,7 +71,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [ ] Add argument parsing.
 - [x] Add terminal setup and restoration guard.
 - [x] Create initial untitled workspace.
-- [ ] Open file path passed on command line.
+- [x] Open file path passed on command line.
+- [x] Save focused buffer back to its loaded file path.
 - [x] Wire config/profile/workspace/UI construction.
 - [x] Apply editor commands to the focused buffer/window.
 - [x] Route printable text input into the focused buffer.
@@ -81,7 +82,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 ## File and Display Safety
 
-- [ ] Define UTF-8-first file loading behavior.
+- [x] Implement UTF-8-first file loading behavior.
+- [x] Reject invalid UTF-8 files instead of opening them lossy.
 - [ ] Define invalid-byte fallback behavior.
 - [ ] Prevent save from silently corrupting lossy/fallback buffers.
 - [ ] Define large-file soft limit behavior.
