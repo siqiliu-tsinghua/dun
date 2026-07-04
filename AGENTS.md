@@ -1,0 +1,90 @@
+# AGENTS
+
+This file gives working instructions for agents and contributors changing
+`dun`.
+
+## Project Shape
+
+`dun` is a Rust `1.85` terminal editor for Linux and macOS terminals, with
+remote SSH usage as a primary scenario. It will eventually support sandboxed
+plugins through `rum`, but the editor must be useful before that integration
+exists.
+
+Do not add a `rum` dependency until the `rum` release-facing host API is stable
+enough for this repository to target deliberately.
+
+## Document Responsibilities
+
+- `README.md`: user-facing overview, goals, status, and high-level architecture.
+- `AGENTS.md`: contribution rules and project invariants for automated agents
+  and human maintainers.
+- `PLAN.md`: staged design plan and architectural sequencing.
+- `TODO.md`: active task list; keep it focused on near-term work.
+- `PROGRESS.md`: append-only history of completed work and decisions.
+- `AUDIT.md`: security model, threat notes, invariants, and audit checklist.
+
+When changing behavior or architecture, update the relevant document in the
+same change.
+
+## Engineering Rules
+
+- Target Rust `1.85`.
+- Keep dependencies compatible with Rust `1.85`.
+- Prefer small, typed internal APIs over stringly command plumbing.
+- Keep editor state owned by Rust core code.
+- Keep terminal rendering behind profile/theme/glyph abstractions.
+- Keep log processing streaming-friendly; avoid whole-file assumptions for
+  large logs.
+- Add tests with the feature being implemented. For broad editor behavior,
+  prefer focused core tests before UI tests.
+- Do not introduce native dynamic plugin loading in the initial line.
+
+## Plugin Security Invariants
+
+The future plugin model is role and policy based, but `rum` itself is only a
+pure evaluator inside `dun`.
+
+Required invariants:
+
+- all future untrusted `rum` evaluations use a pure-only sandbox policy;
+- filesystem, process, network, terminal, and editor mutation capabilities are
+  never exposed directly to untrusted `rum` code;
+- `dun` passes plugins bounded input snapshots;
+- plugins return structured data or command intents;
+- `dun` validates every output against the plugin role and policy;
+- `dun` performs all file operations itself;
+- plugin failures must not corrupt editor state.
+
+Roles should be modeled in `dun`, not in `rum`. Example roles include
+configuration, UI description, syntax highlighting, log filtering, text
+transformation, and command generation.
+
+## Terminal Compatibility Rules
+
+The default rendering target is UTF-8 plus 256 colors, but fallback behavior is
+part of the product:
+
+- support 16-color terminals;
+- support ASCII glyph fallback;
+- avoid assuming truecolor;
+- avoid assuming mouse support;
+- avoid assuming box drawing characters render correctly;
+- avoid relying on fonts with private-use glyphs.
+
+Use a `TerminalProfile`-style abstraction before exposing terminal capability
+checks to the rest of the UI.
+
+## Current Build Stage
+
+At repository creation, the codebase is not implemented. The first code should
+establish:
+
+- a Rust workspace or package pinned to Rust `1.85`;
+- core editor types independent of `ratatui`;
+- a command model;
+- terminal profile detection;
+- minimal TUI shell;
+- tests for core buffer and command behavior.
+
+Do not start with plugin runtime integration. Start with seams that allow a
+future runtime adapter.

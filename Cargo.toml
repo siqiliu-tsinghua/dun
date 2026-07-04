@@ -1,0 +1,9 @@
+[package]
+name = "dun"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+description = "Terminal editor and log inspection tool for remote operations workflows."
+
+[dependencies]
