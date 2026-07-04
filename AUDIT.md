@@ -79,6 +79,10 @@ Allowed pattern:
 4. The plugin returns a result.
 5. `dun` validates and applies the result if allowed.
 
+Host-owned destructive editor actions must confirm before dirty buffer content
+is discarded. Plugins may request allowed edit intents later, but they must not
+bypass this confirmation boundary.
+
 Forbidden pattern:
 
 1. Plugin receives filesystem capability.

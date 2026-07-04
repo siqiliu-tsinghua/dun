@@ -46,6 +46,7 @@ struct AppState {
     pending_keys: Vec<KeyStroke>,
     status_message: Option<String>,
     prompt: Option<PromptState>,
+    confirm: Option<ConfirmState>,
     last_find_query: Option<String>,
 }
 
@@ -64,6 +65,7 @@ impl AppState {
             pending_keys: Vec::new(),
             status_message: None,
             prompt: None,
+            confirm: None,
             last_find_query: None,
         }
     }
@@ -140,19 +142,30 @@ impl AppState {
 
     fn handle_app_command(&mut self, command: &AppCommand) {
         if matches!(command, AppCommand::Quit) {
+            if self.confirm_any_dirty(PendingAction::Quit) {
+                return;
+            }
             self.should_quit = true;
         }
     }
 
     fn handle_file_command(&mut self, command: &FileCommand) {
         match command {
-            FileCommand::New => self.reset_focused_to_untitled(),
+            FileCommand::New => {
+                if self.confirm_focused_dirty(PendingAction::New) {
+                    return;
+                }
+                self.reset_focused_to_untitled();
+            }
             FileCommand::Save => {
                 if let Err(error) = self.save_focused_buffer() {
                     self.set_status(format!("Save failed: {error}"));
                 }
             }
             FileCommand::Open => {
+                if self.confirm_focused_dirty(PendingAction::OpenPrompt) {
+                    return;
+                }
                 self.start_prompt(PromptKind::Open, String::new());
             }
             FileCommand::SaveAs => {
@@ -290,16 +303,12 @@ impl AppState {
                 let _ = self.workspace.toggle_focused_collapse();
             }
             WindowCommand::Close => {
-                let closing_buffer_id = self
-                    .workspace
-                    .focused_window()
-                    .ok()
-                    .map(|window| window.buffer_id);
-                if self.workspace.close_focused().is_ok() {
-                    if let Some(buffer_id) = closing_buffer_id {
-                        self.drop_buffer_if_unreferenced(buffer_id);
-                    }
+                if self.workspace.window_count() > 1
+                    && self.confirm_focused_dirty(PendingAction::CloseWindow)
+                {
+                    return;
                 }
+                self.close_focused_window_unchecked();
             }
             WindowCommand::Only => {}
         }
@@ -360,23 +369,24 @@ impl AppState {
 
     fn save_focused_buffer(&mut self) -> io::Result<()> {
         let buffer_id = self
-            .workspace
-            .focused_window()
-            .map_err(|_| io::Error::other("focused window is missing"))?
-            .buffer_id;
-        let path = self
-            .buffer_state(buffer_id)
-            .and_then(|buffer| buffer.path.clone())
-            .ok_or_else(|| {
+            .focused_buffer_id()
+            .ok_or_else(|| io::Error::other("focused window is missing"))?;
+        self.save_buffer(buffer_id).map(|_| ())
+    }
+
+    fn save_buffer(&mut self, buffer_id: BufferId) -> io::Result<PathBuf> {
+        let (path, text) = {
+            let buffer = self
+                .buffer_state(buffer_id)
+                .ok_or_else(|| io::Error::other("buffer is missing"))?;
+            let path = buffer.path.clone().ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "focused buffer has no file path",
                 )
             })?;
-        let text = self
-            .buffer_state(buffer_id)
-            .map(|buffer| buffer.buffer.to_text())
-            .ok_or_else(|| io::Error::other("focused buffer is missing"))?;
+            (path, buffer.buffer.to_text())
+        };
 
         fs::write(&path, text.as_bytes())?;
 
@@ -384,7 +394,7 @@ impl AppState {
             buffer.buffer.mark_saved();
         }
         self.set_status(format!("Saved {}", path.display()));
-        Ok(())
+        Ok(path)
     }
 
     fn save_focused_buffer_as(&mut self, path: PathBuf) -> io::Result<()> {
@@ -432,9 +442,29 @@ impl AppState {
         }
     }
 
+    fn close_focused_window_unchecked(&mut self) {
+        let closing_buffer_id = self
+            .workspace
+            .focused_window()
+            .ok()
+            .map(|window| window.buffer_id);
+        if self.workspace.close_focused().is_ok() {
+            if let Some(buffer_id) = closing_buffer_id {
+                self.drop_buffer_if_unreferenced(buffer_id);
+            }
+        }
+    }
+
     fn focused_buffer_mut(&mut self) -> Option<&mut BufferState> {
-        let buffer_id = self.workspace.focused_window().ok()?.buffer_id;
+        let buffer_id = self.focused_buffer_id()?;
         self.buffer_state_mut(buffer_id)
+    }
+
+    fn focused_buffer_id(&self) -> Option<BufferId> {
+        self.workspace
+            .focused_window()
+            .ok()
+            .map(|window| window.buffer_id)
     }
 
     fn buffer_state(&self, id: BufferId) -> Option<&BufferState> {
@@ -450,9 +480,133 @@ impl AppState {
     }
 
     fn start_prompt(&mut self, kind: PromptKind, initial_input: String) {
+        self.start_prompt_after(kind, initial_input, None);
+    }
+
+    fn start_prompt_after(
+        &mut self,
+        kind: PromptKind,
+        initial_input: String,
+        after_success: Option<PendingAction>,
+    ) {
         self.pending_keys.clear();
         self.status_message = None;
-        self.prompt = Some(PromptState::new(kind, initial_input));
+        self.confirm = None;
+        self.prompt = Some(PromptState::new(kind, initial_input, after_success));
+    }
+
+    fn start_confirm(&mut self, action: PendingAction, buffer_id: BufferId) {
+        self.pending_keys.clear();
+        self.status_message = None;
+        self.prompt = None;
+        self.confirm = Some(ConfirmState { action, buffer_id });
+    }
+
+    fn confirm_focused_dirty(&mut self, action: PendingAction) -> bool {
+        let Some(buffer_id) = self.focused_buffer_id() else {
+            return false;
+        };
+
+        if self
+            .buffer_state(buffer_id)
+            .is_some_and(|buffer| buffer.buffer.is_dirty())
+        {
+            self.start_confirm(action, buffer_id);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn confirm_any_dirty(&mut self, action: PendingAction) -> bool {
+        let Some(buffer_id) = self
+            .buffers
+            .iter()
+            .find(|buffer| buffer.buffer.is_dirty())
+            .map(|buffer| buffer.id)
+        else {
+            return false;
+        };
+
+        self.focus_window_for_buffer(buffer_id);
+        self.start_confirm(action, buffer_id);
+        true
+    }
+
+    fn handle_confirm_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+        if self.confirm.is_none() {
+            return false;
+        }
+
+        match event.code {
+            CrosstermKeyCode::Esc => self.cancel_confirm(),
+            CrosstermKeyCode::Char(ch) => match ch.to_ascii_lowercase() {
+                's' => self.save_confirmed_action(),
+                'd' => self.discard_confirmed_action(),
+                'c' => self.cancel_confirm(),
+                _ => {}
+            },
+            _ => {}
+        }
+
+        true
+    }
+
+    fn cancel_confirm(&mut self) {
+        self.confirm = None;
+        self.set_status("Unsaved changes cancelled");
+    }
+
+    fn save_confirmed_action(&mut self) {
+        let Some(confirm) = self.confirm.take() else {
+            return;
+        };
+
+        self.focus_window_for_buffer(confirm.buffer_id);
+        if self
+            .buffer_state(confirm.buffer_id)
+            .and_then(|buffer| buffer.path.as_ref())
+            .is_none()
+        {
+            self.start_prompt_after(
+                PromptKind::SaveAs,
+                self.path_text_for_buffer(confirm.buffer_id),
+                Some(confirm.action),
+            );
+            return;
+        }
+
+        match self.save_buffer(confirm.buffer_id) {
+            Ok(_) => self.continue_pending_action(confirm.action),
+            Err(error) => self.set_status(format!("Save failed: {error}")),
+        }
+    }
+
+    fn discard_confirmed_action(&mut self) {
+        let Some(confirm) = self.confirm.take() else {
+            return;
+        };
+
+        match confirm.action {
+            PendingAction::Quit => self.should_quit = true,
+            action => {
+                self.focus_window_for_buffer(confirm.buffer_id);
+                self.continue_pending_action(action);
+            }
+        }
+    }
+
+    fn continue_pending_action(&mut self, action: PendingAction) {
+        match action {
+            PendingAction::Quit => {
+                if !self.confirm_any_dirty(PendingAction::Quit) {
+                    self.should_quit = true;
+                }
+            }
+            PendingAction::New => self.reset_focused_to_untitled(),
+            PendingAction::OpenPrompt => self.start_prompt(PromptKind::Open, String::new()),
+            PendingAction::CloseWindow => self.close_focused_window_unchecked(),
+        }
     }
 
     fn handle_prompt_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
@@ -495,7 +649,7 @@ impl AppState {
             return;
         };
 
-        let input = prompt.input.trim();
+        let input = prompt.input.trim().to_string();
         if input.is_empty() {
             self.set_status(format!("{} cancelled", prompt.kind.name()));
             return;
@@ -503,18 +657,20 @@ impl AppState {
 
         match prompt.kind {
             PromptKind::Open => {
-                if let Err(error) = self.open_file_path(PathBuf::from(input)) {
+                if let Err(error) = self.open_file_path(PathBuf::from(&input)) {
                     self.set_status(format!("Open failed: {error}"));
                 }
             }
             PromptKind::SaveAs => {
-                if let Err(error) = self.save_focused_buffer_as(PathBuf::from(input)) {
+                if let Err(error) = self.save_focused_buffer_as(PathBuf::from(&input)) {
                     self.set_status(format!("Save As failed: {error}"));
+                } else if let Some(action) = prompt.after_success {
+                    self.continue_pending_action(action);
                 }
             }
             PromptKind::Find => {
-                self.last_find_query = Some(input.to_string());
-                self.find_in_focused_buffer(input, SearchDirection::Forward);
+                self.last_find_query = Some(input.clone());
+                self.find_in_focused_buffer(&input, SearchDirection::Forward);
             }
         }
     }
@@ -574,25 +730,70 @@ impl AppState {
         self.prompt.as_ref().map(PromptState::status_text)
     }
 
+    fn confirm_status_text(&self) -> Option<String> {
+        self.confirm.as_ref().map(|confirm| {
+            let action = match confirm.action {
+                PendingAction::Quit => "Save(s) Quit without saving(d) Cancel(c)",
+                PendingAction::New | PendingAction::OpenPrompt | PendingAction::CloseWindow => {
+                    "Save(s) Discard(d) Cancel(c)"
+                }
+            };
+            format!(
+                "Unsaved changes in {}: {action}",
+                self.buffer_display_name(confirm.buffer_id)
+            )
+        })
+    }
+
     fn prompt_cursor_column(&self) -> Option<usize> {
         self.prompt_status_text()
             .map(|text| UnicodeWidthStr::width(text.as_str()))
     }
 
     fn focused_path_text(&self) -> String {
-        let Some(buffer_id) = self
-            .workspace
-            .focused_window()
-            .ok()
-            .map(|window| window.buffer_id)
-        else {
+        let Some(buffer_id) = self.focused_buffer_id() else {
             return String::new();
         };
 
+        self.path_text_for_buffer(buffer_id)
+    }
+
+    fn path_text_for_buffer(&self, buffer_id: BufferId) -> String {
         self.buffer_state(buffer_id)
             .and_then(|buffer| buffer.path.as_ref())
             .map(|path| path.to_string_lossy().into_owned())
             .unwrap_or_default()
+    }
+
+    fn buffer_display_name(&self, buffer_id: BufferId) -> String {
+        if let Some(name) = self
+            .buffer_state(buffer_id)
+            .and_then(|buffer| buffer.path.as_ref())
+            .map(|path| title_for_path(path))
+        {
+            return name;
+        }
+
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.buffer_id == buffer_id)
+            .map(|window| window.title.clone())
+            .unwrap_or_else(|| format!("Buffer {}", buffer_id.0))
+    }
+
+    fn focus_window_for_buffer(&mut self, buffer_id: BufferId) -> bool {
+        let Some(window) = self
+            .workspace
+            .windows
+            .iter()
+            .find(|window| window.buffer_id == buffer_id)
+        else {
+            return false;
+        };
+
+        self.workspace.focused = window.id;
+        true
     }
 
     fn focused_buffer_status(&self) -> String {
@@ -672,11 +873,16 @@ impl AppState {
 struct PromptState {
     kind: PromptKind,
     input: String,
+    after_success: Option<PendingAction>,
 }
 
 impl PromptState {
-    fn new(kind: PromptKind, input: String) -> Self {
-        Self { kind, input }
+    fn new(kind: PromptKind, input: String, after_success: Option<PendingAction>) -> Self {
+        Self {
+            kind,
+            input,
+            after_success,
+        }
     }
 
     fn status_text(&self) -> String {
@@ -707,6 +913,20 @@ impl PromptKind {
             Self::Find => "Find",
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ConfirmState {
+    action: PendingAction,
+    buffer_id: BufferId,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PendingAction {
+    Quit,
+    New,
+    OpenPrompt,
+    CloseWindow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -828,7 +1048,9 @@ fn run_event_loop(
             let mut ui_frame =
                 app.shell
                     .frame_for_workspace(&app.workspace, workspace_area, &buffer_views);
-            if let Some(prompt) = app.prompt_status_text() {
+            if let Some(confirm) = app.confirm_status_text() {
+                ui_frame.status.left = confirm;
+            } else if let Some(prompt) = app.prompt_status_text() {
                 ui_frame.status.left = prompt;
             } else if let Some(message) = &app.status_message {
                 ui_frame.status.left = message.clone();
@@ -863,6 +1085,10 @@ fn run_event_loop(
 
 fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
     if matches!(event.kind, CrosstermKeyEventKind::Release) {
+        return;
+    }
+
+    if app.handle_confirm_key_event(event) {
         return;
     }
 
@@ -1389,6 +1615,162 @@ mod tests {
         let state = app.buffer_state(BufferId(1)).unwrap();
         assert_eq!(app.prompt_status_text(), Some("Find: ab".to_string()));
         assert_eq!(state.buffer.to_text(), "");
+    }
+
+    #[test]
+    fn new_command_confirms_dirty_buffer_before_clearing() {
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::File(FileCommand::New));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "x");
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Unsaved changes in Untitled: Save(s) Discard(d) Cancel(c)".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('c'), CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "x");
+        assert_eq!(
+            app.status_message,
+            Some("Unsaved changes cancelled".to_string())
+        );
+
+        app.handle_command(&EditorCommand::File(FileCommand::New));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('d'), CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "");
+        assert_eq!(app.confirm_status_text(), None);
+    }
+
+    #[test]
+    fn open_command_can_discard_dirty_buffer_before_prompt() {
+        let path = temp_file_path("confirm-open.txt");
+        std::fs::write(&path, "opened").unwrap();
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Unsaved changes in Untitled: Save(s) Discard(d) Cancel(c)".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('d'), CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.prompt_status_text(), Some("Open: ".to_string()));
+
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "opened");
+        assert_eq!(state.path.as_ref(), Some(&path));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn quit_confirms_dirty_file_and_saves_before_exit() {
+        let path = temp_file_path("confirm-quit-save.txt");
+        std::fs::write(&path, "old").unwrap();
+        let mut app = AppState::from_args([path.clone().into_os_string()]).unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
+        app.handle_text_input('!');
+        app.handle_command(&EditorCommand::App(AppCommand::Quit));
+
+        assert!(!app.should_quit);
+        assert_eq!(
+            app.confirm_status_text(),
+            Some(format!(
+                "Unsaved changes in {}: Save(s) Quit without saving(d) Cancel(c)",
+                title_for_path(&path)
+            ))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('s'), CrosstermKeyModifiers::NONE),
+        );
+
+        assert!(app.should_quit);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old!");
+        assert!(!app.buffer_state(BufferId(1)).unwrap().buffer.is_dirty());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn quit_dirty_untitled_save_prompts_for_save_as_then_exits() {
+        let path = temp_file_path("confirm-quit-save-as.txt");
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::App(AppCommand::Quit));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('s'), CrosstermKeyModifiers::NONE),
+        );
+
+        assert!(!app.should_quit);
+        assert_eq!(app.prompt_status_text(), Some("Save As: ".to_string()));
+
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert!(app.should_quit);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "x");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn close_dirty_window_can_be_cancelled() {
+        let mut app = AppState::new();
+        app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+        let focused = app.workspace.focused;
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(app.workspace.focused, focused);
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Unsaved changes in Untitled-2: Save(s) Discard(d) Cancel(c)".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(app.workspace.focused, focused);
+        assert_eq!(
+            app.status_message,
+            Some("Unsaved changes cancelled".to_string())
+        );
     }
 
     fn temp_file_path(name: &str) -> PathBuf {

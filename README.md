@@ -19,6 +19,8 @@ entry. Find now supports next/previous navigation and selected match
 highlighting.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty marker, and `Ln`/`Col` status.
+Dirty buffers are protected by a status-line confirmation before quit, new,
+open, or close would discard changes.
 
 The current baseline decisions are:
 

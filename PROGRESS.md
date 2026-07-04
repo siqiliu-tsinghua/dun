@@ -131,3 +131,13 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added tests for scrolled gutter labels, shifted cursor/selection geometry,
   dirty buffer status, and wide-character column status. `cargo test
   --workspace` passes.
+
+## 2026-07-05
+
+- Added unsaved-changes confirmation in `dun-cli` before dirty buffers are
+  lost through quit, new, open, or close-window commands.
+- Confirmation is status-line based: `s` saves and continues, `d` discards and
+  continues, and `c`/`Esc` cancels. Untitled buffers use the existing Save As
+  prompt before continuing the pending action.
+- Added CLI tests for new/open/quit/close dirty-buffer protection, save-before
+  quit, and Save As-before-quit. `cargo test --workspace` passes.

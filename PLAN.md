@@ -170,14 +170,14 @@ Primary crate: `dun-config`.
 
 Goal: reach a practical Microsoft Edit-like baseline.
 
-- Search and replace.
-- Go to line.
-- File open/save-as dialogs or command-line equivalents.
-- Unsaved changes confirmation.
-- Error log dialog.
-- Help/key reference screen.
-- Better status bar fields.
-- Manual tests on common SSH terminals.
+- [ ] Search and replace.
+- [ ] Go to line.
+- [x] File open/save-as dialogs or command-line equivalents.
+- [x] Unsaved changes confirmation.
+- [ ] Error log dialog.
+- [ ] Help/key reference screen.
+- [ ] Better status bar fields.
+- [ ] Manual tests on common SSH terminals.
 
 ## Phase 9: Future Plugin and Log Line
 
