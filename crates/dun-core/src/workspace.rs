@@ -165,6 +165,7 @@ pub enum WindowKind {
     Edit,
     ReadOnly,
     Help,
+    StatusHistory,
     Prompt,
 }
 

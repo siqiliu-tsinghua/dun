@@ -103,6 +103,7 @@ impl Keymap {
         Self {
             bindings: vec![
                 KeyBinding::new("F1", EditorCommand::App(AppCommand::Help)),
+                KeyBinding::new("F2", EditorCommand::App(AppCommand::StatusHistory)),
                 KeyBinding::new("Ctrl+Q", EditorCommand::App(AppCommand::Quit)),
                 KeyBinding::new("Ctrl+P", EditorCommand::App(AppCommand::CommandLine)),
                 KeyBinding::new("Ctrl+N", EditorCommand::File(FileCommand::New)),
@@ -539,6 +540,7 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Window(WindowCommand::Only) => "window.only",
         EditorCommand::App(AppCommand::CommandLine) => "app.command_line",
         EditorCommand::App(AppCommand::Help) => "app.help",
+        EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
         EditorCommand::App(AppCommand::Quit) => "app.quit",
     }
 }
@@ -589,6 +591,7 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "window.only" => Ok(EditorCommand::Window(WindowCommand::Only)),
         "app.command_line" => Ok(EditorCommand::App(AppCommand::CommandLine)),
         "app.help" => Ok(EditorCommand::App(AppCommand::Help)),
+        "app.status_history" => Ok(EditorCommand::App(AppCommand::StatusHistory)),
         "app.quit" => Ok(EditorCommand::App(AppCommand::Quit)),
         _ => Err(CommandParseError::UnknownCommand(input.to_string())),
     }
@@ -750,6 +753,10 @@ mod tests {
         assert_eq!(
             keymap.command_for_sequence(&KeySequence::from_str("Ctrl+G").unwrap()),
             Some(&EditorCommand::Edit(EditCommand::GoToLine))
+        );
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("F2").unwrap()),
+            Some(&EditorCommand::App(AppCommand::StatusHistory))
         );
     }
 

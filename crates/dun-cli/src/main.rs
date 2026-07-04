@@ -48,6 +48,7 @@ struct AppState {
     status_message: Option<String>,
     prompt: Option<PromptState>,
     confirm: Option<ConfirmState>,
+    status_history: Vec<StatusEntry>,
     last_find_query: Option<String>,
     pending_replace_query: Option<String>,
 }
@@ -68,6 +69,7 @@ impl AppState {
             status_message: None,
             prompt: None,
             confirm: None,
+            status_history: Vec::new(),
             last_find_query: None,
             pending_replace_query: None,
         }
@@ -146,6 +148,7 @@ impl AppState {
     fn handle_app_command(&mut self, command: &AppCommand) {
         match command {
             AppCommand::Help => self.open_help_screen(),
+            AppCommand::StatusHistory => self.open_status_history_screen(),
             AppCommand::Quit => {
                 if self.confirm_any_dirty(PendingAction::Quit) {
                     return;
@@ -501,6 +504,75 @@ impl AppState {
             .map(|window| window.id)
     }
 
+    fn open_status_history_screen(&mut self) {
+        self.set_status("Status history");
+
+        if let Some(window_id) = self.status_history_window_id() {
+            self.workspace.focused = window_id;
+            return;
+        }
+
+        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+            self.set_status("Status history failed: focused window is missing");
+            return;
+        };
+        let Ok(window) = self.workspace.window(window_id) else {
+            self.set_status("Status history failed: status window is missing");
+            return;
+        };
+        let buffer_id = window.buffer_id;
+        let text = self.status_history_text();
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = BufferState::new(buffer_id, status_history_buffer(&text));
+        } else {
+            self.buffers
+                .push(BufferState::new(buffer_id, status_history_buffer(&text)));
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = "Status History".to_string();
+            window.kind = WindowKind::StatusHistory;
+            window.buffer_kind = BufferKind::ReadOnly;
+            window.collapsed = false;
+        }
+    }
+
+    fn status_history_window_id(&self) -> Option<WindowId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::StatusHistory)
+            .map(|window| window.id)
+    }
+
+    fn status_history_buffer_id(&self) -> Option<BufferId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::StatusHistory)
+            .map(|window| window.buffer_id)
+    }
+
+    fn status_history_text(&self) -> String {
+        let mut out = String::from("Dun Status History\n\n");
+        if self.status_history.is_empty() {
+            out.push_str("No status messages yet.\n");
+            return out;
+        }
+
+        for (index, entry) in self.status_history.iter().enumerate() {
+            out.push_str(&format!(
+                "{:>3}. [{}] {}\n",
+                index + 1,
+                entry.level.label(),
+                entry.message
+            ));
+        }
+
+        out
+    }
+
     fn close_focused_window_unchecked(&mut self) {
         let closing_buffer_id = self
             .workspace
@@ -535,7 +607,32 @@ impl AppState {
     }
 
     fn set_status(&mut self, message: impl Into<String>) {
-        self.status_message = Some(message.into());
+        let message = message.into();
+        self.status_message = Some(message.clone());
+        self.record_status(message);
+    }
+
+    fn record_status(&mut self, message: String) {
+        self.status_history.push(StatusEntry {
+            level: StatusLevel::for_message(&message),
+            message,
+        });
+        if self.status_history.len() > STATUS_HISTORY_LIMIT {
+            let overflow = self.status_history.len() - STATUS_HISTORY_LIMIT;
+            self.status_history.drain(0..overflow);
+        }
+        self.refresh_status_history_buffer();
+    }
+
+    fn refresh_status_history_buffer(&mut self) {
+        let Some(buffer_id) = self.status_history_buffer_id() else {
+            return;
+        };
+        let text = self.status_history_text();
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = BufferState::new(buffer_id, status_history_buffer(&text));
+        }
     }
 
     fn start_prompt(&mut self, kind: PromptKind, initial_input: String) {
@@ -1236,6 +1333,38 @@ impl BufferState {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StatusEntry {
+    level: StatusLevel,
+    message: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StatusLevel {
+    Info,
+    Error,
+}
+
+impl StatusLevel {
+    fn for_message(message: &str) -> Self {
+        let message = message.to_ascii_lowercase();
+        if message.contains("failed") || message.contains("error") || message.contains("invalid") {
+            Self::Error
+        } else {
+            Self::Info
+        }
+    }
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Info => "info",
+            Self::Error => "error",
+        }
+    }
+}
+
+const STATUS_HISTORY_LIMIT: usize = 128;
+
 struct TerminalGuard;
 
 impl TerminalGuard {
@@ -1392,10 +1521,15 @@ fn help_buffer() -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, HELP_TEXT)
 }
 
+fn status_history_buffer(text: &str) -> TextBuffer {
+    TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
+}
+
 const HELP_TEXT: &str = "\
 Dun Help
 
 File
+  F2              Status history
   Ctrl+N          New untitled buffer
   Ctrl+O          Open file
   Ctrl+S          Save
@@ -1609,6 +1743,96 @@ mod tests {
         assert_eq!(
             app.workspace.focused_window().unwrap().kind,
             WindowKind::Help
+        );
+    }
+
+    #[test]
+    fn status_history_command_opens_read_only_status_window_once() {
+        let mut app = AppState::new();
+        app.set_status("Opened sample.txt");
+        app.set_status("Save failed: disk full");
+
+        app.handle_command(&EditorCommand::App(AppCommand::StatusHistory));
+
+        let status_window = app.workspace.focused_window().unwrap();
+        let status_window_id = status_window.id;
+        let status_buffer_id = status_window.buffer_id;
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(status_window.title, "Status History");
+        assert_eq!(status_window.kind, WindowKind::StatusHistory);
+        assert_eq!(status_window.buffer_kind, BufferKind::ReadOnly);
+
+        let status_buffer = app.buffer_state(status_buffer_id).unwrap();
+        let text = status_buffer.buffer.to_text();
+        assert!(status_buffer.buffer.is_read_only());
+        assert!(text.contains("[info] Opened sample.txt"));
+        assert!(text.contains("[error] Save failed: disk full"));
+        assert!(text.contains("[info] Status history"));
+
+        app.handle_command(&EditorCommand::App(AppCommand::StatusHistory));
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(app.workspace.focused, status_window_id);
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+        assert_eq!(app.workspace.window_count(), 1);
+        assert!(app.buffer_state(status_buffer_id).is_none());
+    }
+
+    #[test]
+    fn status_history_window_refreshes_when_status_changes() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::StatusHistory));
+        let status_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+        assert!(
+            !app.buffer_state(status_buffer_id)
+                .unwrap()
+                .buffer
+                .to_text()
+                .contains("Later")
+        );
+
+        app.set_status("Later");
+
+        assert!(
+            app.buffer_state(status_buffer_id)
+                .unwrap()
+                .buffer
+                .to_text()
+                .contains("[info] Later")
+        );
+    }
+
+    #[test]
+    fn status_history_is_capped_to_recent_entries() {
+        let mut app = AppState::new();
+
+        for index in 0..(STATUS_HISTORY_LIMIT + 2) {
+            app.set_status(format!("message {index}"));
+        }
+
+        assert_eq!(app.status_history.len(), STATUS_HISTORY_LIMIT);
+        assert_eq!(app.status_history[0].message, "message 2");
+        assert_eq!(
+            app.status_history[STATUS_HISTORY_LIMIT - 1].message,
+            format!("message {}", STATUS_HISTORY_LIMIT + 1)
+        );
+    }
+
+    #[test]
+    fn f2_key_opens_status_history() {
+        let mut app = AppState::new();
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(2), CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::StatusHistory
         );
     }
 

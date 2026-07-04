@@ -160,3 +160,9 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added CLI tests for Help window creation, read-only help content, duplicate
   prevention, cleanup on close, and F1 dispatch. `cargo test --workspace`
   passes.
+- Added status history baseline: `set_status` records recent status messages
+  with simple info/error classification, `F2` or the Status menu opens a
+  read-only Status History window, and the window refreshes while it is open.
+- Added tests for status history window creation, duplicate prevention, close
+  cleanup, live refresh, capped history length, F2 dispatch, default keymap,
+  and Status menu exposure. `cargo test --workspace` passes.
