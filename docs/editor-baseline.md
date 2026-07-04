@@ -45,11 +45,14 @@ The first fallback should be deliberately simple:
   model.
 
 Saving must not silently corrupt unknown bytes. If a buffer was opened in a
-lossy/read-only fallback mode, the UI must make that state visible.
+lossy/read-only fallback mode, the UI must make that state visible and reject
+normal Save/Save As unless a byte-preserving edit model exists.
 
-Current implementation note: the first open/save baseline accepts valid UTF-8
-files and rejects invalid UTF-8 before entering the editor. Byte-preserving or
-read-only invalid-byte fallback remains a later step.
+Current implementation note: valid UTF-8 files open as editable buffers.
+Invalid UTF-8 files open as read-only fallback buffers. Valid UTF-8 spans stay
+readable, invalid bytes and non-newline controls are rendered as visible
+escapes such as `\xFF`, and ordinary Save/Save As rejects those read-only
+buffers to avoid corrupting the original file.
 
 ## Large Files
 

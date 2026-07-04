@@ -203,3 +203,10 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added CLI tests for accepting files exactly at the soft limit, rejecting
   files over the limit on startup, and reporting over-limit files through the
   Open prompt status path.
+- Implemented invalid-byte fallback file loading in `dun-cli`. Invalid UTF-8
+  files now open as read-only buffers with valid UTF-8 spans preserved and
+  invalid bytes escaped visibly as `\xNN`.
+- Added save protection for read-only fallback buffers: Save and Save As reject
+  them instead of writing escaped fallback text over the original bytes.
+- Added CLI tests for invalid UTF-8 fallback display, valid Unicode preservation
+  inside fallback buffers, and Save/Save As rejection for fallback buffers.

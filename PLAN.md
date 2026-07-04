@@ -84,12 +84,12 @@ Primary crate: `dun-core`.
 
 Goal: safe file round trips and safe terminal display.
 
-- [ ] Implement UTF-8-first file loading.
-- [ ] Define invalid-byte fallback behavior.
-- [ ] Add read-only fallback state for unsafe/lossy opens.
-- [ ] Implement save/save-as through host-owned file I/O.
+- [x] Implement UTF-8-first file loading.
+- [x] Define invalid-byte fallback behavior.
+- [x] Add read-only fallback state for unsafe/lossy opens.
+- [x] Implement save/save-as through host-owned file I/O.
 - [x] Define large-file soft limit behavior.
-- [ ] Add visible diagnostics for fallback/large-file state.
+- [x] Add visible diagnostics for fallback/large-file state.
 - [x] Implement display sanitizer for ASCII controls and terminal escapes.
 - [x] Add tests for `ESC`, OSC, BEL, NUL, DEL, CR, backspace, tabs, and long
   lines.

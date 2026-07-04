@@ -570,7 +570,14 @@ impl AppState {
             window.buffer_kind = kind;
         }
 
-        self.set_status(format!("Opened {}", path.display()));
+        if kind == BufferKind::ReadOnly {
+            self.set_status(format!(
+                "Opened {} read-only: invalid UTF-8 bytes escaped",
+                path.display()
+            ));
+        } else {
+            self.set_status(format!("Opened {}", path.display()));
+        }
     }
 
     fn save_focused_buffer(&mut self) -> io::Result<()> {
@@ -585,6 +592,12 @@ impl AppState {
             let buffer = self
                 .buffer_state(buffer_id)
                 .ok_or_else(|| io::Error::other("buffer is missing"))?;
+            if buffer.buffer.is_read_only() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "focused buffer is read-only",
+                ));
+            }
             let path = buffer.path.clone().ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -610,10 +623,18 @@ impl AppState {
             .map_err(|_| io::Error::other("focused window is missing"))?;
         let window_id = window.id;
         let buffer_id = window.buffer_id;
-        let text = self
-            .buffer_state(buffer_id)
-            .map(|buffer| buffer.buffer.to_text())
-            .ok_or_else(|| io::Error::other("focused buffer is missing"))?;
+        let text = {
+            let buffer = self
+                .buffer_state(buffer_id)
+                .ok_or_else(|| io::Error::other("focused buffer is missing"))?;
+            if buffer.buffer.is_read_only() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "focused buffer is read-only",
+                ));
+            }
+            buffer.buffer.to_text()
+        };
 
         fs::write(&path, text.as_bytes())?;
 
@@ -1847,13 +1868,13 @@ fn clamp_to_char_boundary(line: &str, column: usize) -> usize {
 
 fn load_text_buffer(path: &Path, limits: Limits) -> io::Result<TextBuffer> {
     let bytes = read_editable_file(path, limits.editable_file_soft_limit_bytes)?;
-    let text = String::from_utf8(bytes).map_err(|error| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{} is not valid UTF-8: {error}", path.display()),
-        )
-    })?;
-    Ok(TextBuffer::from_text(&text))
+    match String::from_utf8(bytes) {
+        Ok(text) => Ok(TextBuffer::from_text(&text)),
+        Err(error) => Ok(TextBuffer::from_text_with_kind(
+            BufferKind::ReadOnly,
+            &escaped_invalid_utf8_text(error.as_bytes()),
+        )),
+    }
 }
 
 fn read_editable_file(path: &Path, soft_limit: u64) -> io::Result<Vec<u8>> {
@@ -1888,6 +1909,59 @@ fn editable_file_soft_limit_error(path: &Path, size: u64, soft_limit: u64) -> io
             soft_limit,
         ),
     )
+}
+
+fn escaped_invalid_utf8_text(bytes: &[u8]) -> String {
+    let mut output = String::new();
+    let mut remaining = bytes;
+
+    while !remaining.is_empty() {
+        match std::str::from_utf8(remaining) {
+            Ok(valid) => {
+                push_fallback_valid_text(&mut output, valid);
+                break;
+            }
+            Err(error) => {
+                let valid_up_to = error.valid_up_to();
+                let valid = std::str::from_utf8(&remaining[..valid_up_to])
+                    .expect("valid prefix reported by Utf8Error should decode");
+                push_fallback_valid_text(&mut output, valid);
+
+                let invalid_len = error
+                    .error_len()
+                    .unwrap_or_else(|| remaining.len() - valid_up_to);
+                for byte in &remaining[valid_up_to..valid_up_to + invalid_len] {
+                    push_byte_escape(&mut output, *byte);
+                }
+                remaining = &remaining[valid_up_to + invalid_len..];
+            }
+        }
+    }
+
+    output
+}
+
+fn push_fallback_valid_text(output: &mut String, text: &str) {
+    for ch in text.chars() {
+        match ch {
+            '\n' => output.push('\n'),
+            '\\' => output.push_str("\\\\"),
+            ch if ch.is_control() => {
+                let mut bytes = [0; 4];
+                for byte in ch.encode_utf8(&mut bytes).as_bytes() {
+                    push_byte_escape(output, *byte);
+                }
+            }
+            _ => output.push(ch),
+        }
+    }
+}
+
+fn push_byte_escape(output: &mut String, byte: u8) {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    output.push_str("\\x");
+    output.push(HEX[(byte >> 4) as usize] as char);
+    output.push(HEX[(byte & 0x0f) as usize] as char);
 }
 
 fn title_for_path(path: &Path) -> String {
@@ -2263,16 +2337,80 @@ mod tests {
     }
 
     #[test]
-    fn invalid_utf8_file_path_is_rejected() {
+    fn invalid_utf8_file_path_opens_read_only_fallback() {
         let path = temp_file_path("invalid.txt");
+        std::fs::write(&path, [b'o', b'k', 0xff, b'\n', b'\\', b'\t', 0xe4]).unwrap();
+
+        let app = AppState::from_path(Some(path.clone())).unwrap();
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        let window = app.workspace.focused_window().unwrap();
+
+        assert!(state.buffer.is_read_only());
+        assert_eq!(state.buffer.kind(), BufferKind::ReadOnly);
+        assert_eq!(state.buffer.to_text(), "ok\\xFF\n\\\\\\x09\\xE4");
+        assert_eq!(state.path.as_ref(), Some(&path));
+        assert_eq!(window.buffer_kind, BufferKind::ReadOnly);
+        assert_eq!(
+            app.status_message,
+            Some(format!(
+                "Opened {} read-only: invalid UTF-8 bytes escaped",
+                path.display()
+            ))
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn invalid_utf8_fallback_preserves_valid_unicode_segments() {
+        let path = temp_file_path("invalid-with-unicode.txt");
+        std::fs::write(&path, [b'a', 0xe4, 0xb8, 0xad, 0xff, b'b']).unwrap();
+
+        let app = AppState::from_path(Some(path.clone())).unwrap();
+        let state = app.buffer_state(BufferId(1)).unwrap();
+
+        assert!(state.buffer.is_read_only());
+        assert_eq!(state.buffer.to_text(), "a中\\xFFb");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn save_rejects_read_only_invalid_utf8_fallback() {
+        let path = temp_file_path("invalid-save.txt");
         std::fs::write(&path, [0xff, b'a']).unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
 
-        let error = match AppState::from_path(Some(path.clone())) {
-            Ok(_) => panic!("invalid UTF-8 input should be rejected"),
-            Err(error) => error,
-        };
+        app.handle_command(&EditorCommand::File(FileCommand::Save));
 
-        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            app.status_message,
+            Some("Save failed: focused buffer is read-only".to_string())
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), vec![0xff, b'a']);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn save_as_rejects_read_only_invalid_utf8_fallback() {
+        let path = temp_file_path("invalid-save-as.txt");
+        let target = temp_file_path("invalid-save-as-target.txt");
+        std::fs::write(&path, [0xff, b'a']).unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
+
+        app.handle_command(&EditorCommand::File(FileCommand::SaveAs));
+        send_text(&mut app, &target.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.status_message,
+            Some("Save As failed: focused buffer is read-only".to_string())
+        );
+        assert!(!target.exists());
 
         let _ = std::fs::remove_file(path);
     }
