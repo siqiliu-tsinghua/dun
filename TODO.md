@@ -48,7 +48,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Select `ratatui` and backend versions compatible with Rust `1.85`.
 - [x] Render menu bar.
 - [x] Render status bar.
-- [ ] Render single editor area with line-number gutter.
+- [x] Render single editor area with line-number gutter.
 - [x] Render Microsoft Edit-style single-line borders for tiled windows.
 - [x] Render ASCII fallback borders.
 - [x] Render multiple tiled windows from resolved layout rectangles.
@@ -81,6 +81,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Track pending multi-stroke key sequences.
 - [x] Keep the focused cursor line visible while drawing.
 - [x] Implement find result navigation.
+- [x] Show focused buffer name, dirty state, and line/column status.
 - [ ] Return stable exit codes.
 
 ## File and Display Safety

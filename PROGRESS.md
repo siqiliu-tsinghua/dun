@@ -122,3 +122,12 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added tests for core search ranges, find prompt navigation, next/previous
   wraparound, missing-query/missing-match status, and UI selection mapping.
   `cargo test --workspace` passes.
+- Added a line-number gutter to `dun-ui` windows. Gutter width follows the
+  buffer line count, respects vertical scroll offsets, is disabled on very
+  narrow panes, and shifts editor text/cursor/selection geometry consistently.
+- Added focused-buffer status text in `dun-cli`: the left status area shows the
+  focused file or untitled buffer with dirty/read-only markers, and the right
+  status area shows 1-based `Ln`/`Col` using terminal display width.
+- Added tests for scrolled gutter labels, shifted cursor/selection geometry,
+  dirty buffer status, and wide-character column status. `cargo test
+  --workspace` passes.

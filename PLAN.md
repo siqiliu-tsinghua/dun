@@ -120,7 +120,7 @@ Goal: a running editor frame that restores the terminal correctly.
   `1.85`.
 - [x] Enter raw/alternate-screen mode and always restore terminal state.
 - [x] Render menu bar, editor area, and status bar.
-- [ ] Render line number gutter.
+- [x] Render line number gutter.
 - [x] Render Microsoft Edit-style single-line borders for tiled child windows.
 - [x] Translate keyboard input, including multi-stroke sequences, into
   `EditorCommand`.
@@ -131,6 +131,7 @@ Goal: a running editor frame that restores the terminal correctly.
 - [x] Support interactive open, save-as, and find entry point.
 - [x] Implement find result navigation.
 - [x] Render selected text ranges in the editor body.
+- [x] Show focused buffer name, dirty state, and line/column status.
 - [ ] Keep mouse support deferred.
 
 Primary crates: `dun-cli`, `dun-ui`, `dun-core`, `dun-term`.

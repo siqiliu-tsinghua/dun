@@ -17,6 +17,8 @@ focused buffer back to that path.
 Interactive status-line prompts are available for Open, Save As, and Find
 entry. Find now supports next/previous navigation and selected match
 highlighting.
+The editor surface includes a line-number gutter plus focused buffer name,
+dirty marker, and `Ln`/`Col` status.
 
 The current baseline decisions are:
 

@@ -595,6 +595,54 @@ impl AppState {
             .unwrap_or_default()
     }
 
+    fn focused_buffer_status(&self) -> String {
+        let Ok(window) = self.workspace.focused_window() else {
+            return "No window".to_string();
+        };
+
+        let Some(buffer) = self.buffer_state(window.buffer_id) else {
+            return window.title.clone();
+        };
+
+        let name = buffer
+            .path
+            .as_ref()
+            .map(|path| title_for_path(path))
+            .unwrap_or_else(|| window.title.clone());
+        let dirty = if buffer.buffer.is_dirty() { "*" } else { "" };
+        let read_only = if buffer.buffer.is_read_only() {
+            " [readonly]"
+        } else {
+            ""
+        };
+
+        format!("{name}{dirty}{read_only}")
+    }
+
+    fn focused_position_status(&self) -> String {
+        let Some(buffer_id) = self
+            .workspace
+            .focused_window()
+            .ok()
+            .map(|window| window.buffer_id)
+        else {
+            return "Ln -, Col -".to_string();
+        };
+        let Some(buffer) = self.buffer_state(buffer_id) else {
+            return "Ln -, Col -".to_string();
+        };
+
+        let position = buffer.buffer.cursor_position();
+        let column = buffer
+            .buffer
+            .line(position.line)
+            .and_then(|line| line.get(..position.column))
+            .map(|prefix| UnicodeWidthStr::width(prefix) + 1)
+            .unwrap_or(1);
+
+        format!("Ln {}, Col {}", position.line + 1, column)
+    }
+
     fn drop_buffer_if_unreferenced(&mut self, id: BufferId) {
         if self
             .workspace
@@ -784,7 +832,10 @@ fn run_event_loop(
                 ui_frame.status.left = prompt;
             } else if let Some(message) = &app.status_message {
                 ui_frame.status.left = message.clone();
+            } else {
+                ui_frame.status.left = app.focused_buffer_status();
             }
+            ui_frame.status.right = app.focused_position_status();
             app.shell.render(frame, &ui_frame);
             if let Some(column) = app.prompt_cursor_column() {
                 let area = frame.area();
@@ -1282,6 +1333,26 @@ mod tests {
             Some("Find: no matches for z".to_string())
         );
         assert_eq!(state.buffer.selection_range(), None);
+    }
+
+    #[test]
+    fn focused_status_reports_dirty_buffer_name() {
+        let mut app = AppState::new();
+
+        app.handle_text_input('x');
+
+        assert_eq!(app.focused_buffer_status(), "Untitled*");
+    }
+
+    #[test]
+    fn focused_position_status_uses_display_column() {
+        let mut app = app_with_text("a\n中x");
+        app.buffers[0]
+            .buffer
+            .set_cursor(Position::new(1, "中".len()))
+            .unwrap();
+
+        assert_eq!(app.focused_position_status(), "Ln 2, Col 3");
     }
 
     #[test]

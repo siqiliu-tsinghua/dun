@@ -96,19 +96,30 @@ impl UiShell {
         buffers: &[BufferView<'_>],
     ) -> UiWindow {
         let buffer = buffers.iter().find(|buffer| buffer.id == window.buffer_id);
+        let gutter_width = match (window.collapsed, buffer) {
+            (false, Some(buffer)) => self.gutter_width_for_buffer(buffer, rect),
+            _ => 0,
+        };
         let body = match (window.collapsed, buffer) {
             (true, _) => Vec::new(),
             (false, Some(buffer)) => self.sanitize_buffer_body(buffer, rect),
             (false, None) => vec![self.display_sanitizer.sanitize_line("[missing buffer]")],
         };
         let cursor = if window.id == focused && !window.collapsed {
-            buffer.and_then(|buffer| self.cursor_for_buffer(buffer, rect))
+            buffer.and_then(|buffer| self.cursor_for_buffer(buffer, rect, gutter_width))
         } else {
             None
         };
         let selection = if !window.collapsed {
             buffer
-                .map(|buffer| self.selection_for_buffer(buffer, rect))
+                .map(|buffer| self.selection_for_buffer(buffer, rect, gutter_width))
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let gutter = if !window.collapsed {
+            buffer
+                .map(|buffer| self.gutter_for_buffer(buffer, rect, gutter_width))
                 .unwrap_or_default()
         } else {
             Vec::new()
@@ -128,6 +139,8 @@ impl UiShell {
                 .map(|buffer| buffer.buffer.is_read_only())
                 .unwrap_or(matches!(window.buffer_kind, dun_core::BufferKind::ReadOnly)),
             border: self.glyphs.border,
+            gutter_width,
+            gutter,
             cursor,
             selection,
             body,
@@ -153,8 +166,15 @@ impl UiShell {
         lines
     }
 
-    fn cursor_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> Option<UiCursor> {
-        let body_width = rect.width.checked_sub(2)? as usize;
+    fn cursor_for_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        gutter_width: u16,
+    ) -> Option<UiCursor> {
+        let inner_width = rect.width.checked_sub(2)? as usize;
+        let gutter_width = gutter_width.min(inner_width as u16) as usize;
+        let body_width = inner_width.saturating_sub(gutter_width);
         let body_height = rect.height.checked_sub(2)? as usize;
         if body_width == 0 || body_height == 0 {
             return None;
@@ -175,18 +195,25 @@ impl UiShell {
         let display_column = display_column.min(body_width.saturating_sub(1));
 
         Some(UiCursor {
-            x: 1 + display_column as u16,
+            x: 1 + gutter_width as u16 + display_column as u16,
             y: 1 + visible_line as u16,
         })
     }
 
-    fn selection_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> Vec<UiSelectionLine> {
+    fn selection_for_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        gutter_width: u16,
+    ) -> Vec<UiSelectionLine> {
         let Some(range) = buffer.buffer.selection_range() else {
             return Vec::new();
         };
-        let Some(body_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
+        let Some(inner_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
             return Vec::new();
         };
+        let gutter_width = gutter_width.min(inner_width as u16) as usize;
+        let body_width = inner_width.saturating_sub(gutter_width);
         let Some(body_height) = rect.height.checked_sub(2).map(|height| height as usize) else {
             return Vec::new();
         };
@@ -204,7 +231,9 @@ impl UiShell {
         }
 
         for line_index in start_line..=end_line {
-            if let Some(line) = self.selection_line(buffer, line_index, range, body_width) {
+            if let Some(line) =
+                self.selection_line(buffer, line_index, range, body_width, gutter_width)
+            {
                 lines.push(line);
             }
         }
@@ -218,6 +247,7 @@ impl UiShell {
         line_index: usize,
         range: TextRange,
         body_width: usize,
+        gutter_width: usize,
     ) -> Option<UiSelectionLine> {
         let line = buffer.buffer.line(line_index)?;
         let start_column = if line_index == range.start.line {
@@ -242,9 +272,47 @@ impl UiShell {
 
         Some(UiSelectionLine {
             y: 1 + (line_index - buffer.first_line) as u16,
-            start_x: 1 + start_x as u16,
-            end_x: 1 + end_x as u16,
+            start_x: 1 + start_x as u16 + gutter_width as u16,
+            end_x: 1 + end_x as u16 + gutter_width as u16,
         })
+    }
+
+    fn gutter_width_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> u16 {
+        let inner_width = rect.width.saturating_sub(2);
+        if inner_width < 6 {
+            return 0;
+        }
+
+        let digits = decimal_digits(buffer.buffer.line_count().max(1));
+        let width = (digits + 1) as u16;
+        width.min(inner_width.saturating_sub(1))
+    }
+
+    fn gutter_for_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        gutter_width: u16,
+    ) -> Vec<UiGutterLine> {
+        let body_height = rect.height.saturating_sub(2) as usize;
+        if gutter_width == 0 || body_height == 0 {
+            return Vec::new();
+        }
+
+        let label_digits = gutter_width.saturating_sub(1) as usize;
+        let mut lines = Vec::new();
+        for line_index in buffer.first_line..buffer.buffer.line_count() {
+            if lines.len() >= body_height {
+                break;
+            }
+
+            lines.push(UiGutterLine {
+                y: 1 + lines.len() as u16,
+                label: format!("{:>label_digits$} ", line_index + 1),
+            });
+        }
+
+        lines
     }
 
     fn display_column(&self, line: &str, byte_column: usize) -> Option<usize> {
@@ -397,16 +465,35 @@ fn render_window(frame: &mut Frame<'_>, shell: &UiShell, window: &UiWindow, work
         return;
     }
 
-    let body_area = TuiRect::new(area.x + 1, area.y + 1, area.width - 2, area.height - 2);
+    let inner_area = TuiRect::new(area.x + 1, area.y + 1, area.width - 2, area.height - 2);
+    let gutter_width = window.gutter_width.min(inner_area.width);
+    if gutter_width > 0 {
+        render_gutter(
+            frame.buffer_mut(),
+            area,
+            gutter_width,
+            &window.gutter,
+            to_ratatui_style(shell.theme.palette.gutter),
+        );
+    }
+
+    let body_area = TuiRect::new(
+        inner_area.x.saturating_add(gutter_width),
+        inner_area.y,
+        inner_area.width.saturating_sub(gutter_width),
+        inner_area.height,
+    );
     let body_lines = window
         .body
         .iter()
         .map(|line| sanitized_line_to_ratatui(shell, line))
         .collect::<Vec<_>>();
-    frame.render_widget(
-        Paragraph::new(body_lines).style(to_ratatui_style(shell.theme.palette.editor_text)),
-        body_area,
-    );
+    if body_area.width > 0 {
+        frame.render_widget(
+            Paragraph::new(body_lines).style(to_ratatui_style(shell.theme.palette.editor_text)),
+            body_area,
+        );
+    }
     render_selection(
         frame.buffer_mut(),
         area,
@@ -420,6 +507,30 @@ fn render_window(frame: &mut Frame<'_>, shell: &UiShell, window: &UiWindow, work
         if x < area.x.saturating_add(area.width) && y < area.y.saturating_add(area.height) {
             frame.set_cursor_position(TuiPosition::new(x, y));
         }
+    }
+}
+
+fn render_gutter(
+    buffer: &mut Buffer,
+    window_area: TuiRect,
+    gutter_width: u16,
+    gutter: &[UiGutterLine],
+    style: Style,
+) {
+    let right = window_area
+        .x
+        .saturating_add(window_area.width)
+        .min(window_area.x.saturating_add(1).saturating_add(gutter_width));
+    for line in gutter {
+        let y = window_area.y.saturating_add(line.y);
+        if y >= window_area.y.saturating_add(window_area.height) {
+            continue;
+        }
+
+        for x in (window_area.x + 1)..right {
+            buffer[(x, y)].set_style(style);
+        }
+        buffer.set_string(window_area.x + 1, y, &line.label, style);
     }
 }
 
@@ -451,6 +562,15 @@ fn offset_rect(rect: Rect, origin: TuiRect) -> TuiRect {
         rect.width.min(origin.width.saturating_sub(rect.x)),
         rect.height.min(origin.height.saturating_sub(rect.y)),
     )
+}
+
+fn decimal_digits(mut value: usize) -> usize {
+    let mut digits = 1;
+    while value >= 10 {
+        value /= 10;
+        digits += 1;
+    }
+    digits
 }
 
 fn render_border(buffer: &mut Buffer, area: TuiRect, glyphs: BorderGlyphs, style: Style) {
@@ -686,9 +806,17 @@ pub struct UiWindow {
     pub dirty: bool,
     pub read_only: bool,
     pub border: BorderGlyphs,
+    pub gutter_width: u16,
+    pub gutter: Vec<UiGutterLine>,
     pub cursor: Option<UiCursor>,
     pub selection: Vec<UiSelectionLine>,
     pub body: Vec<SanitizedLine>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UiGutterLine {
+    pub y: u16,
+    pub label: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -758,7 +886,15 @@ mod tests {
         assert_eq!(frame.windows.len(), 1);
         assert_eq!(frame.windows[0].body[0].as_plain_text(), "safe␛]0;x␇");
         assert!(frame.windows[0].body[0].has_non_text_segments());
-        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 1, y: 1 }));
+        assert_eq!(frame.windows[0].gutter_width, 2);
+        assert_eq!(
+            frame.windows[0].gutter,
+            vec![UiGutterLine {
+                y: 1,
+                label: "1 ".to_string(),
+            }]
+        );
+        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 3, y: 1 }));
     }
 
     #[test]
@@ -774,7 +910,7 @@ mod tests {
             &[buffer_view],
         );
 
-        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 2, y: 2 }));
+        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 4, y: 2 }));
     }
 
     #[test]
@@ -792,7 +928,7 @@ mod tests {
             &[buffer_view],
         );
 
-        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 3, y: 1 }));
+        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 5, y: 1 }));
     }
 
     #[test]
@@ -814,9 +950,38 @@ mod tests {
             frame.windows[0].selection,
             vec![UiSelectionLine {
                 y: 2,
-                start_x: 1,
-                end_x: 3,
+                start_x: 3,
+                end_x: 5,
             }]
+        );
+    }
+
+    #[test]
+    fn frame_maps_scrolled_line_number_gutter() {
+        let workspace = Workspace::new_untitled();
+        let buffer =
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
+        let buffer_view = BufferView::scrolled(BufferId(1), &buffer, 8);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 80, 6),
+            &[buffer_view],
+        );
+
+        assert_eq!(frame.windows[0].gutter_width, 3);
+        assert_eq!(
+            frame.windows[0].gutter,
+            vec![
+                UiGutterLine {
+                    y: 1,
+                    label: " 9 ".to_string(),
+                },
+                UiGutterLine {
+                    y: 2,
+                    label: "10 ".to_string(),
+                },
+            ]
         );
     }
 
