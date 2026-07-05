@@ -134,6 +134,11 @@ name format for the same destination; stale temp files older than the
 destination are removed, while newer recovery candidates are preserved and
 reported instead of being silently deleted.
 
+Opening a file must not create an editable buffer from an unstable path. Dun
+checks file metadata before and after reading, rejects size or modification
+changes, and on Unix rejects device/inode changes so a path replacement during
+Open does not become an apparently normal buffer.
+
 Current implementation:
 
 - `dun-core::DisplaySanitizer` converts untrusted text into `DisplaySegment`

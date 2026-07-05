@@ -309,3 +309,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   fields before final ratatui rendering. Added UI tests for malicious
   title/status text, ASCII fallback chrome, and final `TestBackend` output with
   untrusted title/body/status payloads.
+- Added corrupt/unstable file handling for Open. Editable file loading now
+  captures metadata before reading and rejects the open if the file length,
+  modification time, or Unix device/inode changes before the read completes, or
+  if the path disappears.
+- Added CLI tests for stable reads, truncation during read, deletion during
+  read, and same-size replacement detection on Unix.

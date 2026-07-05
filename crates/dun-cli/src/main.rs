@@ -3274,6 +3274,7 @@ fn read_editable_file(path: &Path, soft_limit: u64) -> io::Result<Vec<u8>> {
     if metadata.len() > soft_limit {
         return Err(editable_file_soft_limit_error(metadata.len(), soft_limit));
     }
+    let snapshot = FileReadSnapshot::from_metadata(&metadata);
 
     let file = fs::File::open(path)?;
     let mut reader = file.take(soft_limit.saturating_add(1));
@@ -3283,8 +3284,65 @@ fn read_editable_file(path: &Path, soft_limit: u64) -> io::Result<Vec<u8>> {
     if bytes_read > soft_limit {
         return Err(editable_file_soft_limit_error(bytes_read, soft_limit));
     }
+    validate_stable_file_read(path, snapshot, bytes_read)?;
 
     Ok(bytes)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FileReadSnapshot {
+    len: u64,
+    modified: Option<std::time::SystemTime>,
+    #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
+    inode: u64,
+}
+
+impl FileReadSnapshot {
+    fn from_metadata(metadata: &fs::Metadata) -> Self {
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt;
+
+        Self {
+            len: metadata.len(),
+            modified: metadata.modified().ok(),
+            #[cfg(unix)]
+            device: metadata.dev(),
+            #[cfg(unix)]
+            inode: metadata.ino(),
+        }
+    }
+}
+
+fn validate_stable_file_read(
+    path: &Path,
+    before: FileReadSnapshot,
+    bytes_read: u64,
+) -> io::Result<()> {
+    if bytes_read != before.len {
+        return Err(file_changed_while_reading_error());
+    }
+
+    let after = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Err(file_changed_while_reading_error());
+        }
+        Err(error) => return Err(error),
+    };
+    if !after.is_file() || FileReadSnapshot::from_metadata(&after) != before {
+        return Err(file_changed_while_reading_error());
+    }
+
+    Ok(())
+}
+
+fn file_changed_while_reading_error() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "file changed while reading; retry open",
+    )
 }
 
 fn editable_file_soft_limit_error(size: u64, soft_limit: u64) -> io::Error {
@@ -4445,6 +4503,67 @@ key.app.help = F10
             app.workspace.focused_window().unwrap().title,
             title_for_path(&path)
         );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn stable_file_read_validation_accepts_unchanged_file() {
+        let path = temp_file_path("stable-read.txt");
+        std::fs::write(&path, "stable").unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        let snapshot = FileReadSnapshot::from_metadata(&metadata);
+
+        validate_stable_file_read(&path, snapshot, metadata.len()).unwrap();
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn stable_file_read_validation_rejects_truncated_file() {
+        let path = temp_file_path("truncated-read.txt");
+        std::fs::write(&path, "stable").unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        let snapshot = FileReadSnapshot::from_metadata(&metadata);
+        std::fs::write(&path, "x").unwrap();
+
+        let error = validate_stable_file_read(&path, snapshot, metadata.len()).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(error.to_string(), "file changed while reading; retry open");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn stable_file_read_validation_rejects_deleted_file() {
+        let path = temp_file_path("deleted-read.txt");
+        std::fs::write(&path, "stable").unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        let snapshot = FileReadSnapshot::from_metadata(&metadata);
+        std::fs::remove_file(&path).unwrap();
+
+        let error = validate_stable_file_read(&path, snapshot, metadata.len()).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(error.to_string(), "file changed while reading; retry open");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stable_file_read_validation_rejects_same_size_replacement() {
+        let path = temp_file_path("replaced-read.txt");
+        let replacement = temp_file_path("replaced-read-next.txt");
+        std::fs::write(&path, "aaaa").unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        let snapshot = FileReadSnapshot::from_metadata(&metadata);
+        std::fs::write(&replacement, "bbbb").unwrap();
+        std::fs::rename(&replacement, &path).unwrap();
+
+        let error = validate_stable_file_read(&path, snapshot, metadata.len()).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(error.to_string(), "file changed while reading; retry open");
 
         let _ = std::fs::remove_file(path);
     }

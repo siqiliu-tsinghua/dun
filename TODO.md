@@ -109,6 +109,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Implement UTF-8-first file loading behavior.
 - [x] Open invalid UTF-8 files as read-only escaped fallback buffers.
 - [x] Define invalid-byte fallback behavior.
+- [x] Reject unstable/corrupt reads when file metadata changes during Open.
 - [x] Prevent save from silently corrupting lossy/fallback buffers.
 - [x] Save files through same-directory temporary files and atomic rename.
 - [x] Add readable path diagnostics for common open/save failures.

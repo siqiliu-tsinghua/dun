@@ -90,6 +90,7 @@ Goal: safe file round trips and safe terminal display.
 - [x] Implement save/save-as through host-owned file I/O.
 - [x] Save through same-directory temp files and atomic rename.
 - [x] Detect recovery candidates and clean stale atomic-save temp files.
+- [x] Reject file opens when metadata changes during read.
 - [x] Define large-file soft limit behavior.
 - [x] Add visible diagnostics for fallback/large-file state.
 - [x] Add readable path diagnostics for common Open/Save failures.
@@ -209,7 +210,7 @@ release-facing host API.
 ## Phase 10: Hardening
 
 - [x] Crash recovery paths.
-- [ ] Corrupt file handling.
+- [x] Corrupt file handling.
 - [ ] Non-UTF-8 file strategy.
 - [ ] External SSH and low-capability terminal test matrix before release.
 - [x] Large-file performance baselines.

@@ -18,7 +18,9 @@ rename. Stale atomic-save temp files are cleaned up, while newer recovery
 candidates are preserved and reported. Invalid UTF-8 files open as read-only
 escaped fallback buffers instead of being decoded lossy.
 Editable file loading enforces the configured soft limit before reading large
-files into memory; the default editable limit is 16 MiB.
+files into memory; the default editable limit is 16 MiB. If a file changes,
+disappears, or is replaced while being read, Open rejects the unstable snapshot
+and asks the user to retry.
 Ignored release-mode performance baselines cover large-file open/search/scroll
 and visible-window rendering.
 Open, Save, and Save As failures include the relevant path and normalized
