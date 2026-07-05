@@ -294,3 +294,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   overrides for fixture sizes, covered paths, and the current local release
   sample. `cargo test -p dun-cli --release large_file_perf -- --ignored
   --nocapture` passes with an 8 MiB fixture.
+- Added crash-recovery handling for Dun atomic-save temp files. Open and Save
+  now reconcile same-destination `.dun-save-<pid>-<attempt>.tmp` files:
+  obsolete temp files older than the destination are removed, while newer temp
+  files are preserved as recovery candidates and reported through status text.
+- Added CLI tests for stale temp cleanup on open, newer recovery temp
+  reporting, stale temp cleanup after a successful save, and preservation of a
+  pre-existing recovery candidate across Save.

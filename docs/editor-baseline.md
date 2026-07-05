@@ -57,6 +57,10 @@ same-directory temporary file, sync it, and atomically rename it over the
 destination. Existing destination permissions are preserved, read-only
 destinations are rejected before replacement, and symlink paths are resolved so
 the linked target is updated without replacing the symlink itself.
+When opening or saving a path, Dun reconciles its own same-directory atomic-save
+temp files for that destination: stale temp files older than the destination are
+removed, while newer temp files are preserved as recovery candidates and
+reported through status text.
 
 Open and save failures report the relevant path plus a normalized reason for
 common cases: missing paths, directories where files are expected, missing

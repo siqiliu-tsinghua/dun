@@ -832,11 +832,17 @@ impl AppState {
     fn open_file_path(&mut self, path: PathBuf) -> io::Result<()> {
         let buffer =
             load_text_buffer(&path, self.limits).map_err(|error| path_io_error(&path, error))?;
-        self.replace_focused_buffer_with_file(path, buffer);
+        let temp_report = reconcile_atomic_save_temp_files(&path);
+        self.replace_focused_buffer_with_file(path, buffer, temp_report);
         Ok(())
     }
 
-    fn replace_focused_buffer_with_file(&mut self, path: PathBuf, buffer: TextBuffer) {
+    fn replace_focused_buffer_with_file(
+        &mut self,
+        path: PathBuf,
+        buffer: TextBuffer,
+        temp_report: AtomicTempReconcileReport,
+    ) {
         let Ok(window) = self.workspace.focused_window() else {
             return;
         };
@@ -857,14 +863,15 @@ impl AppState {
             window.buffer_kind = kind;
         }
 
-        if kind == BufferKind::ReadOnly {
-            self.set_status(format!(
+        let status = if kind == BufferKind::ReadOnly {
+            format!(
                 "Opened {} read-only: invalid UTF-8 bytes escaped",
                 path.display()
-            ));
+            )
         } else {
-            self.set_status(format!("Opened {}", path.display()));
-        }
+            format!("Opened {}", path.display())
+        };
+        self.set_status(status_with_atomic_temp_report(status, &temp_report));
     }
 
     fn save_focused_buffer(&mut self) -> io::Result<()> {
@@ -894,12 +901,16 @@ impl AppState {
             (path, buffer.buffer.to_text())
         };
 
-        atomic_write_text_file(&path, &text).map_err(|error| path_io_error(&path, error))?;
+        let report =
+            atomic_write_text_file(&path, &text).map_err(|error| path_io_error(&path, error))?;
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             buffer.buffer.mark_saved();
         }
-        self.set_status(format!("Saved {}", path.display()));
+        self.set_status(status_with_atomic_temp_report(
+            format!("Saved {}", path.display()),
+            &report.temp_reconcile,
+        ));
         Ok(path)
     }
 
@@ -923,7 +934,8 @@ impl AppState {
             buffer.buffer.to_text()
         };
 
-        atomic_write_text_file(&path, &text).map_err(|error| path_io_error(&path, error))?;
+        let report =
+            atomic_write_text_file(&path, &text).map_err(|error| path_io_error(&path, error))?;
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             buffer.path = Some(path.clone());
@@ -936,7 +948,10 @@ impl AppState {
             window.buffer_kind = dun_core::BufferKind::File;
         }
 
-        self.set_status(format!("Saved {}", path.display()));
+        self.set_status(status_with_atomic_temp_report(
+            format!("Saved {}", path.display()),
+            &report.temp_reconcile,
+        ));
         Ok(())
     }
 
@@ -2918,8 +2933,22 @@ fn load_text_buffer(path: &Path, limits: Limits) -> io::Result<TextBuffer> {
     }
 }
 
-fn atomic_write_text_file(path: &Path, text: &str) -> io::Result<()> {
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct AtomicTempReconcileReport {
+    cleaned: usize,
+    cleanup_failures: usize,
+    recovery_candidates: Vec<PathBuf>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct AtomicWriteReport {
+    temp_reconcile: AtomicTempReconcileReport,
+}
+
+fn atomic_write_text_file(path: &Path, text: &str) -> io::Result<AtomicWriteReport> {
     let destination = atomic_write_destination(path)?;
+    let preexisting_temp_report = reconcile_atomic_save_temp_files(&destination);
+    let recovery_candidates_to_preserve = preexisting_temp_report.recovery_candidates.clone();
     let existing_permissions = existing_atomic_write_permissions(&destination)?;
     let (temp_path, mut temp_file) = create_atomic_temp_file(&destination)?;
 
@@ -2944,7 +2973,11 @@ fn atomic_write_text_file(path: &Path, text: &str) -> io::Result<()> {
         return Err(error);
     }
 
-    Ok(())
+    let post_save_temp_report =
+        reconcile_atomic_save_temp_files_preserving(&destination, &recovery_candidates_to_preserve);
+    Ok(AtomicWriteReport {
+        temp_reconcile: merged_atomic_temp_reports(preexisting_temp_report, post_save_temp_report),
+    })
 }
 
 fn atomic_write_destination(path: &Path) -> io::Result<PathBuf> {
@@ -3029,6 +3062,157 @@ fn atomic_temp_path(directory: &Path, file_name: &OsStr, attempt: u32) -> PathBu
     temp_name.push(file_name);
     temp_name.push(format!(".dun-save-{}-{attempt}.tmp", std::process::id()));
     directory.join(temp_name)
+}
+
+fn reconcile_atomic_save_temp_files(path: &Path) -> AtomicTempReconcileReport {
+    reconcile_atomic_save_temp_files_preserving(path, &[])
+}
+
+fn reconcile_atomic_save_temp_files_preserving(
+    path: &Path,
+    preserve: &[PathBuf],
+) -> AtomicTempReconcileReport {
+    let Ok(destination) = atomic_write_destination(path) else {
+        return AtomicTempReconcileReport::default();
+    };
+    let Some(file_name) = destination.file_name().filter(|name| !name.is_empty()) else {
+        return AtomicTempReconcileReport::default();
+    };
+    let directory = destination
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+
+    let destination_modified = fs::metadata(&destination)
+        .and_then(|metadata| metadata.modified())
+        .ok();
+    let Ok(entries) = fs::read_dir(directory) else {
+        return AtomicTempReconcileReport::default();
+    };
+
+    let mut report = AtomicTempReconcileReport::default();
+    for entry in entries.filter_map(Result::ok) {
+        let entry_file_name = entry.file_name();
+        if !is_atomic_temp_file_name_for(file_name, &entry_file_name) {
+            continue;
+        }
+
+        let path = entry.path();
+        if preserve.iter().any(|preserved| preserved == &path) {
+            report.recovery_candidates.push(path);
+            continue;
+        }
+
+        if atomic_temp_file_is_obsolete(&path, destination_modified) {
+            match fs::remove_file(&path) {
+                Ok(()) => report.cleaned += 1,
+                Err(_) => report.cleanup_failures += 1,
+            }
+        } else {
+            report.recovery_candidates.push(path);
+        }
+    }
+
+    report
+}
+
+fn merged_atomic_temp_reports(
+    first: AtomicTempReconcileReport,
+    second: AtomicTempReconcileReport,
+) -> AtomicTempReconcileReport {
+    let mut recovery_candidates = first.recovery_candidates;
+    for candidate in second.recovery_candidates {
+        if !recovery_candidates.contains(&candidate) {
+            recovery_candidates.push(candidate);
+        }
+    }
+
+    AtomicTempReconcileReport {
+        cleaned: first.cleaned + second.cleaned,
+        cleanup_failures: first.cleanup_failures + second.cleanup_failures,
+        recovery_candidates,
+    }
+}
+
+fn is_atomic_temp_file_name_for(destination_file_name: &OsStr, candidate: &OsStr) -> bool {
+    let mut prefix = OsString::from(".");
+    prefix.push(destination_file_name);
+    prefix.push(".dun-save-");
+    let prefix = prefix.to_string_lossy();
+    let candidate = candidate.to_string_lossy();
+
+    let Some(suffix) = candidate
+        .strip_prefix(&*prefix)
+        .and_then(|suffix| suffix.strip_suffix(".tmp"))
+    else {
+        return false;
+    };
+    let Some((pid, attempt)) = suffix.split_once('-') else {
+        return false;
+    };
+
+    !pid.is_empty()
+        && !attempt.is_empty()
+        && pid.bytes().all(|byte| byte.is_ascii_digit())
+        && attempt.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn atomic_temp_file_is_obsolete(
+    path: &Path,
+    destination_modified: Option<std::time::SystemTime>,
+) -> bool {
+    let Some(destination_modified) = destination_modified else {
+        return false;
+    };
+    let Ok(metadata) = fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+
+    metadata
+        .modified()
+        .is_ok_and(|modified| modified <= destination_modified)
+}
+
+fn status_with_atomic_temp_report(
+    status: impl Into<String>,
+    report: &AtomicTempReconcileReport,
+) -> String {
+    let mut status = status.into();
+    let mut suffixes = Vec::new();
+
+    if report.cleaned > 0 {
+        suffixes.push(format!(
+            "cleaned {} stale save temp file(s)",
+            report.cleaned
+        ));
+    }
+    if report.cleanup_failures > 0 {
+        suffixes.push(format!(
+            "failed to clean {} save temp file(s)",
+            report.cleanup_failures
+        ));
+    }
+    if let Some(first) = report.recovery_candidates.first() {
+        if report.recovery_candidates.len() == 1 {
+            suffixes.push(format!("recovery temp file found: {}", first.display()));
+        } else {
+            suffixes.push(format!(
+                "{} recovery temp file(s) found; first: {}",
+                report.recovery_candidates.len(),
+                first.display()
+            ));
+        }
+    }
+
+    if !suffixes.is_empty() {
+        status.push_str("; ");
+        status.push_str(&suffixes.join("; "));
+    }
+
+    status
 }
 
 fn path_io_error(path: &Path, error: io::Error) -> io::Error {
@@ -4483,6 +4667,103 @@ key.app.help = F10
     }
 
     #[test]
+    fn open_cleans_stale_atomic_save_temp_file() {
+        let path = temp_file_path("stale-open-cleanup.txt");
+        let stale_temp = write_atomic_temp_file_for(&path, 0, "stale");
+        std::fs::write(&path, "current").unwrap();
+
+        let app = AppState::from_path(Some(path.clone())).unwrap();
+
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "current"
+        );
+        assert!(!stale_temp.exists());
+        assert_eq!(
+            app.status_message,
+            Some(format!(
+                "Opened {}; cleaned 1 stale save temp file(s)",
+                path.display()
+            ))
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn open_reports_newer_atomic_save_recovery_temp_file() {
+        let path = temp_file_path("recovery-open-warning.txt");
+        std::fs::write(&path, "current").unwrap();
+        let recovery_temp = write_newer_atomic_temp_file_for(&path, "recovered");
+
+        let app = AppState::from_path(Some(path.clone())).unwrap();
+
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "current"
+        );
+        assert!(recovery_temp.exists());
+        let status = app.status_message.as_deref().unwrap_or_default();
+        assert!(status.starts_with(&format!(
+            "Opened {}; recovery temp file found: ",
+            path.display()
+        )));
+        assert!(status.contains(&recovery_temp.display().to_string()));
+
+        let _ = std::fs::remove_file(recovery_temp);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn save_cleans_stale_atomic_save_temp_file() {
+        let path = temp_file_path("stale-save-cleanup.txt");
+        std::fs::write(&path, "old").unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
+        let stale_temp = write_atomic_temp_file_for(&path, 0, "stale");
+        std::fs::write(&path, "external change").unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
+        app.handle_text_input('!');
+        app.handle_command(&EditorCommand::File(FileCommand::Save));
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old!");
+        assert!(!stale_temp.exists());
+        assert_eq!(
+            app.status_message,
+            Some(format!(
+                "Saved {}; cleaned 1 stale save temp file(s)",
+                path.display()
+            ))
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn save_preserves_newer_atomic_save_recovery_temp_file() {
+        let path = temp_file_path("recovery-save-warning.txt");
+        std::fs::write(&path, "old").unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
+        let recovery_temp = write_newer_atomic_temp_file_for(&path, "recovered");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
+        app.handle_text_input('!');
+        app.handle_command(&EditorCommand::File(FileCommand::Save));
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old!");
+        assert!(recovery_temp.exists());
+        let status = app.status_message.as_deref().unwrap_or_default();
+        assert!(status.starts_with(&format!(
+            "Saved {}; recovery temp file found: ",
+            path.display()
+        )));
+        assert!(status.contains(&recovery_temp.display().to_string()));
+
+        let _ = std::fs::remove_file(recovery_temp);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn save_rejects_read_only_target_without_replacing_it() {
         let path = temp_file_path("readonly-save.txt");
         std::fs::write(&path, "old").unwrap();
@@ -5400,6 +5681,34 @@ key.app.help = F10
             .filter(|entry| entry.file_name().to_string_lossy().starts_with(&*prefix))
             .map(|entry| entry.path())
             .collect()
+    }
+
+    fn write_atomic_temp_file_for(path: &Path, attempt: u32, contents: &str) -> PathBuf {
+        let directory = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let file_name = path.file_name().unwrap_or_default();
+        let temp_path = atomic_temp_path(directory, file_name, attempt);
+        std::fs::write(&temp_path, contents).unwrap();
+        temp_path
+    }
+
+    fn write_newer_atomic_temp_file_for(path: &Path, contents: &str) -> PathBuf {
+        for attempt in 0..100 {
+            std::thread::sleep(Duration::from_millis(10));
+            let temp_path = write_atomic_temp_file_for(path, attempt, contents);
+            if file_modified(&temp_path) > file_modified(path) {
+                return temp_path;
+            }
+            let _ = std::fs::remove_file(&temp_path);
+        }
+
+        panic!("could not create atomic temp file newer than destination");
+    }
+
+    fn file_modified(path: &Path) -> std::time::SystemTime {
+        std::fs::metadata(path).unwrap().modified().unwrap()
     }
 
     fn set_path_readonly(path: &Path, readonly: bool) {

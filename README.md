@@ -14,8 +14,9 @@ core, terminal profile/theme layer, typed configuration/keymap layer,
 backend-neutral UI model, and a minimal runnable `ratatui` shell.
 It can open valid UTF-8 file paths supplied on the command line and save the
 focused buffer back to that path through a same-directory temp file and atomic
-rename. Invalid UTF-8 files open as read-only escaped fallback buffers instead
-of being decoded lossy.
+rename. Stale atomic-save temp files are cleaned up, while newer recovery
+candidates are preserved and reported. Invalid UTF-8 files open as read-only
+escaped fallback buffers instead of being decoded lossy.
 Editable file loading enforces the configured soft limit before reading large
 files into memory; the default editable limit is 16 MiB.
 Ignored release-mode performance baselines cover large-file open/search/scroll

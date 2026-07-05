@@ -129,7 +129,10 @@ Saving must not silently corrupt files opened through a fallback or lossy path.
 Editable saves use host-owned same-directory temporary files followed by
 atomic rename. The save path rejects read-only destinations before replacement
 and resolves symlink paths to their target so saving does not replace a symlink
-with a regular file.
+with a regular file. Dun only reconciles temp files matching its own atomic-save
+name format for the same destination; stale temp files older than the
+destination are removed, while newer recovery candidates are preserved and
+reported instead of being silently deleted.
 
 Current implementation:
 
