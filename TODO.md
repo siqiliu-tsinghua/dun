@@ -71,7 +71,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add mouse hit testing for file dialog entries.
 - [x] Add file dialog list scrolling and PageUp/PageDown navigation.
 - [x] Add parent-directory and hidden-file polish to file dialogs.
-- [ ] Add file dialog path-input cursor movement and Home/End editing.
+- [x] Add file dialog path-input cursor movement and Home/End editing.
+- [x] Add file dialog empty/no-match diagnostics and tighter Open/Save visuals.
 
 ## `dun-config`
 
@@ -86,6 +87,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define theme selection config.
 - [x] Define terminal override config.
 - [x] Define optional mouse enablement config.
+- [x] Define configurable file-dialog modal keybindings.
 - [x] Define large-file and display limits.
 - [x] Add config validation tests.
 - [x] Add MacBook-friendly `Ctrl+W` window focus/resize aliases while keeping

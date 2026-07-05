@@ -391,3 +391,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   lists now include a `..` directory entry, hide dotfiles by default, reveal
   dotfiles when the typed prefix starts with `.`, and support `Ctrl+H` to
   toggle hidden entries without bypassing validated file I/O.
+- Added file dialog path-input editing, diagnostics, visual polish, and modal
+  key configuration. Open/Save As inputs now support Left/Right/Home/End and
+  Delete/Backspace at UTF-8 character boundaries, show clearer empty/no-match
+  diagnostics, render more explicit file-list labels, and resolve file-dialog
+  actions through typed configurable single-stroke bindings listed in Help and
+  Config Diagnostics.

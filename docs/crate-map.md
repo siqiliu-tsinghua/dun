@@ -93,6 +93,7 @@ Owns typed configuration.
 Responsibilities:
 
 - keybinding model;
+- modal keybinding models for local dialog actions;
 - theme selection;
 - terminal override settings;
 - resource/large-file limits;

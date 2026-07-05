@@ -159,6 +159,9 @@ Current implementation:
   through the same modal overlay sanitizer; the dialog may list directories,
   including `..` and optionally hidden dotfiles, but all actual file open/save
   operations remain in `dun-cli` validated file I/O paths.
+- File-dialog keybindings are typed modal actions. Remapping those keys changes
+  dialog navigation/editing dispatch only; it does not grant direct filesystem,
+  process, network, terminal, or plugin capabilities.
 - UTF-8 mode uses Unicode control pictures for C0 controls.
 - ASCII mode uses caret notation and escapes non-ASCII characters as
   `\u{...}`.

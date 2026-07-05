@@ -14,12 +14,14 @@ pub struct Config {
     pub terminal: TerminalOverrides,
     pub mouse: MouseConfig,
     pub keybindings: Keymap,
+    pub file_dialog_keys: FileDialogKeymap,
     pub limits: Limits,
 }
 
 impl Config {
     pub fn validate(&self) -> Result<(), ConfigError> {
         self.keybindings.validate()?;
+        self.file_dialog_keys.validate()?;
         self.limits.validate()?;
         Ok(())
     }
@@ -40,6 +42,7 @@ impl Default for Config {
             terminal: TerminalOverrides::default(),
             mouse: MouseConfig::default(),
             keybindings: Keymap::default(),
+            file_dialog_keys: FileDialogKeymap::default(),
             limits: Limits::default(),
         }
     }
@@ -155,6 +158,22 @@ fn apply_config_entry(
                 )
             })?;
         }
+        _ if key.starts_with("key.file_dialog.") => {
+            apply_file_dialog_key_binding(
+                config,
+                &key["key.file_dialog.".len()..],
+                value,
+                line_number,
+            )?;
+        }
+        _ if key.starts_with("file_dialog.key.") => {
+            apply_file_dialog_key_binding(
+                config,
+                &key["file_dialog.key.".len()..],
+                value,
+                line_number,
+            )?;
+        }
         _ if key.starts_with("key.") => {
             apply_key_binding(config, &key["key.".len()..], value, line_number)?;
         }
@@ -193,6 +212,42 @@ fn apply_key_binding(
     };
 
     config.keybindings.set_command_binding(command, sequence);
+    Ok(())
+}
+
+fn apply_file_dialog_key_binding(
+    config: &mut Config,
+    action_id: &str,
+    value: &str,
+    line_number: usize,
+) -> Result<(), ConfigParseError> {
+    let action = file_dialog_action_from_id(action_id).map_err(|_| {
+        ConfigParseError::line(
+            line_number,
+            format!("unknown file dialog action `{action_id}`"),
+        )
+    })?;
+
+    let stroke = match normalize_token(value).as_str() {
+        "none" | "disabled" | "unbind" => None,
+        _ => {
+            let sequence = KeySequence::from_str(value).map_err(|error| {
+                ConfigParseError::line(
+                    line_number,
+                    format!("invalid key sequence: {}", key_parse_error_text(&error)),
+                )
+            })?;
+            if sequence.strokes.len() != 1 {
+                return Err(ConfigParseError::line(
+                    line_number,
+                    "file dialog keybindings must use a single key stroke",
+                ));
+            }
+            Some(sequence.strokes[0])
+        }
+    };
+
+    config.file_dialog_keys.set_action_binding(action, stroke);
     Ok(())
 }
 
@@ -300,6 +355,12 @@ fn parse_byte_count(input: &str, line_number: usize) -> Result<u64, ConfigParseE
 fn config_error_text(error: &ConfigError) -> String {
     match error {
         ConfigError::Keymap(error) => format!("invalid keymap: {}", keymap_error_text(error)),
+        ConfigError::FileDialogKeymap(error) => {
+            format!(
+                "invalid file dialog keymap: {}",
+                file_dialog_keymap_error_text(error)
+            )
+        }
         ConfigError::Limits(error) => format!("invalid limits: {}", limits_error_text(*error)),
     }
 }
@@ -310,6 +371,14 @@ fn keymap_error_text(error: &KeymapError) -> String {
             format!("duplicate key sequence `{}`", key_sequence_text(sequence))
         }
         KeymapError::EmptySequence => "empty key sequence".to_string(),
+    }
+}
+
+fn file_dialog_keymap_error_text(error: &FileDialogKeymapError) -> String {
+    match error {
+        FileDialogKeymapError::DuplicateBinding(stroke) => {
+            format!("duplicate key stroke `{stroke}`")
+        }
     }
 }
 
@@ -414,12 +483,19 @@ pub struct MouseConfig {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConfigError {
     Keymap(KeymapError),
+    FileDialogKeymap(FileDialogKeymapError),
     Limits(LimitsError),
 }
 
 impl From<KeymapError> for ConfigError {
     fn from(error: KeymapError) -> Self {
         Self::Keymap(error)
+    }
+}
+
+impl From<FileDialogKeymapError> for ConfigError {
+    fn from(error: FileDialogKeymapError) -> Self {
+        Self::FileDialogKeymap(error)
     }
 }
 
@@ -612,6 +688,119 @@ impl Default for Keymap {
     fn default() -> Self {
         Self::default_editor()
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FileDialogKeymap {
+    pub bindings: Vec<FileDialogKeyBinding>,
+}
+
+impl FileDialogKeymap {
+    pub fn new(bindings: Vec<FileDialogKeyBinding>) -> Result<Self, FileDialogKeymapError> {
+        let keymap = Self { bindings };
+        keymap.validate()?;
+        Ok(keymap)
+    }
+
+    pub fn default_file_dialog() -> Self {
+        Self {
+            bindings: vec![
+                FileDialogKeyBinding::new("Esc", FileDialogAction::Cancel),
+                FileDialogKeyBinding::new("Enter", FileDialogAction::Submit),
+                FileDialogKeyBinding::new("Tab", FileDialogAction::CompleteForward),
+                FileDialogKeyBinding::new("BackTab", FileDialogAction::CompleteBackward),
+                FileDialogKeyBinding::new("Ctrl+H", FileDialogAction::ToggleHidden),
+                FileDialogKeyBinding::new("Up", FileDialogAction::MoveSelectionUp),
+                FileDialogKeyBinding::new("Down", FileDialogAction::MoveSelectionDown),
+                FileDialogKeyBinding::new("PageUp", FileDialogAction::PageSelectionUp),
+                FileDialogKeyBinding::new("PageDown", FileDialogAction::PageSelectionDown),
+                FileDialogKeyBinding::new("Left", FileDialogAction::MoveInputLeft),
+                FileDialogKeyBinding::new("Right", FileDialogAction::MoveInputRight),
+                FileDialogKeyBinding::new("Home", FileDialogAction::MoveInputStart),
+                FileDialogKeyBinding::new("End", FileDialogAction::MoveInputEnd),
+                FileDialogKeyBinding::new("Backspace", FileDialogAction::DeleteBackward),
+                FileDialogKeyBinding::new("Delete", FileDialogAction::DeleteForward),
+            ],
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), FileDialogKeymapError> {
+        let mut seen = HashSet::new();
+
+        for binding in &self.bindings {
+            if !seen.insert(binding.stroke) {
+                return Err(FileDialogKeymapError::DuplicateBinding(binding.stroke));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn action_for_stroke(&self, stroke: KeyStroke) -> Option<FileDialogAction> {
+        self.bindings
+            .iter()
+            .find(|binding| binding.stroke == stroke)
+            .map(|binding| binding.action)
+    }
+
+    pub fn stroke_for_action(&self, action: FileDialogAction) -> Option<KeyStroke> {
+        self.bindings
+            .iter()
+            .find(|binding| binding.action == action)
+            .map(|binding| binding.stroke)
+    }
+
+    pub fn set_action_binding(&mut self, action: FileDialogAction, stroke: Option<KeyStroke>) {
+        self.bindings.retain(|binding| binding.action != action);
+        if let Some(stroke) = stroke {
+            self.bindings.push(FileDialogKeyBinding { stroke, action });
+        }
+    }
+}
+
+impl Default for FileDialogKeymap {
+    fn default() -> Self {
+        Self::default_file_dialog()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FileDialogKeyBinding {
+    pub stroke: KeyStroke,
+    pub action: FileDialogAction,
+}
+
+impl FileDialogKeyBinding {
+    pub fn new(stroke: &str, action: FileDialogAction) -> Self {
+        Self {
+            stroke: KeyStroke::from_str(stroke).expect("default file dialog key should be valid"),
+            action,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileDialogAction {
+    Cancel,
+    Submit,
+    CompleteForward,
+    CompleteBackward,
+    ToggleHidden,
+    MoveSelectionUp,
+    MoveSelectionDown,
+    PageSelectionUp,
+    PageSelectionDown,
+    MoveInputLeft,
+    MoveInputRight,
+    MoveInputStart,
+    MoveInputEnd,
+    DeleteBackward,
+    DeleteForward,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FileDialogKeymapError {
+    DuplicateBinding(KeyStroke),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -958,6 +1147,59 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
     }
 }
 
+pub fn file_dialog_action_id(action: FileDialogAction) -> &'static str {
+    match action {
+        FileDialogAction::Cancel => "file_dialog.cancel",
+        FileDialogAction::Submit => "file_dialog.submit",
+        FileDialogAction::CompleteForward => "file_dialog.complete_forward",
+        FileDialogAction::CompleteBackward => "file_dialog.complete_backward",
+        FileDialogAction::ToggleHidden => "file_dialog.toggle_hidden",
+        FileDialogAction::MoveSelectionUp => "file_dialog.move_selection_up",
+        FileDialogAction::MoveSelectionDown => "file_dialog.move_selection_down",
+        FileDialogAction::PageSelectionUp => "file_dialog.page_selection_up",
+        FileDialogAction::PageSelectionDown => "file_dialog.page_selection_down",
+        FileDialogAction::MoveInputLeft => "file_dialog.move_input_left",
+        FileDialogAction::MoveInputRight => "file_dialog.move_input_right",
+        FileDialogAction::MoveInputStart => "file_dialog.move_input_start",
+        FileDialogAction::MoveInputEnd => "file_dialog.move_input_end",
+        FileDialogAction::DeleteBackward => "file_dialog.delete_backward",
+        FileDialogAction::DeleteForward => "file_dialog.delete_forward",
+    }
+}
+
+pub fn file_dialog_action_from_id(input: &str) -> Result<FileDialogAction, CommandParseError> {
+    match normalize_command_id(input).as_str() {
+        "cancel" | "file_dialog.cancel" => Ok(FileDialogAction::Cancel),
+        "submit" | "file_dialog.submit" => Ok(FileDialogAction::Submit),
+        "complete_forward" | "file_dialog.complete_forward" => {
+            Ok(FileDialogAction::CompleteForward)
+        }
+        "complete_backward" | "file_dialog.complete_backward" => {
+            Ok(FileDialogAction::CompleteBackward)
+        }
+        "toggle_hidden" | "file_dialog.toggle_hidden" => Ok(FileDialogAction::ToggleHidden),
+        "move_selection_up" | "file_dialog.move_selection_up" => {
+            Ok(FileDialogAction::MoveSelectionUp)
+        }
+        "move_selection_down" | "file_dialog.move_selection_down" => {
+            Ok(FileDialogAction::MoveSelectionDown)
+        }
+        "page_selection_up" | "file_dialog.page_selection_up" => {
+            Ok(FileDialogAction::PageSelectionUp)
+        }
+        "page_selection_down" | "file_dialog.page_selection_down" => {
+            Ok(FileDialogAction::PageSelectionDown)
+        }
+        "move_input_left" | "file_dialog.move_input_left" => Ok(FileDialogAction::MoveInputLeft),
+        "move_input_right" | "file_dialog.move_input_right" => Ok(FileDialogAction::MoveInputRight),
+        "move_input_start" | "file_dialog.move_input_start" => Ok(FileDialogAction::MoveInputStart),
+        "move_input_end" | "file_dialog.move_input_end" => Ok(FileDialogAction::MoveInputEnd),
+        "delete_backward" | "file_dialog.delete_backward" => Ok(FileDialogAction::DeleteBackward),
+        "delete_forward" | "file_dialog.delete_forward" => Ok(FileDialogAction::DeleteForward),
+        _ => Err(CommandParseError::UnknownCommand(input.to_string())),
+    }
+}
+
 pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> {
     match normalize_command_id(input).as_str() {
         "file.new" => Ok(EditorCommand::File(FileCommand::New)),
@@ -1240,6 +1482,45 @@ mod tests {
     }
 
     #[test]
+    fn file_dialog_keymap_finds_bound_actions() {
+        let keymap = FileDialogKeymap::default_file_dialog();
+
+        assert_eq!(
+            keymap.action_for_stroke(KeyStroke::from_str("Ctrl+H").unwrap()),
+            Some(FileDialogAction::ToggleHidden)
+        );
+        assert_eq!(
+            keymap.stroke_for_action(FileDialogAction::MoveInputStart),
+            Some(KeyStroke::from_str("Home").unwrap())
+        );
+        assert_eq!(
+            file_dialog_action_id(FileDialogAction::DeleteForward),
+            "file_dialog.delete_forward"
+        );
+        assert_eq!(
+            file_dialog_action_from_id("delete-forward"),
+            Ok(FileDialogAction::DeleteForward)
+        );
+    }
+
+    #[test]
+    fn file_dialog_keymap_rejects_duplicate_bindings() {
+        let keymap = FileDialogKeymap {
+            bindings: vec![
+                FileDialogKeyBinding::new("Esc", FileDialogAction::Cancel),
+                FileDialogKeyBinding::new("Esc", FileDialogAction::Submit),
+            ],
+        };
+
+        assert_eq!(
+            keymap.validate(),
+            Err(FileDialogKeymapError::DuplicateBinding(
+                KeyStroke::from_str("Esc").unwrap()
+            ))
+        );
+    }
+
+    #[test]
     fn key_sequences_have_stable_display_text() {
         assert_eq!(
             KeySequence::from_str("Ctrl+W,H").unwrap().to_string(),
@@ -1285,6 +1566,8 @@ limits.editable_file_soft_limit_bytes = 2 MiB
 limits.line_display_soft_limit_bytes = 4 KiB
 key.app.quit = Esc
 key.edit.find = none
+key.file_dialog.toggle_hidden = F8
+file_dialog.key.delete_forward = none
 ",
         )
         .unwrap();
@@ -1311,6 +1594,18 @@ key.edit.find = none
                 .iter()
                 .any(|binding| binding.command == EditorCommand::Edit(EditCommand::Find))
         );
+        assert_eq!(
+            config
+                .file_dialog_keys
+                .action_for_stroke(KeyStroke::from_str("F8").unwrap()),
+            Some(FileDialogAction::ToggleHidden)
+        );
+        assert_eq!(
+            config
+                .file_dialog_keys
+                .stroke_for_action(FileDialogAction::DeleteForward),
+            None
+        );
     }
 
     #[test]
@@ -1330,6 +1625,16 @@ key.edit.find = none
         assert_eq!(error.line, Some(1));
         assert!(error.to_string().contains("unknown command id"));
 
+        let error = parse_config("key.file_dialog.nope = Ctrl+X").unwrap_err();
+
+        assert_eq!(error.line, Some(1));
+        assert!(error.to_string().contains("unknown file dialog action"));
+
+        let error = parse_config("key.file_dialog.cancel = Ctrl+W,Q").unwrap_err();
+
+        assert_eq!(error.line, Some(1));
+        assert!(error.to_string().contains("single key stroke"));
+
         let error = parse_config("mouse.enabled = maybe").unwrap_err();
 
         assert_eq!(error.line, Some(1));
@@ -1342,6 +1647,11 @@ key.edit.find = none
 
         assert_eq!(error.line, None);
         assert!(error.to_string().contains("duplicate key sequence"));
+
+        let error = parse_config("key.file_dialog.cancel = Enter").unwrap_err();
+
+        assert_eq!(error.line, None);
+        assert!(error.to_string().contains("duplicate key stroke"));
     }
 
     #[test]

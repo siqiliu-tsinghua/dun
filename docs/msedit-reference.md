@@ -100,6 +100,9 @@ These observations suggest a staged visual alignment path for `dun`:
 5. Done: add an enum-driven Open/Save As file dialog baseline with path input,
    directory match list, keyboard selection, directory navigation, and Tab path
    completion while keeping lightweight prompts for smaller interactions.
+6. Done: tighten Open/Save As dialog labels and list rows toward the reference
+   modal style while keeping ASCII-safe file type markers and configurable
+   modal shortcuts.
 
 ## Useful Observations
 

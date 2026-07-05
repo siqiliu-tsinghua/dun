@@ -19,8 +19,8 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use dun_config::{
-    Config, Key, KeyModifiers, KeySequence, KeyStroke, Keymap, Limits, ThemeName, command_from_id,
-    command_id, parse_config,
+    Config, FileDialogAction, FileDialogKeymap, Key, KeyModifiers, KeySequence, KeyStroke, Keymap,
+    Limits, ThemeName, command_from_id, command_id, file_dialog_action_id, parse_config,
 };
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
@@ -442,6 +442,7 @@ struct AppState {
     detected_profile: TerminalProfile,
     shell: UiShell,
     limits: Limits,
+    file_dialog_keys: FileDialogKeymap,
     mouse_enabled: bool,
     mouse_drag: Option<MouseDragState>,
     active_menu: Option<usize>,
@@ -480,6 +481,7 @@ impl AppState {
         let detected_profile = detect_terminal_profile();
         let shell = UiShell::from_config(&loaded_config.config, detected_profile);
         let limits = loaded_config.config.limits;
+        let file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
         let mouse_enabled = loaded_config.config.mouse.enabled;
 
         Self {
@@ -490,6 +492,7 @@ impl AppState {
             detected_profile,
             shell,
             limits,
+            file_dialog_keys,
             mouse_enabled,
             mouse_drag: None,
             active_menu: None,
@@ -750,7 +753,7 @@ impl AppState {
         let Some(dialog) = &self.file_dialog else {
             return false;
         };
-        let overlay = dialog.overlay();
+        let overlay = dialog.overlay(&self.file_dialog_keys);
         let Some(visible_index) =
             self.shell
                 .hit_test_overlay_list(&overlay, self.overlay_area(), screen_x, screen_y)
@@ -897,6 +900,7 @@ impl AppState {
         self.clear_active_menu();
         self.shell = UiShell::from_config(&loaded_config.config, self.detected_profile);
         self.limits = loaded_config.config.limits;
+        self.file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
         self.mouse_enabled = loaded_config.config.mouse.enabled;
         self.config_source = loaded_config.source;
         self.refresh_help_buffer();
@@ -1295,7 +1299,10 @@ impl AppState {
             return;
         };
         let buffer_id = window.buffer_id;
-        let help = BufferState::new(buffer_id, help_buffer(&self.shell.keymap));
+        let help = BufferState::new(
+            buffer_id,
+            help_buffer(&self.shell.keymap, &self.file_dialog_keys),
+        );
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             *buffer = help;
@@ -1333,7 +1340,10 @@ impl AppState {
         let Some(buffer_id) = self.help_buffer_id() else {
             return;
         };
-        let help = BufferState::new(buffer_id, help_buffer(&self.shell.keymap));
+        let help = BufferState::new(
+            buffer_id,
+            help_buffer(&self.shell.keymap, &self.file_dialog_keys),
+        );
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             *buffer = help;
@@ -1541,6 +1551,23 @@ impl AppState {
         bindings.sort_by(|left, right| left.0.cmp(right.0));
         for (command, sequence) in bindings {
             out.push_str(&format!("  {command:<28} {sequence}\n"));
+        }
+
+        out.push_str("\nFile Dialog Keymap\n");
+        let mut bindings = self
+            .file_dialog_keys
+            .bindings
+            .iter()
+            .map(|binding| {
+                (
+                    file_dialog_action_id(binding.action),
+                    binding.stroke.to_string(),
+                )
+            })
+            .collect::<Vec<_>>();
+        bindings.sort_by(|left, right| left.0.cmp(right.0));
+        for (action, stroke) in bindings {
+            out.push_str(&format!("  {action:<28} {stroke}\n"));
         }
 
         out
@@ -1771,37 +1798,40 @@ impl AppState {
             return false;
         }
 
-        match event.code {
-            CrosstermKeyCode::Esc => self.cancel_file_dialog(),
-            CrosstermKeyCode::Enter => self.submit_file_dialog(),
-            CrosstermKeyCode::Char('h')
-                if event.modifiers.contains(CrosstermKeyModifiers::CONTROL) =>
-            {
-                self.toggle_file_dialog_hidden()
-            }
-            CrosstermKeyCode::Up => self.move_file_dialog_selection(-1),
-            CrosstermKeyCode::Down => self.move_file_dialog_selection(1),
-            CrosstermKeyCode::PageUp => self.page_file_dialog_selection(-1),
-            CrosstermKeyCode::PageDown => self.page_file_dialog_selection(1),
-            CrosstermKeyCode::Tab => self.complete_file_dialog(true),
-            CrosstermKeyCode::BackTab => self.complete_file_dialog(false),
-            CrosstermKeyCode::Backspace => {
-                if let Some(dialog) = &mut self.file_dialog {
-                    dialog.input.pop();
-                    dialog.refresh_entries();
-                }
-            }
-            _ => {
-                if let Some(ch) = text_input_from_crossterm(event) {
-                    if let Some(dialog) = &mut self.file_dialog {
-                        dialog.input.push(ch);
-                        dialog.refresh_entries();
-                    }
-                }
+        if let Some(action) = key_stroke_from_crossterm(event)
+            .and_then(|stroke| self.file_dialog_keys.action_for_stroke(stroke))
+        {
+            self.handle_file_dialog_action(action);
+            return true;
+        }
+
+        if let Some(ch) = text_input_from_crossterm(event) {
+            if let Some(dialog) = &mut self.file_dialog {
+                dialog.insert_char(ch);
             }
         }
 
         true
+    }
+
+    fn handle_file_dialog_action(&mut self, action: FileDialogAction) {
+        match action {
+            FileDialogAction::Cancel => self.cancel_file_dialog(),
+            FileDialogAction::Submit => self.submit_file_dialog(),
+            FileDialogAction::CompleteForward => self.complete_file_dialog(true),
+            FileDialogAction::CompleteBackward => self.complete_file_dialog(false),
+            FileDialogAction::ToggleHidden => self.toggle_file_dialog_hidden(),
+            FileDialogAction::MoveSelectionUp => self.move_file_dialog_selection(-1),
+            FileDialogAction::MoveSelectionDown => self.move_file_dialog_selection(1),
+            FileDialogAction::PageSelectionUp => self.page_file_dialog_selection(-1),
+            FileDialogAction::PageSelectionDown => self.page_file_dialog_selection(1),
+            FileDialogAction::MoveInputLeft => self.move_file_dialog_input_left(),
+            FileDialogAction::MoveInputRight => self.move_file_dialog_input_right(),
+            FileDialogAction::MoveInputStart => self.move_file_dialog_input_start(),
+            FileDialogAction::MoveInputEnd => self.move_file_dialog_input_end(),
+            FileDialogAction::DeleteBackward => self.delete_file_dialog_backward(),
+            FileDialogAction::DeleteForward => self.delete_file_dialog_forward(),
+        }
     }
 
     fn cancel_file_dialog(&mut self) {
@@ -1825,6 +1855,42 @@ impl AppState {
     fn scroll_file_dialog(&mut self, delta: isize) {
         if let Some(dialog) = &mut self.file_dialog {
             dialog.scroll(delta);
+        }
+    }
+
+    fn move_file_dialog_input_left(&mut self) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.move_input_left();
+        }
+    }
+
+    fn move_file_dialog_input_right(&mut self) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.move_input_right();
+        }
+    }
+
+    fn move_file_dialog_input_start(&mut self) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.move_input_start();
+        }
+    }
+
+    fn move_file_dialog_input_end(&mut self) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.move_input_end();
+        }
+    }
+
+    fn delete_file_dialog_backward(&mut self) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.delete_backward();
+        }
+    }
+
+    fn delete_file_dialog_forward(&mut self) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.delete_forward();
         }
     }
 
@@ -2389,7 +2455,7 @@ impl AppState {
         }
 
         if let Some(dialog) = &self.file_dialog {
-            return Some(dialog.overlay());
+            return Some(dialog.overlay(&self.file_dialog_keys));
         }
 
         let prompt = self.prompt.as_ref()?;
@@ -2619,6 +2685,7 @@ impl PromptKind {
 struct FileDialogState {
     kind: FileDialogKind,
     input: String,
+    cursor_index: usize,
     entries: Vec<FileDialogEntry>,
     selected_index: Option<usize>,
     scroll_offset: usize,
@@ -2632,6 +2699,7 @@ impl FileDialogState {
     fn new(kind: FileDialogKind, input: String, after_success: Option<PendingAction>) -> Self {
         let mut state = Self {
             kind,
+            cursor_index: input.len(),
             input,
             entries: Vec::new(),
             selected_index: None,
@@ -2654,17 +2722,24 @@ impl FileDialogState {
         format!("{label}{}", self.input)
     }
 
-    fn overlay(&self) -> UiOverlay {
+    fn overlay(&self, keymap: &FileDialogKeymap) -> UiOverlay {
         let context = file_dialog_context(&self.input);
+        let hidden_state = if self.show_hidden {
+            "shown"
+        } else if context.prefix.starts_with('.') {
+            "shown by prefix"
+        } else {
+            "hidden"
+        };
+        let hidden_key = file_dialog_action_key_text(keymap, FileDialogAction::ToggleHidden);
+        let entry_count = self.entries.iter().filter(|entry| !entry.is_parent).count();
         let mut lines = vec![
-            format!("Directory: {}", context.directory.display()),
+            format!("Look in: {}", context.directory.display()),
+            format!("{}:", self.kind.input_label()),
             self.message
                 .clone()
-                .unwrap_or_else(|| self.kind.help_text().to_string()),
-            format!(
-                "Hidden: {} (Ctrl+H)",
-                if self.show_hidden { "shown" } else { "hidden" }
-            ),
+                .unwrap_or_else(|| self.kind.help_text(entry_count)),
+            format!("Hidden: {hidden_state} ({hidden_key})"),
         ];
         if self.entries.len() > FILE_DIALOG_VISIBLE_ENTRIES {
             if let Some((start, end, _)) = self.visible_entry_range() {
@@ -2682,18 +2757,31 @@ impl FileDialogState {
             self.kind.name(),
             lines,
             self.input.clone(),
-            UnicodeWidthStr::width(self.input.as_str()),
+            self.cursor_display_column(),
             list,
             selected,
-            vec!["Enter  Tab complete  Ctrl+H hidden  Up/Down select  Esc cancel".to_string()],
+            vec![file_dialog_shortcuts_text(keymap)],
         )
+    }
+
+    fn cursor_display_column(&self) -> usize {
+        self.input
+            .get(..self.cursor_index)
+            .map(UnicodeWidthStr::width)
+            .unwrap_or_else(|| UnicodeWidthStr::width(self.input.as_str()))
     }
 
     fn refresh_entries(&mut self) {
         let context = file_dialog_context(&self.input);
         match list_file_dialog_entries(&context, self.show_hidden) {
-            Ok(entries) => {
-                self.entries = entries;
+            Ok(listing) => {
+                self.message = file_dialog_list_message(
+                    &context,
+                    &listing.entries,
+                    self.show_hidden,
+                    listing.hidden_filtered,
+                );
+                self.entries = listing.entries;
                 self.selected_index = if self.entries.is_empty() {
                     None
                 } else {
@@ -2701,7 +2789,6 @@ impl FileDialogState {
                 };
                 self.scroll_offset = 0;
                 self.selection_touched = false;
-                self.message = None;
             }
             Err(error) => {
                 self.entries.clear();
@@ -2847,6 +2934,61 @@ impl FileDialogState {
         self.message = None;
     }
 
+    fn move_input_left(&mut self) {
+        if self.cursor_index == 0 {
+            return;
+        }
+
+        self.cursor_index = previous_char_boundary(&self.input, self.cursor_index);
+        self.message = None;
+    }
+
+    fn move_input_right(&mut self) {
+        if self.cursor_index >= self.input.len() {
+            return;
+        }
+
+        self.cursor_index = next_char_boundary(&self.input, self.cursor_index);
+        self.message = None;
+    }
+
+    fn move_input_start(&mut self) {
+        self.cursor_index = 0;
+        self.message = None;
+    }
+
+    fn move_input_end(&mut self) {
+        self.cursor_index = self.input.len();
+        self.message = None;
+    }
+
+    fn insert_char(&mut self, ch: char) {
+        self.input.insert(self.cursor_index, ch);
+        self.cursor_index += ch.len_utf8();
+        self.refresh_entries();
+    }
+
+    fn delete_backward(&mut self) {
+        if self.cursor_index == 0 {
+            return;
+        }
+
+        let start = previous_char_boundary(&self.input, self.cursor_index);
+        self.input.drain(start..self.cursor_index);
+        self.cursor_index = start;
+        self.refresh_entries();
+    }
+
+    fn delete_forward(&mut self) {
+        if self.cursor_index >= self.input.len() {
+            return;
+        }
+
+        let end = next_char_boundary(&self.input, self.cursor_index);
+        self.input.drain(self.cursor_index..end);
+        self.refresh_entries();
+    }
+
     fn toggle_hidden(&mut self) {
         self.show_hidden = !self.show_hidden;
         self.refresh_entries();
@@ -2884,6 +3026,7 @@ impl FileDialogState {
         if let Some(prefix) = common_entry_prefix(&self.entries, &context.prefix) {
             if prefix.len() > context.prefix.len() {
                 self.input = format!("{}{}", context.base_input, prefix);
+                self.cursor_index = self.input.len();
                 self.refresh_entries();
                 return;
             }
@@ -2972,6 +3115,7 @@ impl FileDialogState {
             return;
         };
         self.input = entry.input.clone();
+        self.cursor_index = self.input.len();
         self.refresh_entries();
     }
 }
@@ -2990,10 +3134,18 @@ impl FileDialogKind {
         }
     }
 
-    const fn help_text(self) -> &'static str {
+    const fn input_label(self) -> &'static str {
         match self {
-            Self::Open => "Select a file or type a path.",
-            Self::SaveAs => "Type the destination path.",
+            Self::Open => "File name",
+            Self::SaveAs => "Save as",
+        }
+    }
+
+    fn help_text(self, entry_count: usize) -> String {
+        let noun = if entry_count == 1 { "entry" } else { "entries" };
+        match self {
+            Self::Open => format!("Select a file or type a path. {entry_count} {noun}."),
+            Self::SaveAs => format!("Type the destination path. {entry_count} {noun}."),
         }
     }
 }
@@ -3007,12 +3159,20 @@ struct FileDialogEntry {
     is_parent: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FileDialogListing {
+    entries: Vec<FileDialogEntry>,
+    hidden_filtered: usize,
+}
+
 impl FileDialogEntry {
     fn display_text(&self) -> String {
-        if self.is_dir {
-            format!("[D] {}/", self.name)
+        if self.is_parent {
+            "[..] Parent directory".to_string()
+        } else if self.is_dir {
+            format!("[DIR]  {}/", self.name)
         } else {
-            format!("    {}", self.name)
+            format!("       {}", self.name)
         }
     }
 }
@@ -3671,8 +3831,9 @@ fn parent_input_for_dialog_base(base: &str) -> String {
 fn list_file_dialog_entries(
     context: &FileDialogContext,
     show_hidden: bool,
-) -> io::Result<Vec<FileDialogEntry>> {
+) -> io::Result<FileDialogListing> {
     let mut entries = Vec::new();
+    let mut hidden_filtered = 0;
     let parent_input = parent_input_for_dialog_base(&context.base_input);
     entries.push(FileDialogEntry {
         name: "..".to_string(),
@@ -3687,6 +3848,7 @@ fn list_file_dialog_entries(
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
         if name.starts_with('.') && !include_hidden {
+            hidden_filtered += 1;
             continue;
         }
         if !name.starts_with(&context.prefix) {
@@ -3717,7 +3879,35 @@ fn list_file_dialog_entries(
             .then_with(|| right.is_dir.cmp(&left.is_dir))
             .then_with(|| left.name.cmp(&right.name))
     });
-    Ok(entries)
+    Ok(FileDialogListing {
+        entries,
+        hidden_filtered,
+    })
+}
+
+fn file_dialog_list_message(
+    context: &FileDialogContext,
+    entries: &[FileDialogEntry],
+    show_hidden: bool,
+    hidden_filtered: usize,
+) -> Option<String> {
+    let visible_entries = entries.iter().filter(|entry| !entry.is_parent).count();
+    if visible_entries > 0 {
+        return None;
+    }
+
+    if !context.prefix.is_empty() {
+        if hidden_filtered > 0 && !show_hidden && !context.prefix.starts_with('.') {
+            return Some("No visible matches; type . or toggle hidden files".to_string());
+        }
+        return Some(format!("No matches for `{}`; `..` goes up", context.prefix));
+    }
+
+    if hidden_filtered > 0 && !show_hidden {
+        Some("Only hidden entries are filtered; type . or toggle hidden files".to_string())
+    } else {
+        Some("Directory is empty; `..` goes up".to_string())
+    }
 }
 
 fn common_entry_prefix(entries: &[FileDialogEntry], current_prefix: &str) -> Option<String> {
@@ -3752,6 +3942,22 @@ fn common_prefix(left: &str, right: &str) -> String {
     }
 
     left[..end].to_string()
+}
+
+fn previous_char_boundary(input: &str, index: usize) -> usize {
+    input[..index]
+        .char_indices()
+        .last()
+        .map(|(index, _)| index)
+        .unwrap_or(0)
+}
+
+fn next_char_boundary(input: &str, index: usize) -> usize {
+    input[index..]
+        .chars()
+        .next()
+        .map(|ch| index + ch.len_utf8())
+        .unwrap_or(input.len())
 }
 
 fn expand_user_path(input: &str) -> PathBuf {
@@ -3833,12 +4039,12 @@ fn text_input_from_crossterm(event: CrosstermKeyEvent) -> Option<char> {
     }
 }
 
-fn help_buffer(keymap: &Keymap) -> TextBuffer {
-    let text = help_text(keymap);
+fn help_buffer(keymap: &Keymap, file_dialog_keys: &FileDialogKeymap) -> TextBuffer {
+    let text = help_text(keymap, file_dialog_keys);
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, &text)
 }
 
-fn help_text(keymap: &Keymap) -> String {
+fn help_text(keymap: &Keymap, file_dialog_keys: &FileDialogKeymap) -> String {
     let mut out = String::from("Dun Help\n\n");
 
     for (index, section) in HELP_SECTIONS.iter().enumerate() {
@@ -3856,8 +4062,99 @@ fn help_text(keymap: &Keymap) -> String {
     out.push_str(
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
     );
+    out.push_str("File Dialogs\n");
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::Submit,
+        "Open/save selected path",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::Cancel,
+        "Cancel dialog",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::CompleteForward,
+        "Complete path",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::CompleteBackward,
+        "Complete path backward",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::ToggleHidden,
+        "Toggle hidden files",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::MoveSelectionUp,
+        "Move file selection up",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::MoveSelectionDown,
+        "Move file selection down",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::PageSelectionUp,
+        "Page file selection up",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::PageSelectionDown,
+        "Page file selection down",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::MoveInputLeft,
+        "Move path cursor left",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::MoveInputRight,
+        "Move path cursor right",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::MoveInputStart,
+        "Move path cursor to start",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::MoveInputEnd,
+        "Move path cursor to end",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::DeleteBackward,
+        "Delete previous path character",
+    );
+    push_file_dialog_help(
+        &mut out,
+        file_dialog_keys,
+        FileDialogAction::DeleteForward,
+        "Delete path character",
+    );
     out.push_str(
-        "File Dialogs\n  Enter           Open/save selected path\n  Esc             Cancel dialog\n  Tab             Complete path\n  Ctrl+H          Toggle hidden files\n  Up/Down         Move file selection\n  PageUp/PageDown Page file selection\n  Mouse click     Select list entry when mouse is enabled\n  Mouse wheel     Scroll list when mouse is enabled\n\n",
+        "  Mouse click     Select list entry when mouse is enabled\n  Mouse wheel     Scroll list when mouse is enabled\n\n",
     );
     out.push_str(
         "Menus\n  Alt+F/E/V/H     Open File/Edit/View/Help menu\n  Left/Right      Switch open menu\n  Up/Down         Move menu selection\n  Enter           Run selected menu command\n  Esc             Close open menu\n\n",
@@ -3883,6 +4180,36 @@ fn push_help_command(
         "  {sequence:<15} {description} [{}]\n",
         command_id(command)
     ));
+}
+
+fn push_file_dialog_help(
+    out: &mut String,
+    keymap: &FileDialogKeymap,
+    action: FileDialogAction,
+    description: &str,
+) {
+    let sequence = file_dialog_action_key_text(keymap, action);
+    out.push_str(&format!(
+        "  {sequence:<15} {description} [{}]\n",
+        file_dialog_action_id(action)
+    ));
+}
+
+fn file_dialog_action_key_text(keymap: &FileDialogKeymap, action: FileDialogAction) -> String {
+    keymap
+        .stroke_for_action(action)
+        .map(|stroke| stroke.to_string())
+        .unwrap_or_else(|| "(unbound)".to_string())
+}
+
+fn file_dialog_shortcuts_text(keymap: &FileDialogKeymap) -> String {
+    format!(
+        "[{}] OK  [{}] Complete  [{}] Hidden  [{}] Cancel",
+        file_dialog_action_key_text(keymap, FileDialogAction::Submit),
+        file_dialog_action_key_text(keymap, FileDialogAction::CompleteForward),
+        file_dialog_action_key_text(keymap, FileDialogAction::ToggleHidden),
+        file_dialog_action_key_text(keymap, FileDialogAction::Cancel),
+    )
 }
 
 struct HelpSection {
@@ -5299,6 +5626,7 @@ key.window.close = none
         assert!(text.contains("Go to line [edit.go_to_line]"));
         assert!(text.contains("(unbound)"));
         assert!(text.contains("Close focused window [window.close]"));
+        assert!(text.contains("Toggle hidden files [file_dialog.toggle_hidden]"));
         assert!(!text.contains("Ctrl+G"));
     }
 
@@ -5325,6 +5653,9 @@ key.window.close = none
         assert!(text.contains("mouse: disabled"));
         assert!(text.contains("app.config_diagnostics"));
         assert!(text.contains("F6"));
+        assert!(text.contains("File Dialog Keymap"));
+        assert!(text.contains("file_dialog.toggle_hidden"));
+        assert!(text.contains("Ctrl+H"));
         assert_eq!(app.status_message, Some("Config diagnostics".to_string()));
 
         app.handle_command(&EditorCommand::App(AppCommand::ConfigDiagnostics));
@@ -6218,6 +6549,92 @@ key.app.help = F10
     }
 
     #[test]
+    fn file_dialog_path_input_cursor_edits_middle_of_path() {
+        let directory = temp_file_path("file-dialog-cursor");
+        std::fs::create_dir(&directory).unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/ab", directory.display()));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, "X");
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Open: {}/aXb", directory.display()))
+        );
+        assert_eq!(
+            app.file_dialog.as_ref().map(|dialog| dialog.cursor_index),
+            Some(format!("{}/aX", directory.display()).len())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Open: {}/ab", directory.display()))
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Delete, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Open: {}/a", directory.display()))
+        );
+
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn file_dialog_path_input_home_end_and_utf8_cursor_are_safe() {
+        let directory = temp_file_path("file-dialog-home-end");
+        std::fs::create_dir(&directory).unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::SaveAs));
+        send_text(&mut app, &format!("{}/中b", directory.display()));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Save As: {}/b", directory.display()))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, "~");
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Save As: ~{}/b", directory.display()))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, "!");
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Save As: ~{}/b!", directory.display()))
+        );
+
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
     fn open_dialog_down_enter_opens_selected_file() {
         let directory = temp_file_path("open-dialog-select");
         let first = directory.join("a.txt");
@@ -6411,6 +6828,33 @@ key.app.help = F10
         let _ = std::fs::remove_file(hidden);
         let _ = std::fs::remove_file(visible);
         let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn file_dialog_uses_configured_modal_keybindings() {
+        let mut config = Config::default();
+        config.file_dialog_keys.set_action_binding(
+            FileDialogAction::ToggleHidden,
+            Some(KeyStroke::plain(Key::F(8))),
+        );
+        let mut app = AppState::from_config(config);
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::CONTROL),
+        );
+        assert!(!app.file_dialog.as_ref().unwrap().show_hidden);
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(8), CrosstermKeyModifiers::NONE),
+        );
+        assert!(app.file_dialog.as_ref().unwrap().show_hidden);
+
+        let help = help_text(&app.shell.keymap, &app.file_dialog_keys);
+        assert!(help.contains("F8"));
+        assert!(help.contains("file_dialog.toggle_hidden"));
     }
 
     #[test]

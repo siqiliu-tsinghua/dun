@@ -41,7 +41,9 @@ directories, permission denial, and read-only destinations.
 Open and Save As now use larger modal file dialogs with a path input, directory
 match list, Up/Down and PageUp/PageDown selection, directory navigation, Tab
 path completion, a parent-directory entry, hidden-file filtering with `Ctrl+H`
-toggle, and mouse-wheel list scrolling when mouse support is enabled.
+toggle, Home/End/Left/Right/Delete path editing, empty/no-match diagnostics,
+and mouse-wheel list scrolling when mouse support is enabled. File-dialog
+modal keys have their own typed config bindings.
 Lightweight modal prompts remain available for Find, Replace, and Go To Line
 entry. Find now supports next/previous navigation and selected match
 highlighting, Replace can replace the current or next match, and Go To Line

@@ -167,9 +167,12 @@ Editing:
   directory match list.
 - In file dialogs, printable text edits the path, Tab completes a unique or
   common path prefix, Up/Down moves the visible match selection,
-  PageUp/PageDown moves by a page, `Ctrl+H` toggles hidden files, Enter opens
-  or saves, and Esc cancels. Dotfiles are hidden by default unless the typed
-  prefix starts with `.`, and `..` is available for parent-directory navigation.
+  PageUp/PageDown moves by a page, Left/Right/Home/End and Delete edit the
+  path input, `Ctrl+H` toggles hidden files, Enter opens or saves, and Esc
+  cancels. Dotfiles are hidden by default unless the typed prefix starts with
+  `.`, and `..` is available for parent-directory navigation. File-dialog
+  modal keys can be remapped in config for terminals or KVM paths that do not
+  deliver the defaults.
 - `Ctrl+P` opens the command prompt, and Up/Down recall command history.
 - Dirty buffers ask for confirmation before quit, new, open, or close.
 

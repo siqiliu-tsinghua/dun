@@ -61,6 +61,33 @@ The runtime input path and the in-editor Help window both use the active
 keymap. Custom bindings and unbound commands are reflected on startup and after
 `app.reload_config` reloads the active configuration.
 
+File-dialog modal keybindings are separate from global editor commands. They
+use single key strokes because they are active only while Open/Save As dialogs
+own input:
+
+```text
+key.file_dialog.submit = Enter
+key.file_dialog.cancel = Esc
+key.file_dialog.complete_forward = Tab
+key.file_dialog.complete_backward = BackTab
+key.file_dialog.toggle_hidden = Ctrl+H
+key.file_dialog.move_selection_up = Up
+key.file_dialog.move_selection_down = Down
+key.file_dialog.page_selection_up = PageUp
+key.file_dialog.page_selection_down = PageDown
+key.file_dialog.move_input_left = Left
+key.file_dialog.move_input_right = Right
+key.file_dialog.move_input_start = Home
+key.file_dialog.move_input_end = End
+key.file_dialog.delete_backward = Backspace
+key.file_dialog.delete_forward = Delete
+```
+
+The equivalent `file_dialog.key.NAME = KEY` spelling is also accepted. Set an
+action to `none`, `disabled`, or `unbind` to remove its default binding. Modal
+bindings may overlap global editor bindings because dialogs handle them before
+normal editor dispatch, but duplicate file-dialog strokes are rejected.
+
 The default window-management bindings prefer MacBook- and SSH-friendly
 `Ctrl+W` sequences because macOS Command and Fn are not generally delivered to
 terminal applications, and Option only appears as Alt/Meta when the terminal is
@@ -90,6 +117,7 @@ key.window.split_horizontal = Ctrl+W,H
 key.window.split_vertical = Ctrl+W,V
 key.window.focus_left = Ctrl+W,Left
 key.window.resize_right = Ctrl+W,Shift+Right
+key.file_dialog.toggle_hidden = F8
 ```
 
 Future `rum` configuration should produce the same typed `Config` model rather
