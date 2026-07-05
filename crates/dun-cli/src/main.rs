@@ -304,6 +304,17 @@ impl ConfigLoadRequest {
     fn explicit(path: PathBuf) -> Self {
         Self::new(Some(path), false)
     }
+
+    fn diagnostics_text(&self) -> String {
+        if self.no_config {
+            return "--no-config".to_string();
+        }
+
+        match &self.explicit_path {
+            Some(path) => format!("--config {}", path.display()),
+            None => "discovery (DUN_CONFIG, XDG_CONFIG_HOME, HOME)".to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -331,6 +342,16 @@ impl ConfigSource {
             }
             Self::DefaultFile(path) => format!("Config reloaded from {}", path.display()),
             Self::BuiltInDefaults => "Config reloaded from built-in defaults".to_string(),
+        }
+    }
+
+    fn diagnostics_text(&self) -> String {
+        match self {
+            Self::Disabled => "disabled (--no-config)".to_string(),
+            Self::Explicit(path) => format!("explicit file ({})", path.display()),
+            Self::Environment(path) => format!("{DUN_CONFIG_ENV} ({})", path.display()),
+            Self::DefaultFile(path) => format!("default file ({})", path.display()),
+            Self::BuiltInDefaults => "built-in defaults".to_string(),
         }
     }
 }
@@ -552,6 +573,7 @@ impl AppState {
 
     fn handle_app_command(&mut self, command: &AppCommand) {
         match command {
+            AppCommand::ConfigDiagnostics => self.open_config_diagnostics_screen(),
             AppCommand::Help => self.open_help_screen(),
             AppCommand::ReloadConfig => self.reload_config(),
             AppCommand::StatusHistory => self.open_status_history_screen(),
@@ -584,6 +606,7 @@ impl AppState {
         self.limits = loaded_config.config.limits;
         self.config_source = loaded_config.source;
         self.refresh_help_buffer();
+        self.refresh_config_diagnostics_buffer();
     }
 
     fn handle_file_command(&mut self, command: &FileCommand) {
@@ -969,6 +992,69 @@ impl AppState {
         }
     }
 
+    fn open_config_diagnostics_screen(&mut self) {
+        self.set_status("Config diagnostics");
+
+        if let Some(window_id) = self.config_diagnostics_window_id() {
+            self.workspace.focused = window_id;
+            self.refresh_config_diagnostics_buffer();
+            return;
+        }
+
+        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+            self.set_status("Config diagnostics failed: focused window is missing");
+            return;
+        };
+        let Ok(window) = self.workspace.window(window_id) else {
+            self.set_status("Config diagnostics failed: diagnostics window is missing");
+            return;
+        };
+        let buffer_id = window.buffer_id;
+        let text = self.config_diagnostics_text();
+        let diagnostics = BufferState::new(buffer_id, config_diagnostics_buffer(&text));
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = diagnostics;
+        } else {
+            self.buffers.push(diagnostics);
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = "Config Diagnostics".to_string();
+            window.kind = WindowKind::ConfigDiagnostics;
+            window.buffer_kind = BufferKind::ReadOnly;
+            window.collapsed = false;
+        }
+    }
+
+    fn config_diagnostics_window_id(&self) -> Option<WindowId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::ConfigDiagnostics)
+            .map(|window| window.id)
+    }
+
+    fn config_diagnostics_buffer_id(&self) -> Option<BufferId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::ConfigDiagnostics)
+            .map(|window| window.buffer_id)
+    }
+
+    fn refresh_config_diagnostics_buffer(&mut self) {
+        let Some(buffer_id) = self.config_diagnostics_buffer_id() else {
+            return;
+        };
+        let text = self.config_diagnostics_text();
+        let diagnostics = BufferState::new(buffer_id, config_diagnostics_buffer(&text));
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = diagnostics;
+        }
+    }
+
     fn open_status_history_screen(&mut self) {
         self.set_status("Status history");
 
@@ -1033,6 +1119,70 @@ impl AppState {
                 entry.level.label(),
                 entry.message
             ));
+        }
+
+        out
+    }
+
+    fn config_diagnostics_text(&self) -> String {
+        let mut out = String::from("Dun Config Diagnostics\n\n");
+
+        out.push_str("Source\n");
+        out.push_str(&format!(
+            "  active: {}\n",
+            self.config_source.diagnostics_text()
+        ));
+        out.push_str(&format!(
+            "  request: {}\n",
+            self.config_request.diagnostics_text()
+        ));
+        out.push_str(&format!("  {DUN_CONFIG_ENV}: {}\n", env_config_path_text()));
+        out.push_str(&format!("  default path: {}\n", default_config_path_text()));
+
+        out.push_str("\nTerminal\n");
+        out.push_str(&format!(
+            "  detected: {}\n",
+            terminal_profile_status(self.detected_profile)
+        ));
+        out.push_str(&format!(
+            "  effective: {}\n",
+            terminal_profile_status(self.shell.profile)
+        ));
+        out.push_str(&format!(
+            "  theme: {} ({})\n",
+            self.shell.theme.name,
+            color_status(self.shell.theme.colors)
+        ));
+        out.push_str(&format!(
+            "  glyphs: {}\n",
+            if self.shell.profile.supports_unicode_glyphs() {
+                "unicode"
+            } else {
+                "ascii"
+            }
+        ));
+
+        out.push_str("\nLimits\n");
+        out.push_str(&format!(
+            "  editable_file_soft_limit_bytes: {}\n",
+            self.limits.editable_file_soft_limit_bytes
+        ));
+        out.push_str(&format!(
+            "  line_display_soft_limit_bytes: {}\n",
+            self.limits.line_display_soft_limit_bytes
+        ));
+
+        out.push_str("\nKeymap\n");
+        let mut bindings = self
+            .shell
+            .keymap
+            .bindings
+            .iter()
+            .map(|binding| (command_id(&binding.command), binding.sequence.to_string()))
+            .collect::<Vec<_>>();
+        bindings.sort_by(|left, right| left.0.cmp(right.0));
+        for (command, sequence) in bindings {
+            out.push_str(&format!("  {command:<28} {sequence}\n"));
         }
 
         out
@@ -1806,6 +1956,18 @@ fn terminal_profile_status(profile: TerminalProfile) -> String {
     )
 }
 
+fn env_config_path_text() -> String {
+    env_config_path()
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|| "(unset)".to_string())
+}
+
+fn default_config_path_text() -> String {
+    default_config_path()
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|| "(unavailable)".to_string())
+}
+
 const fn encoding_status(encoding: EncodingProfile) -> &'static str {
     match encoding {
         EncodingProfile::Utf8 => "UTF-8",
@@ -2127,6 +2289,10 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Command line",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::ConfigDiagnostics),
+                description: "Config diagnostics",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::ReloadConfig),
                 description: "Reload config",
             },
@@ -2298,6 +2464,10 @@ const HELP_SECTIONS: &[HelpSection] = &[
 ];
 
 fn status_history_buffer(text: &str) -> TextBuffer {
+    TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
+}
+
+fn config_diagnostics_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
 }
 
@@ -2798,6 +2968,56 @@ key.window.close = none
     }
 
     #[test]
+    fn config_diagnostics_command_opens_read_only_window_once() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::ConfigDiagnostics));
+
+        let config_window = app.workspace.focused_window().unwrap();
+        let config_window_id = config_window.id;
+        let config_buffer_id = config_window.buffer_id;
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(config_window.title, "Config Diagnostics");
+        assert_eq!(config_window.kind, WindowKind::ConfigDiagnostics);
+        assert_eq!(config_window.buffer_kind, BufferKind::ReadOnly);
+
+        let config_buffer = app.buffer_state(config_buffer_id).unwrap();
+        let text = config_buffer.buffer.to_text();
+        assert!(config_buffer.buffer.is_read_only());
+        assert!(text.contains("Dun Config Diagnostics"));
+        assert!(text.contains("active: disabled (--no-config)"));
+        assert!(text.contains("theme:"));
+        assert!(text.contains("app.config_diagnostics"));
+        assert!(text.contains("F6"));
+        assert_eq!(app.status_message, Some("Config diagnostics".to_string()));
+
+        app.handle_command(&EditorCommand::App(AppCommand::ConfigDiagnostics));
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(app.workspace.focused, config_window_id);
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+        assert_eq!(app.workspace.window_count(), 1);
+        assert!(app.buffer_state(config_buffer_id).is_none());
+    }
+
+    #[test]
+    fn f6_key_opens_config_diagnostics_screen() {
+        let mut app = AppState::new();
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(6), CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::ConfigDiagnostics
+        );
+    }
+
+    #[test]
     fn reload_config_applies_updated_keymap_and_limits_without_resetting_buffers() {
         let path = temp_file_path("reload-config");
         std::fs::write(&path, "limits.editable_file_soft_limit_bytes = 4 KiB\n").unwrap();
@@ -2839,6 +3059,28 @@ key.app.help = F10
             app.workspace.focused_window().unwrap().kind,
             WindowKind::Help
         );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reload_config_refreshes_open_config_diagnostics_screen() {
+        let path = temp_file_path("reload-config-diagnostics");
+        std::fs::write(&path, "\n").unwrap();
+        let mut app = app_from_config_path(path.clone());
+
+        app.handle_command(&EditorCommand::App(AppCommand::ConfigDiagnostics));
+        let config_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+        let text = app.buffer_state(config_buffer_id).unwrap().buffer.to_text();
+        assert!(keymap_command_line(&text, "app.help").contains("F1"));
+
+        std::fs::write(&path, "key.app.help = F10\n").unwrap();
+        app.handle_command(&EditorCommand::App(AppCommand::ReloadConfig));
+
+        let text = app.buffer_state(config_buffer_id).unwrap().buffer.to_text();
+        let line = keymap_command_line(&text, "app.help");
+        assert!(line.contains("F10"));
+        assert!(!line.contains("F1 "));
 
         let _ = std::fs::remove_file(path);
     }
@@ -3828,6 +4070,12 @@ key.app.help = F10
         text.lines()
             .find(|line| line.contains("Help [app.help]"))
             .expect("help command line should be present")
+    }
+
+    fn keymap_command_line<'a>(text: &'a str, command: &str) -> &'a str {
+        text.lines()
+            .find(|line| line.contains(command))
+            .expect("keymap command line should be present")
     }
 
     fn temp_file_path(name: &str) -> PathBuf {

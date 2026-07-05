@@ -434,6 +434,7 @@ impl Keymap {
                 KeyBinding::new("F1", EditorCommand::App(AppCommand::Help)),
                 KeyBinding::new("F2", EditorCommand::App(AppCommand::StatusHistory)),
                 KeyBinding::new("F5", EditorCommand::App(AppCommand::ReloadConfig)),
+                KeyBinding::new("F6", EditorCommand::App(AppCommand::ConfigDiagnostics)),
                 KeyBinding::new("Ctrl+Q", EditorCommand::App(AppCommand::Quit)),
                 KeyBinding::new("Ctrl+P", EditorCommand::App(AppCommand::CommandLine)),
                 KeyBinding::new("Ctrl+N", EditorCommand::File(FileCommand::New)),
@@ -901,6 +902,7 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Window(WindowCommand::Close) => "window.close",
         EditorCommand::Window(WindowCommand::Only) => "window.only",
         EditorCommand::App(AppCommand::CommandLine) => "app.command_line",
+        EditorCommand::App(AppCommand::ConfigDiagnostics) => "app.config_diagnostics",
         EditorCommand::App(AppCommand::Help) => "app.help",
         EditorCommand::App(AppCommand::ReloadConfig) => "app.reload_config",
         EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
@@ -953,6 +955,7 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "window.close" => Ok(EditorCommand::Window(WindowCommand::Close)),
         "window.only" => Ok(EditorCommand::Window(WindowCommand::Only)),
         "app.command_line" => Ok(EditorCommand::App(AppCommand::CommandLine)),
+        "app.config_diagnostics" => Ok(EditorCommand::App(AppCommand::ConfigDiagnostics)),
         "app.help" => Ok(EditorCommand::App(AppCommand::Help)),
         "app.reload_config" => Ok(EditorCommand::App(AppCommand::ReloadConfig)),
         "app.status_history" => Ok(EditorCommand::App(AppCommand::StatusHistory)),
@@ -1127,6 +1130,10 @@ mod tests {
             Some(&EditorCommand::App(AppCommand::ReloadConfig))
         );
         assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("F6").unwrap()),
+            Some(&EditorCommand::App(AppCommand::ConfigDiagnostics))
+        );
+        assert_eq!(
             keymap.sequence_for_command(&EditorCommand::File(FileCommand::Save)),
             Some(&sequence)
         );
@@ -1180,6 +1187,10 @@ mod tests {
         assert_eq!(
             command_from_id("app.reload_config"),
             Ok(EditorCommand::App(AppCommand::ReloadConfig))
+        );
+        assert_eq!(
+            command_from_id("app.config_diagnostics"),
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnostics))
         );
         assert_eq!(
             command_from_id("app.nope"),

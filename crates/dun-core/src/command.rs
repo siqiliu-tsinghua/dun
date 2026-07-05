@@ -63,6 +63,7 @@ pub enum WindowCommand {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AppCommand {
     CommandLine,
+    ConfigDiagnostics,
     Help,
     ReloadConfig,
     StatusHistory,

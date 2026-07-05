@@ -345,6 +345,10 @@ impl UiShell {
                     "Reload",
                     EditorCommand::App(dun_core::AppCommand::ReloadConfig),
                 ),
+                MenuItem::new(
+                    "Config",
+                    EditorCommand::App(dun_core::AppCommand::ConfigDiagnostics),
+                ),
                 MenuItem::new("Help", EditorCommand::App(dun_core::AppCommand::Help)),
                 MenuItem::new("Quit", EditorCommand::App(dun_core::AppCommand::Quit)),
             ],
@@ -1067,6 +1071,11 @@ mod tests {
             menu.items
                 .iter()
                 .any(|item| item.command == EditorCommand::App(AppCommand::ReloadConfig))
+        );
+        assert!(
+            menu.items
+                .iter()
+                .any(|item| item.command == EditorCommand::App(AppCommand::ConfigDiagnostics))
         );
         assert!(
             menu.items

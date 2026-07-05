@@ -27,7 +27,7 @@ selection, line ending, terminal profile, and focused window index.
 By default, `F1` opens a read-only Help window with the active configured key
 reference, and `F2` opens a read-only Status History window with recent status
 and error messages. `F5` reloads the active configuration without restarting
-the editor.
+the editor, and `F6` opens Config Diagnostics.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
 

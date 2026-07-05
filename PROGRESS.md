@@ -230,3 +230,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   window, and reports failures through status history without exiting.
 - Added CLI tests for successful reload, failed reload preserving the previous
   keymap, and Help refresh after reload. `cargo test --workspace` passes.
+- Added Config Diagnostics through `AppCommand::ConfigDiagnostics`, default
+  `F6`, and `app.config_diagnostics`. The read-only diagnostics window shows
+  config source/request, environment/default paths, detected/effective terminal
+  profile, theme, limits, glyph mode, and the active keymap.
+- Added CLI tests for opening Config Diagnostics, F6 dispatch, and diagnostics
+  refresh after runtime config reload.

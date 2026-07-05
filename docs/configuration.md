@@ -39,6 +39,7 @@ Keybindings use command ids:
 ```text
 key.app.quit = Ctrl+Q
 key.app.reload_config = F5
+key.app.config_diagnostics = F6
 key.edit.find = Ctrl+F
 key.window.split_horizontal = Ctrl+W,H
 ```
@@ -65,6 +66,7 @@ limits.editable_file_soft_limit_bytes = 8 MiB
 
 key.app.quit = Ctrl+Q
 key.app.reload_config = F5
+key.app.config_diagnostics = F6
 key.edit.find = Ctrl+F
 key.window.split_horizontal = Ctrl+W,H
 key.window.split_vertical = Ctrl+W,V
