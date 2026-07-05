@@ -161,6 +161,10 @@ Current implementation:
   read-only or non-save-safe fallback buffers.
 - Long-line display work is capped by byte count without splitting a UTF-8
   character.
+- Mouse capture is disabled by default, enabled only through typed config, and
+  restored on exit or runtime disable. Current mouse input only focuses tiled
+  windows or places the cursor in an editor body; it does not trigger paste,
+  file operations, or plugin actions.
 - Tests cover OSC title/clipboard/hyperlink payloads, CSI/SGR/clear-screen,
   DCS, graphics escapes, bracketed paste markers, `ESC`, BEL, NUL, DEL, CR,
   backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and final

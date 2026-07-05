@@ -12,6 +12,7 @@ pub use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, ThemeName};
 pub struct Config {
     pub theme: ThemeName,
     pub terminal: TerminalOverrides,
+    pub mouse: MouseConfig,
     pub keybindings: Keymap,
     pub limits: Limits,
 }
@@ -37,6 +38,7 @@ impl Default for Config {
         Self {
             theme: ThemeName::MsEdit,
             terminal: TerminalOverrides::default(),
+            mouse: MouseConfig::default(),
             keybindings: Keymap::default(),
             limits: Limits::default(),
         }
@@ -136,6 +138,10 @@ fn apply_config_entry(
             config.terminal.colors = parse_color_profile(value)
                 .map(Some)
                 .ok_or_else(|| ConfigParseError::line(line_number, "unknown terminal colors"))?;
+        }
+        "mouse.enabled" | "input.mouse" => {
+            config.mouse.enabled = parse_bool(value)
+                .ok_or_else(|| ConfigParseError::line(line_number, "expected true or false"))?;
         }
         "limits.editable_file_soft_limit_bytes" => {
             config.limits.editable_file_soft_limit_bytes = parse_byte_count(value, line_number)?;
@@ -238,6 +244,14 @@ fn parse_color_profile(input: &str) -> Option<ColorProfile> {
         "256" | "256color" | "color256" => Some(ColorProfile::Color256),
         "16" | "16color" | "color16" | "ansi" => Some(ColorProfile::Color16),
         "mono" | "monochrome" | "none" | "off" => Some(ColorProfile::Mono),
+        _ => None,
+    }
+}
+
+fn parse_bool(input: &str) -> Option<bool> {
+    match normalize_token(input).as_str() {
+        "true" | "yes" | "on" | "1" | "enabled" => Some(true),
+        "false" | "no" | "off" | "0" | "disabled" => Some(false),
         _ => None,
     }
 }
@@ -390,6 +404,11 @@ impl TerminalOverrides {
             },
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MouseConfig {
+    pub enabled: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1206,6 +1225,7 @@ mod tests {
 theme = dark
 terminal.encoding = ascii
 terminal.colors = mono
+mouse.enabled = true
 limits.editable_file_soft_limit_bytes = 2 MiB
 limits.line_display_soft_limit_bytes = 4 KiB
 key.app.quit = Esc
@@ -1217,6 +1237,7 @@ key.edit.find = none
         assert_eq!(config.theme, ThemeName::Dark);
         assert_eq!(config.terminal.encoding, Some(EncodingProfile::Ascii));
         assert_eq!(config.terminal.colors, Some(ColorProfile::Mono));
+        assert!(config.mouse.enabled);
         assert_eq!(
             config.limits.editable_file_soft_limit_bytes,
             2 * 1024 * 1024
@@ -1238,6 +1259,11 @@ key.edit.find = none
     }
 
     #[test]
+    fn default_config_keeps_mouse_disabled() {
+        assert!(!Config::default().mouse.enabled);
+    }
+
+    #[test]
     fn config_parser_reports_line_errors() {
         let error = parse_config("bad = value").unwrap_err();
 
@@ -1248,6 +1274,11 @@ key.edit.find = none
 
         assert_eq!(error.line, Some(1));
         assert!(error.to_string().contains("unknown command id"));
+
+        let error = parse_config("mouse.enabled = maybe").unwrap_err();
+
+        assert_eq!(error.line, Some(1));
+        assert!(error.to_string().contains("expected true or false"));
     }
 
     #[test]

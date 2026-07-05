@@ -28,6 +28,7 @@ Supported scalar keys:
 theme = msedit | turbo | dark | dun
 terminal.encoding = utf8 | ascii
 terminal.colors = 256 | 16 | mono
+mouse.enabled = true | false
 limits.editable_file_soft_limit_bytes = 16 MiB
 limits.line_display_soft_limit_bytes = 16 KiB
 ```
@@ -56,12 +57,18 @@ The runtime input path and the in-editor Help window both use the active
 keymap. Custom bindings and unbound commands are reflected on startup and after
 `app.reload_config` reloads the active configuration.
 
+Mouse support is optional and disabled by default. When `mouse.enabled = true`,
+`dun` enables terminal mouse capture and accepts left-clicks for tiled-window
+focus and editor-body cursor placement. Selection, right-click paste, split
+dragging, and menu clicks remain deferred.
+
 ## Example
 
 ```text
 # ~/.config/dun/config
 theme = dark
 terminal.colors = 16
+mouse.enabled = false
 limits.editable_file_soft_limit_bytes = 8 MiB
 
 key.app.quit = Ctrl+Q

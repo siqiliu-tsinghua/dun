@@ -50,6 +50,8 @@ for actions such as `help`, `config`, `reload-config`, `theme`, `open`,
 The command prompt keeps a bounded in-memory history navigated with Up/Down.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
+Mouse support is optional and disabled by default; when enabled in config,
+left-clicks can focus tiled windows and place the cursor in an editor body.
 The external SSH and low-capability terminal release matrix is documented in
 [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
 the local PTY harness covers common terminal profiles, small VT100-style
@@ -157,8 +159,8 @@ Rendering must go through an explicit terminal profile:
 - glyphs: Unicode or ASCII;
 - capabilities: conservative assumptions for low-end `TERM` values.
 
-The UI must not assume Nerd Fonts, truecolor, mouse support, or Unicode line
-drawing.
+The UI must not assume Nerd Fonts, truecolor, enabled mouse support, or Unicode
+line drawing.
 
 ## Development Documents
 

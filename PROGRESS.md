@@ -332,3 +332,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   checks `edit --help` when the reference binary is available, verifies Dun's
   own CLI contract, and scans `reference/msedit` source for menu, status bar,
   color, and terminal setup reference markers.
+- Added an optional mouse support baseline. `mouse.enabled` defaults to false
+  and can be loaded or reloaded through config; when enabled, `dun-cli` enters
+  crossterm mouse capture, restores it on exit or disable, and handles left
+  clicks for tiled-window focus plus editor-body cursor placement.
+- Added core/UI/CLI tests for workspace coordinate focus, UI hit testing,
+  wide-character cursor mapping, disabled mouse behavior, window focus, and
+  body cursor placement.

@@ -59,6 +59,10 @@ impl Rect {
         self.y.saturating_add(self.height)
     }
 
+    pub const fn contains(self, x: u16, y: u16) -> bool {
+        x >= self.x && x < self.right() && y >= self.y && y < self.bottom()
+    }
+
     fn center_x(self) -> i32 {
         self.x as i32 * 2 + self.width as i32
     }
@@ -355,6 +359,23 @@ impl Workspace {
         let mut out = Vec::with_capacity(self.windows.len());
         self.root.resolved(area, &mut out);
         out
+    }
+
+    pub fn window_at(&self, area: Rect, x: u16, y: u16) -> Option<WindowId> {
+        self.resolved_layout(area)
+            .into_iter()
+            .find(|layout| layout.rect.contains(x, y))
+            .map(|layout| layout.id)
+    }
+
+    pub fn focus_at(&mut self, area: Rect, x: u16, y: u16) -> Option<WindowId> {
+        let window_id = self.window_at(area, x, y)?;
+        if self.window(window_id).is_err() {
+            return None;
+        }
+
+        self.focused = window_id;
+        Some(window_id)
     }
 
     fn create_untitled_window(&mut self) -> WindowId {
@@ -656,6 +677,29 @@ mod tests {
             workspace.focus_direction(Direction::Left, area()),
             Err(WorkspaceError::NoNeighbor)
         );
+    }
+
+    #[test]
+    fn window_at_returns_window_containing_point() {
+        let mut workspace = Workspace::new_untitled();
+        let left = workspace.focused;
+        let right = workspace.split_focused(Axis::Horizontal).unwrap();
+
+        assert_eq!(workspace.window_at(area(), 10, 10), Some(left));
+        assert_eq!(workspace.window_at(area(), 60, 10), Some(right));
+        assert_eq!(workspace.window_at(area(), 100, 10), None);
+    }
+
+    #[test]
+    fn focus_at_updates_focused_window_for_point() {
+        let mut workspace = Workspace::new_untitled();
+        let left = workspace.focused;
+        workspace.split_focused(Axis::Horizontal).unwrap();
+
+        assert_eq!(workspace.focus_at(area(), 10, 10), Some(left));
+        assert_eq!(workspace.focused, left);
+        assert_eq!(workspace.focus_at(area(), 100, 10), None);
+        assert_eq!(workspace.focused, left);
     }
 
     #[test]

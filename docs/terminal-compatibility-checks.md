@@ -13,7 +13,7 @@ The first editor baseline targets:
 - `tmux`/`screen` style multiplexers;
 - UTF-8 plus 256-color terminals by default;
 - VT100-like, ASCII, and 16-color fallback modes;
-- keyboard-first operation without mouse support.
+- keyboard-first operation without requiring mouse support.
 
 This document is the release terminal matrix source of truth. Automated PTY
 tests cover local regressions, but tagged releases still need a manual pass on
@@ -187,7 +187,9 @@ Low-capability expectations:
 - If `Alt+Arrow` or `Alt+Shift+Arrow` is not delivered by a terminal or KVM,
   the failure is recorded as a keybinding compatibility note, not an editor
   state failure.
-- Mouse support is not required for passing the matrix.
+- Mouse support is optional and disabled by default. If enabled, left-click
+  focus/cursor placement should work in capable terminals, but mouse support is
+  not required for passing the matrix.
 - ASCII/VT100 cases must remain keyboard usable even if colors are reduced or
   absent.
 - UTF-8 text is not required to render correctly in `LANG=C`/ASCII cases, but

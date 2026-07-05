@@ -218,7 +218,16 @@ supports:
 
 ## Mouse
 
-Mouse support is useful but not required for the first baseline.
+Mouse support is useful but not required for the first baseline. It is disabled
+by default and enabled only through `mouse.enabled = true`.
+
+Current mouse baseline:
+
+- terminal mouse capture is entered and restored only when enabled;
+- left-clicking a tiled window focuses that window;
+- left-clicking an editor body places the cursor at the nearest valid text
+  position;
+- clicks in the menu/status areas do nothing.
 
 Deferred mouse features:
 

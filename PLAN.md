@@ -138,7 +138,10 @@ Goal: a running editor frame that restores the terminal correctly.
 - [x] Implement find result navigation.
 - [x] Render selected text ranges in the editor body.
 - [x] Show focused buffer name, dirty state, and line/column status.
-- [ ] Keep mouse support deferred.
+- [x] Add optional mouse capture for left-click window focus and body cursor
+  placement.
+- [x] Keep selection, right-click paste, split dragging, and menu clicks
+  deferred.
 
 Primary crates: `dun-cli`, `dun-ui`, `dun-core`, `dun-term`.
 

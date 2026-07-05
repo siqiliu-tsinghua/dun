@@ -54,6 +54,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Render multiple tiled windows from resolved layout rectangles.
 - [x] Render focused buffer cursor inside the active window body.
 - [x] Render selected text ranges in the active window body.
+- [x] Add UI hit testing for optional mouse focus and cursor placement.
 - [x] Polish tiled rendering for small terminals and narrow panes.
 - [x] Keep rendering free of file I/O.
 
@@ -69,6 +70,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Support multi-stroke key sequence prefix matching.
 - [x] Define theme selection config.
 - [x] Define terminal override config.
+- [x] Define optional mouse enablement config.
 - [x] Define large-file and display limits.
 - [x] Add config validation tests.
 
@@ -103,6 +105,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Report visible success/failure status for tiling window commands.
 - [x] Run full command ids from the command-line prompt, including
   `window.*` commands.
+- [x] Add optional mouse capture, left-click window focus, and body cursor
+  placement.
 
 ## File and Display Safety
 

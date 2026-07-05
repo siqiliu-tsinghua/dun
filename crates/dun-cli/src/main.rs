@@ -9,8 +9,10 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use crossterm::event::{
-    self, Event, KeyCode as CrosstermKeyCode, KeyEvent as CrosstermKeyEvent,
-    KeyEventKind as CrosstermKeyEventKind, KeyModifiers as CrosstermKeyModifiers,
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode as CrosstermKeyCode,
+    KeyEvent as CrosstermKeyEvent, KeyEventKind as CrosstermKeyEventKind,
+    KeyModifiers as CrosstermKeyModifiers, MouseButton as CrosstermMouseButton,
+    MouseEvent as CrosstermMouseEvent, MouseEventKind as CrosstermMouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -26,7 +28,7 @@ use dun_core::{
     WindowCommand, WindowId, WindowKind, Workspace, WorkspaceError, decode_file_text,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
-use dun_ui::{BufferView, UiShell};
+use dun_ui::{BufferView, UiMouseTarget, UiShell};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Position as TuiPosition;
@@ -71,11 +73,11 @@ fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>)
     let config_request = ConfigLoadRequest::new(config_path, no_config);
     let loaded_config = load_config(&config_request)?;
     let mut app = AppState::from_loaded_config_path(config_request, loaded_config, path)?;
-    let _guard = TerminalGuard::enter()?;
+    let mut guard = TerminalGuard::enter(app.mouse_enabled())?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    let result = run_event_loop(&mut terminal, &mut app);
+    let result = run_event_loop(&mut terminal, &mut app, &mut guard);
     terminal.show_cursor()?;
     result
 }
@@ -440,6 +442,7 @@ struct AppState {
     detected_profile: TerminalProfile,
     shell: UiShell,
     limits: Limits,
+    mouse_enabled: bool,
     should_quit: bool,
     workspace_area: Rect,
     pending_keys: Vec<KeyStroke>,
@@ -473,6 +476,7 @@ impl AppState {
         let detected_profile = detect_terminal_profile();
         let shell = UiShell::from_config(&loaded_config.config, detected_profile);
         let limits = loaded_config.config.limits;
+        let mouse_enabled = loaded_config.config.mouse.enabled;
 
         Self {
             workspace: Workspace::new_untitled(),
@@ -482,6 +486,7 @@ impl AppState {
             detected_profile,
             shell,
             limits,
+            mouse_enabled,
             should_quit: false,
             workspace_area: Rect::default(),
             pending_keys: Vec::new(),
@@ -532,6 +537,10 @@ impl AppState {
             .collect()
     }
 
+    const fn mouse_enabled(&self) -> bool {
+        self.mouse_enabled
+    }
+
     fn sync_view_for_area(&mut self, area: Rect) {
         self.workspace_area = area;
         let Some((buffer_id, body_height)) = self.focused_buffer_view_context(area) else {
@@ -542,6 +551,47 @@ impl AppState {
         };
 
         buffer.ensure_cursor_visible(body_height);
+    }
+
+    fn handle_left_click(&mut self, screen_x: u16, screen_y: u16) -> bool {
+        let Some((x, y)) = self.workspace_point_from_screen(screen_x, screen_y) else {
+            return false;
+        };
+        let hit = {
+            let buffer_views = self.buffer_views();
+            self.shell
+                .hit_test_workspace(&self.workspace, self.workspace_area, &buffer_views, x, y)
+        };
+        let Some(hit) = hit else {
+            return false;
+        };
+
+        if self.workspace.focus_at(self.workspace_area, x, y).is_none() {
+            return false;
+        }
+
+        self.pending_keys.clear();
+        if let UiMouseTarget::Body(position) = hit.target {
+            if let Some(buffer) = self.buffer_state_mut(hit.buffer_id) {
+                let _ = buffer.buffer.set_cursor(position);
+            }
+            self.sync_view_for_area(self.workspace_area);
+        }
+
+        true
+    }
+
+    fn workspace_point_from_screen(&self, column: u16, row: u16) -> Option<(u16, u16)> {
+        if self.workspace_area.width == 0 || self.workspace_area.height == 0 || row == 0 {
+            return None;
+        }
+
+        let y = row - 1;
+        if column >= self.workspace_area.width || y >= self.workspace_area.height {
+            return None;
+        }
+
+        Some((column, y))
     }
 
     fn handle_command(&mut self, command: &EditorCommand) {
@@ -607,6 +657,7 @@ impl AppState {
         self.pending_keys.clear();
         self.shell = UiShell::from_config(&loaded_config.config, self.detected_profile);
         self.limits = loaded_config.config.limits;
+        self.mouse_enabled = loaded_config.config.mouse.enabled;
         self.config_source = loaded_config.source;
         self.refresh_help_buffer();
         self.refresh_config_diagnostics_buffer();
@@ -1216,6 +1267,16 @@ impl AppState {
                 "unicode"
             } else {
                 "ascii"
+            }
+        ));
+
+        out.push_str("\nInput\n");
+        out.push_str(&format!(
+            "  mouse: {}\n",
+            if self.mouse_enabled {
+                "enabled"
+            } else {
+                "disabled"
             }
         ));
 
@@ -2517,33 +2578,62 @@ impl StatusLevel {
 const STATUS_HISTORY_LIMIT: usize = 128;
 const COMMAND_HISTORY_LIMIT: usize = 128;
 
-struct TerminalGuard;
+struct TerminalGuard {
+    mouse_enabled: bool,
+}
 
 impl TerminalGuard {
-    fn enter() -> io::Result<Self> {
+    fn enter(mouse_enabled: bool) -> io::Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         if let Err(error) = execute!(stdout, EnterAlternateScreen) {
             let _ = disable_raw_mode();
             return Err(error);
         }
-        Ok(Self)
+        if mouse_enabled {
+            if let Err(error) = execute!(stdout, EnableMouseCapture) {
+                let _ = execute!(stdout, LeaveAlternateScreen);
+                let _ = disable_raw_mode();
+                return Err(error);
+            }
+        }
+        Ok(Self { mouse_enabled })
+    }
+
+    fn set_mouse_enabled(&mut self, enabled: bool) -> io::Result<()> {
+        if self.mouse_enabled == enabled {
+            return Ok(());
+        }
+
+        let mut stdout = io::stdout();
+        if enabled {
+            execute!(stdout, EnableMouseCapture)?;
+        } else {
+            execute!(stdout, DisableMouseCapture)?;
+        }
+        self.mouse_enabled = enabled;
+        Ok(())
     }
 }
 
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
-        let _ = disable_raw_mode();
         let mut stdout = io::stdout();
+        if self.mouse_enabled {
+            let _ = execute!(stdout, DisableMouseCapture);
+        }
         let _ = execute!(stdout, LeaveAlternateScreen);
+        let _ = disable_raw_mode();
     }
 }
 
 fn run_event_loop(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     app: &mut AppState,
+    guard: &mut TerminalGuard,
 ) -> io::Result<()> {
     while !app.should_quit {
+        guard.set_mouse_enabled(app.mouse_enabled())?;
         terminal.draw(|frame| {
             let area = frame.area();
             let workspace_area = Rect::new(0, 0, area.width, area.height.saturating_sub(2));
@@ -2578,6 +2668,7 @@ fn run_event_loop(
         if event::poll(Duration::from_millis(250))? {
             match event::read()? {
                 Event::Key(event) => handle_key_event(app, event),
+                Event::Mouse(event) => handle_mouse_event(app, event),
                 Event::Resize(_, _) => {}
                 _ => {}
             }
@@ -2585,6 +2676,19 @@ fn run_event_loop(
     }
 
     Ok(())
+}
+
+fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
+    if !app.mouse_enabled() || app.prompt.is_some() || app.confirm.is_some() {
+        return;
+    }
+
+    if matches!(
+        event.kind,
+        CrosstermMouseEventKind::Down(CrosstermMouseButton::Left)
+    ) {
+        app.handle_left_click(event.column, event.row);
+    }
 }
 
 fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
@@ -3415,6 +3519,15 @@ mod tests {
     use std::str::FromStr;
     use std::time::Instant;
 
+    fn left_click(column: u16, row: u16) -> CrosstermMouseEvent {
+        CrosstermMouseEvent {
+            kind: CrosstermMouseEventKind::Down(CrosstermMouseButton::Left),
+            column,
+            row,
+            modifiers: CrosstermKeyModifiers::NONE,
+        }
+    }
+
     #[test]
     fn parse_cli_args_accepts_no_path_or_single_path() {
         assert_eq!(
@@ -3618,6 +3731,62 @@ key.app.quit = Esc
         let buffer = &app.buffer_state(BufferId(1)).unwrap().buffer;
         assert_eq!(buffer.line(0), Some("aé"));
         assert_eq!(buffer.cursor_position(), Position::new(0, 3));
+    }
+
+    #[test]
+    fn mouse_click_is_ignored_when_mouse_is_disabled() {
+        let mut app = AppState::new();
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+        let left = app.workspace.focused;
+        let right = app.workspace.split_focused(Axis::Horizontal).unwrap();
+        assert_eq!(app.workspace.focused, right);
+
+        handle_mouse_event(&mut app, left_click(3, 2));
+
+        assert_eq!(app.workspace.focused, right);
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .cursor_position(),
+            Position::zero()
+        );
+        assert_eq!(left, WindowId(1));
+    }
+
+    #[test]
+    fn mouse_click_focuses_window_when_enabled() {
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+        let left = app.workspace.focused;
+        let right = app.workspace.split_focused(Axis::Horizontal).unwrap();
+        assert_eq!(app.workspace.focused, right);
+
+        handle_mouse_event(&mut app, left_click(3, 2));
+
+        assert_eq!(app.workspace.focused, left);
+    }
+
+    #[test]
+    fn mouse_body_click_moves_cursor_when_enabled() {
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+        app.handle_text_input('a');
+        app.handle_text_input('b');
+        app.handle_text_input('c');
+        app.handle_text_input('d');
+
+        handle_mouse_event(&mut app, left_click(5, 2));
+
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .cursor_position(),
+            Position::new(0, 2)
+        );
     }
 
     #[test]
@@ -3889,6 +4058,7 @@ key.window.close = none
         assert!(text.contains("Dun Config Diagnostics"));
         assert!(text.contains("active: disabled (--no-config)"));
         assert!(text.contains("theme:"));
+        assert!(text.contains("mouse: disabled"));
         assert!(text.contains("app.config_diagnostics"));
         assert!(text.contains("F6"));
         assert_eq!(app.status_message, Some("Config diagnostics".to_string()));
@@ -4210,6 +4380,7 @@ key.window.close = none
             &path,
             "\
 limits.editable_file_soft_limit_bytes = 8 KiB
+mouse.enabled = true
 key.app.help = F10
 ",
         )
@@ -4225,6 +4396,7 @@ key.app.help = F10
             Some(format!("Config reloaded from {}", path.display()))
         );
         assert_eq!(app.limits.editable_file_soft_limit_bytes, 8 * 1024);
+        assert!(app.mouse_enabled());
         assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "x");
 
         handle_key_event(

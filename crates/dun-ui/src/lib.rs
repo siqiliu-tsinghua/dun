@@ -2,8 +2,8 @@
 
 use dun_config::{Config, KeySequence, KeyStroke, Keymap};
 use dun_core::{
-    BufferId, DisplayClass, DisplaySanitizer, DisplaySegment, EditorCommand, Rect, SanitizedLine,
-    TextBuffer, TextRange, WindowId, WindowState, Workspace,
+    BufferId, DisplayClass, DisplaySanitizer, DisplaySegment, EditorCommand, Position, Rect,
+    SanitizedLine, TextBuffer, TextRange, WindowId, WindowState, Workspace,
 };
 use dun_term::{
     AnsiColor, BorderGlyphs, EncodingProfile, GlyphSet, Style as DunStyle, StyleAttrs,
@@ -74,6 +74,30 @@ impl UiShell {
         }
     }
 
+    pub fn hit_test_workspace(
+        &self,
+        workspace: &Workspace,
+        area: Rect,
+        buffers: &[BufferView<'_>],
+        x: u16,
+        y: u16,
+    ) -> Option<UiMouseHit> {
+        let ui_frame = self.frame_for_workspace(workspace, area, buffers);
+        let window = ui_frame
+            .windows
+            .iter()
+            .find(|window| window.rect.contains(x, y))?;
+        let local_x = x.saturating_sub(window.rect.x);
+        let local_y = y.saturating_sub(window.rect.y);
+        let target = self.hit_target_for_window(window, buffers, local_x, local_y);
+
+        Some(UiMouseHit {
+            window_id: window.id,
+            buffer_id: window.buffer_id,
+            target,
+        })
+    }
+
     pub fn describe_workspace(&self, workspace: &Workspace) -> String {
         format!(
             "theme={} windows={} border={}{}{}{}",
@@ -88,6 +112,50 @@ impl UiShell {
 
     pub fn render(&self, frame: &mut Frame<'_>, ui_frame: &UiFrame) {
         render_ui_frame(frame, self, ui_frame);
+    }
+
+    fn hit_target_for_window(
+        &self,
+        window: &UiWindow,
+        buffers: &[BufferView<'_>],
+        local_x: u16,
+        local_y: u16,
+    ) -> UiMouseTarget {
+        if window.collapsed || window.rect.width <= 2 || window.rect.height <= 2 {
+            return UiMouseTarget::Chrome;
+        }
+        if local_x == 0
+            || local_y == 0
+            || local_x >= window.rect.width.saturating_sub(1)
+            || local_y >= window.rect.height.saturating_sub(1)
+        {
+            return UiMouseTarget::Chrome;
+        }
+
+        let Some(buffer) = buffers.iter().find(|buffer| buffer.id == window.buffer_id) else {
+            return UiMouseTarget::Chrome;
+        };
+
+        let inner_width = window.rect.width.saturating_sub(2);
+        let gutter_width = window.gutter_width.min(inner_width);
+        let inner_x = local_x.saturating_sub(1);
+        if inner_x < gutter_width {
+            return UiMouseTarget::Gutter;
+        }
+
+        let line_index = buffer
+            .first_line
+            .saturating_add(local_y.saturating_sub(1) as usize);
+        if line_index >= buffer.buffer.line_count() {
+            return UiMouseTarget::Body(buffer_end_position(buffer.buffer));
+        }
+
+        let body_x = inner_x.saturating_sub(gutter_width) as usize;
+        let line = buffer.buffer.line(line_index).unwrap_or_default();
+        UiMouseTarget::Body(Position::new(
+            line_index,
+            self.byte_column_for_display_column(line, body_x),
+        ))
     }
 
     fn window_model(
@@ -325,6 +393,31 @@ impl UiShell {
         };
         let display_text = display_sanitizer.sanitize_line(prefix).as_plain_text();
         Some(UnicodeWidthStr::width(display_text.as_str()))
+    }
+
+    fn byte_column_for_display_column(&self, line: &str, target: usize) -> usize {
+        if target == 0 {
+            return 0;
+        }
+
+        let display_sanitizer = DisplaySanitizer {
+            ascii_only: self.display_sanitizer.ascii_only,
+            max_bytes: usize::MAX,
+        };
+        let mut width = 0usize;
+        for (index, ch) in line.char_indices() {
+            let next_index = index + ch.len_utf8();
+            let mut raw = [0; 4];
+            let rendered = display_sanitizer
+                .sanitize_line(ch.encode_utf8(&mut raw))
+                .as_plain_text();
+            width = width.saturating_add(UnicodeWidthStr::width(rendered.as_str()));
+            if width >= target {
+                return next_index;
+            }
+        }
+
+        line.len()
     }
 
     fn menu_bar(&self) -> MenuBar {
@@ -580,6 +673,12 @@ fn decimal_digits(mut value: usize) -> usize {
 
 fn display_width(text: &str) -> usize {
     UnicodeWidthStr::width(text)
+}
+
+fn buffer_end_position(buffer: &TextBuffer) -> Position {
+    let last_line = buffer.line_count().saturating_sub(1);
+    let last_column = buffer.line(last_line).map(str::len).unwrap_or(0);
+    Position::new(last_line, last_column)
 }
 
 fn fit_text_to_width(text: &str, max_width: usize, truncation: char) -> String {
@@ -841,6 +940,20 @@ pub struct UiFrame {
     pub windows: Vec<UiWindow>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UiMouseHit {
+    pub window_id: WindowId,
+    pub buffer_id: BufferId,
+    pub target: UiMouseTarget,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UiMouseTarget {
+    Chrome,
+    Gutter,
+    Body(Position),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MenuBar {
     pub items: Vec<MenuItem>,
@@ -1065,6 +1178,71 @@ mod tests {
         );
 
         assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 5, y: 1 }));
+    }
+
+    #[test]
+    fn hit_test_maps_body_click_to_buffer_position() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcd");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+
+        let hit = shell
+            .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view], 5, 1)
+            .unwrap();
+
+        assert_eq!(hit.window_id, WindowId(1));
+        assert_eq!(hit.buffer_id, BufferId(1));
+        assert_eq!(hit.target, UiMouseTarget::Body(Position::new(0, 2)));
+    }
+
+    #[test]
+    fn hit_test_maps_wide_character_click_to_valid_utf8_boundary() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "中x");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+
+        let hit = shell
+            .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view], 4, 1)
+            .unwrap();
+
+        assert_eq!(
+            hit.target,
+            UiMouseTarget::Body(Position::new(0, "中".len()))
+        );
+    }
+
+    #[test]
+    fn hit_test_separates_window_chrome_and_gutter() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcd");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+
+        let chrome = shell
+            .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view], 0, 0)
+            .unwrap();
+        let gutter = shell
+            .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view], 1, 1)
+            .unwrap();
+
+        assert_eq!(chrome.target, UiMouseTarget::Chrome);
+        assert_eq!(gutter.target, UiMouseTarget::Gutter);
+    }
+
+    #[test]
+    fn hit_test_maps_empty_body_area_to_buffer_end() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcd");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+
+        let hit = shell
+            .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view], 10, 5)
+            .unwrap();
+
+        assert_eq!(hit.target, UiMouseTarget::Body(Position::new(0, 4)));
     }
 
     #[test]
