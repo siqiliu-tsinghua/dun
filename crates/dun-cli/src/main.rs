@@ -17,14 +17,15 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use dun_config::{
-    Config, Key, KeyModifiers, KeySequence, KeyStroke, Keymap, Limits, command_id, parse_config,
+    Config, Key, KeyModifiers, KeySequence, KeyStroke, Keymap, Limits, ThemeName, command_id,
+    parse_config,
 };
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
     FileCommand, LineEnding, Position, Rect, SearchMatch, TextBuffer, WindowCommand, WindowId,
     WindowKind, Workspace,
 };
-use dun_term::{ColorProfile, EncodingProfile, TerminalProfile};
+use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
 use dun_ui::{BufferView, UiShell};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
@@ -1529,6 +1530,7 @@ impl AppState {
             "config" | "diagnostics" | "configdiagnostics" => self.open_config_diagnostics_screen(),
             "reload" | "reloadconfig" => self.reload_config(),
             "status" | "statushistory" => self.open_status_history_screen(),
+            "theme" => self.run_theme_command(args),
             "quit" | "q" => self.handle_app_command(&AppCommand::Quit),
             "open" | "o" => self.run_open_command(args),
             "save" | "write" | "w" => self.run_save_command(args),
@@ -1541,6 +1543,30 @@ impl AppState {
             "commands" => self.set_status(COMMAND_LINE_HELP),
             _ => self.set_status(format!("Unknown command: {command}")),
         }
+    }
+
+    fn run_theme_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.set_status(format!(
+                "Theme: {} ({})",
+                self.shell.theme.name,
+                theme_command_values()
+            )),
+            [theme] => match parse_theme_command_value(theme) {
+                Some(theme) => self.set_runtime_theme(theme),
+                None => self.set_status(format!(
+                    "Theme failed: unknown theme {theme}; expected {}",
+                    theme_command_values()
+                )),
+            },
+            _ => self.set_status("Command failed: theme expects zero or one theme name"),
+        }
+    }
+
+    fn set_runtime_theme(&mut self, theme: ThemeName) {
+        self.shell.theme = Theme::for_profile(theme, self.shell.profile);
+        self.refresh_config_diagnostics_buffer();
+        self.set_status(format!("Theme: {}", theme.as_str()));
     }
 
     fn run_open_command(&mut self, args: &[String]) {
@@ -2004,8 +2030,7 @@ enum PendingAction {
     CloseWindow,
 }
 
-const COMMAND_LINE_HELP: &str =
-    "Commands: help, config, status, reload-config, open [path], save [path], save-as [path], quit";
+const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, theme [name], open [path], save [path], save-as [path], quit";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CommandLineParseError {
@@ -2087,6 +2112,20 @@ fn normalize_command_line_token(input: &str) -> String {
         .filter(|ch| *ch != '-' && *ch != '_' && !ch.is_whitespace())
         .flat_map(char::to_lowercase)
         .collect()
+}
+
+fn parse_theme_command_value(input: &str) -> Option<ThemeName> {
+    match normalize_command_line_token(input).as_str() {
+        "msedit" | "microsoftedit" => Some(ThemeName::MsEdit),
+        "turbo" | "turbovision" => Some(ThemeName::Turbo),
+        "dark" => Some(ThemeName::Dark),
+        "dun" => Some(ThemeName::Dun),
+        _ => None,
+    }
+}
+
+const fn theme_command_values() -> &'static str {
+    "msedit|turbo|dark|dun"
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -3263,6 +3302,68 @@ key.window.close = none
             app.workspace.focused_window().unwrap().kind,
             WindowKind::ConfigDiagnostics
         );
+    }
+
+    #[test]
+    fn command_line_theme_switches_runtime_theme_and_refreshes_diagnostics() {
+        let mut app = AppState::new();
+        app.shell.profile = TerminalProfile::utf8_256();
+
+        app.handle_command(&EditorCommand::App(AppCommand::ConfigDiagnostics));
+        let diagnostics_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+
+        submit_command_line(&mut app, "theme dark");
+
+        assert_eq!(app.shell.theme.theme, ThemeName::Dark);
+        assert_eq!(app.status_message, Some("Theme: dark".to_string()));
+        assert!(
+            app.buffer_state(diagnostics_buffer_id)
+                .unwrap()
+                .buffer
+                .to_text()
+                .contains("theme: dark")
+        );
+
+        submit_command_line(&mut app, "theme");
+
+        assert!(
+            app.status_message
+                .as_ref()
+                .is_some_and(|message| message.starts_with("Theme: dark"))
+        );
+    }
+
+    #[test]
+    fn command_line_theme_reports_unknown_theme() {
+        let mut app = AppState::new();
+        let original_theme = app.shell.theme.theme;
+
+        submit_command_line(&mut app, "theme unknown");
+
+        assert_eq!(app.shell.theme.theme, original_theme);
+        assert_eq!(
+            app.status_message,
+            Some("Theme failed: unknown theme unknown; expected msedit|turbo|dark|dun".to_string())
+        );
+    }
+
+    #[test]
+    fn reload_config_restores_configured_theme_after_runtime_theme_switch() {
+        let path = temp_file_path("theme-reload-config");
+        std::fs::write(&path, "theme = turbo\n").unwrap();
+        let mut app = app_from_config_path(path.clone());
+        app.detected_profile = TerminalProfile::utf8_256();
+
+        submit_command_line(&mut app, "reload-config");
+        assert_eq!(app.shell.theme.theme, ThemeName::Turbo);
+
+        submit_command_line(&mut app, "theme dark");
+        assert_eq!(app.shell.theme.theme, ThemeName::Dark);
+
+        submit_command_line(&mut app, "reload-config");
+        assert_eq!(app.shell.theme.theme, ThemeName::Turbo);
+
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

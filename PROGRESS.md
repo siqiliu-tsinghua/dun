@@ -242,3 +242,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   backslash escapes.
 - Added CLI tests for command prompt dispatch, quoted file paths, dirty-buffer
   open protection, unknown commands, and parser errors.
+- Added runtime theme selection through the command-line prompt:
+  `theme` reports the active theme and `theme msedit|turbo|dark|dun` switches
+  the current session without writing config files. Runtime reload restores the
+  configured theme.
+- Added CLI tests for theme switching, diagnostics refresh, unknown theme
+  errors, and reload restoring the configured theme.

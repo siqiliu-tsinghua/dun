@@ -28,8 +28,8 @@ By default, `F1` opens a read-only Help window with the active configured key
 reference, and `F2` opens a read-only Status History window with recent status
 and error messages. `F5` reloads the active configuration without restarting
 the editor, `F6` opens Config Diagnostics, and `Ctrl+P` opens a command prompt
-for actions such as `help`, `config`, `reload-config`, `open`, `save`, and
-`quit`.
+for actions such as `help`, `config`, `reload-config`, `theme`, `open`,
+`save`, and `quit`.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
 
