@@ -345,3 +345,37 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added tests for menu hit testing, mouse menu dispatch, selection drag,
   split drag, and a PTY smoke case that starts and exits with
   `mouse.enabled = true`.
+- Reworked the top menu into grouped File/Edit/View/Help dropdowns in
+  `dun-ui`, with submenu labels, active-menu rendering, keymap-derived
+  shortcut text, and hit testing that returns existing typed `EditorCommand`
+  values.
+- Updated `dun-cli` mouse handling so top-menu clicks open or close dropdowns,
+  submenu clicks dispatch commands, outside clicks close an open menu, and
+  `Esc` closes a menu before normal keymap dispatch.
+- Added keyboard menu access for the grouped menus. If the active keymap does
+  not consume the stroke first, `Alt+F/E/V/H` opens File/Edit/View/Help,
+  Left/Right switches menus, Up/Down changes the selected entry, Enter
+  dispatches the selected typed command, and Esc closes the menu.
+- Added `.DS_Store` to `.gitignore` and recorded local Microsoft Edit
+  screenshot observations. The visual alignment backlog now calls out active
+  top-menu color, gray dropdown/modal panels, status-bar field formatting,
+  current-line highlight, menu mnemonics, and modal prompt/file-dialog work.
+- Tuned the default `msedit` theme and rendering chrome against the local
+  screenshots: blue menu/status bars, green active top-menu labels, gray
+  dropdown panels, bracket-style status fields, current-line highlighting, and
+  a persistent gutter separator.
+- Added a lightweight modal overlay renderer and routed existing prompt and
+  unsaved-confirmation state through it, preserving the current prompt logic
+  while moving Open/Save As/Find/Replace/Go To Line/Command prompts off the
+  status bar.
+- Added MacBook-friendly default window-management aliases: `Ctrl+W,Arrow`
+  moves tiled focus and `Ctrl+W,Shift+Arrow` resizes splits, while `Alt`
+  arrow bindings remain compatibility aliases for terminals that deliver
+  Option/Meta keys.
+- Added an Open/Save As file dialog baseline. `dun-ui` overlays now support
+  selectable list rows and wider file-dialog panels; `dun-cli` owns a typed
+  file-dialog state with directory listing, Up/Down selection, directory
+  navigation, Esc cancel, Enter submit, and Tab path completion.
+- Added tests for Open dialog directory navigation, unique Tab completion,
+  selection-driven Open, Save As directory completion before save, and file
+  dialog overlay rendering.

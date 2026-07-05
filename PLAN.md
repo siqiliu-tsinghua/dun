@@ -187,7 +187,8 @@ Goal: reach a practical Microsoft Edit-like baseline.
 
 - [x] Search and replace baseline.
 - [x] Go to line.
-- [x] File open/save-as dialogs or command-line equivalents.
+- [x] Open/Save As file dialog baseline with keyboard selection and Tab path
+  completion.
 - [x] Command-line prompt baseline.
 - [x] Command-line prompt history.
 - [x] Runtime theme selection command.
@@ -195,6 +196,11 @@ Goal: reach a practical Microsoft Edit-like baseline.
 - [x] Error log/status history baseline.
 - [x] Help/key reference screen.
 - [x] Better status bar fields.
+- [x] Group menu commands into File/Edit/View/Help dropdowns.
+- [x] Make grouped menus usable from the keyboard without requiring mouse
+  mode.
+- [x] Align the default `msedit` visual chrome with local Microsoft Edit
+  screenshots.
 - [x] Static Microsoft Edit reference baseline tests.
 - [x] Automated PTY smoke tests for common SSH-style terminal profiles.
 - [x] Manual terminal checklist and current-environment checks.

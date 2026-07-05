@@ -109,6 +109,12 @@ pub struct Palette {
     pub menu_bar: Style,
     pub menu_text: Style,
     pub menu_hotkey: Style,
+    pub menu_active: Style,
+    pub menu_active_hotkey: Style,
+    pub menu_panel: Style,
+    pub menu_panel_text: Style,
+    pub menu_panel_hotkey: Style,
+    pub menu_panel_border: Style,
     pub status_bar: Style,
     pub status_text: Style,
     pub window_border: Style,
@@ -116,8 +122,15 @@ pub struct Palette {
     pub title: Style,
     pub title_focused: Style,
     pub gutter: Style,
+    pub gutter_separator: Style,
+    pub current_line: Style,
     pub selection: Style,
     pub selection_text: Style,
+    pub modal_scrim: Style,
+    pub modal: Style,
+    pub modal_text: Style,
+    pub modal_border: Style,
+    pub modal_input: Style,
     pub dirty: Style,
     pub read_only: Style,
     pub control: Style,
@@ -139,31 +152,51 @@ impl Theme {
     }
 
     pub const fn msedit_256() -> Self {
-        let editor_bg = TerminalColor::Indexed(17);
-        let chrome_bg = TerminalColor::Indexed(19);
-        let chrome_fg = TerminalColor::Indexed(231);
-        let active_bg = TerminalColor::Indexed(27);
-        let accent = TerminalColor::Indexed(220);
+        let editor_bg = TerminalColor::Indexed(235);
+        let editor_fg = TerminalColor::Indexed(252);
+        let chrome_bg = TerminalColor::Indexed(67);
+        let chrome_fg = TerminalColor::Indexed(255);
+        let active_menu_bg = TerminalColor::Indexed(108);
+        let active_menu_fg = TerminalColor::Indexed(235);
+        let panel_bg = TerminalColor::Indexed(242);
+        let panel_fg = TerminalColor::Indexed(255);
+        let panel_border = TerminalColor::Indexed(253);
+        let input_bg = TerminalColor::Indexed(235);
+        let current_line_bg = TerminalColor::Indexed(240);
+        let accent = TerminalColor::Indexed(255);
 
         Self {
             name: "msedit",
             theme: ThemeName::MsEdit,
             colors: ColorProfile::Color256,
             palette: Palette {
-                editor: Style::plain(TerminalColor::Indexed(252), editor_bg),
-                editor_text: Style::plain(TerminalColor::Indexed(252), editor_bg),
+                editor: Style::plain(editor_fg, editor_bg),
+                editor_text: Style::plain(editor_fg, editor_bg),
                 menu_bar: Style::plain(chrome_fg, chrome_bg),
                 menu_text: Style::plain(chrome_fg, chrome_bg),
-                menu_hotkey: Style::new(accent, chrome_bg, StyleAttrs::BOLD),
-                status_bar: Style::plain(TerminalColor::Indexed(16), TerminalColor::Indexed(45)),
-                status_text: Style::plain(TerminalColor::Indexed(16), TerminalColor::Indexed(45)),
-                window_border: Style::plain(TerminalColor::Indexed(39), editor_bg),
-                window_border_focused: Style::new(accent, editor_bg, StyleAttrs::BOLD),
+                menu_hotkey: Style::new(chrome_fg, chrome_bg, StyleAttrs::BOLD),
+                menu_active: Style::plain(active_menu_fg, active_menu_bg),
+                menu_active_hotkey: Style::new(active_menu_fg, active_menu_bg, StyleAttrs::BOLD),
+                menu_panel: Style::plain(panel_fg, panel_bg),
+                menu_panel_text: Style::plain(panel_fg, panel_bg),
+                menu_panel_hotkey: Style::new(panel_fg, panel_bg, StyleAttrs::UNDERLINE),
+                menu_panel_border: Style::plain(panel_border, panel_bg),
+                status_bar: Style::plain(chrome_fg, chrome_bg),
+                status_text: Style::plain(chrome_fg, chrome_bg),
+                window_border: Style::plain(panel_border, editor_bg),
+                window_border_focused: Style::new(panel_border, editor_bg, StyleAttrs::BOLD),
                 title: Style::plain(TerminalColor::Indexed(153), editor_bg),
                 title_focused: Style::new(accent, editor_bg, StyleAttrs::BOLD),
                 gutter: Style::plain(TerminalColor::Indexed(110), editor_bg),
-                selection: Style::plain(TerminalColor::Indexed(231), active_bg),
-                selection_text: Style::plain(TerminalColor::Indexed(231), active_bg),
+                gutter_separator: Style::plain(panel_border, editor_bg),
+                current_line: Style::plain(editor_fg, current_line_bg),
+                selection: Style::plain(editor_fg, TerminalColor::Indexed(24)),
+                selection_text: Style::plain(editor_fg, TerminalColor::Indexed(24)),
+                modal_scrim: Style::plain(TerminalColor::Indexed(245), editor_bg),
+                modal: Style::plain(panel_fg, panel_bg),
+                modal_text: Style::plain(panel_fg, panel_bg),
+                modal_border: Style::plain(panel_border, panel_bg),
+                modal_input: Style::plain(panel_fg, input_bg),
                 dirty: Style::new(accent, editor_bg, StyleAttrs::BOLD),
                 read_only: Style::plain(TerminalColor::Indexed(203), editor_bg),
                 control: Style::plain(TerminalColor::Indexed(214), editor_bg),
@@ -197,13 +230,39 @@ impl Theme {
                     TerminalColor::Ansi(AnsiColor::Blue),
                     StyleAttrs::BOLD,
                 ),
-                status_bar: Style::plain(
+                menu_active: Style::plain(
                     TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::Cyan),
+                    TerminalColor::Ansi(AnsiColor::Green),
+                ),
+                menu_active_hotkey: Style::new(
+                    TerminalColor::Ansi(AnsiColor::Black),
+                    TerminalColor::Ansi(AnsiColor::Green),
+                    StyleAttrs::BOLD,
+                ),
+                menu_panel: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                menu_panel_text: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                menu_panel_hotkey: Style::new(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                    StyleAttrs::UNDERLINE,
+                ),
+                menu_panel_border: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                status_bar: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::Blue),
                 ),
                 status_text: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::Cyan),
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::Blue),
                 ),
                 window_border: Style::plain(TerminalColor::Ansi(AnsiColor::Cyan), editor_bg),
                 window_border_focused: Style::new(
@@ -218,6 +277,11 @@ impl Theme {
                     StyleAttrs::BOLD,
                 ),
                 gutter: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), editor_bg),
+                gutter_separator: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    editor_bg,
+                ),
+                current_line: Style::plain(editor_fg, TerminalColor::Ansi(AnsiColor::BrightBlack)),
                 selection: Style::plain(
                     TerminalColor::Ansi(AnsiColor::BrightWhite),
                     TerminalColor::Ansi(AnsiColor::Magenta),
@@ -225,6 +289,23 @@ impl Theme {
                 selection_text: Style::plain(
                     TerminalColor::Ansi(AnsiColor::BrightWhite),
                     TerminalColor::Ansi(AnsiColor::Magenta),
+                ),
+                modal_scrim: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), editor_bg),
+                modal: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                modal_text: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                modal_border: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                modal_input: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::Black),
                 ),
                 dirty: Style::new(
                     TerminalColor::Ansi(AnsiColor::BrightYellow),
@@ -274,6 +355,24 @@ impl Theme {
                     TerminalColor::Default,
                     StyleAttrs::BOLD_REVERSE,
                 ),
+                menu_active: Style::new(
+                    TerminalColor::Default,
+                    TerminalColor::Default,
+                    StyleAttrs::BOLD_REVERSE,
+                ),
+                menu_active_hotkey: Style::new(
+                    TerminalColor::Default,
+                    TerminalColor::Default,
+                    StyleAttrs::BOLD_REVERSE,
+                ),
+                menu_panel: plain,
+                menu_panel_text: plain,
+                menu_panel_hotkey: Style::new(
+                    TerminalColor::Default,
+                    TerminalColor::Default,
+                    StyleAttrs::UNDERLINE,
+                ),
+                menu_panel_border: bold,
                 status_bar: reverse,
                 status_text: reverse,
                 window_border: plain,
@@ -281,8 +380,15 @@ impl Theme {
                 title: plain,
                 title_focused: bold,
                 gutter: plain,
+                gutter_separator: bold,
+                current_line: reverse,
                 selection: reverse,
                 selection_text: reverse,
+                modal_scrim: plain,
+                modal: plain,
+                modal_text: plain,
+                modal_border: bold,
+                modal_input: reverse,
                 dirty: bold,
                 read_only: bold,
                 control: bold,
@@ -315,6 +421,32 @@ impl Theme {
                     TerminalColor::Ansi(AnsiColor::Cyan),
                     StyleAttrs::BOLD,
                 ),
+                menu_active: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::Black),
+                    TerminalColor::Ansi(AnsiColor::Green),
+                ),
+                menu_active_hotkey: Style::new(
+                    TerminalColor::Ansi(AnsiColor::Black),
+                    TerminalColor::Ansi(AnsiColor::Green),
+                    StyleAttrs::BOLD,
+                ),
+                menu_panel: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                menu_panel_text: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                menu_panel_hotkey: Style::new(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                    StyleAttrs::UNDERLINE,
+                ),
+                menu_panel_border: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
                 status_bar: Style::plain(
                     TerminalColor::Ansi(AnsiColor::Black),
                     TerminalColor::Ansi(AnsiColor::BrightCyan),
@@ -336,6 +468,11 @@ impl Theme {
                     StyleAttrs::BOLD,
                 ),
                 gutter: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), bg),
+                gutter_separator: Style::plain(TerminalColor::Ansi(AnsiColor::White), bg),
+                current_line: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
                 selection: Style::plain(
                     TerminalColor::Ansi(AnsiColor::Black),
                     TerminalColor::Ansi(AnsiColor::BrightWhite),
@@ -343,6 +480,23 @@ impl Theme {
                 selection_text: Style::plain(
                     TerminalColor::Ansi(AnsiColor::Black),
                     TerminalColor::Ansi(AnsiColor::BrightWhite),
+                ),
+                modal_scrim: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), bg),
+                modal: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                modal_text: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                modal_border: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                ),
+                modal_input: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::Black),
                 ),
                 dirty: Style::new(
                     TerminalColor::Ansi(AnsiColor::BrightYellow),
@@ -408,6 +562,19 @@ impl Theme {
                 menu_bar: Style::plain(editor_fg, TerminalColor::Indexed(bg + 1)),
                 menu_text: Style::plain(editor_fg, TerminalColor::Indexed(bg + 1)),
                 menu_hotkey: Style::new(accent, TerminalColor::Indexed(bg + 1), StyleAttrs::BOLD),
+                menu_active: Style::plain(editor_bg, accent),
+                menu_active_hotkey: Style::new(editor_bg, accent, StyleAttrs::BOLD),
+                menu_panel: Style::plain(editor_fg, TerminalColor::Indexed(bg + 7)),
+                menu_panel_text: Style::plain(editor_fg, TerminalColor::Indexed(bg + 7)),
+                menu_panel_hotkey: Style::new(
+                    editor_fg,
+                    TerminalColor::Indexed(bg + 7),
+                    StyleAttrs::UNDERLINE,
+                ),
+                menu_panel_border: Style::plain(
+                    TerminalColor::Indexed(250),
+                    TerminalColor::Indexed(bg + 7),
+                ),
                 status_bar: Style::plain(editor_bg, accent),
                 status_text: Style::plain(editor_bg, accent),
                 window_border: Style::plain(TerminalColor::Indexed(244), editor_bg),
@@ -415,8 +582,18 @@ impl Theme {
                 title: Style::plain(TerminalColor::Indexed(250), editor_bg),
                 title_focused: Style::new(accent, editor_bg, StyleAttrs::BOLD),
                 gutter: Style::plain(TerminalColor::Indexed(242), editor_bg),
+                gutter_separator: Style::plain(TerminalColor::Indexed(248), editor_bg),
+                current_line: Style::plain(editor_fg, TerminalColor::Indexed(bg + 4)),
                 selection: Style::plain(editor_fg, TerminalColor::Indexed(bg + 5)),
                 selection_text: Style::plain(editor_fg, TerminalColor::Indexed(bg + 5)),
+                modal_scrim: Style::plain(TerminalColor::Indexed(244), editor_bg),
+                modal: Style::plain(editor_fg, TerminalColor::Indexed(bg + 7)),
+                modal_text: Style::plain(editor_fg, TerminalColor::Indexed(bg + 7)),
+                modal_border: Style::plain(
+                    TerminalColor::Indexed(250),
+                    TerminalColor::Indexed(bg + 7),
+                ),
+                modal_input: Style::plain(editor_fg, editor_bg),
                 dirty: Style::new(warning, editor_bg, StyleAttrs::BOLD),
                 read_only: Style::plain(warning, editor_bg),
                 control: Style::plain(TerminalColor::Indexed(215), editor_bg),
@@ -447,8 +624,9 @@ mod tests {
         assert_eq!(theme.colors, ColorProfile::Color256);
         assert_eq!(
             theme.palette.window_border_focused.fg,
-            TerminalColor::Indexed(220)
+            TerminalColor::Indexed(253)
         );
+        assert_eq!(theme.palette.menu_active.bg, TerminalColor::Indexed(108));
     }
 
     #[test]

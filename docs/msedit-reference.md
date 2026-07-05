@@ -8,6 +8,7 @@ Reference repository:
 - URL: <https://github.com/microsoft/edit>
 - Local checkout: `reference/msedit`
 - Local checkout is ignored by git via `/reference/`.
+- Local UI screenshots: `reference/msedit-截图/`
 - Reference commit inspected: `10cbfcc7330c894f2173611029df44ca5cb6fd77`
 - License: MIT
 
@@ -53,6 +54,52 @@ Static observations currently covered by tests:
   and modal colors, and performs terminal setup through alternate screen,
   mouse/bracketed-paste/meta modes, OSC palette queries, foreground/background
   queries, cursor-position probing, and device-attributes probing.
+
+`dun` mirrors the same top-level File/Edit/View/Help grouping in its baseline
+menu model. Exact color and pixel-level menu parity remain separate reference
+work because Microsoft Edit adapts colors from terminal palette probes.
+
+## Screenshot Observations
+
+Local screenshots captured from Microsoft Edit show several visual details that
+are more specific than the source-level scan:
+
+- The top menu bar and bottom status bar use the same blue family, while the
+  editor body is a dark blue-gray.
+- The active top-level menu uses a green background with dark text, not the
+  same blue selection style used inside editor content.
+- Dropdown menus use a gray panel, bright single-line border, left padding, and
+  a right-aligned shortcut column.
+- Menu item labels expose mnemonics inline with parenthesized letters, for
+  example `Open...(O)`, and the mnemonic is underlined.
+- The editor body has a permanent left gutter separator line. The current line
+  is shown with a full-width muted gray row highlight.
+- The status bar is compact and bracket-driven: document kind, line ending,
+  encoding, indentation width, cursor location, and filename are visible in one
+  row.
+- Modal dialogs dim the inactive editor/menu/status layers. Dialog panels use a
+  gray background, bright border, and title text embedded in the top border.
+- Small prompt dialogs, such as Go To Line/Column, are centered and much less
+  intrusive than the file picker.
+- The Open dialog combines path text, file name input, a directory listing, and
+  an internal scrollbar in one centered modal.
+- The About dialog uses centered text and a bracket-style button such as
+  `[OK]`.
+
+These observations suggest a staged visual alignment path for `dun`:
+
+1. Done: tune the `msedit` theme toward the screenshot colors: blue menu/status,
+   dark blue-gray editor, gray dropdown/modal panels, green active top menu,
+   and muted gray current-line highlight.
+2. Done: add menu chrome details: active-menu color, dropdown shortcut column,
+   mnemonic markers, and gray dropdown panel.
+3. Done: reformat the default status bar toward bracketed document fields while
+   preserving Dun-specific fields such as terminal profile and window index.
+4. Done: add a lightweight modal prompt layer for Go To Line, Find, Replace,
+   command entry, and confirmations.
+5. Done: add an enum-driven Open/Save As file dialog baseline with path input,
+   directory match list, keyboard selection, directory navigation, and Tab path
+   completion while keeping lightweight prompts for smaller interactions.
 
 ## Useful Observations
 

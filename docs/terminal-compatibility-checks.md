@@ -47,7 +47,7 @@ It also opens fixtures for:
 - a normal UTF-8 file;
 - a file containing terminal escape payloads, checking that the raw payload
   sequences are not emitted as file content;
-- an invalid-byte file, checking that escaped bytes and `Escaped bytes` status
+- an invalid-byte file, checking that escaped bytes and `Escaped Bytes` status
   are visible;
 - a `mouse.enabled = true` config, checking that mouse capture setup still
   starts and exits cleanly;
@@ -163,7 +163,11 @@ Editing:
 - UTF-8 text displays correctly in UTF-8 profiles.
 - Arrow keys, Home, End, Enter, Backspace, and Delete work.
 - `Ctrl+S` saves a loaded file.
-- `Ctrl+O` and `Ctrl+Shift+S` open status-line prompts.
+- `Ctrl+O` and `Ctrl+Shift+S` open modal file dialogs with a path input and
+  directory match list.
+- In file dialogs, printable text edits the path, Tab completes a unique or
+  common path prefix, Up/Down moves the visible match selection, Enter opens or
+  saves, and Esc cancels.
 - `Ctrl+P` opens the command prompt, and Up/Down recall command history.
 - Dirty buffers ask for confirmation before quit, new, open, or close.
 
@@ -179,20 +183,30 @@ Search and navigation:
 Tiling:
 
 - `Ctrl+W,H` and `Ctrl+W,V` split the workspace.
-- `Alt+Arrow` focus movement works where the terminal sends those keys.
-- Resize bindings work where the terminal sends `Alt+Shift+Arrow`.
+- `Ctrl+W,Arrow` moves focus between panes.
+- `Ctrl+W,Shift+Arrow` resizes the nearest split where the terminal sends
+  shifted arrow keys.
+- `Alt+Arrow` focus movement works as a compatibility alias where the terminal
+  sends Option/Meta keys.
+- `Alt+Shift+Arrow` resize works as a compatibility alias where available.
 - `Ctrl+W,C` collapses or expands the focused pane.
 - `Ctrl+W,X` closes the focused pane without leaking stale buffer state.
 
 Low-capability expectations:
 
 - If `Alt+Arrow` or `Alt+Shift+Arrow` is not delivered by a terminal or KVM,
-  the failure is recorded as a keybinding compatibility note, not an editor
-  state failure.
+  `Ctrl+W,Arrow` focus movement and `Ctrl+W,Shift+Arrow` resize remain the
+  primary required path. Terminals that cannot deliver shifted arrows should
+  record resize as a keybinding compatibility note, not an editor state
+  failure.
 - Mouse support is optional and disabled by default. If enabled, left-click
-  focus, cursor placement, selection drag, split drag, and menu clicks should
-  work in capable terminals, but mouse support is not required for passing the
-  matrix.
+  focus, cursor placement, selection drag, split drag, top-menu dropdowns, and
+  submenu clicks should work in capable terminals, but mouse support is not
+  required for passing the matrix.
+- `Alt+F`, `Alt+E`, `Alt+V`, and `Alt+H` should open the grouped menus where
+  the terminal sends Alt-modified character keys. If a terminal or KVM cannot
+  deliver those strokes, command-line prompt and direct command keybindings
+  remain the required keyboard path.
 - ASCII/VT100 cases must remain keyboard usable even if colors are reduced or
   absent.
 - UTF-8 text is not required to render correctly in `LANG=C`/ASCII cases, but

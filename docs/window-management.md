@@ -155,14 +155,18 @@ commands report visible status text for both success and failure cases.
 Final keybindings belong in configuration, but the default should feel familiar
 to terminal users:
 
-- split horizontal;
-- split vertical;
-- move focus by direction;
-- resize by direction;
+- `Ctrl+W,H` splits horizontally;
+- `Ctrl+W,V` splits vertically;
+- `Ctrl+W,Arrow` moves focus by direction;
+- `Ctrl+W,Shift+Arrow` resizes by direction;
 - close focused window;
 - collapse/expand focused window;
 - equalize layout;
 - open command palette or command line.
+
+`Alt+Arrow` and `Alt+Shift+Arrow` remain optional compatibility aliases where a
+terminal sends Option/Meta keys, but the primary defaults do not depend on
+macOS Command, Fn, or Option behavior.
 
 Every window operation must be keyboard accessible. Optional mouse split
 dragging is a convenience layer over the same ratio resize model.

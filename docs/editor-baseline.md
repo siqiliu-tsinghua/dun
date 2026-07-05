@@ -152,6 +152,9 @@ The first theme baseline is terminal-backend independent:
 - `GlyphSet` chooses Unicode single-line borders or ASCII-safe borders;
 - `Theme` carries a named `Palette` of abstract colors and attributes;
 - the default profile is UTF-8 plus 256 colors;
+- the default `msedit` 256-color palette follows the local Microsoft Edit
+  screenshots with blue menu/status chrome, green active top-menu labels, gray
+  dropdown/modal panels, and a dark blue-gray editor body;
 - VT100/low-capability fallback uses ASCII glyphs and the 16-color palette;
 - mono fallback uses bold/reverse attributes rather than color assumptions.
 
@@ -186,6 +189,9 @@ Reasons:
 - terminals differ;
 - KVM/IPMI devices often handle modifier keys poorly;
 - SSH clients vary;
+- macOS terminal applications do not normally deliver Command or Fn to TUI
+  programs, and Option only becomes Alt/Meta when the terminal is configured
+  that way;
 - users may prefer Microsoft Edit, Vim-like, or tmux-like split commands.
 
 The initial implementation may hard-code defaults internally, but the command
@@ -202,8 +208,8 @@ The first config schema is typed:
 - theme and terminal profile overrides live in the same typed `Config`.
 
 The first UI integration consumes this model before ratatui is introduced. It
-builds a backend-neutral frame containing menu items, a status bar, tiled
-windows, resolved glyphs/theme, and sanitized buffer lines.
+builds a backend-neutral frame containing grouped File/Edit/View/Help menus, a
+status bar, tiled windows, resolved glyphs/theme, and sanitized buffer lines.
 
 The first runnable terminal shell uses `ratatui 0.29` and `crossterm 0.28`.
 Cargo selected these versions as Rust `1.85` compatible. The shell currently
@@ -213,7 +219,16 @@ supports:
 - restoration on normal exit and drop;
 - environment-based terminal profile detection;
 - rendering the menu, tiled window frame, sanitized body, and status line;
+- rendering an active dropdown menu from the same typed command entries used
+  by keybindings;
+- highlighting the keyboard-selected submenu entry when a menu is opened from
+  the keyboard;
+- rendering current-line highlight, a persistent gutter separator, compact
+  bracket-style status fields, lightweight modal prompts, and larger Open/Save
+  As file dialogs with path input plus a selectable directory match list;
 - crossterm key events mapped into the typed keymap;
+- Alt+F/E/V/H menu mnemonics after the active keymap has had the first chance
+  to consume those strokes;
 - `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
 
 ## Mouse
@@ -229,7 +244,9 @@ Current mouse baseline:
   position;
 - dragging in an editor body updates the current text selection;
 - dragging a tiled split border resizes that split ratio;
-- clicking a menu item dispatches its existing `EditorCommand`;
+- clicking a top-menu label opens its dropdown;
+- clicking a submenu item dispatches its existing `EditorCommand`;
+- pressing `Esc` closes an open menu before normal keymap dispatch;
 - clicks in the status area do nothing.
 
 Deferred mouse features:
@@ -249,6 +266,9 @@ Paste policy:
 - pasted controls are buffer content only and must not be interpreted as
   terminal controls or editor commands;
 - prompts may accept pasted text, but paste must not auto-submit a prompt;
+- Open/Save As file dialogs use Rust-owned directory listing and Tab path
+  completion, while all actual open/save file operations still go through the
+  same validated editor file I/O paths;
 - external clipboard commands and OSC 52 clipboard writes are out of scope for
   the baseline.
 

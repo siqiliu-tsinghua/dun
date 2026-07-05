@@ -59,6 +59,31 @@ impl UiShell {
         area: Rect,
         buffers: &[BufferView<'_>],
     ) -> UiFrame {
+        self.frame_for_workspace_with_menu(workspace, area, buffers, None)
+    }
+
+    pub fn frame_for_workspace_with_menu(
+        &self,
+        workspace: &Workspace,
+        area: Rect,
+        buffers: &[BufferView<'_>],
+        active_menu: Option<usize>,
+    ) -> UiFrame {
+        self.frame_for_workspace_with_menu_selection(
+            workspace,
+            area,
+            buffers,
+            active_menu.map(MenuSelection::menu_only),
+        )
+    }
+
+    pub fn frame_for_workspace_with_menu_selection(
+        &self,
+        workspace: &Workspace,
+        area: Rect,
+        buffers: &[BufferView<'_>],
+        active_menu: Option<MenuSelection>,
+    ) -> UiFrame {
         let mut windows = Vec::new();
 
         for layout in workspace.resolved_layout(area) {
@@ -68,9 +93,10 @@ impl UiShell {
         }
 
         UiFrame {
-            menu: self.menu_bar(),
+            menu: self.menu_bar(active_menu),
             status: self.status_bar(workspace, windows.len()),
             windows,
+            overlay: None,
         }
     }
 
@@ -98,18 +124,67 @@ impl UiShell {
         })
     }
 
-    pub fn menu_command_at_column(&self, column: u16) -> Option<EditorCommand> {
-        let mut x = 1usize;
-        for item in self.menu_bar().items {
-            let width = display_width(item.label).saturating_add(2);
-            let end = x.saturating_add(width);
-            if (column as usize) >= x && (column as usize) < end {
-                return Some(item.command);
+    pub fn menu_index_at_column(&self, column: u16) -> Option<usize> {
+        let menu = self.menu_bar(None);
+        for index in 0..menu.items.len() {
+            let (start, end) = menu_item_column_range(&menu, index)?;
+            if column >= start && column < end {
+                return Some(index);
             }
-            x = end;
         }
 
         None
+    }
+
+    pub fn menu_entry_command_at(
+        &self,
+        active_menu: usize,
+        column: u16,
+        row: u16,
+    ) -> Option<EditorCommand> {
+        let menu = self.menu_bar(None);
+        let item = menu.items.get(active_menu)?;
+        let dropdown = dropdown_rect_for_menu(self, &menu, active_menu)?;
+        if column <= dropdown.x
+            || column >= dropdown.x.saturating_add(dropdown.width).saturating_sub(1)
+            || row <= dropdown.y
+            || row >= dropdown.y.saturating_add(dropdown.height).saturating_sub(1)
+        {
+            return None;
+        }
+
+        let entry_index = row.saturating_sub(dropdown.y + 1) as usize;
+        item.entries
+            .get(entry_index)
+            .map(|entry| entry.command.clone())
+    }
+
+    pub fn menu_entry_command(
+        &self,
+        menu_index: usize,
+        entry_index: usize,
+    ) -> Option<EditorCommand> {
+        self.menu_bar(None)
+            .items
+            .get(menu_index)?
+            .entries
+            .get(entry_index)
+            .map(|entry| entry.command.clone())
+    }
+
+    pub fn menu_entry_count(&self, menu_index: usize) -> Option<usize> {
+        Some(self.menu_bar(None).items.get(menu_index)?.entries.len())
+    }
+
+    pub fn menu_count(&self) -> usize {
+        self.menu_bar(None).items.len()
+    }
+
+    pub fn menu_index_for_mnemonic(&self, ch: char) -> Option<usize> {
+        self.menu_bar(None)
+            .items
+            .iter()
+            .position(|item| mnemonic_matches(item.label, ch))
     }
 
     pub fn describe_workspace(&self, workspace: &Workspace) -> String {
@@ -434,32 +509,119 @@ impl UiShell {
         line.len()
     }
 
-    fn menu_bar(&self) -> MenuBar {
+    fn menu_bar(&self, active: Option<MenuSelection>) -> MenuBar {
         MenuBar {
+            active,
             items: vec![
-                MenuItem::new("New", EditorCommand::File(dun_core::FileCommand::New)),
-                MenuItem::new("Open", EditorCommand::File(dun_core::FileCommand::Open)),
-                MenuItem::new("Save", EditorCommand::File(dun_core::FileCommand::Save)),
-                MenuItem::new("Find", EditorCommand::Edit(dun_core::EditCommand::Find)),
-                MenuItem::new("Go", EditorCommand::Edit(dun_core::EditCommand::GoToLine)),
                 MenuItem::new(
-                    "Split",
-                    EditorCommand::Window(dun_core::WindowCommand::SplitHorizontal),
+                    "File",
+                    vec![
+                        MenuEntry::new("New (N)", EditorCommand::File(dun_core::FileCommand::New)),
+                        MenuEntry::new(
+                            "Open... (O)",
+                            EditorCommand::File(dun_core::FileCommand::Open),
+                        ),
+                        MenuEntry::new(
+                            "Save (S)",
+                            EditorCommand::File(dun_core::FileCommand::Save),
+                        ),
+                        MenuEntry::new(
+                            "Save As... (A)",
+                            EditorCommand::File(dun_core::FileCommand::SaveAs),
+                        ),
+                        MenuEntry::new(
+                            "Close (C)",
+                            EditorCommand::File(dun_core::FileCommand::Close),
+                        ),
+                        MenuEntry::new("Quit (Q)", EditorCommand::App(dun_core::AppCommand::Quit)),
+                    ],
                 ),
                 MenuItem::new(
-                    "Status",
-                    EditorCommand::App(dun_core::AppCommand::StatusHistory),
+                    "Edit",
+                    vec![
+                        MenuEntry::new(
+                            "Undo (U)",
+                            EditorCommand::Edit(dun_core::EditCommand::Undo),
+                        ),
+                        MenuEntry::new(
+                            "Redo (R)",
+                            EditorCommand::Edit(dun_core::EditCommand::Redo),
+                        ),
+                        MenuEntry::new("Cut (T)", EditorCommand::Edit(dun_core::EditCommand::Cut)),
+                        MenuEntry::new(
+                            "Copy (C)",
+                            EditorCommand::Edit(dun_core::EditCommand::Copy),
+                        ),
+                        MenuEntry::new(
+                            "Paste (P)",
+                            EditorCommand::Edit(dun_core::EditCommand::Paste),
+                        ),
+                        MenuEntry::new(
+                            "Select All (A)",
+                            EditorCommand::Edit(dun_core::EditCommand::SelectAll),
+                        ),
+                        MenuEntry::new(
+                            "Find (F)",
+                            EditorCommand::Edit(dun_core::EditCommand::Find),
+                        ),
+                        MenuEntry::new(
+                            "Find Next (N)",
+                            EditorCommand::Edit(dun_core::EditCommand::FindNext),
+                        ),
+                        MenuEntry::new(
+                            "Replace (L)",
+                            EditorCommand::Edit(dun_core::EditCommand::Replace),
+                        ),
+                        MenuEntry::new(
+                            "Go To Line (G)",
+                            EditorCommand::Edit(dun_core::EditCommand::GoToLine),
+                        ),
+                    ],
                 ),
                 MenuItem::new(
-                    "Reload",
-                    EditorCommand::App(dun_core::AppCommand::ReloadConfig),
+                    "View",
+                    vec![
+                        MenuEntry::new(
+                            "Split Horizontal (H)",
+                            EditorCommand::Window(dun_core::WindowCommand::SplitHorizontal),
+                        ),
+                        MenuEntry::new(
+                            "Split Vertical (V)",
+                            EditorCommand::Window(dun_core::WindowCommand::SplitVertical),
+                        ),
+                        MenuEntry::new(
+                            "Equalize (E)",
+                            EditorCommand::Window(dun_core::WindowCommand::Equalize),
+                        ),
+                        MenuEntry::new(
+                            "Toggle Collapse (C)",
+                            EditorCommand::Window(dun_core::WindowCommand::ToggleCollapse),
+                        ),
+                        MenuEntry::new(
+                            "Close Window (X)",
+                            EditorCommand::Window(dun_core::WindowCommand::Close),
+                        ),
+                        MenuEntry::new(
+                            "Status History (S)",
+                            EditorCommand::App(dun_core::AppCommand::StatusHistory),
+                        ),
+                        MenuEntry::new(
+                            "Config Diagnostics (D)",
+                            EditorCommand::App(dun_core::AppCommand::ConfigDiagnostics),
+                        ),
+                        MenuEntry::new(
+                            "Reload Config (R)",
+                            EditorCommand::App(dun_core::AppCommand::ReloadConfig),
+                        ),
+                    ],
                 ),
                 MenuItem::new(
-                    "Config",
-                    EditorCommand::App(dun_core::AppCommand::ConfigDiagnostics),
+                    "Help",
+                    vec![MenuEntry::new(
+                        "Help (H)",
+                        EditorCommand::App(dun_core::AppCommand::Help),
+                    )],
                 ),
-                MenuItem::new("Help", EditorCommand::App(dun_core::AppCommand::Help)),
-                MenuItem::new("Quit", EditorCommand::App(dun_core::AppCommand::Quit)),
             ],
         }
     }
@@ -499,6 +661,11 @@ pub fn render_ui_frame(frame: &mut Frame<'_>, shell: &UiShell, ui_frame: &UiFram
     for window in &ui_frame.windows {
         render_window(frame, shell, window, workspace_area);
     }
+
+    render_active_menu(frame.buffer_mut(), shell, &ui_frame.menu, area);
+    if let Some(overlay) = &ui_frame.overlay {
+        render_overlay(frame, shell, overlay, area);
+    }
 }
 
 fn render_background(frame: &mut Frame<'_>, area: TuiRect, style: DunStyle) {
@@ -512,32 +679,249 @@ fn render_menu(frame: &mut Frame<'_>, shell: &UiShell, menu: &MenuBar, area: Tui
         to_ratatui_style(shell.theme.palette.menu_text),
     ));
 
-    for item in &menu.items {
-        spans.push(Span::styled(
-            " ",
-            to_ratatui_style(shell.theme.palette.menu_text),
-        ));
+    for (index, item) in menu.items.iter().enumerate() {
+        let active = menu.active.map(|selection| selection.menu_index) == Some(index);
+        let item_style = if active {
+            to_ratatui_style(shell.theme.palette.menu_active)
+        } else {
+            to_ratatui_style(shell.theme.palette.menu_text)
+        };
+        let hotkey_style = if active {
+            to_ratatui_style(shell.theme.palette.menu_active_hotkey)
+        } else {
+            to_ratatui_style(shell.theme.palette.menu_hotkey)
+        };
+        spans.push(Span::styled(" ", item_style));
         let mut chars = item.label.chars();
         if let Some(first) = chars.next() {
-            spans.push(Span::styled(
-                first.to_string(),
-                to_ratatui_style(shell.theme.palette.menu_hotkey),
-            ));
-            spans.push(Span::styled(
-                chars.collect::<String>(),
-                to_ratatui_style(shell.theme.palette.menu_text),
-            ));
+            spans.push(Span::styled(first.to_string(), hotkey_style));
+            spans.push(Span::styled(chars.collect::<String>(), item_style));
         }
-        spans.push(Span::styled(
-            " ",
-            to_ratatui_style(shell.theme.palette.menu_text),
-        ));
+        spans.push(Span::styled(" ", item_style));
     }
 
     frame.render_widget(
         Paragraph::new(Line::from(spans)).style(to_ratatui_style(shell.theme.palette.menu_bar)),
         area,
     );
+}
+
+fn render_active_menu(buffer: &mut Buffer, shell: &UiShell, menu: &MenuBar, area: TuiRect) {
+    let Some(active) = menu.active else {
+        return;
+    };
+    let Some(item) = menu.items.get(active.menu_index) else {
+        return;
+    };
+    let Some(mut rect) = dropdown_rect_for_menu(shell, menu, active.menu_index) else {
+        return;
+    };
+    if area.width == 0 || area.height <= 1 {
+        return;
+    }
+    rect.x = rect.x.min(area.width.saturating_sub(1));
+    rect.y = rect.y.min(area.height.saturating_sub(1));
+    rect.width = rect.width.min(area.width.saturating_sub(rect.x));
+    rect.height = rect.height.min(area.height.saturating_sub(rect.y));
+    if rect.width < 3 || rect.height < 3 {
+        return;
+    }
+
+    let background = to_ratatui_style(shell.theme.palette.menu_panel);
+    for y in rect.y..rect.y.saturating_add(rect.height) {
+        for x in rect.x..rect.x.saturating_add(rect.width) {
+            buffer[(x, y)].set_char(' ').set_style(background);
+        }
+    }
+    render_border(
+        buffer,
+        rect,
+        shell.glyphs.border,
+        to_ratatui_style(shell.theme.palette.menu_panel_border),
+    );
+
+    let content_width = rect.width.saturating_sub(4) as usize;
+    let max_rows = rect.height.saturating_sub(2) as usize;
+    for (index, entry) in item.entries.iter().take(max_rows).enumerate() {
+        let y = rect.y + 1 + index as u16;
+        let text = menu_entry_text(shell, entry, content_width);
+        let style = if active.entry_index == Some(index) {
+            shell.theme.palette.menu_active
+        } else {
+            shell.theme.palette.menu_panel_text
+        };
+        buffer.set_string(rect.x + 2, y, text, to_ratatui_style(style));
+    }
+}
+
+fn render_overlay(frame: &mut Frame<'_>, shell: &UiShell, overlay: &UiOverlay, area: TuiRect) {
+    if area.width < 12 || area.height < 5 {
+        return;
+    }
+
+    let scrim = to_ratatui_style(shell.theme.palette.modal_scrim);
+    for y in area.y..area.y.saturating_add(area.height) {
+        for x in area.x..area.x.saturating_add(area.width) {
+            frame.buffer_mut()[(x, y)].set_style(scrim);
+        }
+    }
+
+    let title = sanitize_chrome_text(shell, &overlay.title);
+    let lines = overlay
+        .lines
+        .iter()
+        .map(|line| sanitize_chrome_text(shell, line))
+        .collect::<Vec<_>>();
+    let input = overlay
+        .input
+        .as_ref()
+        .map(|input| sanitize_chrome_text(shell, input));
+    let buttons = overlay
+        .buttons
+        .iter()
+        .map(|button| sanitize_chrome_text(shell, button))
+        .collect::<Vec<_>>();
+    let list = overlay
+        .list
+        .iter()
+        .map(|entry| sanitize_chrome_text(shell, entry))
+        .collect::<Vec<_>>();
+
+    let mut content_width = display_width(&title).saturating_add(4);
+    for line in &lines {
+        content_width = content_width.max(display_width(line));
+    }
+    if let Some(input) = &input {
+        content_width = content_width.max(display_width(input).max(32));
+    }
+    for button in &buttons {
+        content_width = content_width.max(display_width(button));
+    }
+    for entry in &list {
+        content_width = content_width.max(display_width(entry));
+    }
+
+    let width = content_width
+        .saturating_add(4)
+        .max(overlay.min_width as usize)
+        .min(area.width as usize) as u16;
+    let content_rows = lines
+        .len()
+        .saturating_add(usize::from(input.is_some()))
+        .saturating_add(list.len())
+        .saturating_add(buttons.len())
+        .max(1);
+    let height = content_rows
+        .saturating_add(2)
+        .max(4)
+        .min(area.height as usize) as u16;
+    let rect = TuiRect::new(
+        area.x + area.width.saturating_sub(width) / 2,
+        area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    );
+
+    frame.render_widget(
+        Block::default().style(to_ratatui_style(shell.theme.palette.modal)),
+        rect,
+    );
+    render_border(
+        frame.buffer_mut(),
+        rect,
+        shell.glyphs.border,
+        to_ratatui_style(shell.theme.palette.modal_border),
+    );
+
+    if rect.width > 6 {
+        let title_width = rect.width.saturating_sub(4) as usize;
+        let title = fit_text_to_width(
+            &format!(" {title} "),
+            title_width,
+            shell.glyphs.indicators.truncation,
+        );
+        frame.buffer_mut().set_string(
+            rect.x + 2,
+            rect.y,
+            title,
+            to_ratatui_style(shell.theme.palette.modal_text),
+        );
+    }
+
+    let mut row = rect.y + 1;
+    let inner_width = rect.width.saturating_sub(4) as usize;
+    for line in lines {
+        if row >= rect.y + rect.height - 1 {
+            break;
+        }
+        let text = fit_text_to_width(&line, inner_width, shell.glyphs.indicators.truncation);
+        frame.buffer_mut().set_string(
+            rect.x + 2,
+            row,
+            text,
+            to_ratatui_style(shell.theme.palette.modal_text),
+        );
+        row += 1;
+    }
+
+    if let Some(input) = input {
+        if row < rect.y + rect.height - 1 {
+            let input_style = to_ratatui_style(shell.theme.palette.modal_input);
+            for x in (rect.x + 2)..rect.x.saturating_add(rect.width).saturating_sub(2) {
+                frame.buffer_mut()[(x, row)]
+                    .set_char(' ')
+                    .set_style(input_style);
+            }
+            let text = fit_text_to_width(&input, inner_width, shell.glyphs.indicators.truncation);
+            frame
+                .buffer_mut()
+                .set_string(rect.x + 2, row, text, input_style);
+            if let Some(cursor_column) = overlay.cursor_column {
+                let x = rect
+                    .x
+                    .saturating_add(2)
+                    .saturating_add(cursor_column.min(inner_width.saturating_sub(1)) as u16);
+                frame.set_cursor_position(TuiPosition::new(x, row));
+            }
+            row += 1;
+        }
+    }
+
+    for (index, entry) in list.into_iter().enumerate() {
+        if row >= rect.y + rect.height - 1 {
+            break;
+        }
+        let style = if Some(index) == overlay.selected_list_index {
+            to_ratatui_style(shell.theme.palette.modal_input)
+        } else {
+            to_ratatui_style(shell.theme.palette.modal_text)
+        };
+        if Some(index) == overlay.selected_list_index {
+            for x in (rect.x + 2)..rect.x.saturating_add(rect.width).saturating_sub(2) {
+                frame.buffer_mut()[(x, row)].set_char(' ').set_style(style);
+            }
+        }
+        let text = fit_text_to_width(&entry, inner_width, shell.glyphs.indicators.truncation);
+        frame.buffer_mut().set_string(rect.x + 2, row, text, style);
+        row += 1;
+    }
+
+    for button in buttons {
+        if row >= rect.y + rect.height - 1 {
+            break;
+        }
+        let text = fit_text_to_width(&button, inner_width, shell.glyphs.indicators.truncation);
+        let x = rect
+            .x
+            .saturating_add(rect.width.saturating_sub(display_width(&text) as u16) / 2);
+        frame.buffer_mut().set_string(
+            x,
+            row,
+            text,
+            to_ratatui_style(shell.theme.palette.modal_text),
+        );
+        row += 1;
+    }
 }
 
 fn render_status(frame: &mut Frame<'_>, shell: &UiShell, status: &StatusBar, area: TuiRect) {
@@ -586,6 +970,8 @@ fn render_window(frame: &mut Frame<'_>, shell: &UiShell, window: &UiWindow, work
             gutter_width,
             &window.gutter,
             to_ratatui_style(shell.theme.palette.gutter),
+            to_ratatui_style(shell.theme.palette.gutter_separator),
+            shell.glyphs.border.vertical,
         );
     }
 
@@ -606,6 +992,12 @@ fn render_window(frame: &mut Frame<'_>, shell: &UiShell, window: &UiWindow, work
             body_area,
         );
     }
+    render_current_line(
+        frame.buffer_mut(),
+        body_area,
+        window.cursor,
+        to_ratatui_style(shell.theme.palette.current_line),
+    );
     render_selection(
         frame.buffer_mut(),
         area,
@@ -628,6 +1020,8 @@ fn render_gutter(
     gutter_width: u16,
     gutter: &[UiGutterLine],
     style: Style,
+    separator_style: Style,
+    separator: char,
 ) {
     let right = window_area
         .x
@@ -643,6 +1037,33 @@ fn render_gutter(
             buffer[(x, y)].set_style(style);
         }
         buffer.set_string(window_area.x + 1, y, &line.label, style);
+        if gutter_width > 0 && right > window_area.x + 1 {
+            buffer[(right - 1, y)]
+                .set_char(separator)
+                .set_style(separator_style);
+        }
+    }
+}
+
+fn render_current_line(
+    buffer: &mut Buffer,
+    body_area: TuiRect,
+    cursor: Option<UiCursor>,
+    style: Style,
+) {
+    let Some(cursor) = cursor else {
+        return;
+    };
+    if body_area.width == 0 || body_area.height == 0 || cursor.y == 0 {
+        return;
+    }
+    let y = body_area.y.saturating_add(cursor.y.saturating_sub(1));
+    if y >= body_area.y.saturating_add(body_area.height) {
+        return;
+    }
+
+    for x in body_area.x..body_area.x.saturating_add(body_area.width) {
+        buffer[(x, y)].set_style(style);
     }
 }
 
@@ -687,6 +1108,75 @@ fn decimal_digits(mut value: usize) -> usize {
 
 fn display_width(text: &str) -> usize {
     UnicodeWidthStr::width(text)
+}
+
+fn mnemonic_matches(label: &str, ch: char) -> bool {
+    label
+        .chars()
+        .next()
+        .is_some_and(|mnemonic| mnemonic.eq_ignore_ascii_case(&ch))
+}
+
+fn menu_item_column_range(menu: &MenuBar, index: usize) -> Option<(u16, u16)> {
+    let mut x = 1usize;
+    for (candidate, item) in menu.items.iter().enumerate() {
+        let end = x.saturating_add(display_width(item.label).saturating_add(2));
+        if candidate == index {
+            return Some((
+                x.min(u16::MAX as usize) as u16,
+                end.min(u16::MAX as usize) as u16,
+            ));
+        }
+        x = end;
+    }
+
+    None
+}
+
+fn dropdown_rect_for_menu(shell: &UiShell, menu: &MenuBar, index: usize) -> Option<TuiRect> {
+    let item = menu.items.get(index)?;
+    let (start, _) = menu_item_column_range(menu, index)?;
+    let content_width = item
+        .entries
+        .iter()
+        .map(|entry| menu_entry_width(shell, entry))
+        .max()
+        .unwrap_or(1)
+        .max(display_width(item.label));
+    let width = content_width.saturating_add(4).min(u16::MAX as usize) as u16;
+    let height = item.entries.len().saturating_add(2).min(u16::MAX as usize) as u16;
+
+    Some(TuiRect::new(start, 1, width.max(3), height.max(3)))
+}
+
+fn menu_entry_width(shell: &UiShell, entry: &MenuEntry) -> usize {
+    let label_width = display_width(entry.label);
+    let shortcut_width = shell
+        .keymap
+        .sequence_for_command(&entry.command)
+        .map(|shortcut| display_width(&shortcut.to_string()))
+        .unwrap_or(0);
+    if shortcut_width == 0 {
+        label_width
+    } else {
+        label_width.saturating_add(1).saturating_add(shortcut_width)
+    }
+}
+
+fn menu_entry_text(shell: &UiShell, entry: &MenuEntry, width: usize) -> String {
+    let shortcut = shell
+        .keymap
+        .sequence_for_command(&entry.command)
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    let label = sanitize_chrome_text(shell, entry.label);
+    let shortcut = sanitize_chrome_text(shell, &shortcut);
+
+    if shortcut.is_empty() {
+        return fit_text_to_width(&label, width, shell.glyphs.indicators.truncation);
+    }
+
+    status_text_for_width(&label, &shortcut, width, shell.glyphs.indicators.truncation)
 }
 
 fn buffer_end_position(buffer: &TextBuffer) -> Position {
@@ -952,6 +1442,72 @@ pub struct UiFrame {
     pub menu: MenuBar,
     pub status: StatusBar,
     pub windows: Vec<UiWindow>,
+    pub overlay: Option<UiOverlay>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UiOverlay {
+    pub title: String,
+    pub lines: Vec<String>,
+    pub input: Option<String>,
+    pub cursor_column: Option<usize>,
+    pub list: Vec<String>,
+    pub selected_list_index: Option<usize>,
+    pub buttons: Vec<String>,
+    pub min_width: u16,
+}
+
+impl UiOverlay {
+    pub fn prompt(
+        title: impl Into<String>,
+        input: impl Into<String>,
+        cursor_column: usize,
+    ) -> Self {
+        Self {
+            title: title.into(),
+            lines: Vec::new(),
+            input: Some(input.into()),
+            cursor_column: Some(cursor_column),
+            list: Vec::new(),
+            selected_list_index: None,
+            buttons: Vec::new(),
+            min_width: 24,
+        }
+    }
+
+    pub fn message(title: impl Into<String>, lines: Vec<String>, buttons: Vec<String>) -> Self {
+        Self {
+            title: title.into(),
+            lines,
+            input: None,
+            cursor_column: None,
+            list: Vec::new(),
+            selected_list_index: None,
+            buttons,
+            min_width: 24,
+        }
+    }
+
+    pub fn file_dialog(
+        title: impl Into<String>,
+        lines: Vec<String>,
+        input: impl Into<String>,
+        cursor_column: usize,
+        list: Vec<String>,
+        selected_list_index: Option<usize>,
+        buttons: Vec<String>,
+    ) -> Self {
+        Self {
+            title: title.into(),
+            lines,
+            input: Some(input.into()),
+            cursor_column: Some(cursor_column),
+            list,
+            selected_list_index,
+            buttons,
+            min_width: 60,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -970,16 +1526,51 @@ pub enum UiMouseTarget {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MenuBar {
+    pub active: Option<MenuSelection>,
     pub items: Vec<MenuItem>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MenuSelection {
+    pub menu_index: usize,
+    pub entry_index: Option<usize>,
+}
+
+impl MenuSelection {
+    pub const fn menu_only(menu_index: usize) -> Self {
+        Self {
+            menu_index,
+            entry_index: None,
+        }
+    }
+
+    pub const fn with_entry(menu_index: usize, entry_index: usize) -> Self {
+        Self {
+            menu_index,
+            entry_index: Some(entry_index),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MenuItem {
     pub label: &'static str,
-    pub command: EditorCommand,
+    pub entries: Vec<MenuEntry>,
 }
 
 impl MenuItem {
+    pub fn new(label: &'static str, entries: Vec<MenuEntry>) -> Self {
+        Self { label, entries }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MenuEntry {
+    pub label: &'static str,
+    pub command: EditorCommand,
+}
+
+impl MenuEntry {
     pub const fn new(label: &'static str, command: EditorCommand) -> Self {
         Self { label, command }
     }
@@ -1090,7 +1681,10 @@ mod tests {
 
         let frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
 
-        assert_eq!(frame.menu.items[0].label, "New");
+        assert_eq!(frame.menu.items[0].label, "File");
+        assert_eq!(frame.menu.items[1].label, "Edit");
+        assert_eq!(frame.menu.items[2].label, "View");
+        assert_eq!(frame.menu.items[3].label, "Help");
         assert_eq!(frame.status.focused_window, WindowId(1));
         assert_eq!(frame.windows.len(), 1);
         assert_eq!(frame.windows[0].body[0].as_plain_text(), "safe␛]0;x␇");
@@ -1107,18 +1701,22 @@ mod tests {
     }
 
     #[test]
-    fn menu_command_hit_test_maps_columns_to_commands() {
+    fn menu_hit_tests_map_columns_and_dropdown_rows() {
         let shell = UiShell::default();
 
+        assert_eq!(shell.menu_index_at_column(2), Some(0));
+        assert_eq!(shell.menu_index_at_column(8), Some(1));
+        assert_eq!(shell.menu_index_at_column(20), Some(3));
+        assert_eq!(shell.menu_index_at_column(0), None);
         assert_eq!(
-            shell.menu_command_at_column(2),
+            shell.menu_entry_command_at(0, 2, 2),
             Some(EditorCommand::File(FileCommand::New))
         );
         assert_eq!(
-            shell.menu_command_at_column(61),
+            shell.menu_entry_command_at(3, 20, 2),
             Some(EditorCommand::App(AppCommand::Help))
         );
-        assert_eq!(shell.menu_command_at_column(0), None);
+        assert_eq!(shell.menu_entry_command_at(3, 0, 2), None);
     }
 
     #[test]
@@ -1459,32 +2057,37 @@ mod tests {
 
     #[test]
     fn menu_exposes_help_and_quit_commands() {
-        let menu = UiShell::default().menu_bar();
+        let menu = UiShell::default().menu_bar(None);
+        let commands = menu
+            .items
+            .iter()
+            .flat_map(|item| item.entries.iter().map(|entry| &entry.command))
+            .collect::<Vec<_>>();
 
         assert!(
-            menu.items
+            commands
                 .iter()
-                .any(|item| item.command == EditorCommand::App(AppCommand::Help))
+                .any(|command| **command == EditorCommand::App(AppCommand::Help))
         );
         assert!(
-            menu.items
+            commands
                 .iter()
-                .any(|item| item.command == EditorCommand::App(AppCommand::StatusHistory))
+                .any(|command| **command == EditorCommand::App(AppCommand::StatusHistory))
         );
         assert!(
-            menu.items
+            commands
                 .iter()
-                .any(|item| item.command == EditorCommand::App(AppCommand::ReloadConfig))
+                .any(|command| **command == EditorCommand::App(AppCommand::ReloadConfig))
         );
         assert!(
-            menu.items
+            commands
                 .iter()
-                .any(|item| item.command == EditorCommand::App(AppCommand::ConfigDiagnostics))
+                .any(|command| **command == EditorCommand::App(AppCommand::ConfigDiagnostics))
         );
         assert!(
-            menu.items
+            commands
                 .iter()
-                .any(|item| item.command == EditorCommand::App(AppCommand::Quit))
+                .any(|command| **command == EditorCommand::App(AppCommand::Quit))
         );
     }
 
@@ -1522,6 +2125,105 @@ mod tests {
         terminal
             .draw(|frame| shell.render(frame, &ui_frame))
             .unwrap();
+    }
+
+    #[test]
+    fn ratatui_renderer_draws_active_submenu() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let ui_frame = shell.frame_for_workspace_with_menu(
+            &workspace,
+            Rect::new(0, 0, 80, 8),
+            &[buffer_view],
+            Some(0),
+        );
+        let backend = TestBackend::new(80, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(rendered.contains("File"));
+        assert!(rendered.contains("Save As"));
+        assert!(rendered.contains("Quit"));
+    }
+
+    #[test]
+    fn ratatui_renderer_draws_prompt_overlay() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let mut ui_frame =
+            shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
+        ui_frame.overlay = Some(UiOverlay::prompt("Go To Line", "12", 2));
+        let backend = TestBackend::new(80, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(rendered.contains("Go To Line"));
+        assert!(rendered.contains("12"));
+    }
+
+    #[test]
+    fn ratatui_renderer_draws_file_dialog_overlay() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let mut ui_frame =
+            shell.frame_for_workspace(&workspace, Rect::new(0, 0, 90, 14), &[buffer_view]);
+        ui_frame.overlay = Some(UiOverlay::file_dialog(
+            "Open",
+            vec![
+                "Directory: /tmp".to_string(),
+                "Select a file or type a path.".to_string(),
+            ],
+            "/tmp/al",
+            7,
+            vec!["[D] logs/".to_string(), "    alpha.log".to_string()],
+            Some(1),
+            vec!["Enter  Tab complete  Up/Down select  Esc cancel".to_string()],
+        ));
+        let backend = TestBackend::new(90, 16);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(rendered.contains("Open"));
+        assert!(rendered.contains("Directory: /tmp"));
+        assert!(rendered.contains("/tmp/al"));
+        assert!(rendered.contains("logs"));
+        assert!(rendered.contains("alpha.log"));
     }
 
     #[test]

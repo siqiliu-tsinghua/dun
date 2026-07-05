@@ -489,6 +489,19 @@ impl Keymap {
                     "Ctrl+W,V",
                     EditorCommand::Window(WindowCommand::SplitVertical),
                 ),
+                KeyBinding::new(
+                    "Ctrl+W,Left",
+                    EditorCommand::Window(WindowCommand::FocusLeft),
+                ),
+                KeyBinding::new(
+                    "Ctrl+W,Right",
+                    EditorCommand::Window(WindowCommand::FocusRight),
+                ),
+                KeyBinding::new("Ctrl+W,Up", EditorCommand::Window(WindowCommand::FocusUp)),
+                KeyBinding::new(
+                    "Ctrl+W,Down",
+                    EditorCommand::Window(WindowCommand::FocusDown),
+                ),
                 KeyBinding::new("Alt+Left", EditorCommand::Window(WindowCommand::FocusLeft)),
                 KeyBinding::new(
                     "Alt+Right",
@@ -496,6 +509,22 @@ impl Keymap {
                 ),
                 KeyBinding::new("Alt+Up", EditorCommand::Window(WindowCommand::FocusUp)),
                 KeyBinding::new("Alt+Down", EditorCommand::Window(WindowCommand::FocusDown)),
+                KeyBinding::new(
+                    "Ctrl+W,Shift+Left",
+                    EditorCommand::Window(WindowCommand::ResizeLeft),
+                ),
+                KeyBinding::new(
+                    "Ctrl+W,Shift+Right",
+                    EditorCommand::Window(WindowCommand::ResizeRight),
+                ),
+                KeyBinding::new(
+                    "Ctrl+W,Shift+Up",
+                    EditorCommand::Window(WindowCommand::ResizeUp),
+                ),
+                KeyBinding::new(
+                    "Ctrl+W,Shift+Down",
+                    EditorCommand::Window(WindowCommand::ResizeDown),
+                ),
                 KeyBinding::new(
                     "Alt+Shift+Left",
                     EditorCommand::Window(WindowCommand::ResizeLeft),
@@ -1159,6 +1188,32 @@ mod tests {
     }
 
     #[test]
+    fn default_keymap_has_mac_friendly_window_aliases() {
+        let keymap = Keymap::default_editor();
+
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,Left").unwrap()),
+            Some(&EditorCommand::Window(WindowCommand::FocusLeft))
+        );
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Alt+Left").unwrap()),
+            Some(&EditorCommand::Window(WindowCommand::FocusLeft))
+        );
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,Shift+Right").unwrap()),
+            Some(&EditorCommand::Window(WindowCommand::ResizeRight))
+        );
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Alt+Shift+Right").unwrap()),
+            Some(&EditorCommand::Window(WindowCommand::ResizeRight))
+        );
+        assert_eq!(
+            keymap.sequence_for_command(&EditorCommand::Window(WindowCommand::FocusLeft)),
+            Some(&KeySequence::from_str("Ctrl+W,Left").unwrap())
+        );
+    }
+
+    #[test]
     fn keymap_reports_sequence_prefixes() {
         let keymap = Keymap::default_editor();
 
@@ -1287,6 +1342,30 @@ key.edit.find = none
 
         assert_eq!(error.line, None);
         assert!(error.to_string().contains("duplicate key sequence"));
+    }
+
+    #[test]
+    fn config_parser_replaces_all_default_aliases_for_command() {
+        let config = parse_config("key.window.focus_left = Ctrl+W,A").unwrap();
+
+        assert_eq!(
+            config
+                .keybindings
+                .command_for_sequence(&KeySequence::from_str("Ctrl+W,A").unwrap()),
+            Some(&EditorCommand::Window(WindowCommand::FocusLeft))
+        );
+        assert_eq!(
+            config
+                .keybindings
+                .command_for_sequence(&KeySequence::from_str("Ctrl+W,Left").unwrap()),
+            None
+        );
+        assert_eq!(
+            config
+                .keybindings
+                .command_for_sequence(&KeySequence::from_str("Alt+Left").unwrap()),
+            None
+        );
     }
 
     #[test]

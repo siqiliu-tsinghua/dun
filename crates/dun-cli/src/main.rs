@@ -28,15 +28,15 @@ use dun_core::{
     TextBuffer, WindowCommand, WindowId, WindowKind, Workspace, WorkspaceError, decode_file_text,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
-use dun_ui::{BufferView, UiMouseTarget, UiShell};
+use dun_ui::{BufferView, MenuSelection, UiMouseTarget, UiOverlay, UiShell};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::Position as TuiPosition;
 use unicode_width::UnicodeWidthStr;
 
 const EXIT_RUNTIME_ERROR: u8 = 1;
 const EXIT_USAGE_ERROR: u8 = 2;
 const DUN_CONFIG_ENV: &str = "DUN_CONFIG";
+const FILE_DIALOG_VISIBLE_ENTRIES: usize = 12;
 
 fn main() -> ExitCode {
     match run_cli(env::args_os().skip(1)) {
@@ -444,11 +444,14 @@ struct AppState {
     limits: Limits,
     mouse_enabled: bool,
     mouse_drag: Option<MouseDragState>,
+    active_menu: Option<usize>,
+    active_menu_entry: Option<usize>,
     should_quit: bool,
     workspace_area: Rect,
     pending_keys: Vec<KeyStroke>,
     status_message: Option<String>,
     prompt: Option<PromptState>,
+    file_dialog: Option<FileDialogState>,
     confirm: Option<ConfirmState>,
     status_history: Vec<StatusEntry>,
     command_history: Vec<String>,
@@ -489,11 +492,14 @@ impl AppState {
             limits,
             mouse_enabled,
             mouse_drag: None,
+            active_menu: None,
+            active_menu_entry: None,
             should_quit: false,
             workspace_area: Rect::default(),
             pending_keys: Vec::new(),
             status_message: None,
             prompt: None,
+            file_dialog: None,
             confirm: None,
             status_history: Vec::new(),
             command_history: Vec::new(),
@@ -543,6 +549,92 @@ impl AppState {
         self.mouse_enabled
     }
 
+    fn menu_selection(&self) -> Option<MenuSelection> {
+        self.active_menu.map(|menu_index| MenuSelection {
+            menu_index,
+            entry_index: self.active_menu_entry,
+        })
+    }
+
+    fn clear_active_menu(&mut self) {
+        self.active_menu = None;
+        self.active_menu_entry = None;
+    }
+
+    fn first_menu_entry(&self, menu_index: usize) -> Option<usize> {
+        self.shell
+            .menu_entry_count(menu_index)
+            .filter(|count| *count > 0)
+            .map(|_| 0)
+    }
+
+    fn open_mouse_menu(&mut self, menu_index: usize) {
+        if self.active_menu == Some(menu_index) {
+            self.clear_active_menu();
+        } else {
+            self.active_menu = Some(menu_index);
+            self.active_menu_entry = None;
+        }
+    }
+
+    fn open_keyboard_menu(&mut self, menu_index: usize) {
+        self.active_menu = Some(menu_index);
+        self.active_menu_entry = self.first_menu_entry(menu_index);
+    }
+
+    fn move_active_menu(&mut self, delta: isize) -> bool {
+        let Some(current) = self.active_menu else {
+            return false;
+        };
+        let menu_count = self.shell.menu_count();
+        if menu_count == 0 {
+            self.clear_active_menu();
+            return true;
+        }
+
+        let next = wrapping_index(current, menu_count, delta);
+        let keep_entry_selected = self.active_menu_entry.is_some();
+        self.active_menu = Some(next);
+        self.active_menu_entry = if keep_entry_selected {
+            self.first_menu_entry(next)
+        } else {
+            None
+        };
+        true
+    }
+
+    fn move_active_menu_entry(&mut self, delta: isize) -> bool {
+        let Some(menu_index) = self.active_menu else {
+            return false;
+        };
+        let Some(count) = self.shell.menu_entry_count(menu_index) else {
+            return false;
+        };
+        if count == 0 {
+            self.active_menu_entry = None;
+            return true;
+        }
+
+        let current = self.active_menu_entry.unwrap_or(0);
+        self.active_menu_entry = Some(wrapping_index(current, count, delta));
+        true
+    }
+
+    fn dispatch_active_menu_entry(&mut self) -> bool {
+        let Some(menu_index) = self.active_menu else {
+            return false;
+        };
+        let entry_index = self.active_menu_entry.unwrap_or(0);
+        let Some(command) = self.shell.menu_entry_command(menu_index, entry_index) else {
+            return false;
+        };
+
+        self.clear_active_menu();
+        self.pending_keys.clear();
+        self.handle_command(&command);
+        true
+    }
+
     fn sync_view_for_area(&mut self, area: Rect) {
         self.workspace_area = area;
         let Some((buffer_id, body_height)) = self.focused_buffer_view_context(area) else {
@@ -558,12 +650,26 @@ impl AppState {
     fn handle_mouse_down(&mut self, screen_x: u16, screen_y: u16) -> bool {
         self.mouse_drag = None;
         if screen_y == 0 {
-            if let Some(command) = self.shell.menu_command_at_column(screen_x) {
+            if let Some(menu_index) = self.shell.menu_index_at_column(screen_x) {
+                self.pending_keys.clear();
+                self.open_mouse_menu(menu_index);
+                return true;
+            }
+            self.clear_active_menu();
+            return false;
+        }
+
+        if let Some(active_menu) = self.active_menu {
+            if let Some(command) = self
+                .shell
+                .menu_entry_command_at(active_menu, screen_x, screen_y)
+            {
+                self.clear_active_menu();
                 self.pending_keys.clear();
                 self.handle_command(&command);
                 return true;
             }
-            return false;
+            self.clear_active_menu();
         }
 
         let Some((x, y)) = self.workspace_point_from_screen(screen_x, screen_y) else {
@@ -605,6 +711,9 @@ impl AppState {
     }
 
     fn handle_mouse_drag(&mut self, screen_x: u16, screen_y: u16) -> bool {
+        if self.active_menu.is_some() {
+            return false;
+        }
         let Some(drag) = self.mouse_drag.clone() else {
             return false;
         };
@@ -696,6 +805,7 @@ impl AppState {
     }
 
     fn handle_command(&mut self, command: &EditorCommand) {
+        self.clear_active_menu();
         match command {
             EditorCommand::App(command) => self.handle_app_command(command),
             EditorCommand::Edit(command) => self.handle_edit_command(command),
@@ -757,6 +867,7 @@ impl AppState {
     fn apply_loaded_config(&mut self, loaded_config: LoadedConfig) {
         self.pending_keys.clear();
         self.mouse_drag = None;
+        self.clear_active_menu();
         self.shell = UiShell::from_config(&loaded_config.config, self.detected_profile);
         self.limits = loaded_config.config.limits;
         self.mouse_enabled = loaded_config.config.mouse.enabled;
@@ -782,10 +893,10 @@ impl AppState {
                 if self.confirm_focused_dirty(PendingAction::OpenPrompt) {
                     return;
                 }
-                self.start_prompt(PromptKind::Open, String::new());
+                self.start_file_dialog(FileDialogKind::Open, String::new());
             }
             FileCommand::SaveAs => {
-                self.start_prompt(PromptKind::SaveAs, self.focused_path_text());
+                self.start_file_dialog(FileDialogKind::SaveAs, self.focused_path_text());
             }
             FileCommand::Close => {
                 self.handle_window_command(&WindowCommand::Close);
@@ -1483,28 +1594,39 @@ impl AppState {
     }
 
     fn start_prompt(&mut self, kind: PromptKind, initial_input: String) {
-        self.start_prompt_after(kind, initial_input, None);
+        self.pending_keys.clear();
+        self.status_message = None;
+        self.confirm = None;
+        self.file_dialog = None;
+        if !matches!(kind, PromptKind::ReplaceWith) {
+            self.pending_replace_query = None;
+        }
+        self.prompt = Some(PromptState::new(kind, initial_input));
     }
 
-    fn start_prompt_after(
+    fn start_file_dialog(&mut self, kind: FileDialogKind, initial_input: String) {
+        self.start_file_dialog_after(kind, initial_input, None);
+    }
+
+    fn start_file_dialog_after(
         &mut self,
-        kind: PromptKind,
+        kind: FileDialogKind,
         initial_input: String,
         after_success: Option<PendingAction>,
     ) {
         self.pending_keys.clear();
         self.status_message = None;
         self.confirm = None;
-        if !matches!(kind, PromptKind::ReplaceWith) {
-            self.pending_replace_query = None;
-        }
-        self.prompt = Some(PromptState::new(kind, initial_input, after_success));
+        self.prompt = None;
+        self.pending_replace_query = None;
+        self.file_dialog = Some(FileDialogState::new(kind, initial_input, after_success));
     }
 
     fn start_confirm(&mut self, action: PendingAction, buffer_id: BufferId) {
         self.pending_keys.clear();
         self.status_message = None;
         self.prompt = None;
+        self.file_dialog = None;
         self.confirm = Some(ConfirmState { action, buffer_id });
     }
 
@@ -1574,8 +1696,8 @@ impl AppState {
             .and_then(|buffer| buffer.path.as_ref())
             .is_none()
         {
-            self.start_prompt_after(
-                PromptKind::SaveAs,
+            self.start_file_dialog_after(
+                FileDialogKind::SaveAs,
                 self.path_text_for_buffer(confirm.buffer_id),
                 Some(confirm.action),
             );
@@ -1610,8 +1732,88 @@ impl AppState {
                 }
             }
             PendingAction::New => self.reset_focused_to_untitled(),
-            PendingAction::OpenPrompt => self.start_prompt(PromptKind::Open, String::new()),
+            PendingAction::OpenPrompt => {
+                self.start_file_dialog(FileDialogKind::Open, String::new())
+            }
             PendingAction::CloseWindow => self.close_focused_window_unchecked(),
+        }
+    }
+
+    fn handle_file_dialog_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+        if self.file_dialog.is_none() {
+            return false;
+        }
+
+        match event.code {
+            CrosstermKeyCode::Esc => self.cancel_file_dialog(),
+            CrosstermKeyCode::Enter => self.submit_file_dialog(),
+            CrosstermKeyCode::Up => self.move_file_dialog_selection(-1),
+            CrosstermKeyCode::Down => self.move_file_dialog_selection(1),
+            CrosstermKeyCode::Tab => self.complete_file_dialog(true),
+            CrosstermKeyCode::BackTab => self.complete_file_dialog(false),
+            CrosstermKeyCode::Backspace => {
+                if let Some(dialog) = &mut self.file_dialog {
+                    dialog.input.pop();
+                    dialog.refresh_entries();
+                }
+            }
+            _ => {
+                if let Some(ch) = text_input_from_crossterm(event) {
+                    if let Some(dialog) = &mut self.file_dialog {
+                        dialog.input.push(ch);
+                        dialog.refresh_entries();
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
+    fn cancel_file_dialog(&mut self) {
+        if let Some(dialog) = self.file_dialog.take() {
+            self.set_status(format!("{} cancelled", dialog.kind.name()));
+        }
+    }
+
+    fn move_file_dialog_selection(&mut self, delta: isize) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.move_selection(delta);
+        }
+    }
+
+    fn complete_file_dialog(&mut self, forward: bool) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.complete(forward);
+        }
+    }
+
+    fn submit_file_dialog(&mut self) {
+        let Some(mut dialog) = self.file_dialog.take() else {
+            return;
+        };
+
+        match dialog.submit() {
+            FileDialogSubmit::Cancel => {
+                self.set_status(format!("{} cancelled", dialog.kind.name()));
+            }
+            FileDialogSubmit::ContinueEditing => {
+                self.file_dialog = Some(dialog);
+            }
+            FileDialogSubmit::Path(path) => match dialog.kind {
+                FileDialogKind::Open => {
+                    if let Err(error) = self.open_file_path(path) {
+                        self.set_status(format!("Open failed: {error}"));
+                    }
+                }
+                FileDialogKind::SaveAs => {
+                    if let Err(error) = self.save_focused_buffer_as(path) {
+                        self.set_status(format!("Save As failed: {error}"));
+                    } else if let Some(action) = dialog.after_success {
+                        self.continue_pending_action(action);
+                    }
+                }
+            },
         }
     }
 
@@ -1729,30 +1931,6 @@ impl AppState {
         };
 
         match prompt.kind {
-            PromptKind::Open => {
-                let input = prompt.input.trim().to_string();
-                if input.is_empty() {
-                    self.set_status(format!("{} cancelled", prompt.kind.name()));
-                    return;
-                }
-
-                if let Err(error) = self.open_file_path(PathBuf::from(&input)) {
-                    self.set_status(format!("Open failed: {error}"));
-                }
-            }
-            PromptKind::SaveAs => {
-                let input = prompt.input.trim().to_string();
-                if input.is_empty() {
-                    self.set_status(format!("{} cancelled", prompt.kind.name()));
-                    return;
-                }
-
-                if let Err(error) = self.save_focused_buffer_as(PathBuf::from(&input)) {
-                    self.set_status(format!("Save As failed: {error}"));
-                } else if let Some(action) = prompt.after_success {
-                    self.continue_pending_action(action);
-                }
-            }
             PromptKind::Find => {
                 let input = prompt.input.trim().to_string();
                 if input.is_empty() {
@@ -2104,10 +2282,15 @@ impl AppState {
         }
     }
 
+    #[cfg(test)]
     fn prompt_status_text(&self) -> Option<String> {
-        self.prompt.as_ref().map(PromptState::status_text)
+        self.prompt
+            .as_ref()
+            .map(PromptState::status_text)
+            .or_else(|| self.file_dialog.as_ref().map(FileDialogState::status_text))
     }
 
+    #[cfg(test)]
     fn confirm_status_text(&self) -> Option<String> {
         self.confirm.as_ref().map(|confirm| {
             let action = match confirm.action {
@@ -2123,9 +2306,34 @@ impl AppState {
         })
     }
 
-    fn prompt_cursor_column(&self) -> Option<usize> {
-        self.prompt_status_text()
-            .map(|text| UnicodeWidthStr::width(text.as_str()))
+    fn active_overlay(&self) -> Option<UiOverlay> {
+        if let Some(confirm) = &self.confirm {
+            let action = match confirm.action {
+                PendingAction::Quit => "[Save(s)] [Discard(d)] [Cancel(c)]",
+                PendingAction::New | PendingAction::OpenPrompt | PendingAction::CloseWindow => {
+                    "[Save(s)] [Discard(d)] [Cancel(c)]"
+                }
+            };
+            return Some(UiOverlay::message(
+                "Unsaved Changes",
+                vec![format!(
+                    "Unsaved changes in {}",
+                    self.buffer_display_name(confirm.buffer_id)
+                )],
+                vec![action.to_string()],
+            ));
+        }
+
+        if let Some(dialog) = &self.file_dialog {
+            return Some(dialog.overlay());
+        }
+
+        let prompt = self.prompt.as_ref()?;
+        Some(UiOverlay::prompt(
+            prompt.kind.name(),
+            prompt.input.clone(),
+            UnicodeWidthStr::width(prompt.input.as_str()),
+        ))
     }
 
     fn focused_path_text(&self) -> String {
@@ -2176,41 +2384,33 @@ impl AppState {
 
     fn focused_buffer_status(&self) -> String {
         let Ok(window) = self.workspace.focused_window() else {
-            return "No window".to_string();
+            return "[No Window]".to_string();
         };
 
         let Some(buffer) = self.buffer_state(window.buffer_id) else {
-            return window.title.clone();
+            return format!("[{}]", window.title);
         };
 
-        let name = buffer
-            .path
-            .as_ref()
-            .map(|path| title_for_path(path))
-            .unwrap_or_else(|| window.title.clone());
+        let mode = if buffer.encoding == FileTextEncoding::EscapedBytes {
+            "Escaped Bytes"
+        } else if buffer.buffer.is_read_only() {
+            "Read Only"
+        } else {
+            "Plain Text"
+        };
         let dirty = if buffer.buffer.is_dirty() { "*" } else { "" };
-        let read_only = if buffer.buffer.is_read_only() {
-            " [readonly]"
-        } else {
-            ""
-        };
-        let escaped = if buffer.encoding == FileTextEncoding::EscapedBytes {
-            " [escaped]"
-        } else {
-            ""
-        };
 
-        format!("{name}{dirty}{read_only}{escaped}")
+        format!("[{mode}{dirty}]")
     }
 
     fn focused_detail_status(&self) -> String {
         let profile = terminal_profile_status(self.shell.profile);
         let window = self.focused_window_status();
         let Some(buffer_id) = self.focused_buffer_id() else {
-            return format!("Ln -, Col - | {profile} | {window}");
+            return format!("[Ln -] [{profile}] [{window}]");
         };
         let Some(buffer) = self.buffer_state(buffer_id) else {
-            return format!("Ln -, Col - | {profile} | {window}");
+            return format!("[Ln -] [{profile}] [{window}]");
         };
 
         let position = buffer.buffer.cursor_position();
@@ -2222,22 +2422,27 @@ impl AppState {
             .unwrap_or(1);
 
         let mut parts = vec![
-            format!(
-                "Ln {}/{}, Col {}",
-                position.line + 1,
-                buffer.buffer.line_count(),
-                column
-            ),
-            line_ending_status(buffer.buffer.line_ending()).to_string(),
-            buffer.encoding.status_label().to_string(),
-            profile,
-            window,
+            bracket(line_ending_status(buffer.buffer.line_ending())),
+            bracket(file_encoding_status(buffer.encoding)),
+            bracket("Spaces:4"),
+            format!("{}:{}", position.line + 1, column),
+            bracket(&profile),
+            bracket(&window),
         ];
         if let Some(selection) = selection_status(&buffer.buffer) {
-            parts.insert(1, selection);
+            parts.insert(4, bracket(&selection));
         }
 
-        parts.join(" | ")
+        parts.join(" ")
+    }
+
+    fn focused_file_status(&self) -> String {
+        let Some(buffer_id) = self.focused_buffer_id() else {
+            return "[No file]".to_string();
+        };
+
+        let name = self.buffer_display_name(buffer_id);
+        bracket(&name)
     }
 
     fn focused_window_status(&self) -> String {
@@ -2284,22 +2489,21 @@ impl AppState {
 struct PromptState {
     kind: PromptKind,
     input: String,
-    after_success: Option<PendingAction>,
     history_index: Option<usize>,
     history_draft: String,
 }
 
 impl PromptState {
-    fn new(kind: PromptKind, input: String, after_success: Option<PendingAction>) -> Self {
+    fn new(kind: PromptKind, input: String) -> Self {
         Self {
             kind,
             input,
-            after_success,
             history_index: None,
             history_draft: String::new(),
         }
     }
 
+    #[cfg(test)]
     fn status_text(&self) -> String {
         format!("{}{}", self.kind.label(), self.input)
     }
@@ -2315,8 +2519,6 @@ impl PromptState {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PromptKind {
     CommandLine,
-    Open,
-    SaveAs,
     Find,
     ReplaceFind,
     ReplaceWith,
@@ -2324,11 +2526,10 @@ enum PromptKind {
 }
 
 impl PromptKind {
+    #[cfg(test)]
     const fn label(self) -> &'static str {
         match self {
             Self::CommandLine => "Command: ",
-            Self::Open => "Open: ",
-            Self::SaveAs => "Save As: ",
             Self::Find => "Find: ",
             Self::ReplaceFind => "Replace Find: ",
             Self::ReplaceWith => "Replace With: ",
@@ -2339,8 +2540,6 @@ impl PromptKind {
     const fn name(self) -> &'static str {
         match self {
             Self::CommandLine => "Command",
-            Self::Open => "Open",
-            Self::SaveAs => "Save As",
             Self::Find => "Find",
             Self::ReplaceFind | Self::ReplaceWith => "Replace",
             Self::GoToLine => "Go To Line",
@@ -2350,6 +2549,266 @@ impl PromptKind {
     const fn is_replace(self) -> bool {
         matches!(self, Self::ReplaceFind | Self::ReplaceWith)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FileDialogState {
+    kind: FileDialogKind,
+    input: String,
+    entries: Vec<FileDialogEntry>,
+    selected_index: Option<usize>,
+    selection_touched: bool,
+    message: Option<String>,
+    after_success: Option<PendingAction>,
+}
+
+impl FileDialogState {
+    fn new(kind: FileDialogKind, input: String, after_success: Option<PendingAction>) -> Self {
+        let mut state = Self {
+            kind,
+            input,
+            entries: Vec::new(),
+            selected_index: None,
+            selection_touched: false,
+            message: None,
+            after_success,
+        };
+        state.refresh_entries();
+        state
+    }
+
+    #[cfg(test)]
+    fn status_text(&self) -> String {
+        let label = match self.kind {
+            FileDialogKind::Open => "Open: ",
+            FileDialogKind::SaveAs => "Save As: ",
+        };
+        format!("{label}{}", self.input)
+    }
+
+    fn overlay(&self) -> UiOverlay {
+        let context = file_dialog_context(&self.input);
+        let mut lines = vec![
+            format!("Directory: {}", context.directory.display()),
+            self.message
+                .clone()
+                .unwrap_or_else(|| self.kind.help_text().to_string()),
+        ];
+        if self.entries.len() > FILE_DIALOG_VISIBLE_ENTRIES {
+            let selected = self.selected_index.unwrap_or(0);
+            let first = selected
+                .saturating_sub(FILE_DIALOG_VISIBLE_ENTRIES.saturating_sub(1))
+                .saturating_add(1);
+            let last = first
+                .saturating_add(FILE_DIALOG_VISIBLE_ENTRIES)
+                .saturating_sub(1)
+                .min(self.entries.len());
+            lines.push(format!(
+                "Showing {first}-{last} of {} matches",
+                self.entries.len()
+            ));
+        }
+
+        let (list, selected) = self.visible_entry_texts();
+        UiOverlay::file_dialog(
+            self.kind.name(),
+            lines,
+            self.input.clone(),
+            UnicodeWidthStr::width(self.input.as_str()),
+            list,
+            selected,
+            vec!["Enter  Tab complete  Up/Down select  Esc cancel".to_string()],
+        )
+    }
+
+    fn refresh_entries(&mut self) {
+        let context = file_dialog_context(&self.input);
+        match list_file_dialog_entries(&context) {
+            Ok(entries) => {
+                self.entries = entries;
+                self.selected_index = if self.entries.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
+                self.selection_touched = false;
+                self.message = None;
+            }
+            Err(error) => {
+                self.entries.clear();
+                self.selected_index = None;
+                self.selection_touched = false;
+                self.message = Some(format!(
+                    "Cannot list {}: {}",
+                    context.directory.display(),
+                    path_error_detail(&error)
+                ));
+            }
+        }
+    }
+
+    fn visible_entry_texts(&self) -> (Vec<String>, Option<usize>) {
+        if self.entries.is_empty() {
+            return (vec!["(no matches)".to_string()], None);
+        }
+
+        let selected = self
+            .selected_index
+            .filter(|index| *index < self.entries.len())
+            .unwrap_or(0);
+        let start = selected.saturating_sub(FILE_DIALOG_VISIBLE_ENTRIES.saturating_sub(1));
+        let end = start
+            .saturating_add(FILE_DIALOG_VISIBLE_ENTRIES)
+            .min(self.entries.len());
+        let list = self.entries[start..end]
+            .iter()
+            .map(FileDialogEntry::display_text)
+            .collect::<Vec<_>>();
+        (list, Some(selected.saturating_sub(start)))
+    }
+
+    fn move_selection(&mut self, delta: isize) {
+        if self.entries.is_empty() {
+            self.selected_index = None;
+            self.message = Some("No matches".to_string());
+            return;
+        }
+
+        let current = self.selected_index.unwrap_or(0);
+        self.selected_index = Some(wrapping_index(current, self.entries.len(), delta));
+        self.selection_touched = true;
+        self.message = None;
+    }
+
+    fn complete(&mut self, forward: bool) {
+        if self.entries.is_empty() {
+            self.message = Some("No matches".to_string());
+            return;
+        }
+
+        if self.entries.len() == 1 {
+            self.apply_entry(0);
+            return;
+        }
+
+        let context = file_dialog_context(&self.input);
+        if let Some(prefix) = common_entry_prefix(&self.entries) {
+            if prefix.len() > context.prefix.len() {
+                self.input = format!("{}{}", context.base_input, prefix);
+                self.refresh_entries();
+                return;
+            }
+        }
+
+        let selected = self.selected_index.unwrap_or_else(|| {
+            if forward {
+                0
+            } else {
+                self.entries.len().saturating_sub(1)
+            }
+        });
+        self.apply_entry(selected);
+    }
+
+    fn submit(&mut self) -> FileDialogSubmit {
+        let input = self.input.trim();
+        if input.is_empty() {
+            return FileDialogSubmit::Cancel;
+        }
+
+        if self.kind == FileDialogKind::Open {
+            if let Some(index) = self
+                .selected_index
+                .filter(|index| *index < self.entries.len())
+            {
+                let entry = self.entries[index].clone();
+                let context = file_dialog_context(&self.input);
+                let should_use_selected = self.selection_touched
+                    || input.ends_with('/')
+                    || entry.name == context.prefix
+                    || context.prefix.is_empty();
+                if should_use_selected {
+                    if entry.is_dir {
+                        self.apply_entry(index);
+                        return FileDialogSubmit::ContinueEditing;
+                    }
+                    return FileDialogSubmit::Path(entry.path);
+                }
+            }
+
+            let path = expand_user_path(input);
+            if path.is_dir() {
+                self.input = ensure_trailing_separator(input.to_string());
+                self.refresh_entries();
+                return FileDialogSubmit::ContinueEditing;
+            }
+            return FileDialogSubmit::Path(path);
+        }
+
+        FileDialogSubmit::Path(expand_user_path(input))
+    }
+
+    fn apply_entry(&mut self, index: usize) {
+        let Some(entry) = self.entries.get(index) else {
+            return;
+        };
+        self.input = entry.input.clone();
+        self.refresh_entries();
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FileDialogKind {
+    Open,
+    SaveAs,
+}
+
+impl FileDialogKind {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Open => "Open",
+            Self::SaveAs => "Save As",
+        }
+    }
+
+    const fn help_text(self) -> &'static str {
+        match self {
+            Self::Open => "Select a file or type a path.",
+            Self::SaveAs => "Type the destination path.",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FileDialogEntry {
+    name: String,
+    input: String,
+    path: PathBuf,
+    is_dir: bool,
+}
+
+impl FileDialogEntry {
+    fn display_text(&self) -> String {
+        if self.is_dir {
+            format!("[D] {}/", self.name)
+        } else {
+            format!("    {}", self.name)
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum FileDialogSubmit {
+    Cancel,
+    ContinueEditing,
+    Path(PathBuf),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FileDialogContext {
+    base_input: String,
+    prefix: String,
+    directory: PathBuf,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2545,6 +3004,17 @@ fn selection_status(buffer: &TextBuffer) -> Option<String> {
     }
 
     Some(format!("Sel {}L", range.end.line - range.start.line + 1))
+}
+
+fn bracket(text: &str) -> String {
+    format!("[{text}]")
+}
+
+const fn file_encoding_status(encoding: FileTextEncoding) -> &'static str {
+    match encoding {
+        FileTextEncoding::Utf8 => "UTF-8",
+        FileTextEncoding::EscapedBytes => "Escaped Bytes",
+    }
 }
 
 const fn line_ending_status(line_ending: LineEnding) -> &'static str {
@@ -2752,30 +3222,27 @@ fn run_event_loop(
             let workspace_area = Rect::new(0, 0, area.width, area.height.saturating_sub(2));
             app.sync_view_for_area(workspace_area);
             let buffer_views = app.buffer_views();
-            let mut ui_frame =
-                app.shell
-                    .frame_for_workspace(&app.workspace, workspace_area, &buffer_views);
-            if let Some(confirm) = app.confirm_status_text() {
-                ui_frame.status.left = confirm;
-            } else if let Some(prompt) = app.prompt_status_text() {
-                ui_frame.status.left = prompt;
-            } else if let Some(message) = &app.status_message {
+            let mut ui_frame = app.shell.frame_for_workspace_with_menu_selection(
+                &app.workspace,
+                workspace_area,
+                &buffer_views,
+                app.menu_selection(),
+            );
+            if let Some(message) = &app.status_message {
                 ui_frame.status.left = message.clone();
             } else {
                 ui_frame.status.left = app.focused_buffer_status();
             }
-            ui_frame.status.right = app.focused_detail_status();
-            app.shell.render(frame, &ui_frame);
-            if let Some(column) = app.prompt_cursor_column() {
-                let area = frame.area();
-                if area.width > 0 && area.height > 0 {
-                    let x = column.min(area.width.saturating_sub(1) as usize) as u16;
-                    frame.set_cursor_position(TuiPosition::new(
-                        area.x + x,
-                        area.y + area.height - 1,
-                    ));
-                }
+            if app.prompt.is_none() && app.file_dialog.is_none() && app.confirm.is_none() {
+                ui_frame.status.left = format!(
+                    "{} {}",
+                    app.focused_buffer_status(),
+                    app.focused_detail_status()
+                );
             }
+            ui_frame.status.right = app.focused_file_status();
+            ui_frame.overlay = app.active_overlay();
+            app.shell.render(frame, &ui_frame);
         })?;
 
         if event::poll(Duration::from_millis(250))? {
@@ -2792,7 +3259,11 @@ fn run_event_loop(
 }
 
 fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
-    if !app.mouse_enabled() || app.prompt.is_some() || app.confirm.is_some() {
+    if !app.mouse_enabled()
+        || app.prompt.is_some()
+        || app.file_dialog.is_some()
+        || app.confirm.is_some()
+    {
         app.handle_mouse_up();
         return;
     }
@@ -2816,7 +3287,16 @@ fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
         return;
     }
 
+    if app.active_menu.is_some() {
+        handle_active_menu_key_event(app, event);
+        return;
+    }
+
     if app.handle_confirm_key_event(event) {
+        return;
+    }
+
+    if app.handle_file_dialog_key_event(event) {
         return;
     }
 
@@ -2832,9 +3312,189 @@ fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
         return;
     }
 
+    if handle_menu_mnemonic_key_event(app, event) {
+        return;
+    }
+
     if let Some(ch) = text_input_from_crossterm(event) {
         app.handle_text_input(ch);
     }
+}
+
+fn handle_active_menu_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
+    match event.code {
+        CrosstermKeyCode::Esc => app.clear_active_menu(),
+        CrosstermKeyCode::Left => {
+            app.move_active_menu(-1);
+        }
+        CrosstermKeyCode::Right => {
+            app.move_active_menu(1);
+        }
+        CrosstermKeyCode::Up => {
+            app.move_active_menu_entry(-1);
+        }
+        CrosstermKeyCode::Down => {
+            app.move_active_menu_entry(1);
+        }
+        CrosstermKeyCode::Enter => {
+            app.dispatch_active_menu_entry();
+        }
+        CrosstermKeyCode::Char(ch) if event.modifiers.contains(CrosstermKeyModifiers::ALT) => {
+            if let Some(menu_index) = app.shell.menu_index_for_mnemonic(ch) {
+                app.open_keyboard_menu(menu_index);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn handle_menu_mnemonic_key_event(app: &mut AppState, event: CrosstermKeyEvent) -> bool {
+    if !event.modifiers.contains(CrosstermKeyModifiers::ALT)
+        || event.modifiers.contains(CrosstermKeyModifiers::CONTROL)
+    {
+        return false;
+    }
+    let CrosstermKeyCode::Char(ch) = event.code else {
+        return false;
+    };
+    let Some(menu_index) = app.shell.menu_index_for_mnemonic(ch) else {
+        return false;
+    };
+
+    app.pending_keys.clear();
+    app.open_keyboard_menu(menu_index);
+    true
+}
+
+fn wrapping_index(index: usize, len: usize, delta: isize) -> usize {
+    debug_assert!(len > 0);
+    let len = len as isize;
+    (index as isize).saturating_add(delta).rem_euclid(len) as usize
+}
+
+fn file_dialog_context(input: &str) -> FileDialogContext {
+    let input = input.trim();
+    if input.is_empty() {
+        return FileDialogContext {
+            base_input: String::new(),
+            prefix: String::new(),
+            directory: env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        };
+    }
+
+    if let Some(index) = input.rfind('/') {
+        let base_input = input[..=index].to_string();
+        let prefix = input[index + 1..].to_string();
+        let directory = directory_path_from_dialog_base(&base_input);
+        return FileDialogContext {
+            base_input,
+            prefix,
+            directory,
+        };
+    }
+
+    FileDialogContext {
+        base_input: String::new(),
+        prefix: input.to_string(),
+        directory: PathBuf::from("."),
+    }
+}
+
+fn directory_path_from_dialog_base(base: &str) -> PathBuf {
+    if base == "/" {
+        return PathBuf::from("/");
+    }
+
+    let without_trailing = base.trim_end_matches('/');
+    if without_trailing.is_empty() {
+        PathBuf::from(".")
+    } else {
+        expand_user_path(without_trailing)
+    }
+}
+
+fn list_file_dialog_entries(context: &FileDialogContext) -> io::Result<Vec<FileDialogEntry>> {
+    let mut entries = Vec::new();
+    for entry in fs::read_dir(&context.directory)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !name.starts_with(&context.prefix) {
+            continue;
+        }
+
+        let path = entry.path();
+        let is_dir = path.is_dir();
+        let input = format!(
+            "{}{}{}",
+            context.base_input,
+            name,
+            if is_dir { "/" } else { "" }
+        );
+        entries.push(FileDialogEntry {
+            name,
+            path: expand_user_path(&input),
+            input,
+            is_dir,
+        });
+    }
+
+    entries.sort_by(|left, right| {
+        right
+            .is_dir
+            .cmp(&left.is_dir)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    Ok(entries)
+}
+
+fn common_entry_prefix(entries: &[FileDialogEntry]) -> Option<String> {
+    let mut iter = entries.iter();
+    let first = iter.next()?.name.clone();
+    let mut prefix = first;
+
+    for entry in iter {
+        prefix = common_prefix(&prefix, &entry.name);
+        if prefix.is_empty() {
+            break;
+        }
+    }
+
+    Some(prefix)
+}
+
+fn common_prefix(left: &str, right: &str) -> String {
+    let mut end = 0;
+    for ((left_index, left_char), (_, right_char)) in left.char_indices().zip(right.char_indices())
+    {
+        if left_char != right_char {
+            break;
+        }
+        end = left_index + left_char.len_utf8();
+    }
+    left[..end].to_string()
+}
+
+fn expand_user_path(input: &str) -> PathBuf {
+    if input == "~" {
+        return env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(input));
+    }
+
+    if let Some(rest) = input.strip_prefix("~/") {
+        if let Some(home) = env::var_os("HOME") {
+            return PathBuf::from(home).join(rest);
+        }
+    }
+
+    PathBuf::from(input)
+}
+
+fn ensure_trailing_separator(mut input: String) -> String {
+    if !input.ends_with('/') {
+        input.push('/');
+    }
+    input
 }
 
 fn key_stroke_from_crossterm(event: CrosstermKeyEvent) -> Option<KeyStroke> {
@@ -2915,6 +3575,12 @@ fn help_text(keymap: &Keymap) -> String {
 
     out.push_str(
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
+    );
+    out.push_str(
+        "File Dialogs\n  Enter           Open/save selected path\n  Esc             Cancel dialog\n  Tab             Complete path\n  Up/Down         Move file selection\n\n",
+    );
+    out.push_str(
+        "Menus\n  Alt+F/E/V/H     Open File/Edit/View/Help menu\n  Left/Right      Switch open menu\n  Up/Down         Move menu selection\n  Enter           Run selected menu command\n  Esc             Close open menu\n\n",
     );
     out.push_str(
         "Notes\n  Type commands in the command prompt to list command-line actions.\n  Help opens as a read-only tiled window.\n  Dirty buffers ask for confirmation before changes are discarded.\n",
@@ -3931,17 +4597,115 @@ key.app.quit = Esc
     fn mouse_menu_click_dispatches_command_when_enabled() {
         let mut app = AppState::new();
         app.mouse_enabled = true;
-        assert_eq!(
-            app.shell.menu_command_at_column(61),
-            Some(EditorCommand::App(AppCommand::Help))
-        );
+        assert_eq!(app.shell.menu_index_at_column(20), Some(3));
 
-        handle_mouse_event(&mut app, left_click(61, 0));
+        handle_mouse_event(&mut app, left_click(20, 0));
+        assert_eq!(app.active_menu, Some(3));
+        handle_mouse_event(&mut app, left_click(20, 2));
 
         assert_eq!(
             app.workspace.focused_window().unwrap().kind,
             WindowKind::Help
         );
+    }
+
+    #[test]
+    fn mouse_click_outside_open_menu_closes_it() {
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+
+        handle_mouse_event(&mut app, left_click(20, 0));
+        assert_eq!(app.active_menu, Some(3));
+        handle_mouse_event(&mut app, left_click(0, 2));
+
+        assert_eq!(app.active_menu, None);
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Edit
+        );
+    }
+
+    #[test]
+    fn escape_closes_active_menu_before_keymap_dispatch() {
+        let mut app = AppState::new();
+        app.active_menu = Some(0);
+        app.active_menu_entry = Some(0);
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.active_menu, None);
+        assert_eq!(app.active_menu_entry, None);
+        assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn alt_mnemonic_opens_menu_without_mouse_enabled() {
+        let mut app = AppState::new();
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::ALT),
+        );
+
+        assert_eq!(app.active_menu, Some(3));
+        assert_eq!(app.active_menu_entry, Some(0));
+    }
+
+    #[test]
+    fn keyboard_menu_enter_dispatches_selected_entry() {
+        let mut app = AppState::new();
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::ALT),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.active_menu, None);
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Help
+        );
+    }
+
+    #[test]
+    fn keyboard_menu_arrows_switch_menu_and_entry() {
+        let mut app = AppState::new();
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('f'), CrosstermKeyModifiers::ALT),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.active_menu, Some(1));
+        assert_eq!(app.active_menu_entry, Some(0));
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.status_message, Some("Split vertically".to_string()));
+        assert_eq!(app.workspace.window_count(), 2);
     }
 
     #[test]
@@ -4944,11 +5708,9 @@ key.app.help = F10
         assert_eq!(state.buffer.to_text(), "ok\\xFF\n\\\\\\x09\\xE4");
         assert_eq!(state.path.as_ref(), Some(&path));
         assert_eq!(window.buffer_kind, BufferKind::ReadOnly);
-        assert_eq!(
-            app.focused_buffer_status(),
-            format!("{} [readonly] [escaped]", title_for_path(&path))
-        );
-        assert!(app.focused_detail_status().contains("Escaped bytes"));
+        assert_eq!(app.focused_buffer_status(), "[Escaped Bytes]");
+        assert_eq!(app.focused_file_status(), bracket(&title_for_path(&path)));
+        assert!(app.focused_detail_status().contains("[Escaped Bytes]"));
         assert_eq!(
             app.status_message,
             Some(format!(
@@ -5092,17 +5854,12 @@ key.app.help = F10
     }
 
     #[test]
-    fn open_prompt_reports_directory_path() {
+    fn open_command_reports_directory_path() {
         let path = temp_file_path("open-dir");
         std::fs::create_dir(&path).unwrap();
         let mut app = AppState::new();
 
-        app.handle_command(&EditorCommand::File(FileCommand::Open));
-        send_text(&mut app, &path.to_string_lossy());
-        handle_key_event(
-            &mut app,
-            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
-        );
+        app.run_open_command(&[path.to_string_lossy().into_owned()]);
 
         assert_eq!(
             app.status_message,
@@ -5114,6 +5871,91 @@ key.app.help = F10
         assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "");
 
         let _ = std::fs::remove_dir(path);
+    }
+
+    #[test]
+    fn open_dialog_enters_directory_path() {
+        let path = temp_file_path("open-dialog-dir");
+        std::fs::create_dir(&path).unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Open: {}/", path.display()))
+        );
+        assert_eq!(app.status_message, None);
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "");
+
+        let _ = std::fs::remove_dir(path);
+    }
+
+    #[test]
+    fn open_dialog_tab_completes_unique_file_path() {
+        let directory = temp_file_path("open-dialog-tab");
+        let path = directory.join("alpha.log");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(&path, "opened").unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/al", directory.display()));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Open: {}", path.display()))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "opened");
+        assert_eq!(state.path.as_ref(), Some(&path));
+
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn open_dialog_down_enter_opens_selected_file() {
+        let directory = temp_file_path("open-dialog-select");
+        let first = directory.join("a.txt");
+        let second = directory.join("b.txt");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(&first, "first").unwrap();
+        std::fs::write(&second, "second").unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", directory.display()));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "second");
+        assert_eq!(state.path.as_ref(), Some(&second));
+
+        let _ = std::fs::remove_file(first);
+        let _ = std::fs::remove_file(second);
+        let _ = std::fs::remove_dir(directory);
     }
 
     #[test]
@@ -5390,6 +6232,43 @@ key.app.help = F10
         assert_eq!(window.title, title_for_path(&path));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn save_as_dialog_tab_completes_directory_before_save() {
+        let parent = temp_file_path("save-as-dialog-tab");
+        let directory = parent.join("nested");
+        let path = directory.join("out.txt");
+        std::fs::create_dir(&parent).unwrap();
+        std::fs::create_dir(&directory).unwrap();
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::File(FileCommand::SaveAs));
+        send_text(&mut app, &format!("{}/nes", parent.display()));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Save As: {}/", directory.display()))
+        );
+
+        send_text(&mut app, "out.txt");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "x");
+        assert_eq!(state.path.as_ref(), Some(&path));
+        assert!(!state.buffer.is_dirty());
+
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_dir(directory);
+        let _ = std::fs::remove_dir(parent);
     }
 
     #[test]
@@ -5708,7 +6587,7 @@ key.app.help = F10
 
         app.handle_text_input('x');
 
-        assert_eq!(app.focused_buffer_status(), "Untitled*");
+        assert_eq!(app.focused_buffer_status(), "[Plain Text*]");
     }
 
     #[test]
@@ -5722,7 +6601,7 @@ key.app.help = F10
 
         assert_eq!(
             app.focused_detail_status(),
-            "Ln 2/2, Col 3 | LF | Text UTF-8 | ASCII/mono | Win 1/1"
+            "[LF] [UTF-8] [Spaces:4] 2:3 [ASCII/mono] [Win 1/1]"
         );
     }
 
@@ -5735,14 +6614,14 @@ key.app.help = F10
 
         assert_eq!(
             app.focused_detail_status(),
-            "Ln 1/1, Col 1 | LF | Text UTF-8 | UTF-8/16c | Win 2/2"
+            "[LF] [UTF-8] [Spaces:4] 1:1 [UTF-8/16c] [Win 2/2]"
         );
 
         app.workspace.focused = WindowId(1);
 
         assert_eq!(
             app.focused_detail_status(),
-            "Ln 1/2, Col 1 | CRLF | Text UTF-8 | UTF-8/16c | Win 1/2"
+            "[CRLF] [UTF-8] [Spaces:4] 1:1 [UTF-8/16c] [Win 1/2]"
         );
     }
 
@@ -5757,7 +6636,7 @@ key.app.help = F10
 
         assert_eq!(
             app.focused_detail_status(),
-            "Ln 1/1, Col 4 | Sel 3c | LF | Text UTF-8 | UTF-8/256c | Win 1/1"
+            "[LF] [UTF-8] [Spaces:4] 1:4 [Sel 3c] [UTF-8/256c] [Win 1/1]"
         );
     }
 

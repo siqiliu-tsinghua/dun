@@ -47,6 +47,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Sanitize buffer lines before they enter the UI frame model.
 - [x] Select `ratatui` and backend versions compatible with Rust `1.85`.
 - [x] Render menu bar.
+- [x] Render grouped File/Edit/View/Help dropdown menus.
+- [x] Add keyboard navigation for grouped dropdown menus.
 - [x] Render status bar.
 - [x] Render single editor area with line-number gutter.
 - [x] Render Microsoft Edit-style single-line borders for tiled windows.
@@ -55,9 +57,18 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Render focused buffer cursor inside the active window body.
 - [x] Render selected text ranges in the active window body.
 - [x] Add UI hit testing for optional mouse focus and cursor placement.
-- [x] Add menu hit testing for optional mouse command dispatch.
+- [x] Add submenu hit testing for optional mouse command dispatch.
 - [x] Polish tiled rendering for small terminals and narrow panes.
 - [x] Keep rendering free of file I/O.
+- [x] Tune `msedit` theme colors against local Microsoft Edit screenshots.
+- [x] Add Microsoft Edit-like active top-menu color and gray dropdown panel.
+- [x] Add menu mnemonics and right-aligned shortcut column rendering.
+- [x] Add current-line row highlight and persistent gutter separator.
+- [x] Add lightweight modal prompt rendering for Go To Line, Find, Replace,
+  and confirmations.
+- [x] Add larger Open/Save As file dialog baseline after lightweight modals.
+- [x] Add Tab path completion to the Open/Save As file dialog baseline.
+- [ ] Add mouse hit testing for file dialog directory entries.
 
 ## `dun-config`
 
@@ -74,6 +85,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define optional mouse enablement config.
 - [x] Define large-file and display limits.
 - [x] Add config validation tests.
+- [x] Add MacBook-friendly `Ctrl+W` window focus/resize aliases while keeping
+  `Alt` compatibility bindings where terminals deliver them.
 
 ## `dun-cli`
 
@@ -89,7 +102,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add command-line prompt baseline.
 - [x] Add command-line prompt history.
 - [x] Add runtime theme selection command.
-- [x] Add interactive status-line prompts for open, save-as, and find entry.
+- [x] Add interactive file dialogs for open/save-as and modal prompts for
+  find/replace/go-to-line entry.
 - [x] Route printable text input into the focused buffer.
 - [x] Track pending multi-stroke key sequences.
 - [x] Keep the focused cursor line visible while drawing.

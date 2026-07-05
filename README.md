@@ -12,6 +12,15 @@ style inspired by classic editor interfaces such as `msedit`.
 This repository now has a Rust workspace baseline with the first pure editor
 core, terminal profile/theme layer, typed configuration/keymap layer,
 backend-neutral UI model, and a minimal runnable `ratatui` shell.
+The top menu is grouped into Microsoft Edit-style File/Edit/View/Help menus,
+with dropdown entries backed by the same typed command model as keybindings.
+When the active keymap does not consume them, `Alt+F`, `Alt+E`, `Alt+V`, and
+`Alt+H` open those menus; arrow keys move through an open menu, `Enter`
+executes the selected item, and `Esc` closes it.
+The default `msedit` theme now follows the local Microsoft Edit screenshots
+more closely: blue menu/status chrome, green active top-menu labels, gray
+dropdown/modal panels, a compact bracket-style status bar, a gutter separator,
+and a muted current-line highlight.
 It can open valid UTF-8 file paths supplied on the command line and save the
 focused buffer back to that path through a same-directory temp file and atomic
 rename. Stale atomic-save temp files are cleaned up, while newer recovery
@@ -29,10 +38,12 @@ and visible-window rendering.
 Open, Save, and Save As failures include the relevant path and normalized
 diagnostics for common cases such as missing files, directories, missing parent
 directories, permission denial, and read-only destinations.
-Interactive status-line prompts are available for Open, Save As, Find,
-Replace, and Go To Line entry. Find now supports next/previous navigation and
-selected match highlighting, Replace can replace the current or next match,
-and Go To Line moves the cursor by 1-based line number.
+Open and Save As now use larger modal file dialogs with a path input, directory
+match list, Up/Down selection, directory navigation, and Tab path completion.
+Lightweight modal prompts remain available for Find, Replace, and Go To Line
+entry. Find now supports next/previous navigation and selected match
+highlighting, Replace can replace the current or next match, and Go To Line
+moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty/read-only markers, and status fields for position, total lines,
 selection, line ending, file-text encoding, terminal profile, and focused
@@ -47,12 +58,18 @@ and error messages. `F5` reloads the active configuration without restarting
 the editor, `F6` opens Config Diagnostics, and `Ctrl+P` opens a command prompt
 for actions such as `help`, `config`, `reload-config`, `theme`, `open`,
 `save`, `quit`, and full command ids such as `window.split_horizontal`.
+Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
+focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
+`Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver
+Option/Meta keys, but the primary path does not depend on macOS Command, Fn,
+or Option-key terminal settings.
 The command prompt keeps a bounded in-memory history navigated with Up/Down.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
 Mouse support is optional and disabled by default; when enabled in config,
 left-clicks can focus tiled windows, place the cursor in an editor body, drag
-text selections, drag split borders, and click menu commands.
+text selections, drag split borders, open top-menu dropdowns, and click
+submenu commands.
 The external SSH and low-capability terminal release matrix is documented in
 [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
 the local PTY harness covers common terminal profiles, small VT100-style

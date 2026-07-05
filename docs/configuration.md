@@ -43,6 +43,8 @@ key.app.reload_config = F5
 key.app.config_diagnostics = F6
 key.edit.find = Ctrl+F
 key.window.split_horizontal = Ctrl+W,H
+key.window.focus_left = Ctrl+W,Left
+key.window.resize_right = Ctrl+W,Shift+Right
 ```
 
 Set a command to `none`, `disabled`, or `unbind` to remove its default binding:
@@ -51,11 +53,19 @@ Set a command to `none`, `disabled`, or `unbind` to remove its default binding:
 key.edit.find = none
 ```
 
-Changing a command binding removes that command's default binding first. If the
-new key sequence conflicts with another command, config validation fails.
+Changing a command binding removes that command's default bindings first,
+including default aliases such as `Ctrl+W,Left` and `Alt+Left` for the same
+window-focus command. If the new key sequence conflicts with another command,
+config validation fails.
 The runtime input path and the in-editor Help window both use the active
 keymap. Custom bindings and unbound commands are reflected on startup and after
 `app.reload_config` reloads the active configuration.
+
+The default window-management bindings prefer MacBook- and SSH-friendly
+`Ctrl+W` sequences because macOS Command and Fn are not generally delivered to
+terminal applications, and Option only appears as Alt/Meta when the terminal is
+configured to send it. `Alt+Arrow` and `Alt+Shift+Arrow` remain compatibility
+aliases where available.
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window
@@ -78,6 +88,8 @@ key.app.config_diagnostics = F6
 key.edit.find = Ctrl+F
 key.window.split_horizontal = Ctrl+W,H
 key.window.split_vertical = Ctrl+W,V
+key.window.focus_left = Ctrl+W,Left
+key.window.resize_right = Ctrl+W,Shift+Right
 ```
 
 Future `rum` configuration should produce the same typed `Config` model rather

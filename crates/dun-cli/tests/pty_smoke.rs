@@ -86,7 +86,8 @@ fn pty_smoke_quits_cleanly_for_common_terminal_profiles() -> io::Result<()> {
             run.output
         );
         assert_output_contains(&run.output, "Untitled", case.name);
-        assert_output_contains(&run.output, "Ln 1/1, Col 1", case.name);
+        assert_output_contains(&run.output, "[Plain Text]", case.name);
+        assert_output_contains(&run.output, "1:1", case.name);
         if let Some(profile) = case.expected_profile {
             assert_output_contains(&run.output, profile, case.name);
         }
@@ -134,8 +135,8 @@ fn pty_smoke_opens_utf8_file_and_renders_initial_content() -> io::Result<()> {
     assert_output_contains(&run.output, &file_name, case.name);
     assert_output_contains(&run.output, "alpha", case.name);
     assert_output_contains(&run.output, "beta", case.name);
-    assert_output_contains(&run.output, "Opened ", case.name);
-    assert_output_contains(&run.output, "Text UTF-8", case.name);
+    assert_output_contains(&run.output, "[Plain Text]", case.name);
+    assert_output_contains(&run.output, "[UTF-8]", case.name);
 
     Ok(())
 }
@@ -266,7 +267,7 @@ fn pty_smoke_opens_invalid_bytes_as_read_only_escapes() -> io::Result<()> {
         &expect,
         case,
         &[file_path.as_os_str()],
-        "Escaped bytes",
+        "dun-pty-invalid",
         CTRL_Q,
     );
     let _ = fs::remove_file(&file_path);
@@ -280,7 +281,7 @@ fn pty_smoke_opens_invalid_bytes_as_read_only_escapes() -> io::Result<()> {
         run.output
     );
     assert_output_contains(&run.output, "ok\\xFF", case.name);
-    assert_output_contains(&run.output, "Escaped bytes", case.name);
+    assert_output_contains(&run.output, "[Escaped Bytes]", case.name);
 
     Ok(())
 }

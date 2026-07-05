@@ -153,6 +153,12 @@ Current implementation:
 - `dun-ui` sanitizes pane titles and status fields before final ratatui
   rendering, so file names, paths, and status/error messages do not bypass the
   display sanitizer.
+- `dun-ui` also sanitizes modal overlay titles, body lines, prompt input, and
+  button text before rendering.
+- Open/Save As file dialog directory entries and path input are rendered
+  through the same modal overlay sanitizer; the dialog may list directories,
+  but all actual file open/save operations remain in `dun-cli` validated file
+  I/O paths.
 - UTF-8 mode uses Unicode control pictures for C0 controls.
 - ASCII mode uses caret notation and escapes non-ASCII characters as
   `\u{...}`.
@@ -164,8 +170,8 @@ Current implementation:
 - Mouse capture is disabled by default, enabled only through typed config, and
   restored on exit or runtime disable. Current mouse input can focus tiled
   windows, place the cursor, update a text selection, resize a split, or
-  dispatch an existing menu `EditorCommand`; it does not trigger paste,
-  direct file operations, or plugin actions.
+  open a typed dropdown menu and dispatch an existing submenu `EditorCommand`;
+  it does not trigger paste, direct file operations, or plugin actions.
 - Future paste support must treat pasted bytes as untrusted text routed through
   the normal edit transaction path. It must not parse terminal escapes inside
   editor state, auto-submit prompts, or use OSC 52/external clipboard commands
