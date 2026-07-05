@@ -179,6 +179,9 @@ Editing:
 - `Shift+Arrow` extends the editor selection by character or line, and
   `Shift+Home`/`Shift+End` extends to the current line edge when those strokes
   are not remapped by the active keymap.
+- Continuous ordinary typing should undo as a single step. Cursor movement,
+  selection changes, newline, delete, replace, and paste should make separate
+  undo steps.
 - Edit menu or command-line ids `edit.copy`, `edit.cut`, and `edit.paste`
   operate on the process-local internal clipboard. They should copy/cut the
   active selection and paste through the normal edit path without requiring OS

@@ -112,6 +112,7 @@ pub struct EditTransaction {
     pub after_cursor: Position,
     pub before_selection: Option<Selection>,
     pub after_selection: Option<Selection>,
+    pub merge_kind: EditMergeKind,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -121,6 +122,12 @@ pub enum TextEdit {
         old_text: String,
         new_text: String,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditMergeKind {
+    None,
+    InsertRun,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -230,6 +237,7 @@ impl TextBuffer {
 
     pub fn set_cursor(&mut self, position: Position) -> Result<(), BufferError> {
         self.validate_position(position)?;
+        self.break_undo_merge();
         self.cursor = Cursor::new(position);
         self.selection = None;
         Ok(())
@@ -246,6 +254,7 @@ impl TextBuffer {
     pub fn select(&mut self, anchor: Position, cursor: Position) -> Result<(), BufferError> {
         self.validate_position(anchor)?;
         self.validate_position(cursor)?;
+        self.break_undo_merge();
         self.cursor = Cursor::new(cursor);
         self.selection = if anchor == cursor {
             None
@@ -256,6 +265,7 @@ impl TextBuffer {
     }
 
     pub fn clear_selection(&mut self) {
+        self.break_undo_merge();
         self.selection = None;
     }
 
@@ -280,6 +290,7 @@ impl TextBuffer {
     }
 
     pub fn move_left(&mut self) -> bool {
+        self.break_undo_merge();
         if let Some(range) = self.selection_range() {
             self.set_cursor_after_motion(range.start, false);
             return true;
@@ -295,6 +306,7 @@ impl TextBuffer {
     }
 
     pub fn move_right(&mut self) -> bool {
+        self.break_undo_merge();
         if let Some(range) = self.selection_range() {
             self.set_cursor_after_motion(range.end, false);
             return true;
@@ -310,6 +322,7 @@ impl TextBuffer {
     }
 
     pub fn move_up(&mut self) -> bool {
+        self.break_undo_merge();
         let position = self.cursor.position;
         if position.line == 0 {
             self.selection = None;
@@ -323,6 +336,7 @@ impl TextBuffer {
     }
 
     pub fn move_down(&mut self) -> bool {
+        self.break_undo_merge();
         let position = self.cursor.position;
         if position.line + 1 >= self.lines.len() {
             self.selection = None;
@@ -336,6 +350,7 @@ impl TextBuffer {
     }
 
     pub fn move_to_line_start(&mut self) -> bool {
+        self.break_undo_merge();
         let position = Position::new(self.cursor.position.line, 0);
         let moved = self.cursor.position != position || self.selection.is_some();
         self.set_cursor_after_motion(position, false);
@@ -343,6 +358,7 @@ impl TextBuffer {
     }
 
     pub fn move_to_line_end(&mut self) -> bool {
+        self.break_undo_merge();
         let line = self.cursor.position.line;
         let position = Position::new(line, self.lines[line].len());
         let moved = self.cursor.position != position || self.selection.is_some();
@@ -351,6 +367,7 @@ impl TextBuffer {
     }
 
     pub fn extend_selection_left(&mut self) -> bool {
+        self.break_undo_merge();
         let Some(position) = self.previous_position(self.cursor.position) else {
             return false;
         };
@@ -359,6 +376,7 @@ impl TextBuffer {
     }
 
     pub fn extend_selection_right(&mut self) -> bool {
+        self.break_undo_merge();
         let Some(position) = self.next_position(self.cursor.position) else {
             return false;
         };
@@ -367,6 +385,7 @@ impl TextBuffer {
     }
 
     pub fn extend_selection_up(&mut self) -> bool {
+        self.break_undo_merge();
         let position = self.cursor.position;
         if position.line == 0 {
             return false;
@@ -379,6 +398,7 @@ impl TextBuffer {
     }
 
     pub fn extend_selection_down(&mut self) -> bool {
+        self.break_undo_merge();
         let position = self.cursor.position;
         if position.line + 1 >= self.lines.len() {
             return false;
@@ -391,6 +411,7 @@ impl TextBuffer {
     }
 
     pub fn extend_selection_to_line_start(&mut self) -> bool {
+        self.break_undo_merge();
         let position = Position::new(self.cursor.position.line, 0);
         if self.cursor.position == position {
             return false;
@@ -400,6 +421,7 @@ impl TextBuffer {
     }
 
     pub fn extend_selection_to_line_end(&mut self) -> bool {
+        self.break_undo_merge();
         let line = self.cursor.position.line;
         let position = Position::new(line, self.lines[line].len());
         if self.cursor.position == position {
@@ -411,10 +433,23 @@ impl TextBuffer {
 
     pub fn insert_char(&mut self, ch: char) -> Result<(), BufferError> {
         let mut encoded = [0; 4];
-        self.insert_str(ch.encode_utf8(&mut encoded))
+        let merge_kind = if self.selection.is_none() && is_mergeable_insert_char(ch) {
+            EditMergeKind::InsertRun
+        } else {
+            EditMergeKind::None
+        };
+        self.insert_text_with_merge(ch.encode_utf8(&mut encoded), merge_kind)
     }
 
     pub fn insert_str(&mut self, text: &str) -> Result<(), BufferError> {
+        self.insert_text_with_merge(text, EditMergeKind::None)
+    }
+
+    fn insert_text_with_merge(
+        &mut self,
+        text: &str,
+        merge_kind: EditMergeKind,
+    ) -> Result<(), BufferError> {
         if text.is_empty() {
             return Ok(());
         }
@@ -424,7 +459,8 @@ impl TextBuffer {
         let range = self
             .selection_range()
             .unwrap_or_else(|| TextRange::empty(self.cursor.position));
-        self.commit_replace(range, &text).map(|_| ())
+        self.commit_replace_with_merge(range, &text, merge_kind)
+            .map(|_| ())
     }
 
     pub fn insert_newline(&mut self) -> Result<(), BufferError> {
@@ -433,6 +469,7 @@ impl TextBuffer {
 
     pub fn delete_backward(&mut self) -> Result<bool, BufferError> {
         self.ensure_editable()?;
+        self.break_undo_merge();
         if let Some(range) = self.selection_range() {
             return self.delete_range(range);
         }
@@ -447,6 +484,7 @@ impl TextBuffer {
 
     pub fn delete_forward(&mut self) -> Result<bool, BufferError> {
         self.ensure_editable()?;
+        self.break_undo_merge();
         if let Some(range) = self.selection_range() {
             return self.delete_range(range);
         }
@@ -461,6 +499,7 @@ impl TextBuffer {
 
     pub fn delete_range(&mut self, range: TextRange) -> Result<bool, BufferError> {
         self.ensure_editable()?;
+        self.break_undo_merge();
         let range = range.normalized();
         self.validate_range(range)?;
         if range.is_empty() {
@@ -472,6 +511,7 @@ impl TextBuffer {
 
     pub fn replace_range(&mut self, range: TextRange, new_text: &str) -> Result<(), BufferError> {
         self.ensure_editable()?;
+        self.break_undo_merge();
         let new_text = normalize_edit_text(new_text);
         self.commit_replace(range, &new_text).map(|_| ())
     }
@@ -506,6 +546,7 @@ impl TextBuffer {
 
         self.apply_transaction_undo(&transaction)?;
         self.redo_stack.push(transaction);
+        self.break_undo_merge();
         self.bump_revision();
         Ok(true)
     }
@@ -518,6 +559,7 @@ impl TextBuffer {
 
         self.apply_transaction_redo(&transaction)?;
         self.undo_stack.push(transaction);
+        self.break_undo_merge();
         self.bump_revision();
         Ok(true)
     }
@@ -651,6 +693,15 @@ impl TextBuffer {
         range: TextRange,
         new_text: &str,
     ) -> Result<Position, BufferError> {
+        self.commit_replace_with_merge(range, new_text, EditMergeKind::None)
+    }
+
+    fn commit_replace_with_merge(
+        &mut self,
+        range: TextRange,
+        new_text: &str,
+        merge_kind: EditMergeKind,
+    ) -> Result<Position, BufferError> {
         let range = range.normalized();
         self.validate_range(range)?;
 
@@ -662,12 +713,31 @@ impl TextBuffer {
         if old_text == new_text {
             self.cursor = Cursor::new(after_cursor);
             self.selection = None;
+            if merge_kind == EditMergeKind::None {
+                self.break_undo_merge();
+            }
             return Ok(after_cursor);
         }
 
         self.replace_range_inner(range, new_text)?;
         self.cursor = Cursor::new(after_cursor);
         self.selection = None;
+        if self.try_merge_insert_run(
+            merge_kind,
+            range,
+            &old_text,
+            new_text,
+            before_cursor,
+            after_cursor,
+            before_selection,
+        ) {
+            self.redo_stack.clear();
+            self.bump_revision();
+            return Ok(after_cursor);
+        }
+        if merge_kind == EditMergeKind::None {
+            self.break_undo_merge();
+        }
         self.undo_stack.push(EditTransaction {
             edits: vec![TextEdit::Replace {
                 range,
@@ -678,10 +748,68 @@ impl TextBuffer {
             after_cursor,
             before_selection,
             after_selection: None,
+            merge_kind,
         });
         self.redo_stack.clear();
         self.bump_revision();
         Ok(after_cursor)
+    }
+
+    fn try_merge_insert_run(
+        &mut self,
+        merge_kind: EditMergeKind,
+        range: TextRange,
+        old_text: &str,
+        new_text: &str,
+        before_cursor: Position,
+        after_cursor: Position,
+        before_selection: Option<Selection>,
+    ) -> bool {
+        if merge_kind != EditMergeKind::InsertRun {
+            return false;
+        }
+
+        if !range.is_empty() || !old_text.is_empty() || before_selection.is_some() {
+            return false;
+        }
+
+        if !self.redo_stack.is_empty() {
+            return false;
+        }
+
+        let Some(transaction) = self.undo_stack.last_mut() else {
+            return false;
+        };
+        if transaction.merge_kind != EditMergeKind::InsertRun
+            || transaction.after_cursor != before_cursor
+            || transaction.after_selection.is_some()
+            || transaction.edits.len() != 1
+        {
+            return false;
+        }
+
+        let TextEdit::Replace {
+            range: previous_range,
+            old_text: previous_old_text,
+            new_text: previous_new_text,
+        } = &mut transaction.edits[0];
+        if !previous_range.is_empty() || !previous_old_text.is_empty() {
+            return false;
+        }
+
+        if end_position_after_text(previous_range.start, previous_new_text) != range.start {
+            return false;
+        }
+
+        previous_new_text.push_str(new_text);
+        transaction.after_cursor = after_cursor;
+        true
+    }
+
+    fn break_undo_merge(&mut self) {
+        if let Some(transaction) = self.undo_stack.last_mut() {
+            transaction.merge_kind = EditMergeKind::None;
+        }
     }
 
     fn replace_range_inner(
@@ -790,6 +918,10 @@ fn normalize_edit_text(text: &str) -> String {
     } else {
         text.to_string()
     }
+}
+
+fn is_mergeable_insert_char(ch: char) -> bool {
+    ch != '\n' && ch != '\r' && !ch.is_control()
 }
 
 fn end_position_after_text(start: Position, text: &str) -> Position {
@@ -976,6 +1108,89 @@ mod tests {
         assert!(buffer.is_dirty());
         assert!(buffer.can_undo());
         assert!(!buffer.can_redo());
+    }
+
+    #[test]
+    fn insert_char_run_undoes_as_one_transaction() {
+        let mut buffer = TextBuffer::new_untitled();
+
+        buffer.insert_char('a').unwrap();
+        buffer.insert_char('é').unwrap();
+        buffer.insert_char('b').unwrap();
+
+        assert_eq!(buffer.to_text(), "aéb");
+        assert_eq!(buffer.undo_stack.len(), 1);
+
+        assert!(buffer.undo().unwrap());
+        assert_eq!(buffer.to_text(), "");
+        assert_eq!(buffer.cursor_position(), Position::zero());
+        assert!(buffer.can_redo());
+
+        assert!(buffer.redo().unwrap());
+        assert_eq!(buffer.to_text(), "aéb");
+        assert_eq!(buffer.cursor_position(), Position::new(0, 4));
+    }
+
+    #[test]
+    fn cursor_motion_breaks_insert_char_merge() {
+        let mut buffer = TextBuffer::new_untitled();
+
+        buffer.insert_char('a').unwrap();
+        assert!(buffer.move_left());
+        assert!(buffer.move_right());
+        buffer.insert_char('b').unwrap();
+
+        assert_eq!(buffer.to_text(), "ab");
+        assert_eq!(buffer.undo_stack.len(), 2);
+
+        assert!(buffer.undo().unwrap());
+        assert_eq!(buffer.to_text(), "a");
+        assert_eq!(buffer.cursor_position(), Position::new(0, 1));
+
+        assert!(buffer.undo().unwrap());
+        assert_eq!(buffer.to_text(), "");
+        assert_eq!(buffer.cursor_position(), Position::zero());
+    }
+
+    #[test]
+    fn insert_str_does_not_merge_with_insert_char_runs() {
+        let mut buffer = TextBuffer::new_untitled();
+
+        buffer.insert_char('a').unwrap();
+        buffer.insert_str("bc").unwrap();
+        buffer.insert_char('d').unwrap();
+
+        assert_eq!(buffer.to_text(), "abcd");
+        assert_eq!(buffer.undo_stack.len(), 3);
+
+        assert!(buffer.undo().unwrap());
+        assert_eq!(buffer.to_text(), "abc");
+
+        assert!(buffer.undo().unwrap());
+        assert_eq!(buffer.to_text(), "a");
+
+        assert!(buffer.undo().unwrap());
+        assert_eq!(buffer.to_text(), "");
+    }
+
+    #[test]
+    fn redoed_insert_run_does_not_absorb_new_typing() {
+        let mut buffer = TextBuffer::new_untitled();
+
+        buffer.insert_char('a').unwrap();
+        buffer.insert_char('b').unwrap();
+        assert!(buffer.undo().unwrap());
+        assert!(buffer.redo().unwrap());
+        buffer.insert_char('c').unwrap();
+
+        assert_eq!(buffer.to_text(), "abc");
+        assert_eq!(buffer.undo_stack.len(), 2);
+
+        assert!(buffer.undo().unwrap());
+        assert_eq!(buffer.to_text(), "ab");
+
+        assert!(buffer.undo().unwrap());
+        assert_eq!(buffer.to_text(), "");
     }
 
     #[test]

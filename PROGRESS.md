@@ -427,3 +427,8 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added tests for selection anchor/cursor behavior, vertical preferred-column
   selection, line-edge selection, CLI Shift selection fallback, and configured
   Shift-arrow bindings taking precedence over fallback selection.
+- Added undo transaction coalescing for continuous ordinary character input in
+  `dun-core`. Cursor movement, selection changes, delete, replace, newline,
+  paste-like `insert_str` calls, undo, and redo break the active typing group.
+- Added buffer tests covering UTF-8 typing coalescing, cursor-motion breaks,
+  paste-like bulk insertion boundaries, and redo followed by new typing.

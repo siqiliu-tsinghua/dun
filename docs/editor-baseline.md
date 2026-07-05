@@ -116,6 +116,9 @@ This is deliberately simple and testable:
 - cursor movement is UTF-8 character-boundary aware, not display-width aware;
 - LF and CRLF files round trip through the buffer's `LineEnding` setting;
 - edits are recorded as replace transactions for undo/redo.
+- continuous ordinary character typing coalesces into one undo transaction;
+  movement, selection, delete, replace, newline, paste-like bulk insertion,
+  undo, and redo start clear transaction boundaries.
 
 This model is sufficient for the first editor baseline. If large-file testing
 shows it is not acceptable, the public concepts should remain while the storage

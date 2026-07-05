@@ -21,6 +21,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define edit transaction type.
 - [x] Implement insert/delete/newline.
 - [x] Implement undo/redo.
+- [x] Coalesce continuous ordinary character input into undo transactions while
+  keeping paste, movement, selection, delete, and replace boundaries separate.
 - [x] Implement dirty-state tracking.
 - [x] Implement split focused window.
 - [x] Implement close focused window and tree repair.

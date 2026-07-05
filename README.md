@@ -56,6 +56,9 @@ window index.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, giving Cut/Copy a pure
 keyboard path without requiring mouse support.
+Undo groups continuous ordinary character typing into one transaction, while
+cursor movement, selection changes, delete, replace, newline, and paste-like
+bulk insertion keep clear transaction boundaries.
 On narrow panes, the gutter is dropped before it consumes the editable body,
 and pane titles/status fields are clipped by terminal display width.
 Buffer text, pane titles, and status fields are sanitized before rendering so
