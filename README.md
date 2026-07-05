@@ -55,6 +55,9 @@ The external SSH and low-capability terminal release matrix is documented in
 the local PTY harness covers common terminal profiles, small VT100-style
 fallback, terminal escape payloads, and invalid-byte fallback files. External
 host results still need to be recorded before a tagged release.
+Lightweight Microsoft Edit reference tests check the local `edit --help`
+contract when available and statically scan `reference/msedit` source for menu,
+status bar, color, and terminal setup reference markers.
 
 ## CLI Usage
 

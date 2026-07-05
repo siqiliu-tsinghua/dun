@@ -21,6 +21,39 @@ its own immediate-mode TUI/framebuffer stack. `dun` will use `ratatui`, target
 Rust `1.85`, and keep a different product focus: Linux/macOS SSH operations,
 log inspection, and a future pure `rum` plugin boundary.
 
+## Reference Tests
+
+`crates/dun-cli/tests/msedit_reference.rs` provides the current lightweight
+reference baseline:
+
+- if a local `edit` binary is on `PATH`, `edit --help` is checked for stable
+  CLI reference markers such as `--help`, `--version`, and
+  `FILE[:LINE[:COLUMN]]`;
+- `dun --help` is checked against Dun's own CLI contract;
+- `reference/msedit` source is statically scanned for stable menu, status bar,
+  color, and terminal setup markers.
+
+The tests intentionally do not copy or snapshot Microsoft Edit source. They
+also do not run a live Microsoft Edit TUI differential by default: the
+reference app queries terminal palette, cursor position, and device attributes
+during startup, so a reliable live comparison needs a terminal-response-aware
+probe harness rather than the minimal `expect(1)` runner used for Dun's local
+smoke tests.
+
+Static observations currently covered by tests:
+
+- `draw_menubar.rs` defines top-level `File`, `Edit`, `View`, and `Help`
+  menus with mnemonic letters and shortcuts such as `Ctrl+N`, `Ctrl+O`,
+  `Ctrl+S`, `Ctrl+Q`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+F`, `Ctrl+R`, `Ctrl+G`,
+  `Ctrl+P`, and `Alt+Z`;
+- `draw_statusbar.rs` exposes language, newline style, encoding, indentation,
+  cursor location, dirty marker, and filename fields;
+- `main.rs` derives the menu/status background by blending terminal background
+  with bright blue, computes contrast for foreground text, configures floater
+  and modal colors, and performs terminal setup through alternate screen,
+  mouse/bracketed-paste/meta modes, OSC palette queries, foreground/background
+  queries, cursor-position probing, and device-attributes probing.
+
 ## Useful Observations
 
 ### Screen Structure

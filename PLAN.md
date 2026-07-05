@@ -192,6 +192,7 @@ Goal: reach a practical Microsoft Edit-like baseline.
 - [x] Error log/status history baseline.
 - [x] Help/key reference screen.
 - [x] Better status bar fields.
+- [x] Static Microsoft Edit reference baseline tests.
 - [x] Automated PTY smoke tests for common SSH-style terminal profiles.
 - [x] Manual terminal checklist and current-environment checks.
 

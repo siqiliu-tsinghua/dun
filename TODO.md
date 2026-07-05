@@ -130,8 +130,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define the external SSH and low-capability terminal release matrix.
 - [ ] Run the external SSH and low-capability terminal release matrix before
   a tagged release.
-- [ ] Add optional Microsoft Edit reference/differential tests when Dun's
-  baseline UI and command behavior are stable enough to compare usefully.
+- [x] Add static Microsoft Edit reference tests for source-visible menu,
+  status, color, and terminal setup markers.
 
 ## Deferred
 

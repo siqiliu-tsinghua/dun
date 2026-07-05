@@ -328,3 +328,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   The harness now covers xterm/screen/tmux/VT100/ANSI/dumb/NO_COLOR profiles,
   a small VT100-style terminal, safe rendering of terminal escape payload
   files, and invalid-byte escaped fallback files.
+- Added lightweight static Microsoft Edit reference tests. The test suite
+  checks `edit --help` when the reference binary is available, verifies Dun's
+  own CLI contract, and scans `reference/msedit` source for menu, status bar,
+  color, and terminal setup reference markers.
