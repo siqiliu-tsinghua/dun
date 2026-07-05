@@ -286,3 +286,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   display width.
 - Added core/UI tests for tiny split rectangles, narrow panes with large line
   numbers, CJK title/status clipping, and title-bar-only pane rendering.
+- Added ignored large-file performance baselines in `dun-cli`. The baseline
+  covers startup open, sparse and missing `find_all`, scroll synchronization to
+  end of file, visible-window UI frame construction, ratatui `TestBackend`
+  drawing, and long-line display caps.
+- Added `docs/performance-baselines.md` with the run command, environment
+  overrides for fixture sizes, covered paths, and the current local release
+  sample. `cargo test -p dun-cli --release large_file_perf -- --ignored
+  --nocapture` passes with an 8 MiB fixture.

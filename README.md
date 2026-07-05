@@ -18,6 +18,8 @@ rename. Invalid UTF-8 files open as read-only escaped fallback buffers instead
 of being decoded lossy.
 Editable file loading enforces the configured soft limit before reading large
 files into memory; the default editable limit is 16 MiB.
+Ignored release-mode performance baselines cover large-file open/search/scroll
+and visible-window rendering.
 Open, Save, and Save As failures include the relevant path and normalized
 diagnostics for common cases such as missing files, directories, missing parent
 directories, permission denial, and read-only destinations.
@@ -157,6 +159,8 @@ drawing.
   deferral.
 - [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md):
   PTY smoke coverage and manual SSH terminal compatibility checklist.
+- [docs/performance-baselines.md](./docs/performance-baselines.md): ignored
+  large-file performance baseline tests and current local sample output.
 - [docs/configuration.md](./docs/configuration.md): current Rust-owned config
   file loader and supported keys.
 - [docs/crate-map.md](./docs/crate-map.md): current Rust workspace crate

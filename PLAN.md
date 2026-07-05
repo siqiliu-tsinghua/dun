@@ -206,9 +206,9 @@ release-facing host API.
 
 ## Phase 10: Hardening
 
-- Crash recovery paths.
-- Corrupt file handling.
-- Non-UTF-8 file strategy.
-- External SSH and low-capability terminal test matrix before release.
-- Large-file performance baselines.
-- Security audit suite for control-byte rendering and plugin policy.
+- [ ] Crash recovery paths.
+- [ ] Corrupt file handling.
+- [ ] Non-UTF-8 file strategy.
+- [ ] External SSH and low-capability terminal test matrix before release.
+- [x] Large-file performance baselines.
+- [ ] Security audit suite for control-byte rendering and plugin policy.

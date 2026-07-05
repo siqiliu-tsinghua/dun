@@ -3192,7 +3192,9 @@ fn detect_terminal_profile() -> dun_term::TerminalProfile {
 mod tests {
     use super::*;
     use dun_core::TextRange;
+    use ratatui::backend::TestBackend;
     use std::str::FromStr;
+    use std::time::Instant;
 
     #[test]
     fn parse_cli_args_accepts_no_path_or_single_path() {
@@ -5183,6 +5185,99 @@ key.app.help = F10
         );
     }
 
+    #[test]
+    #[ignore]
+    fn large_file_perf_baseline_open_search_scroll_and_render() {
+        let path = temp_file_path("large-file-perf.log");
+        let fixture = write_large_file_perf_fixture(&path, large_file_perf_target_bytes());
+        eprintln!(
+            "large_file_perf fixture: bytes={} lines={} error_lines={}",
+            fixture.bytes, fixture.lines, fixture.error_lines
+        );
+
+        let config = config_with_editable_file_soft_limit(fixture.bytes as u64);
+        let mut app = measure_large_file_perf("startup_open", || {
+            AppState::from_config_path(config, Some(path.clone())).unwrap()
+        });
+        let buffer_id = app.focused_buffer_id().unwrap();
+        let line_count = app.buffer_state(buffer_id).unwrap().buffer.line_count();
+        assert_eq!(line_count, fixture.lines);
+
+        let sparse_matches = measure_large_file_perf("find_all_sparse_match", || {
+            app.buffer_state(buffer_id)
+                .unwrap()
+                .buffer
+                .find_all("ERROR service=api")
+        });
+        assert_eq!(sparse_matches.len(), fixture.error_lines);
+
+        let missing_matches = measure_large_file_perf("find_all_missing_match", || {
+            app.buffer_state(buffer_id)
+                .unwrap()
+                .buffer
+                .find_all("needle-that-does-not-exist")
+        });
+        assert!(missing_matches.is_empty());
+
+        let last_line = fixture.lines.saturating_sub(1);
+        app.focused_buffer_mut()
+            .unwrap()
+            .buffer
+            .set_cursor(Position::new(last_line, 0))
+            .unwrap();
+        measure_large_file_perf("sync_view_to_eof", || {
+            app.sync_view_for_area(Rect::new(0, 0, 120, 40));
+        });
+        assert!(app.buffer_state(buffer_id).unwrap().first_line > 0);
+
+        let buffer_views = app.buffer_views();
+        let ui_frame = measure_large_file_perf("ui_frame_visible_window", || {
+            app.shell
+                .frame_for_workspace(&app.workspace, app.workspace_area, &buffer_views)
+        });
+        assert!(!ui_frame.windows[0].body.is_empty());
+
+        let backend = TestBackend::new(120, 42);
+        let mut terminal = Terminal::new(backend).unwrap();
+        measure_large_file_perf("ratatui_draw_visible_window", || {
+            terminal
+                .draw(|frame| app.shell.render(frame, &ui_frame))
+                .unwrap();
+        });
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    #[ignore]
+    fn large_file_perf_long_line_display_cap() {
+        let line_bytes = large_line_perf_target_bytes();
+        let long_line = "x".repeat(line_bytes);
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, &long_line);
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let workspace = Workspace::new_untitled();
+        let shell = UiShell::default();
+
+        let ui_frame = measure_large_file_perf("ui_frame_long_line_display_cap", || {
+            shell.frame_for_workspace(&workspace, Rect::new(0, 0, 120, 8), &[buffer_view])
+        });
+
+        let line = &ui_frame.windows[0].body[0];
+        assert!(line.truncated);
+        assert_eq!(
+            line.bytes_consumed,
+            Limits::default().line_display_soft_limit_bytes
+        );
+
+        let backend = TestBackend::new(120, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        measure_large_file_perf("ratatui_draw_long_line_display_cap", || {
+            terminal
+                .draw(|frame| shell.render(frame, &ui_frame))
+                .unwrap();
+        });
+    }
+
     fn config_with_editable_file_soft_limit(limit: u64) -> Config {
         Config {
             limits: Limits {
@@ -5220,6 +5315,72 @@ key.app.help = F10
             "dun-cli-test-{}-{unique}-{name}",
             std::process::id()
         ))
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    struct LargeFilePerfFixture {
+        bytes: usize,
+        lines: usize,
+        error_lines: usize,
+    }
+
+    fn large_file_perf_target_bytes() -> usize {
+        perf_env_usize("DUN_PERF_LARGE_FILE_BYTES").unwrap_or(8 * 1024 * 1024)
+    }
+
+    fn large_line_perf_target_bytes() -> usize {
+        perf_env_usize("DUN_PERF_LONG_LINE_BYTES").unwrap_or(512 * 1024)
+    }
+
+    fn perf_env_usize(name: &str) -> Option<usize> {
+        let value = std::env::var(name).ok()?.parse().ok()?;
+        (value > 0).then_some(value)
+    }
+
+    fn write_large_file_perf_fixture(path: &Path, target_bytes: usize) -> LargeFilePerfFixture {
+        let mut file = std::fs::File::create(path).unwrap();
+        let mut bytes = 0;
+        let mut lines = 0;
+        let mut error_lines = 0;
+
+        while bytes < target_bytes {
+            if lines > 0 {
+                file.write_all(b"\n").unwrap();
+                bytes += 1;
+            }
+
+            let line = if lines % 257 == 0 {
+                error_lines += 1;
+                format!(
+                    "ERROR service=api shard={:04} request_id={:08x} message=slow backend response",
+                    lines % 4096,
+                    lines
+                )
+            } else {
+                format!(
+                    "INFO service=api shard={:04} request_id={:08x} message=heartbeat ok",
+                    lines % 4096,
+                    lines
+                )
+            };
+            file.write_all(line.as_bytes()).unwrap();
+            bytes += line.len();
+            lines += 1;
+        }
+
+        LargeFilePerfFixture {
+            bytes,
+            lines,
+            error_lines,
+        }
+    }
+
+    fn measure_large_file_perf<T>(label: &str, action: impl FnOnce() -> T) -> T {
+        let started = Instant::now();
+        let output = action();
+        let elapsed = started.elapsed();
+        eprintln!("large_file_perf {label}: {} ms", elapsed.as_millis());
+        output
     }
 
     fn atomic_temp_files_for(path: &Path) -> Vec<PathBuf> {
