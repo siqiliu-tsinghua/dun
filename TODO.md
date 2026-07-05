@@ -82,6 +82,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Apply editor commands to the focused buffer/window.
 - [x] Add runtime config reload command.
 - [x] Add config diagnostics screen.
+- [x] Add command-line prompt baseline.
 - [x] Add interactive status-line prompts for open, save-as, and find entry.
 - [x] Route printable text input into the focused buffer.
 - [x] Track pending multi-stroke key sequences.

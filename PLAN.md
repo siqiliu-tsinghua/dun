@@ -176,6 +176,7 @@ Goal: reach a practical Microsoft Edit-like baseline.
 - [x] Search and replace baseline.
 - [x] Go to line.
 - [x] File open/save-as dialogs or command-line equivalents.
+- [x] Command-line prompt baseline.
 - [x] Unsaved changes confirmation.
 - [x] Error log/status history baseline.
 - [x] Help/key reference screen.

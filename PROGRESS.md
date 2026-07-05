@@ -236,3 +236,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   profile, theme, limits, glyph mode, and the active keymap.
 - Added CLI tests for opening Config Diagnostics, F6 dispatch, and diagnostics
   refresh after runtime config reload.
+- Added a command-line prompt baseline on `AppCommand::CommandLine` (`Ctrl+P`
+  by default). It supports help/config/status/reload/quit, open/save/save-as,
+  new/close, find/replace, go-to-line, command listing, simple quotes, and
+  backslash escapes.
+- Added CLI tests for command prompt dispatch, quoted file paths, dirty-buffer
+  open protection, unknown commands, and parser errors.

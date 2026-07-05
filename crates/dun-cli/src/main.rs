@@ -584,7 +584,7 @@ impl AppState {
                 self.should_quit = true;
             }
             AppCommand::CommandLine => {
-                self.set_status("Command line is not implemented yet");
+                self.start_prompt(PromptKind::CommandLine, String::new());
             }
         }
     }
@@ -1213,6 +1213,12 @@ impl AppState {
             .map(|window| window.buffer_id)
     }
 
+    fn focused_buffer_is_dirty(&self) -> bool {
+        self.focused_buffer_id()
+            .and_then(|buffer_id| self.buffer_state(buffer_id))
+            .is_some_and(|buffer| buffer.buffer.is_dirty())
+    }
+
     fn buffer_state(&self, id: BufferId) -> Option<&BufferState> {
         self.buffers.iter().find(|buffer| buffer.id == id)
     }
@@ -1490,6 +1496,132 @@ impl AppState {
 
                 self.go_to_line(input);
             }
+            PromptKind::CommandLine => {
+                let input = prompt.input.trim();
+                if input.is_empty() {
+                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    return;
+                }
+
+                self.run_command_line(input);
+            }
+        }
+    }
+
+    fn run_command_line(&mut self, input: &str) {
+        let tokens = match parse_command_line(input) {
+            Ok(tokens) => tokens,
+            Err(error) => {
+                self.set_status(format!(
+                    "Command failed: {}",
+                    command_line_parse_error_text(error)
+                ));
+                return;
+            }
+        };
+        let Some((command, args)) = tokens.split_first() else {
+            self.set_status("Command cancelled");
+            return;
+        };
+
+        match normalize_command_line_token(command).as_str() {
+            "help" | "h" | "?" => self.open_help_screen(),
+            "config" | "diagnostics" | "configdiagnostics" => self.open_config_diagnostics_screen(),
+            "reload" | "reloadconfig" => self.reload_config(),
+            "status" | "statushistory" => self.open_status_history_screen(),
+            "quit" | "q" => self.handle_app_command(&AppCommand::Quit),
+            "open" | "o" => self.run_open_command(args),
+            "save" | "write" | "w" => self.run_save_command(args),
+            "saveas" | "writeas" => self.run_save_as_command(args),
+            "new" => self.run_no_arg_command(args, EditorCommand::File(FileCommand::New)),
+            "close" => self.run_no_arg_command(args, EditorCommand::File(FileCommand::Close)),
+            "find" => self.run_find_command(args),
+            "replace" => self.run_replace_command(args),
+            "goto" | "gotoline" | "line" => self.run_go_to_line_command(args),
+            "commands" => self.set_status(COMMAND_LINE_HELP),
+            _ => self.set_status(format!("Unknown command: {command}")),
+        }
+    }
+
+    fn run_open_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.handle_file_command(&FileCommand::Open),
+            [path] => {
+                if self.focused_buffer_is_dirty() {
+                    self.set_status("Open failed: focused buffer has unsaved changes");
+                    return;
+                }
+                if let Err(error) = self.open_file_path(PathBuf::from(path)) {
+                    self.set_status(format!("Open failed: {error}"));
+                }
+            }
+            _ => self.set_status("Command failed: open expects zero or one path"),
+        }
+    }
+
+    fn run_save_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.handle_file_command(&FileCommand::Save),
+            [path] => {
+                if let Err(error) = self.save_focused_buffer_as(PathBuf::from(path)) {
+                    self.set_status(format!("Save As failed: {error}"));
+                }
+            }
+            _ => self.set_status("Command failed: save expects zero or one path"),
+        }
+    }
+
+    fn run_save_as_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.handle_file_command(&FileCommand::SaveAs),
+            [path] => {
+                if let Err(error) = self.save_focused_buffer_as(PathBuf::from(path)) {
+                    self.set_status(format!("Save As failed: {error}"));
+                }
+            }
+            _ => self.set_status("Command failed: save-as expects zero or one path"),
+        }
+    }
+
+    fn run_no_arg_command(&mut self, args: &[String], command: EditorCommand) {
+        if !args.is_empty() {
+            self.set_status(format!(
+                "Command failed: {} expects no arguments",
+                command_id(&command)
+            ));
+            return;
+        }
+
+        self.handle_command(&command);
+    }
+
+    fn run_find_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.handle_edit_command(&EditCommand::Find),
+            [query] => {
+                self.last_find_query = Some(query.clone());
+                self.find_in_focused_buffer(query, SearchDirection::Forward);
+            }
+            _ => self.set_status("Command failed: find expects zero or one query"),
+        }
+    }
+
+    fn run_replace_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.handle_edit_command(&EditCommand::Replace),
+            [query, replacement] => {
+                self.last_find_query = Some(query.clone());
+                self.replace_in_focused_buffer(query, replacement);
+            }
+            _ => self.set_status("Command failed: replace expects query and replacement"),
+        }
+    }
+
+    fn run_go_to_line_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.handle_edit_command(&EditCommand::GoToLine),
+            [line] => self.go_to_line(line),
+            _ => self.set_status("Command failed: go-to-line expects one line number"),
         }
     }
 
@@ -1820,6 +1952,7 @@ impl PromptState {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PromptKind {
+    CommandLine,
     Open,
     SaveAs,
     Find,
@@ -1831,6 +1964,7 @@ enum PromptKind {
 impl PromptKind {
     const fn label(self) -> &'static str {
         match self {
+            Self::CommandLine => "Command: ",
             Self::Open => "Open: ",
             Self::SaveAs => "Save As: ",
             Self::Find => "Find: ",
@@ -1842,6 +1976,7 @@ impl PromptKind {
 
     const fn name(self) -> &'static str {
         match self {
+            Self::CommandLine => "Command",
             Self::Open => "Open",
             Self::SaveAs => "Save As",
             Self::Find => "Find",
@@ -1867,6 +2002,91 @@ enum PendingAction {
     New,
     OpenPrompt,
     CloseWindow,
+}
+
+const COMMAND_LINE_HELP: &str =
+    "Commands: help, config, status, reload-config, open [path], save [path], save-as [path], quit";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CommandLineParseError {
+    TrailingEscape,
+    UnclosedQuote,
+}
+
+fn parse_command_line(input: &str) -> Result<Vec<String>, CommandLineParseError> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+    let mut token_started = false;
+
+    for ch in input.chars() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+
+        if ch == '\\' {
+            escaped = true;
+            token_started = true;
+            continue;
+        }
+
+        if let Some(quote_char) = quote {
+            if ch == quote_char {
+                quote = None;
+            } else {
+                current.push(ch);
+            }
+            continue;
+        }
+
+        match ch {
+            '\'' | '"' => {
+                quote = Some(ch);
+                token_started = true;
+            }
+            ch if ch.is_whitespace() => {
+                if token_started {
+                    tokens.push(std::mem::take(&mut current));
+                    token_started = false;
+                }
+            }
+            _ => {
+                current.push(ch);
+                token_started = true;
+            }
+        }
+    }
+
+    if escaped {
+        return Err(CommandLineParseError::TrailingEscape);
+    }
+    if quote.is_some() {
+        return Err(CommandLineParseError::UnclosedQuote);
+    }
+    if token_started {
+        tokens.push(current);
+    }
+
+    Ok(tokens)
+}
+
+fn command_line_parse_error_text(error: CommandLineParseError) -> &'static str {
+    match error {
+        CommandLineParseError::TrailingEscape => "trailing escape",
+        CommandLineParseError::UnclosedQuote => "unclosed quote",
+    }
+}
+
+fn normalize_command_line_token(input: &str) -> String {
+    input
+        .trim()
+        .chars()
+        .filter(|ch| *ch != '-' && *ch != '_' && !ch.is_whitespace())
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2240,7 +2460,7 @@ fn help_text(keymap: &Keymap) -> String {
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n\n",
     );
     out.push_str(
-        "Notes\n  Help opens as a read-only tiled window.\n  Dirty buffers ask for confirmation before changes are discarded.\n",
+        "Notes\n  Type commands in the command prompt to list command-line actions.\n  Help opens as a read-only tiled window.\n  Dirty buffers ask for confirmation before changes are discarded.\n",
     );
 
     out
@@ -3014,6 +3234,117 @@ key.window.close = none
         assert_eq!(
             app.workspace.focused_window().unwrap().kind,
             WindowKind::ConfigDiagnostics
+        );
+    }
+
+    #[test]
+    fn command_line_prompt_dispatches_app_commands() {
+        let mut app = AppState::new();
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('p'), CrosstermKeyModifiers::CONTROL),
+        );
+        assert_eq!(app.prompt_status_text(), Some("Command: ".to_string()));
+
+        send_text(&mut app, "help");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Help
+        );
+
+        submit_command_line(&mut app, "config");
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::ConfigDiagnostics
+        );
+    }
+
+    #[test]
+    fn command_line_runs_file_commands_with_quoted_paths() {
+        let save_path = temp_file_path("command save.txt");
+        let open_path = temp_file_path("command open.txt");
+        std::fs::write(&open_path, "opened").unwrap();
+        let mut app = AppState::new();
+
+        app.handle_text_input('x');
+        submit_command_line(&mut app, &format!("save-as \"{}\"", save_path.display()));
+
+        assert_eq!(std::fs::read_to_string(&save_path).unwrap(), "x");
+        assert_eq!(
+            app.status_message,
+            Some(format!("Saved {}", save_path.display()))
+        );
+
+        submit_command_line(&mut app, "new");
+        submit_command_line(&mut app, &format!("open \"{}\"", open_path.display()));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "opened");
+        assert_eq!(state.path.as_ref(), Some(&open_path));
+
+        let _ = std::fs::remove_file(save_path);
+        let _ = std::fs::remove_file(open_path);
+    }
+
+    #[test]
+    fn command_line_open_path_refuses_dirty_focused_buffer() {
+        let path = temp_file_path("command-open-dirty.txt");
+        std::fs::write(&path, "opened").unwrap();
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+
+        submit_command_line(&mut app, &format!("open {}", path.display()));
+
+        assert_eq!(
+            app.status_message,
+            Some("Open failed: focused buffer has unsaved changes".to_string())
+        );
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "x");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn command_line_reports_unknown_and_parse_errors() {
+        let mut app = AppState::new();
+
+        submit_command_line(&mut app, "wat");
+        assert_eq!(app.status_message, Some("Unknown command: wat".to_string()));
+
+        submit_command_line(&mut app, "open \"unterminated");
+        assert_eq!(
+            app.status_message,
+            Some("Command failed: unclosed quote".to_string())
+        );
+    }
+
+    #[test]
+    fn command_line_parser_handles_quotes_and_escapes() {
+        assert_eq!(
+            parse_command_line("open \"a b\" save\\ path").unwrap(),
+            vec![
+                "open".to_string(),
+                "a b".to_string(),
+                "save path".to_string()
+            ]
+        );
+        assert_eq!(
+            parse_command_line("replace one \"\"").unwrap(),
+            vec!["replace".to_string(), "one".to_string(), String::new()]
+        );
+        assert_eq!(
+            parse_command_line("open \"unterminated"),
+            Err(CommandLineParseError::UnclosedQuote)
+        );
+        assert_eq!(
+            parse_command_line("open path\\"),
+            Err(CommandLineParseError::TrailingEscape)
         );
     }
 
@@ -4096,6 +4427,15 @@ key.app.help = F10
                 CrosstermKeyEvent::new(CrosstermKeyCode::Char(ch), CrosstermKeyModifiers::NONE),
             );
         }
+    }
+
+    fn submit_command_line(app: &mut AppState, text: &str) {
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(app, text);
+        handle_key_event(
+            app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
     }
 
     fn app_with_text(text: &str) -> AppState {
