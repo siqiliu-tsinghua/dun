@@ -1776,6 +1776,8 @@ impl AppState {
             CrosstermKeyCode::Enter => self.submit_file_dialog(),
             CrosstermKeyCode::Up => self.move_file_dialog_selection(-1),
             CrosstermKeyCode::Down => self.move_file_dialog_selection(1),
+            CrosstermKeyCode::PageUp => self.page_file_dialog_selection(-1),
+            CrosstermKeyCode::PageDown => self.page_file_dialog_selection(1),
             CrosstermKeyCode::Tab => self.complete_file_dialog(true),
             CrosstermKeyCode::BackTab => self.complete_file_dialog(false),
             CrosstermKeyCode::Backspace => {
@@ -1806,6 +1808,18 @@ impl AppState {
     fn move_file_dialog_selection(&mut self, delta: isize) {
         if let Some(dialog) = &mut self.file_dialog {
             dialog.move_selection(delta);
+        }
+    }
+
+    fn page_file_dialog_selection(&mut self, delta: isize) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.page_selection(delta);
+        }
+    }
+
+    fn scroll_file_dialog(&mut self, delta: isize) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.scroll(delta);
         }
     }
 
@@ -2596,6 +2610,7 @@ struct FileDialogState {
     input: String,
     entries: Vec<FileDialogEntry>,
     selected_index: Option<usize>,
+    scroll_offset: usize,
     selection_touched: bool,
     message: Option<String>,
     after_success: Option<PendingAction>,
@@ -2608,6 +2623,7 @@ impl FileDialogState {
             input,
             entries: Vec::new(),
             selected_index: None,
+            scroll_offset: 0,
             selection_touched: false,
             message: None,
             after_success,
@@ -2634,18 +2650,14 @@ impl FileDialogState {
                 .unwrap_or_else(|| self.kind.help_text().to_string()),
         ];
         if self.entries.len() > FILE_DIALOG_VISIBLE_ENTRIES {
-            let selected = self.selected_index.unwrap_or(0);
-            let first = selected
-                .saturating_sub(FILE_DIALOG_VISIBLE_ENTRIES.saturating_sub(1))
-                .saturating_add(1);
-            let last = first
-                .saturating_add(FILE_DIALOG_VISIBLE_ENTRIES)
-                .saturating_sub(1)
-                .min(self.entries.len());
-            lines.push(format!(
-                "Showing {first}-{last} of {} matches",
-                self.entries.len()
-            ));
+            if let Some((start, end, _)) = self.visible_entry_range() {
+                lines.push(format!(
+                    "Showing {}-{} of {} matches",
+                    start + 1,
+                    end,
+                    self.entries.len()
+                ));
+            }
         }
 
         let (list, selected) = self.visible_entry_texts();
@@ -2670,12 +2682,14 @@ impl FileDialogState {
                 } else {
                     Some(0)
                 };
+                self.scroll_offset = 0;
                 self.selection_touched = false;
                 self.message = None;
             }
             Err(error) => {
                 self.entries.clear();
                 self.selected_index = None;
+                self.scroll_offset = 0;
                 self.selection_touched = false;
                 self.message = Some(format!(
                     "Cannot list {}: {}",
@@ -2694,7 +2708,12 @@ impl FileDialogState {
             .iter()
             .map(FileDialogEntry::display_text)
             .collect::<Vec<_>>();
-        (list, Some(selected.saturating_sub(start)))
+        let selected = if (start..end).contains(&selected) {
+            Some(selected - start)
+        } else {
+            None
+        };
+        (list, selected)
     }
 
     fn visible_entry_range(&self) -> Option<(usize, usize, usize)> {
@@ -2705,8 +2724,8 @@ impl FileDialogState {
         let selected = self
             .selected_index
             .filter(|index| *index < self.entries.len())
-            .unwrap_or(0);
-        let start = selected.saturating_sub(FILE_DIALOG_VISIBLE_ENTRIES.saturating_sub(1));
+            .unwrap_or_else(|| self.scroll_offset.min(self.entries.len().saturating_sub(1)));
+        let start = self.scroll_offset.min(self.max_scroll_offset());
         let end = start
             .saturating_add(FILE_DIALOG_VISIBLE_ENTRIES)
             .min(self.entries.len());
@@ -2719,6 +2738,49 @@ impl FileDialogState {
         (index < end).then_some(index)
     }
 
+    fn max_scroll_offset(&self) -> usize {
+        self.entries
+            .len()
+            .saturating_sub(FILE_DIALOG_VISIBLE_ENTRIES)
+    }
+
+    fn ensure_selection_visible(&mut self) {
+        let Some(selected) = self.selected_index else {
+            self.scroll_offset = self.scroll_offset.min(self.max_scroll_offset());
+            return;
+        };
+
+        if selected < self.scroll_offset {
+            self.scroll_offset = selected;
+        } else {
+            let visible_end = self
+                .scroll_offset
+                .saturating_add(FILE_DIALOG_VISIBLE_ENTRIES);
+            if selected >= visible_end {
+                self.scroll_offset = selected
+                    .saturating_add(1)
+                    .saturating_sub(FILE_DIALOG_VISIBLE_ENTRIES);
+            }
+        }
+        self.scroll_offset = self.scroll_offset.min(self.max_scroll_offset());
+    }
+
+    fn clamp_selection_to_visible_range(&mut self) {
+        if self.entries.is_empty() {
+            self.selected_index = None;
+            self.scroll_offset = 0;
+            return;
+        }
+
+        self.scroll_offset = self.scroll_offset.min(self.max_scroll_offset());
+        let start = self.scroll_offset;
+        let end = start
+            .saturating_add(FILE_DIALOG_VISIBLE_ENTRIES)
+            .min(self.entries.len());
+        let selected = self.selected_index.unwrap_or(start);
+        self.selected_index = Some(selected.clamp(start, end.saturating_sub(1)));
+    }
+
     fn move_selection(&mut self, delta: isize) {
         if self.entries.is_empty() {
             self.selected_index = None;
@@ -2728,6 +2790,42 @@ impl FileDialogState {
 
         let current = self.selected_index.unwrap_or(0);
         self.selected_index = Some(wrapping_index(current, self.entries.len(), delta));
+        self.ensure_selection_visible();
+        self.selection_touched = true;
+        self.message = None;
+    }
+
+    fn page_selection(&mut self, delta: isize) {
+        if self.entries.is_empty() {
+            self.selected_index = None;
+            self.scroll_offset = 0;
+            self.message = Some("No matches".to_string());
+            return;
+        }
+
+        let current = self.selected_index.unwrap_or(0);
+        let page = FILE_DIALOG_VISIBLE_ENTRIES.saturating_sub(1).max(1) as isize;
+        let next = current
+            .saturating_add_signed(delta.saturating_mul(page))
+            .min(self.entries.len().saturating_sub(1));
+        self.selected_index = Some(next);
+        self.ensure_selection_visible();
+        self.selection_touched = true;
+        self.message = None;
+    }
+
+    fn scroll(&mut self, delta: isize) {
+        if self.entries.is_empty() {
+            self.selected_index = None;
+            self.scroll_offset = 0;
+            return;
+        }
+
+        self.scroll_offset = self
+            .scroll_offset
+            .saturating_add_signed(delta)
+            .min(self.max_scroll_offset());
+        self.clamp_selection_to_visible_range();
         self.selection_touched = true;
         self.message = None;
     }
@@ -3347,6 +3445,12 @@ fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
             CrosstermMouseEventKind::Down(CrosstermMouseButton::Left) => {
                 app.handle_file_dialog_mouse_down(event.column, event.row);
             }
+            CrosstermMouseEventKind::ScrollUp => {
+                app.scroll_file_dialog(-1);
+            }
+            CrosstermMouseEventKind::ScrollDown => {
+                app.scroll_file_dialog(1);
+            }
             CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
                 app.handle_mouse_up();
             }
@@ -3664,7 +3768,7 @@ fn help_text(keymap: &Keymap) -> String {
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
     );
     out.push_str(
-        "File Dialogs\n  Enter           Open/save selected path\n  Esc             Cancel dialog\n  Tab             Complete path\n  Up/Down         Move file selection\n  Mouse click     Select list entry when mouse is enabled\n\n",
+        "File Dialogs\n  Enter           Open/save selected path\n  Esc             Cancel dialog\n  Tab             Complete path\n  Up/Down         Move file selection\n  PageUp/PageDown Page file selection\n  Mouse click     Select list entry when mouse is enabled\n  Mouse wheel     Scroll list when mouse is enabled\n\n",
     );
     out.push_str(
         "Menus\n  Alt+F/E/V/H     Open File/Edit/View/Help menu\n  Left/Right      Switch open menu\n  Up/Down         Move menu selection\n  Enter           Run selected menu command\n  Esc             Close open menu\n\n",
@@ -4413,6 +4517,15 @@ mod tests {
     fn left_up(column: u16, row: u16) -> CrosstermMouseEvent {
         CrosstermMouseEvent {
             kind: CrosstermMouseEventKind::Up(CrosstermMouseButton::Left),
+            column,
+            row,
+            modifiers: CrosstermKeyModifiers::NONE,
+        }
+    }
+
+    fn scroll_down(column: u16, row: u16) -> CrosstermMouseEvent {
+        CrosstermMouseEvent {
+            kind: CrosstermMouseEventKind::ScrollDown,
             column,
             row,
             modifiers: CrosstermKeyModifiers::NONE,
@@ -6046,6 +6159,112 @@ key.app.help = F10
     }
 
     #[test]
+    fn open_dialog_page_keys_move_selection_and_scroll() {
+        let directory = temp_file_path("open-dialog-page");
+        std::fs::create_dir(&directory).unwrap();
+        for index in 0..20 {
+            std::fs::write(
+                directory.join(format!("item{index:02}.txt")),
+                format!("item{index:02}"),
+            )
+            .unwrap();
+        }
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", directory.display()));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::PageDown, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.file_dialog
+                .as_ref()
+                .and_then(|dialog| dialog.selected_index),
+            Some(11)
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::PageDown, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.file_dialog
+                .as_ref()
+                .and_then(|dialog| dialog.selected_index),
+            Some(19)
+        );
+        assert_eq!(
+            app.file_dialog.as_ref().map(|dialog| dialog.scroll_offset),
+            Some(8)
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::PageUp, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.file_dialog
+                .as_ref()
+                .and_then(|dialog| dialog.selected_index),
+            Some(8)
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::PageUp, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.file_dialog
+                .as_ref()
+                .and_then(|dialog| dialog.selected_index),
+            Some(0)
+        );
+        assert_eq!(
+            app.file_dialog.as_ref().map(|dialog| dialog.scroll_offset),
+            Some(0)
+        );
+
+        for index in 0..20 {
+            let _ = std::fs::remove_file(directory.join(format!("item{index:02}.txt")));
+        }
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn mouse_wheel_scroll_changes_file_dialog_click_target() {
+        let directory = temp_file_path("open-dialog-wheel");
+        std::fs::create_dir(&directory).unwrap();
+        for index in 0..14 {
+            std::fs::write(
+                directory.join(format!("item{index:02}.txt")),
+                format!("item{index:02}"),
+            )
+            .unwrap();
+        }
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 90, 14));
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", directory.display()));
+        handle_mouse_event(&mut app, scroll_down(20, 8));
+        assert_eq!(
+            app.file_dialog.as_ref().map(|dialog| dialog.scroll_offset),
+            Some(1)
+        );
+        let (x, y) = file_dialog_list_point(&app, 0);
+        handle_mouse_event(&mut app, left_click(x, y));
+
+        let path = directory.join("item01.txt");
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "item01");
+        assert_eq!(state.path.as_ref(), Some(&path));
+
+        for index in 0..14 {
+            let _ = std::fs::remove_file(directory.join(format!("item{index:02}.txt")));
+        }
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
     fn mouse_click_open_dialog_file_opens_selected_file() {
         let directory = temp_file_path("open-dialog-mouse-file");
         let first = directory.join("a.txt");
@@ -7263,6 +7482,18 @@ key.app.help = F10
             app,
             CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
         );
+    }
+
+    fn file_dialog_list_point(app: &AppState, visible_index: usize) -> (u16, u16) {
+        let overlay = app.active_overlay().expect("file dialog overlay");
+        let area = app.overlay_area();
+        for y in 0..area.height {
+            if app.shell.hit_test_overlay_list(&overlay, area, 20, y) == Some(visible_index) {
+                return (20, y);
+            }
+        }
+
+        panic!("visible file dialog row {visible_index} was not hittable");
     }
 
     fn app_with_text(text: &str) -> AppState {

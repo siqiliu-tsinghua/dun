@@ -166,8 +166,8 @@ Editing:
 - `Ctrl+O` and `Ctrl+Shift+S` open modal file dialogs with a path input and
   directory match list.
 - In file dialogs, printable text edits the path, Tab completes a unique or
-  common path prefix, Up/Down moves the visible match selection, Enter opens or
-  saves, and Esc cancels.
+  common path prefix, Up/Down moves the visible match selection,
+  PageUp/PageDown moves by a page, Enter opens or saves, and Esc cancels.
 - `Ctrl+P` opens the command prompt, and Up/Down recall command history.
 - Dirty buffers ask for confirmation before quit, new, open, or close.
 
@@ -203,8 +203,9 @@ Low-capability expectations:
   focus, cursor placement, selection drag, split drag, top-menu dropdowns, and
   submenu clicks should work in capable terminals. Open/Save As file dialog
   list clicks should enter directories; Open should open files, and Save As
-  should only update the path input. Mouse support is not required for passing
-  the matrix.
+  should only update the path input. Mouse wheel events should scroll file
+  dialog lists when delivered by the terminal. Mouse support is not required
+  for passing the matrix.
 - `Alt+F`, `Alt+E`, `Alt+V`, and `Alt+H` should open the grouped menus where
   the terminal sends Alt-modified character keys. If a terminal or KVM cannot
   deliver those strokes, command-line prompt and direct command keybindings

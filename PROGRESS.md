@@ -383,3 +383,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   exposes overlay list-row hit testing, and `dun-cli` maps file dialog clicks
   to directory navigation, Open file submission, or Save As path-input updates
   without adding direct mouse-driven file I/O paths.
+- Added file dialog list scrolling and page navigation. File dialogs now keep
+  an explicit scroll offset, PageUp/PageDown move selection by page, mouse
+  wheel events scroll the list, and click hit testing follows the scrolled
+  visible range.

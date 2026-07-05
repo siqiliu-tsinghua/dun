@@ -69,7 +69,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add larger Open/Save As file dialog baseline after lightweight modals.
 - [x] Add Tab path completion to the Open/Save As file dialog baseline.
 - [x] Add mouse hit testing for file dialog entries.
-- [ ] Add file dialog list scrolling and PageUp/PageDown navigation.
+- [x] Add file dialog list scrolling and PageUp/PageDown navigation.
+- [ ] Add parent-directory and hidden-file polish to file dialogs.
 
 ## `dun-config`
 

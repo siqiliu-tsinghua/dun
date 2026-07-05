@@ -248,6 +248,8 @@ Current mouse baseline:
 - clicking a submenu item dispatches its existing `EditorCommand`;
 - clicking an Open/Save As file dialog list entry enters directories; in Open
   it opens files, while in Save As it updates the path input without saving;
+- mouse wheel events scroll Open/Save As file dialog lists when the terminal
+  delivers them;
 - pressing `Esc` closes an open menu before normal keymap dispatch;
 - clicks in the status area do nothing.
 
@@ -269,8 +271,8 @@ Paste policy:
   terminal controls or editor commands;
 - prompts may accept pasted text, but paste must not auto-submit a prompt;
 - Open/Save As file dialogs use Rust-owned directory listing and Tab path
-  completion, while all actual open/save file operations still go through the
-  same validated editor file I/O paths;
+  completion plus PageUp/PageDown list navigation, while all actual open/save
+  file operations still go through the same validated editor file I/O paths;
 - external clipboard commands and OSC 52 clipboard writes are out of scope for
   the baseline.
 
