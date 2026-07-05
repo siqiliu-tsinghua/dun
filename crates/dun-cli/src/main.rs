@@ -26,8 +26,9 @@ use dun_config::{
 };
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
-    FileCommand, FileTextEncoding, LineEnding, Position, Rect, SearchMatch, SplitDragHandle,
-    TextBuffer, WindowCommand, WindowId, WindowKind, Workspace, WorkspaceError, decode_file_text,
+    FileCommand, FileTextEncoding, LineEnding, Position, Rect, SearchMatch, Selection,
+    SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind, Workspace, WorkspaceError,
+    decode_file_text,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
 use dun_ui::{BufferView, MenuSelection, UiMouseTarget, UiOverlay, UiShell};
@@ -468,6 +469,7 @@ struct AppState {
     prompt: Option<PromptState>,
     file_dialog: Option<FileDialogState>,
     confirm: Option<ConfirmState>,
+    replace_confirm: Option<ReplaceConfirmState>,
     status_history: Vec<StatusEntry>,
     command_history: Vec<String>,
     last_find_query: Option<String>,
@@ -519,6 +521,7 @@ impl AppState {
             prompt: None,
             file_dialog: None,
             confirm: None,
+            replace_confirm: None,
             status_history: Vec::new(),
             command_history: Vec::new(),
             last_find_query: None,
@@ -739,15 +742,24 @@ impl AppState {
         }
 
         self.pending_keys.clear();
-        if let UiMouseTarget::Body(position) = hit.target {
-            if let Some(buffer) = self.buffer_state_mut(hit.buffer_id) {
-                let _ = buffer.buffer.set_cursor(position);
+        match hit.target {
+            UiMouseTarget::Body(position) => {
+                if let Some(buffer) = self.buffer_state_mut(hit.buffer_id) {
+                    let _ = buffer.buffer.set_cursor(position);
+                }
+                self.mouse_drag = Some(MouseDragState::Selection {
+                    buffer_id: hit.buffer_id,
+                    anchor: position,
+                });
+                self.sync_view_for_area(self.workspace_area);
             }
-            self.mouse_drag = Some(MouseDragState::Selection {
-                buffer_id: hit.buffer_id,
-                anchor: position,
-            });
-            self.sync_view_for_area(self.workspace_area);
+            UiMouseTarget::Scrollbar { first_line } => {
+                self.scroll_buffer_to_line(hit.buffer_id, first_line);
+                self.mouse_drag = Some(MouseDragState::Scrollbar {
+                    buffer_id: hit.buffer_id,
+                });
+            }
+            UiMouseTarget::Chrome | UiMouseTarget::Gutter => {}
         }
 
         true
@@ -780,6 +792,9 @@ impl AppState {
                 } else {
                     false
                 }
+            }
+            MouseDragState::Scrollbar { buffer_id } => {
+                self.update_scrollbar_drag(buffer_id, screen_x, screen_y)
             }
         }
     }
@@ -879,6 +894,44 @@ impl AppState {
         self.pending_keys.clear();
         self.buffer_state_mut(buffer_id).is_some_and(|buffer| {
             let moved = buffer.scroll_view_lines(delta, context.body_height);
+            buffer.ensure_cursor_column_visible(context.body_width);
+            moved
+        })
+    }
+
+    fn update_scrollbar_drag(&mut self, buffer_id: BufferId, screen_x: u16, screen_y: u16) -> bool {
+        let Some((x, y)) = self.clamped_workspace_point_from_screen(screen_x, screen_y) else {
+            return false;
+        };
+        let hit = {
+            let buffer_views = self.buffer_views();
+            self.shell
+                .hit_test_workspace(&self.workspace, self.workspace_area, &buffer_views, x, y)
+        };
+        let Some(hit) = hit else {
+            return false;
+        };
+        if hit.buffer_id != buffer_id {
+            return false;
+        }
+        let UiMouseTarget::Scrollbar { first_line } = hit.target else {
+            return false;
+        };
+
+        self.scroll_buffer_to_line(buffer_id, first_line)
+    }
+
+    fn scroll_buffer_to_line(&mut self, buffer_id: BufferId, first_line: usize) -> bool {
+        let context = self
+            .buffer_view_context(buffer_id, self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        self.pending_keys.clear();
+        self.buffer_state_mut(buffer_id).is_some_and(|buffer| {
+            let moved = buffer.scroll_view_to_line(first_line, context.body_height);
             buffer.ensure_cursor_column_visible(context.body_width);
             moved
         })
@@ -2004,10 +2057,111 @@ impl AppState {
         self.status_message = None;
         self.confirm = None;
         self.file_dialog = None;
+        self.replace_confirm = None;
         if !matches!(kind, PromptKind::ReplaceWith) {
             self.pending_replace_query = None;
         }
-        self.prompt = Some(PromptState::new(kind, initial_input));
+        let preview = self.prompt_preview_for(kind);
+        self.prompt = Some(PromptState::new(kind, initial_input, preview));
+        self.refresh_prompt_preview();
+    }
+
+    fn prompt_preview_for(&self, kind: PromptKind) -> Option<PromptPreviewState> {
+        if !matches!(kind, PromptKind::Find | PromptKind::ReplaceFind) {
+            return None;
+        }
+
+        let buffer_id = self.focused_buffer_id()?;
+        let buffer = self.buffer_state(buffer_id)?;
+        Some(PromptPreviewState {
+            buffer_id,
+            cursor: buffer.buffer.cursor_position(),
+            selection: buffer.buffer.selection(),
+            search: buffer.search.clone(),
+        })
+    }
+
+    fn refresh_prompt_preview(&mut self) {
+        let Some(prompt) = &self.prompt else {
+            return;
+        };
+        if !matches!(prompt.kind, PromptKind::Find | PromptKind::ReplaceFind) {
+            return;
+        }
+
+        let kind = prompt.kind;
+        let input = prompt.input.as_str().trim().to_string();
+        let preview = prompt.preview.clone();
+        if input.is_empty() {
+            self.restore_prompt_preview(preview.as_ref());
+            self.status_message = Some(format!("{}type to search", kind.label()));
+            return;
+        }
+
+        self.preview_find_query(kind, &input, preview.as_ref());
+    }
+
+    fn preview_find_query(
+        &mut self,
+        kind: PromptKind,
+        query: &str,
+        preview: Option<&PromptPreviewState>,
+    ) {
+        let buffer_id = preview
+            .map(|preview| preview.buffer_id)
+            .or_else(|| self.focused_buffer_id());
+        let Some(buffer_id) = buffer_id else {
+            self.status_message = Some(format!("{}focused buffer is missing", kind.name()));
+            return;
+        };
+        self.focus_window_for_buffer(buffer_id);
+
+        let Some(buffer) = self.buffer_state_mut(buffer_id) else {
+            self.status_message = Some(format!("{}focused buffer is missing", kind.name()));
+            return;
+        };
+        let matches = buffer.buffer.find_all(query);
+        if matches.is_empty() {
+            buffer.buffer.clear_selection();
+            buffer.set_search(query.to_string(), matches, None);
+            self.status_message = Some(format!("{}no matches for {query}", kind.label()));
+            return;
+        }
+
+        let selection = preview
+            .and_then(|preview| preview_selection_match(preview.selection, &matches))
+            .or_else(|| current_match_selection(&buffer.buffer, &matches))
+            .unwrap_or_else(|| {
+                let origin = preview
+                    .map(|preview| preview.cursor)
+                    .unwrap_or_else(|| buffer.buffer.cursor_position());
+                choose_search_match(&matches, origin, SearchDirection::Forward)
+            });
+        let selected = matches[selection.index].range;
+        let _ = buffer.buffer.select(selected.start, selected.end);
+        let match_count = matches.len();
+        buffer.set_search(query.to_string(), matches, Some(selection.index));
+        self.status_message = Some(format!(
+            "{}{}/{} {query}",
+            kind.label(),
+            selection.index + 1,
+            match_count
+        ));
+    }
+
+    fn restore_prompt_preview(&mut self, preview: Option<&PromptPreviewState>) {
+        let Some(preview) = preview else {
+            return;
+        };
+        let Some(buffer) = self.buffer_state_mut(preview.buffer_id) else {
+            return;
+        };
+        if let Some(selection) = preview.selection {
+            let _ = buffer.buffer.select(selection.anchor, selection.cursor);
+        } else {
+            let _ = buffer.buffer.set_cursor(preview.cursor);
+        }
+        buffer.search = preview.search.clone();
     }
 
     fn start_file_dialog(&mut self, kind: FileDialogKind, initial_input: String) {
@@ -2024,6 +2178,7 @@ impl AppState {
         self.status_message = None;
         self.confirm = None;
         self.prompt = None;
+        self.replace_confirm = None;
         self.pending_replace_query = None;
         self.file_dialog = Some(FileDialogState::new(kind, initial_input, after_success));
     }
@@ -2033,6 +2188,7 @@ impl AppState {
         self.status_message = None;
         self.prompt = None;
         self.file_dialog = None;
+        self.replace_confirm = None;
         self.confirm = Some(ConfirmState { action, buffer_id });
     }
 
@@ -2163,6 +2319,7 @@ impl AppState {
             }
         }
 
+        self.refresh_prompt_preview();
         true
     }
 
@@ -2310,6 +2467,10 @@ impl AppState {
             self.set_status("Paste ignored during confirmation");
             return;
         }
+        if self.replace_confirm.is_some() {
+            self.set_status("Paste ignored during replace confirmation");
+            return;
+        }
 
         if let Some(dialog) = &mut self.file_dialog {
             let text = single_line_paste_text(text);
@@ -2321,6 +2482,7 @@ impl AppState {
             prompt.detach_history();
             let text = single_line_paste_text(text);
             prompt.input.insert_str(&text);
+            self.refresh_prompt_preview();
             return;
         }
 
@@ -2398,6 +2560,7 @@ impl AppState {
             }
         }
 
+        self.refresh_prompt_preview();
         true
     }
 
@@ -2465,6 +2628,7 @@ impl AppState {
 
     fn cancel_prompt(&mut self) {
         if let Some(prompt) = self.prompt.take() {
+            self.restore_prompt_preview(prompt.preview.as_ref());
             if prompt.kind.is_replace() {
                 self.pending_replace_query = None;
             }
@@ -2486,7 +2650,7 @@ impl AppState {
                 }
 
                 self.last_find_query = Some(input.clone());
-                self.find_in_focused_buffer(&input, SearchDirection::Forward);
+                self.commit_find_preview(&input);
             }
             PromptKind::ReplaceFind => {
                 let input = prompt.input.as_str().trim().to_string();
@@ -2506,7 +2670,7 @@ impl AppState {
                 };
 
                 self.last_find_query = Some(query.clone());
-                self.replace_in_focused_buffer(&query, prompt.input.as_str());
+                self.start_replace_confirmation(query, prompt.input.as_str().to_string());
             }
             PromptKind::GoToLine => {
                 let input = prompt.input.as_str().trim();
@@ -2526,6 +2690,269 @@ impl AppState {
 
                 self.record_command_history(input.clone());
                 self.run_command_line(&input);
+            }
+        }
+    }
+
+    fn commit_find_preview(&mut self, query: &str) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Find: focused buffer is missing");
+            return;
+        };
+        let matches = buffer.buffer.find_all(query);
+        if matches.is_empty() {
+            buffer.buffer.clear_selection();
+            buffer.set_search(query.to_string(), matches, None);
+            self.set_status(format!("Find: no matches for {query}"));
+            return;
+        }
+
+        let selection = current_match_selection(&buffer.buffer, &matches).unwrap_or_else(|| {
+            choose_search_match(
+                &matches,
+                buffer.buffer.cursor_position(),
+                SearchDirection::Forward,
+            )
+        });
+        let selected = matches[selection.index].range;
+        let _ = buffer.buffer.select(selected.start, selected.end);
+        let match_count = matches.len();
+        buffer.set_search(query.to_string(), matches, Some(selection.index));
+        self.set_status(format!(
+            "Find: {}/{} {query}",
+            selection.index + 1,
+            match_count
+        ));
+    }
+
+    fn start_replace_confirmation(&mut self, query: String, replacement: String) {
+        if query.is_empty() {
+            self.set_status("Replace: no query");
+            return;
+        }
+
+        let Some(buffer_id) = self.focused_buffer_id() else {
+            self.set_status("Replace: focused buffer is missing");
+            return;
+        };
+        self.replace_confirm = Some(ReplaceConfirmState {
+            buffer_id,
+            query,
+            replacement,
+            replaced: 0,
+            skipped: 0,
+            skipped_in_cycle: 0,
+        });
+        if !self.select_replace_confirm_match(SearchDirection::Forward) {
+            self.replace_confirm = None;
+        }
+    }
+
+    fn handle_replace_confirm_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+        if self.replace_confirm.is_none() {
+            return false;
+        }
+
+        match event.code {
+            CrosstermKeyCode::Esc => self.cancel_replace_confirmation(),
+            CrosstermKeyCode::Enter => self.replace_confirm_current(),
+            CrosstermKeyCode::Char(ch) => match ch.to_ascii_lowercase() {
+                'r' => self.replace_confirm_current(),
+                's' => self.skip_replace_confirm_current(),
+                'a' => self.replace_confirm_all(),
+                'c' => self.cancel_replace_confirmation(),
+                _ => {}
+            },
+            _ => {}
+        }
+
+        true
+    }
+
+    fn cancel_replace_confirmation(&mut self) {
+        let Some(confirm) = self.replace_confirm.take() else {
+            return;
+        };
+        self.set_status(format!(
+            "Replace cancelled: {} replaced, {} skipped",
+            confirm.replaced, confirm.skipped
+        ));
+    }
+
+    fn select_replace_confirm_match(&mut self, direction: SearchDirection) -> bool {
+        let Some(confirm) = self.replace_confirm.clone() else {
+            return false;
+        };
+        self.focus_window_for_buffer(confirm.buffer_id);
+        let Some(buffer) = self.buffer_state_mut(confirm.buffer_id) else {
+            self.set_status("Replace: focused buffer is missing");
+            return false;
+        };
+
+        let matches = buffer.buffer.find_all(&confirm.query);
+        if matches.is_empty() {
+            buffer.buffer.clear_selection();
+            buffer.set_search(confirm.query.clone(), matches, None);
+            if confirm.replaced == 0 && confirm.skipped == 0 {
+                self.set_status(format!("Replace: no matches for {}", confirm.query));
+            } else {
+                self.set_status(format!(
+                    "Replace done: {} replaced, {} skipped",
+                    confirm.replaced, confirm.skipped
+                ));
+            }
+            return false;
+        }
+
+        let selection = current_match_selection(&buffer.buffer, &matches).unwrap_or_else(|| {
+            let origin = match direction {
+                SearchDirection::Forward => buffer
+                    .buffer
+                    .selection_range()
+                    .map(|range| range.end)
+                    .unwrap_or_else(|| buffer.buffer.cursor_position()),
+                SearchDirection::Backward => buffer
+                    .buffer
+                    .selection_range()
+                    .map(|range| range.start)
+                    .unwrap_or_else(|| buffer.buffer.cursor_position()),
+            };
+            choose_search_match(&matches, origin, direction)
+        });
+        let selected = matches[selection.index].range;
+        let _ = buffer.buffer.select(selected.start, selected.end);
+        let match_count = matches.len();
+        buffer.set_search(confirm.query.clone(), matches, Some(selection.index));
+        self.status_message = Some(format!(
+            "Replace confirm: {}/{} {} -> {}",
+            selection.index + 1,
+            match_count,
+            confirm.query,
+            replacement_status_text(&confirm.replacement)
+        ));
+        true
+    }
+
+    fn replace_confirm_current(&mut self) {
+        let Some(mut confirm) = self.replace_confirm.clone() else {
+            return;
+        };
+        self.focus_window_for_buffer(confirm.buffer_id);
+        let Some(buffer) = self.buffer_state_mut(confirm.buffer_id) else {
+            self.set_status("Replace: focused buffer is missing");
+            self.replace_confirm = None;
+            return;
+        };
+
+        let matches = buffer.buffer.find_all(&confirm.query);
+        if matches.is_empty() {
+            buffer.buffer.clear_selection();
+            buffer.set_search(confirm.query.clone(), matches, None);
+            self.set_status(format!(
+                "Replace done: {} replaced, {} skipped",
+                confirm.replaced, confirm.skipped
+            ));
+            self.replace_confirm = None;
+            return;
+        }
+
+        let selection = current_match_selection(&buffer.buffer, &matches).unwrap_or_else(|| {
+            choose_search_match(
+                &matches,
+                buffer.buffer.cursor_position(),
+                SearchDirection::Forward,
+            )
+        });
+        let target = matches[selection.index].range;
+        match buffer.buffer.replace_range(target, &confirm.replacement) {
+            Ok(()) => {
+                confirm.replaced += 1;
+                confirm.skipped_in_cycle = 0;
+                self.replace_confirm = Some(confirm);
+                if !self.select_replace_confirm_match(SearchDirection::Forward) {
+                    self.replace_confirm = None;
+                }
+            }
+            Err(error) => {
+                self.replace_confirm = None;
+                self.set_status(format!("Replace failed: {}", buffer_error_text(error)));
+            }
+        }
+    }
+
+    fn skip_replace_confirm_current(&mut self) {
+        let Some(mut confirm) = self.replace_confirm.clone() else {
+            return;
+        };
+        self.focus_window_for_buffer(confirm.buffer_id);
+        let Some(buffer) = self.buffer_state_mut(confirm.buffer_id) else {
+            self.set_status("Replace: focused buffer is missing");
+            self.replace_confirm = None;
+            return;
+        };
+
+        let matches = buffer.buffer.find_all(&confirm.query);
+        if matches.is_empty() {
+            buffer.buffer.clear_selection();
+            buffer.set_search(confirm.query.clone(), matches, None);
+            self.replace_confirm = None;
+            self.set_status(format!(
+                "Replace done: {} replaced, {} skipped",
+                confirm.replaced, confirm.skipped
+            ));
+            return;
+        }
+        if matches.len() <= 1 || confirm.skipped_in_cycle + 1 >= matches.len() {
+            confirm.skipped += 1;
+            self.replace_confirm = None;
+            self.set_status(format!(
+                "Replace done: {} replaced, {} skipped",
+                confirm.replaced, confirm.skipped
+            ));
+            return;
+        }
+
+        if let Some(selection) = current_match_selection(&buffer.buffer, &matches) {
+            let _ = buffer.buffer.set_cursor(matches[selection.index].range.end);
+        }
+        confirm.skipped += 1;
+        confirm.skipped_in_cycle += 1;
+        self.replace_confirm = Some(confirm);
+        let _ = self.select_replace_confirm_match(SearchDirection::Forward);
+    }
+
+    fn replace_confirm_all(&mut self) {
+        let Some(confirm) = self.replace_confirm.take() else {
+            return;
+        };
+        self.focus_window_for_buffer(confirm.buffer_id);
+        let Some(buffer) = self.buffer_state_mut(confirm.buffer_id) else {
+            self.set_status("Replace All: focused buffer is missing");
+            return;
+        };
+
+        match buffer
+            .buffer
+            .replace_all(&confirm.query, &confirm.replacement)
+        {
+            Ok(count) => {
+                let new_matches = buffer.buffer.find_all(&confirm.query);
+                let remaining = new_matches.len();
+                buffer.set_search(confirm.query.clone(), new_matches, None);
+                let total = confirm.replaced + count;
+                let suffix = if remaining == 0 {
+                    String::new()
+                } else {
+                    format!("; {remaining} matches remain")
+                };
+                self.set_status(format!(
+                    "Replace All: {total} {} -> {}{suffix}",
+                    confirm.query,
+                    replacement_status_text(&confirm.replacement)
+                ));
+            }
+            Err(error) => {
+                self.set_status(format!("Replace All failed: {}", buffer_error_text(error)))
             }
         }
     }
@@ -2914,18 +3341,22 @@ impl AppState {
 
     #[cfg(test)]
     fn confirm_status_text(&self) -> Option<String> {
-        self.confirm.as_ref().map(|confirm| {
+        if let Some(confirm) = &self.confirm {
             let action = match confirm.action {
                 PendingAction::Quit => "Save(s) Quit without saving(d) Cancel(c)",
                 PendingAction::New | PendingAction::OpenPrompt | PendingAction::CloseWindow => {
                     "Save(s) Discard(d) Cancel(c)"
                 }
             };
-            format!(
+            return Some(format!(
                 "Unsaved changes in {}: {action}",
                 self.buffer_display_name(confirm.buffer_id)
-            )
-        })
+            ));
+        }
+
+        self.replace_confirm
+            .as_ref()
+            .map(|confirm| self.replace_confirm_status_text(confirm))
     }
 
     fn active_overlay(&self) -> Option<UiOverlay> {
@@ -2946,6 +3377,10 @@ impl AppState {
             ));
         }
 
+        if let Some(confirm) = &self.replace_confirm {
+            return Some(self.replace_confirm_overlay(confirm));
+        }
+
         if let Some(dialog) = &self.file_dialog {
             return Some(dialog.overlay(&self.file_dialog_keys));
         }
@@ -2956,6 +3391,39 @@ impl AppState {
             prompt.input.as_str().to_string(),
             prompt.input.cursor_display_column(),
         ))
+    }
+
+    fn replace_confirm_overlay(&self, confirm: &ReplaceConfirmState) -> UiOverlay {
+        UiOverlay::message(
+            "Confirm Replace",
+            vec![
+                format!("Find: {}", confirm.query),
+                format!(
+                    "Replace with: {}",
+                    replacement_status_text(&confirm.replacement)
+                ),
+                self.replace_confirm_status_text(confirm),
+            ],
+            vec!["[Replace(r)] [Skip(s)] [All(a)] [Cancel(c)]".to_string()],
+        )
+    }
+
+    fn replace_confirm_status_text(&self, confirm: &ReplaceConfirmState) -> String {
+        let match_status = self
+            .buffer_state(confirm.buffer_id)
+            .and_then(|buffer| buffer.search.as_ref())
+            .filter(|search| search.query == confirm.query)
+            .and_then(|search| match (search.matches.len(), search.active_index) {
+                (0, _) => None,
+                (total, Some(index)) => Some(format!("Match {}/{}", index + 1, total)),
+                (total, None) => Some(format!("Match {total}")),
+            })
+            .unwrap_or_else(|| "Match -".to_string());
+
+        format!(
+            "{match_status}; replaced {}, skipped {}",
+            confirm.replaced, confirm.skipped
+        )
     }
 
     fn focused_path_text(&self) -> String {
@@ -3104,16 +3572,25 @@ impl AppState {
 
     fn focused_buffer_view_context(&self, area: Rect) -> Option<BufferViewContext> {
         let window = self.workspace.focused_window().ok()?;
+        self.buffer_view_context(window.buffer_id, area)
+    }
+
+    fn buffer_view_context(&self, buffer_id: BufferId, area: Rect) -> Option<BufferViewContext> {
+        let window = self
+            .workspace
+            .windows
+            .iter()
+            .find(|window| window.buffer_id == buffer_id)?;
         let layout = self
             .workspace
             .resolved_layout(area)
             .into_iter()
             .find(|layout| layout.id == window.id)?;
-        let buffer = self.buffer_state(window.buffer_id)?;
+        let buffer = self.buffer_state(buffer_id)?;
         let body_height = layout.rect.height.saturating_sub(2) as usize;
         let body_width = editor_body_width(buffer, layout.rect);
         Some(BufferViewContext {
-            buffer_id: window.buffer_id,
+            buffer_id,
             body_height,
             body_width,
         })
@@ -3131,15 +3608,17 @@ struct BufferViewContext {
 struct PromptState {
     kind: PromptKind,
     input: LineInput,
+    preview: Option<PromptPreviewState>,
     history_index: Option<usize>,
     history_draft: String,
 }
 
 impl PromptState {
-    fn new(kind: PromptKind, input: String) -> Self {
+    fn new(kind: PromptKind, input: String, preview: Option<PromptPreviewState>) -> Self {
         Self {
             kind,
             input: LineInput::new(input),
+            preview,
             history_index: None,
             history_draft: String::new(),
         }
@@ -3158,6 +3637,14 @@ impl PromptState {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PromptPreviewState {
+    buffer_id: BufferId,
+    cursor: Position,
+    selection: Option<Selection>,
+    search: Option<BufferSearchState>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PromptKind {
     CommandLine,
@@ -3168,7 +3655,6 @@ enum PromptKind {
 }
 
 impl PromptKind {
-    #[cfg(test)]
     const fn label(self) -> &'static str {
         match self {
             Self::CommandLine => "Command: ",
@@ -3685,6 +4171,16 @@ struct ConfirmState {
     buffer_id: BufferId,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ReplaceConfirmState {
+    buffer_id: BufferId,
+    query: String,
+    replacement: String,
+    replaced: usize,
+    skipped: usize,
+    skipped_in_cycle: usize,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PendingAction {
     Quit,
@@ -3701,6 +4197,9 @@ enum MouseDragState {
     },
     Split {
         handle: SplitDragHandle,
+    },
+    Scrollbar {
+        buffer_id: BufferId,
     },
 }
 
@@ -3859,6 +4358,20 @@ fn current_match_selection(
         })
 }
 
+fn preview_selection_match(
+    selection: Option<Selection>,
+    matches: &[SearchMatch],
+) -> Option<SearchSelection> {
+    let range = selection?.range();
+    matches
+        .iter()
+        .position(|item| item.range == range)
+        .map(|index| SearchSelection {
+            index,
+            wrapped: false,
+        })
+}
+
 fn replacement_status_text(replacement: &str) -> &str {
     if replacement.is_empty() {
         "<empty>"
@@ -3884,18 +4397,30 @@ fn selection_status(buffer: &TextBuffer) -> Option<String> {
 
 fn scroll_status(buffer: &BufferState, context: Option<BufferViewContext>) -> String {
     let total = buffer.buffer.line_count().max(1);
-    let height = context
-        .map(|context| context.body_height.max(1))
-        .unwrap_or(1);
+    let context = context.unwrap_or(BufferViewContext {
+        buffer_id: buffer.id,
+        body_height: 1,
+        body_width: 1,
+    });
+    let height = context.body_height.max(1);
     let start = buffer.first_line.min(total.saturating_sub(1));
     let end = start.saturating_add(height).min(total);
-    if buffer.first_column == 0 {
+    let max_column = buffer.max_line_display_width();
+    let body_width = context.body_width;
+    if buffer.first_column == 0 && (body_width == 0 || max_column <= body_width) {
         format!("View {}-{end}/{total}", start + 1)
     } else {
+        let column_start = buffer.first_column + 1;
+        let column_end = buffer
+            .first_column
+            .saturating_add(body_width.max(1))
+            .min(max_column.max(column_start));
         format!(
-            "View {}-{end}/{total} X{}",
+            "View {}-{end}/{total} X{}-{}/{}",
             start + 1,
-            buffer.first_column + 1
+            column_start,
+            column_end,
+            max_column.max(1)
         )
     }
 }
@@ -4122,6 +4647,18 @@ impl BufferState {
                 .min(max_first_line)
         };
 
+        self.keep_cursor_inside_visible_lines(body_height);
+        self.first_line != old_first_line
+    }
+
+    fn scroll_view_to_line(&mut self, first_line: usize, body_height: usize) -> bool {
+        if body_height == 0 || self.buffer.line_count() == 0 {
+            return false;
+        }
+
+        let old_first_line = self.first_line;
+        let max_first_line = self.buffer.line_count().saturating_sub(body_height.max(1));
+        self.first_line = first_line.min(max_first_line);
         self.keep_cursor_inside_visible_lines(body_height);
         self.first_line != old_first_line
     }
@@ -4453,7 +4990,11 @@ fn run_event_loop(
             } else {
                 ui_frame.status.left = app.focused_buffer_status();
             }
-            if app.prompt.is_none() && app.file_dialog.is_none() && app.confirm.is_none() {
+            if app.prompt.is_none()
+                && app.file_dialog.is_none()
+                && app.confirm.is_none()
+                && app.replace_confirm.is_none()
+            {
                 ui_frame.status.left = format!(
                     "{} {}",
                     app.focused_buffer_status(),
@@ -4480,7 +5021,11 @@ fn run_event_loop(
 }
 
 fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
-    if !app.mouse_enabled() || app.prompt.is_some() || app.confirm.is_some() {
+    if !app.mouse_enabled()
+        || app.prompt.is_some()
+        || app.confirm.is_some()
+        || app.replace_confirm.is_some()
+    {
         app.handle_mouse_up();
         return;
     }
@@ -4552,6 +5097,10 @@ fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
     }
 
     if app.handle_confirm_key_event(event) {
+        return;
+    }
+
+    if app.handle_replace_confirm_key_event(event) {
         return;
     }
 
@@ -6203,6 +6752,29 @@ key.app.quit = Esc
 
         handle_mouse_event(&mut app, scroll_up(10, 3));
         assert_eq!(app.buffer_state(BufferId(1)).unwrap().first_line, 0);
+    }
+
+    #[test]
+    fn mouse_scrollbar_click_and_drag_scrolls_editor_body_when_enabled() {
+        let text = (0..20)
+            .map(|index| format!("line{index}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.buffer_state_mut(BufferId(1)).unwrap().buffer =
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, &text);
+        app.sync_view_for_area(Rect::new(0, 0, 80, 8));
+
+        handle_mouse_event(&mut app, left_click(79, 5));
+
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().first_line, 8);
+
+        handle_mouse_event(&mut app, left_drag(79, 7));
+        handle_mouse_event(&mut app, left_up(79, 7));
+
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().first_line, 14);
+        assert_eq!(app.mouse_drag, None);
     }
 
     #[test]
@@ -8748,6 +9320,37 @@ key.app.help = F10
     }
 
     #[test]
+    fn find_prompt_previews_matches_and_cancel_restores_cursor() {
+        let mut app = app_with_text("zero one two one");
+        app.buffers[0]
+            .buffer
+            .set_cursor(Position::new(0, 2))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Find));
+        send_text(&mut app, "one");
+
+        assert_eq!(app.status_message, Some("Find: 1/2 one".to_string()));
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .selection_range(),
+            Some(TextRange::new(Position::new(0, 5), Position::new(0, 8)))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.cursor_position(), Position::new(0, 2));
+        assert_eq!(state.buffer.selection_range(), None);
+        assert_eq!(app.status_message, Some("Find cancelled".to_string()));
+    }
+
+    #[test]
     fn find_next_repeats_query_and_wraps() {
         let mut app = app_with_text("one two one");
         app.last_find_query = Some("one".to_string());
@@ -8830,6 +9433,14 @@ key.app.help = F10
             &mut app,
             CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
         );
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Match 1/2; replaced 0, skipped 0".to_string())
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('r'), CrosstermKeyModifiers::NONE),
+        );
 
         let state = app.buffer_state(BufferId(1)).unwrap();
         assert_eq!(state.buffer.to_text(), "uno two one");
@@ -8837,11 +9448,96 @@ key.app.help = F10
         assert_eq!(app.last_find_query, Some("one".to_string()));
         assert_eq!(
             app.status_message,
-            Some("Replace: 1/2 one -> uno; next 1/1".to_string())
+            Some("Replace confirm: 1/1 one -> uno".to_string())
+        );
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Match 1/1; replaced 1, skipped 0".to_string())
         );
         assert_eq!(
             state.buffer.selection_range(),
             Some(TextRange::new(Position::new(0, 8), Position::new(0, 11)))
+        );
+    }
+
+    #[test]
+    fn replace_confirmation_can_skip_and_replace_next_match() {
+        let mut app = app_with_text("one two one");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Replace));
+        send_text(&mut app, "one");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, "uno");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Match 1/2; replaced 0, skipped 0".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('s'), CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Match 2/2; replaced 0, skipped 1".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('r'), CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "one two uno");
+        assert_eq!(
+            app.status_message,
+            Some("Replace confirm: 1/1 one -> uno".to_string())
+        );
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Match 1/1; replaced 1, skipped 1".to_string())
+        );
+        assert_eq!(
+            state.buffer.selection_range(),
+            Some(TextRange::new(Position::new(0, 0), Position::new(0, 3)))
+        );
+    }
+
+    #[test]
+    fn replace_confirmation_all_replaces_remaining_matches() {
+        let mut app = app_with_text("one two one");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Replace));
+        send_text(&mut app, "one");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, "uno");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('a'), CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "uno two uno");
+        assert_eq!(app.replace_confirm, None);
+        assert_eq!(
+            app.status_message,
+            Some("Replace All: 2 one -> uno".to_string())
         );
     }
 
@@ -8866,12 +9562,24 @@ key.app.help = F10
             &mut app,
             CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
         );
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Match 2/2; replaced 0, skipped 0".to_string())
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('r'), CrosstermKeyModifiers::NONE),
+        );
 
         let state = app.buffer_state(BufferId(1)).unwrap();
         assert_eq!(state.buffer.to_text(), "one two uno");
         assert_eq!(
             app.status_message,
-            Some("Replace: 2/2 one -> uno; next 1/1".to_string())
+            Some("Replace confirm: 1/1 one -> uno".to_string())
+        );
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Match 1/1; replaced 1, skipped 0".to_string())
         );
         assert_eq!(
             state.buffer.selection_range(),
@@ -8893,12 +9601,20 @@ key.app.help = F10
             &mut app,
             CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
         );
+        assert_eq!(
+            app.confirm_status_text(),
+            Some("Match 1/1; replaced 0, skipped 0".to_string())
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('r'), CrosstermKeyModifiers::NONE),
+        );
 
         let state = app.buffer_state(BufferId(1)).unwrap();
         assert_eq!(state.buffer.to_text(), " two");
         assert_eq!(
             app.status_message,
-            Some("Replace: 1/1 one -> <empty>; no matches left".to_string())
+            Some("Replace done: 1 replaced, 0 skipped".to_string())
         );
     }
 

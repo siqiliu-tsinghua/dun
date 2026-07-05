@@ -174,6 +174,7 @@ Current implementation:
   restored on exit or runtime disable. Current mouse input can focus tiled
   windows, place the cursor, update a text selection, resize a split, or
   open a typed dropdown menu and dispatch an existing submenu `EditorCommand`.
+  Editor scrollbar clicks and drags map to bounded viewport scroll requests.
   In file dialogs, mouse clicks can select visible entries, enter directories,
   including `..`, or submit an Open path through the same validated Open path.
   Mouse input does not trigger paste, arbitrary direct file operations, or

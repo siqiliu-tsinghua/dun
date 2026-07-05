@@ -236,6 +236,8 @@ supports:
   path input plus a selectable directory match list;
 - rendering cached search match highlights and a lightweight right-border
   scrollbar thumb for vertically scrollable editor panes;
+- rendering small horizontal edge indicators on body rows whose text is clipped
+  by the current horizontal viewport;
 - crossterm key events mapped into the typed keymap;
 - Alt+F/E/V/H menu mnemonics after the active keymap has had the first chance
   to consume those strokes;
@@ -250,8 +252,10 @@ supports:
 
 The current search/replace baseline is literal string based. Find caches match
 locations per buffer revision, highlights visible matches, reports the active
-match as `[Find n/m]`, and supports next/previous wraparound. Replace can
-replace the current or next match, advance to the next remaining match, and
+match as `[Find n/m]`, previews prompt queries while typing, and supports
+next/previous wraparound. Interactive Replace previews the query, then opens a
+confirmation modal with Replace, Skip, All, and Cancel actions. Command-line
+`replace QUERY TEXT` replaces the current or next match directly, and
 `replace all QUERY TEXT` replaces all literal matches as one undo transaction.
 
 ## Mouse
@@ -275,6 +279,8 @@ Current mouse baseline:
   delivers them;
 - mouse wheel events scroll editor panes when mouse support is enabled, keeping
   the cursor inside the visible pane;
+- clicking or dragging an editor pane's right-border scrollbar scrolls long
+  buffers when mouse support is enabled;
 - horizontal mouse wheel events scroll the focused editor viewport when the
   terminal delivers them;
 - pressing `Esc` closes an open menu before normal keymap dispatch;

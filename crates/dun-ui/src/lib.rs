@@ -243,6 +243,18 @@ impl UiShell {
         if window.collapsed || window.rect.width <= 2 || window.rect.height <= 2 {
             return UiMouseTarget::Chrome;
         }
+        if local_x == window.rect.width.saturating_sub(1)
+            && local_y > 0
+            && local_y < window.rect.height.saturating_sub(1)
+        {
+            if let Some(buffer) = buffers.iter().find(|buffer| buffer.id == window.buffer_id) {
+                if let Some(first_line) =
+                    self.scrollbar_target_line_for_buffer(buffer, window.rect, local_y)
+                {
+                    return UiMouseTarget::Scrollbar { first_line };
+                }
+            }
+        }
         if local_x == 0
             || local_y == 0
             || local_x >= window.rect.width.saturating_sub(1)
@@ -315,6 +327,13 @@ impl UiShell {
         } else {
             Vec::new()
         };
+        let horizontal_edges = if !window.collapsed {
+            buffer
+                .map(|buffer| self.horizontal_edges_for_buffer(buffer, rect, gutter_width))
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let scrollbar = if !window.collapsed {
             buffer.and_then(|buffer| self.scrollbar_for_buffer(buffer, rect))
         } else {
@@ -347,6 +366,7 @@ impl UiShell {
             cursor,
             selection,
             search_matches,
+            horizontal_edges,
             scrollbar,
             body,
         }
@@ -597,6 +617,67 @@ impl UiShell {
             y: 1 + thumb_top as u16,
             height: thumb_height as u16,
         })
+    }
+
+    fn scrollbar_target_line_for_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        local_y: u16,
+    ) -> Option<usize> {
+        let body_height = rect.height.checked_sub(2)? as usize;
+        let total = buffer.buffer.line_count();
+        if body_height == 0 || total <= body_height {
+            return None;
+        }
+
+        let track_y = local_y.saturating_sub(1) as usize;
+        let max_track_y = body_height.saturating_sub(1);
+        let max_first_line = total.saturating_sub(body_height);
+        if max_track_y == 0 {
+            return Some(0);
+        }
+
+        Some(track_y.min(max_track_y).saturating_mul(max_first_line) / max_track_y)
+    }
+
+    fn horizontal_edges_for_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        gutter_width: u16,
+    ) -> Vec<UiHorizontalEdgeLine> {
+        let Some(inner_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
+            return Vec::new();
+        };
+        let gutter_width = gutter_width.min(inner_width as u16) as usize;
+        let body_width = inner_width.saturating_sub(gutter_width);
+        let Some(body_height) = rect.height.checked_sub(2).map(|height| height as usize) else {
+            return Vec::new();
+        };
+        if body_width == 0 || body_height == 0 {
+            return Vec::new();
+        }
+
+        let mut lines = Vec::new();
+        for (visible_y, line_index) in (buffer.first_line..buffer.buffer.line_count())
+            .take(body_height)
+            .enumerate()
+        {
+            let line = buffer.buffer.line(line_index).unwrap_or_default();
+            let width = display_width(line);
+            let left = buffer.first_column > 0;
+            let right = width > buffer.first_column.saturating_add(body_width);
+            if left || right {
+                lines.push(UiHorizontalEdgeLine {
+                    y: 1 + visible_y as u16,
+                    left,
+                    right,
+                });
+            }
+        }
+
+        lines
     }
 
     fn gutter_width_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> u16 {
@@ -1276,6 +1357,13 @@ fn render_window(frame: &mut Frame<'_>, shell: &UiShell, window: &UiWindow, work
         &window.selection,
         to_ratatui_style(shell.theme.palette.selection_text),
     );
+    render_horizontal_edges(
+        frame.buffer_mut(),
+        shell,
+        body_area,
+        &window.horizontal_edges,
+        to_ratatui_style(shell.theme.palette.truncation),
+    );
     render_scrollbar(
         frame.buffer_mut(),
         shell,
@@ -1427,6 +1515,49 @@ fn render_scrollbar(
             break;
         }
         buffer[(x, y)].set_char(thumb).set_style(style);
+    }
+}
+
+fn render_horizontal_edges(
+    buffer: &mut Buffer,
+    shell: &UiShell,
+    body_area: TuiRect,
+    edges: &[UiHorizontalEdgeLine],
+    style: Style,
+) {
+    if body_area.width == 0 || body_area.height == 0 {
+        return;
+    }
+
+    let left = if shell.profile.supports_unicode_glyphs() {
+        '‹'
+    } else {
+        '<'
+    };
+    let right = if shell.profile.supports_unicode_glyphs() {
+        '›'
+    } else {
+        '>'
+    };
+    let right_x = body_area
+        .x
+        .saturating_add(body_area.width)
+        .saturating_sub(1);
+
+    for edge in edges {
+        if edge.y == 0 {
+            continue;
+        }
+        let y = body_area.y.saturating_add(edge.y.saturating_sub(1));
+        if y >= body_area.y.saturating_add(body_area.height) {
+            continue;
+        }
+        if edge.left {
+            buffer[(body_area.x, y)].set_char(left).set_style(style);
+        }
+        if edge.right {
+            buffer[(right_x, y)].set_char(right).set_style(style);
+        }
     }
 }
 
@@ -1828,6 +1959,13 @@ pub struct UiSearchMatchLine {
     pub active: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UiHorizontalEdgeLine {
+    pub y: u16,
+    pub left: bool,
+    pub right: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UiFrame {
     pub menu: MenuBar,
@@ -1912,6 +2050,7 @@ pub struct UiMouseHit {
 pub enum UiMouseTarget {
     Chrome,
     Gutter,
+    Scrollbar { first_line: usize },
     Body(Position),
 }
 
@@ -1990,6 +2129,7 @@ pub struct UiWindow {
     pub cursor: Option<UiCursor>,
     pub selection: Vec<UiSelectionLine>,
     pub search_matches: Vec<UiSearchMatchLine>,
+    pub horizontal_edges: Vec<UiHorizontalEdgeLine>,
     pub scrollbar: Option<UiScrollbar>,
     pub body: Vec<SanitizedLine>,
 }
@@ -2409,6 +2549,43 @@ mod tests {
     }
 
     #[test]
+    fn hit_test_maps_scrollbar_click_to_target_line() {
+        let workspace = Workspace::new_untitled();
+        let buffer =
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+
+        let hit = shell
+            .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 6), &[buffer_view], 79, 3)
+            .unwrap();
+
+        assert_eq!(hit.target, UiMouseTarget::Scrollbar { first_line: 4 });
+    }
+
+    #[test]
+    fn frame_reports_horizontal_edge_indicators() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "0123456789");
+        let buffer_view = BufferView::scrolled_xy(BufferId(1), &buffer, 0, 2);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 10, 4),
+            &[buffer_view],
+        );
+
+        assert_eq!(
+            frame.windows[0].horizontal_edges,
+            vec![UiHorizontalEdgeLine {
+                y: 1,
+                left: true,
+                right: true,
+            }]
+        );
+    }
+
+    #[test]
     fn frame_maps_scrolled_line_number_gutter() {
         let workspace = Workspace::new_untitled();
         let buffer =
@@ -2735,6 +2912,35 @@ mod tests {
         assert!(rendered.contains("/tmp/al"));
         assert!(rendered.contains("logs"));
         assert!(rendered.contains("alpha.log"));
+    }
+
+    #[test]
+    fn ratatui_renderer_draws_viewport_polish_markers() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(
+            BufferKind::Untitled,
+            "0123456789\nline2\nline3\nline4\nline5\nline6\nline7\nline8",
+        );
+        let buffer_view = BufferView::scrolled_xy(BufferId(1), &buffer, 2, 2);
+        let shell = UiShell::default();
+        let ui_frame =
+            shell.frame_for_workspace(&workspace, Rect::new(0, 0, 20, 6), &[buffer_view]);
+        let backend = TestBackend::new(20, 8);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(rendered.contains('‹'));
+        assert!(rendered.contains('█'));
     }
 
     #[test]

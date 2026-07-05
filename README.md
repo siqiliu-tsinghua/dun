@@ -46,11 +46,12 @@ and mouse-wheel list scrolling when mouse support is enabled. File-dialog
 modal keys have their own typed config bindings.
 Lightweight modal prompts remain available for Find, Replace, and Go To Line
 entry, with Left/Right/Home/End/Delete/Backspace editing at UTF-8 character
-boundaries. Find now supports next/previous navigation and selected match
-highlighting, the focused status area reports the active match count, Replace
-can replace the current or next match and advance to the next remaining match,
-`replace all QUERY TEXT` is available from the command prompt, and Go To Line
-moves the cursor by 1-based line number.
+boundaries. Find previews matches while typing, supports next/previous
+navigation and selected match highlighting, and the focused status area reports
+the active match count. Interactive Replace previews the query, then uses a
+confirmation modal for replace, skip, replace-all, or cancel. The command
+prompt still offers direct `replace QUERY TEXT` and `replace all QUERY TEXT`,
+and Go To Line moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty/read-only markers, and status fields for position, total lines,
 selection, active search count, visible scroll range, horizontal scroll offset,
@@ -71,7 +72,8 @@ On narrow panes, the gutter is dropped before it consumes the editable body,
 pane titles/status fields are clipped by terminal display width, and long lines
 scroll horizontally to keep the focused cursor visible. `edit.scroll_left` and
 `edit.scroll_right` provide explicit viewport movement, and long buffers show a
-lightweight right-border scrollbar thumb.
+lightweight right-border scrollbar thumb. Horizontally clipped lines show
+small edge indicators at the body boundary.
 Buffer text, pane titles, and status fields are sanitized before rendering so
 file content and file names cannot emit terminal control sequences.
 By default, `F1` opens a read-only Help window with the active configured key
@@ -102,8 +104,9 @@ Mouse support is optional and disabled by default; when enabled in config,
 left-clicks can focus tiled windows, place the cursor in an editor body, drag
 text selections, drag split borders, open top-menu dropdowns, and click
 submenu commands. Mouse wheel events scroll editor panes and file dialog lists,
-and terminals that deliver horizontal wheel events can scroll the focused
-editor viewport left/right.
+right-border scrollbar clicks or drags scroll long editor buffers, and
+terminals that deliver horizontal wheel events can scroll the focused editor
+viewport left/right.
 File dialog list clicks enter directories, open selected files from Open, and
 update the Save As path input without immediately saving.
 The external SSH and low-capability terminal release matrix is documented in

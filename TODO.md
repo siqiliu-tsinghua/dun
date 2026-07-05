@@ -156,6 +156,13 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add command-line `replace all QUERY TEXT` with one undo transaction.
 - [x] Add explicit horizontal viewport scroll commands.
 - [x] Add a lightweight vertical scrollbar indicator for long buffers.
+- [x] Add incremental Find and Replace query preview in modal prompts.
+- [x] Add an interactive Replace confirmation flow with Replace, Skip, All,
+  and Cancel actions.
+- [x] Add mouse click/drag support for the editor scrollbar when mouse support
+  is enabled.
+- [x] Add horizontal viewport edge indicators and ratatui visual smoke tests
+  for viewport polish.
 
 ## File and Display Safety
 

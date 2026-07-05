@@ -471,3 +471,17 @@ This is an append-only progress log. Keep new entries dated and factual.
   terminal delivers it.
 - Added lightweight right-border scrollbar thumbs for vertically scrollable
   editor panes, with 256-color, 16-color, and mono theme styles.
+- Added incremental Find and Replace query preview in modal prompts. Typing in
+  Find/Replace Find now selects the matching text immediately, Enter commits
+  the previewed match, and Esc restores the prior cursor, selection, and search
+  state.
+- Reworked interactive Replace into a confirmation modal with Replace, Skip,
+  All, and Cancel actions. Command-line `replace QUERY TEXT` remains a direct
+  current/next replacement path, while interactive replacement no longer
+  mutates text until the user confirms an action.
+- Added mouse click and drag support for editor right-border scrollbars when
+  `mouse.enabled = true`, backed by UI hit testing that maps scrollbar rows to
+  target first-visible lines.
+- Added horizontal viewport edge indicators for clipped long lines and a
+  ratatui `TestBackend` visual smoke test that verifies the edge marker and
+  scrollbar thumb are emitted. `cargo test -p dun-ui -p dun-cli` passes.

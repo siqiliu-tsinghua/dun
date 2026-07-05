@@ -185,11 +185,14 @@ Editing:
   `Ctrl+Shift+Left/Right` extends selection by word when the terminal delivers
   those modifiers.
 - Long editor lines scroll horizontally to keep the cursor visible; the status
-  bar reports the visible line range and horizontal offset.
+  bar reports the visible line range and horizontal offset, and clipped rows
+  show left/right edge indicators.
 - `Ctrl+W,[` and `Ctrl+W,]` scroll the focused editor viewport left/right when
   the line is wider than the pane.
 - Long buffers display a lightweight right-border scrollbar thumb when there
   are more lines than fit in the pane.
+- With mouse enabled, clicking or dragging the right-border scrollbar should
+  scroll the editor body.
 - Terminals that emit horizontal mouse wheel events should scroll the focused
   editor viewport without requiring a separate capability.
 - Continuous ordinary typing and continuous same-direction Backspace/Delete
@@ -209,12 +212,13 @@ Editing:
 
 Search and navigation:
 
-- `Ctrl+F` opens Find and selects the first match.
+- `Ctrl+F` opens Find, previews matches while typing, Enter keeps the
+  previewed match, and Esc restores the prior cursor or selection.
 - `F3` and `Shift+F3` move between matches; all visible matches are
   highlighted and the status fields show the active match count.
-- `Ctrl+R` performs the replace prompt flow, advances to the next remaining
-  match, and command prompt `replace all QUERY TEXT` replaces all matches as
-  one undo step.
+- `Ctrl+R` performs the replace prompt flow, previews the query, and then uses
+  a confirmation modal for Replace, Skip, All, or Cancel. Command prompt
+  `replace all QUERY TEXT` replaces all matches as one undo step.
 - `Ctrl+G` moves to a valid 1-based line number.
 - `F1` opens the key reference window.
 - `F2` opens the status history window.
@@ -243,8 +247,9 @@ Low-capability expectations:
   submenu clicks should work in capable terminals. Open/Save As file dialog
   list clicks should enter directories; Open should open files, and Save As
   should only update the path input. Mouse wheel events should scroll editor
-  panes and file dialog lists when delivered by the terminal. Mouse support is
-  not required for passing the matrix.
+  panes and file dialog lists when delivered by the terminal. Editor scrollbar
+  clicks and drags should scroll long buffers. Mouse support is not required
+  for passing the matrix.
 - `Alt+F`, `Alt+E`, `Alt+V`, and `Alt+H` should open the grouped menus where
   the terminal sends Alt-modified character keys. If a terminal or KVM cannot
   deliver those strokes, command-line prompt and direct command keybindings

@@ -111,10 +111,10 @@ entries.
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window
 focus, editor-body cursor placement, text selection drag, split-border drag,
-menu command dispatch, and mouse wheel scrolling inside editor panes and file
-dialogs. Right-click paste waits for terminal bracketed paste data when the
-terminal supports it. External clipboard commands and OSC 52 clipboard
-integration remain deferred.
+menu command dispatch, editor scrollbar click/drag scrolling, and mouse wheel
+scrolling inside editor panes and file dialogs. Right-click paste waits for
+terminal bracketed paste data when the terminal supports it. External clipboard
+commands and OSC 52 clipboard integration remain deferred.
 
 ## Example
 
