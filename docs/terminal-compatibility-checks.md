@@ -106,6 +106,7 @@ Editing:
 - Arrow keys, Home, End, Enter, Backspace, and Delete work.
 - `Ctrl+S` saves a loaded file.
 - `Ctrl+O` and `Ctrl+Shift+S` open status-line prompts.
+- `Ctrl+P` opens the command prompt, and Up/Down recall command history.
 - Dirty buffers ask for confirmation before quit, new, open, or close.
 
 Search and navigation:

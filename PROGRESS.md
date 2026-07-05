@@ -266,3 +266,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   symlink itself.
 - Added CLI tests for atomic temp cleanup, read-only destination rejection, and
   save-through-symlink behavior.
+- Added command-line prompt history in `dun-cli`. Submitted non-empty commands
+  are stored in a bounded in-memory history, consecutive duplicates are
+  skipped, Up/Down recall previous or newer commands, and Down restores the
+  current prompt draft after history navigation.
+- Added Help text for command history navigation and CLI tests for recall,
+  repeat-last-command behavior, history capping, duplicate suppression, and
+  keeping non-command prompts unaffected.

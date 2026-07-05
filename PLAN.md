@@ -180,6 +180,7 @@ Goal: reach a practical Microsoft Edit-like baseline.
 - [x] Go to line.
 - [x] File open/save-as dialogs or command-line equivalents.
 - [x] Command-line prompt baseline.
+- [x] Command-line prompt history.
 - [x] Runtime theme selection command.
 - [x] Unsaved changes confirmation.
 - [x] Error log/status history baseline.

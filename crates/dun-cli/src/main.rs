@@ -447,6 +447,7 @@ struct AppState {
     prompt: Option<PromptState>,
     confirm: Option<ConfirmState>,
     status_history: Vec<StatusEntry>,
+    command_history: Vec<String>,
     last_find_query: Option<String>,
     pending_replace_query: Option<String>,
 }
@@ -488,6 +489,7 @@ impl AppState {
             prompt: None,
             confirm: None,
             status_history: Vec::new(),
+            command_history: Vec::new(),
             last_find_query: None,
             pending_replace_query: None,
         }
@@ -1439,14 +1441,22 @@ impl AppState {
             CrosstermKeyCode::Enter => {
                 self.submit_prompt();
             }
+            CrosstermKeyCode::Up => {
+                self.recall_previous_command();
+            }
+            CrosstermKeyCode::Down => {
+                self.recall_next_command();
+            }
             CrosstermKeyCode::Backspace => {
                 if let Some(prompt) = &mut self.prompt {
+                    prompt.detach_history();
                     prompt.input.pop();
                 }
             }
             _ => {
                 if let Some(ch) = text_input_from_crossterm(event) {
                     if let Some(prompt) = &mut self.prompt {
+                        prompt.detach_history();
                         prompt.input.push(ch);
                     }
                 }
@@ -1454,6 +1464,68 @@ impl AppState {
         }
 
         true
+    }
+
+    fn recall_previous_command(&mut self) {
+        let history_len = self.command_history.len();
+        if history_len == 0 {
+            return;
+        }
+
+        let next_index = {
+            let Some(prompt) = self.command_line_prompt_mut() else {
+                return;
+            };
+            let next_index = match prompt.history_index {
+                Some(0) => 0,
+                Some(index) => index - 1,
+                None => {
+                    prompt.history_draft = prompt.input.clone();
+                    history_len - 1
+                }
+            };
+            prompt.history_index = Some(next_index);
+            next_index
+        };
+
+        let input = self.command_history[next_index].clone();
+        if let Some(prompt) = self.command_line_prompt_mut() {
+            prompt.input = input;
+        }
+    }
+
+    fn recall_next_command(&mut self) {
+        let history_len = self.command_history.len();
+        let (entry_index, draft) = {
+            let Some(prompt) = self.command_line_prompt_mut() else {
+                return;
+            };
+            let Some(index) = prompt.history_index else {
+                return;
+            };
+            if index + 1 < history_len {
+                let next_index = index + 1;
+                prompt.history_index = Some(next_index);
+                (Some(next_index), None)
+            } else {
+                prompt.history_index = None;
+                (None, Some(std::mem::take(&mut prompt.history_draft)))
+            }
+        };
+
+        let input = entry_index
+            .map(|index| self.command_history[index].clone())
+            .or(draft)
+            .unwrap_or_default();
+        if let Some(prompt) = self.command_line_prompt_mut() {
+            prompt.input = input;
+        }
+    }
+
+    fn command_line_prompt_mut(&mut self) -> Option<&mut PromptState> {
+        self.prompt
+            .as_mut()
+            .filter(|prompt| prompt.kind == PromptKind::CommandLine)
     }
 
     fn cancel_prompt(&mut self) {
@@ -1535,14 +1607,31 @@ impl AppState {
                 self.go_to_line(input);
             }
             PromptKind::CommandLine => {
-                let input = prompt.input.trim();
+                let input = prompt.input.trim().to_string();
                 if input.is_empty() {
                     self.set_status(format!("{} cancelled", prompt.kind.name()));
                     return;
                 }
 
-                self.run_command_line(input);
+                self.record_command_history(input.clone());
+                self.run_command_line(&input);
             }
+        }
+    }
+
+    fn record_command_history(&mut self, input: String) {
+        if self
+            .command_history
+            .last()
+            .is_some_and(|previous| previous == &input)
+        {
+            return;
+        }
+
+        self.command_history.push(input);
+        if self.command_history.len() > COMMAND_HISTORY_LIMIT {
+            let overflow = self.command_history.len() - COMMAND_HISTORY_LIMIT;
+            self.command_history.drain(0..overflow);
         }
     }
 
@@ -2004,6 +2093,8 @@ struct PromptState {
     kind: PromptKind,
     input: String,
     after_success: Option<PendingAction>,
+    history_index: Option<usize>,
+    history_draft: String,
 }
 
 impl PromptState {
@@ -2012,11 +2103,20 @@ impl PromptState {
             kind,
             input,
             after_success,
+            history_index: None,
+            history_draft: String::new(),
         }
     }
 
     fn status_text(&self) -> String {
         format!("{}{}", self.kind.label(), self.input)
+    }
+
+    fn detach_history(&mut self) {
+        if self.kind == PromptKind::CommandLine {
+            self.history_index = None;
+            self.history_draft.clear();
+        }
     }
 }
 
@@ -2383,6 +2483,7 @@ impl StatusLevel {
 }
 
 const STATUS_HISTORY_LIMIT: usize = 128;
+const COMMAND_HISTORY_LIMIT: usize = 128;
 
 struct TerminalGuard;
 
@@ -2557,7 +2658,7 @@ fn help_text(keymap: &Keymap) -> String {
     }
 
     out.push_str(
-        "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n\n",
+        "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
     );
     out.push_str(
         "Notes\n  Type commands in the command prompt to list command-line actions.\n  Help opens as a read-only tiled window.\n  Dirty buffers ask for confirmation before changes are discarded.\n",
@@ -3568,6 +3669,113 @@ key.window.close = none
             app.workspace.focused_window().unwrap().kind,
             WindowKind::ConfigDiagnostics
         );
+    }
+
+    #[test]
+    fn command_line_history_navigates_recent_commands_and_restores_draft() {
+        let mut app = AppState::new();
+
+        submit_command_line(&mut app, "commands");
+        submit_command_line(&mut app, "theme");
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(&mut app, "draft");
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.prompt_status_text(), Some("Command: theme".to_string()));
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: commands".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: commands".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.prompt_status_text(), Some("Command: theme".to_string()));
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.prompt_status_text(), Some("Command: draft".to_string()));
+    }
+
+    #[test]
+    fn command_line_history_repeats_previous_command() {
+        let mut app = AppState::new();
+
+        submit_command_line(&mut app, "commands");
+        app.set_status("cleared");
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.status_message, Some(COMMAND_LINE_HELP.to_string()));
+        assert_eq!(app.command_history, vec!["commands".to_string()]);
+    }
+
+    #[test]
+    fn command_line_history_is_capped_and_skips_consecutive_duplicates() {
+        let mut app = AppState::new();
+
+        for index in 0..(COMMAND_HISTORY_LIMIT + 2) {
+            app.record_command_history(format!("cmd-{index}"));
+        }
+
+        assert_eq!(app.command_history.len(), COMMAND_HISTORY_LIMIT);
+        assert_eq!(app.command_history.first(), Some(&"cmd-2".to_string()));
+        assert_eq!(
+            app.command_history.last(),
+            Some(&format!("cmd-{}", COMMAND_HISTORY_LIMIT + 1))
+        );
+
+        let last = app.command_history.last().cloned().unwrap();
+        app.record_command_history(last);
+        assert_eq!(app.command_history.len(), COMMAND_HISTORY_LIMIT);
+    }
+
+    #[test]
+    fn command_line_history_does_not_affect_other_prompts() {
+        let mut app = AppState::new();
+        app.record_command_history("theme".to_string());
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, "path");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.prompt_status_text(), Some("Open: path".to_string()));
     }
 
     #[test]
