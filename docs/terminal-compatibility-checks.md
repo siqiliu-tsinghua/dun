@@ -167,7 +167,9 @@ Editing:
   directory match list.
 - In file dialogs, printable text edits the path, Tab completes a unique or
   common path prefix, Up/Down moves the visible match selection,
-  PageUp/PageDown moves by a page, Enter opens or saves, and Esc cancels.
+  PageUp/PageDown moves by a page, `Ctrl+H` toggles hidden files, Enter opens
+  or saves, and Esc cancels. Dotfiles are hidden by default unless the typed
+  prefix starts with `.`, and `..` is available for parent-directory navigation.
 - `Ctrl+P` opens the command prompt, and Up/Down recall command history.
 - Dirty buffers ask for confirmation before quit, new, open, or close.
 

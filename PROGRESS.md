@@ -387,3 +387,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   an explicit scroll offset, PageUp/PageDown move selection by page, mouse
   wheel events scroll the list, and click hit testing follows the scrolled
   visible range.
+- Added file dialog parent-directory and hidden-file polish. Open/Save As
+  lists now include a `..` directory entry, hide dotfiles by default, reveal
+  dotfiles when the typed prefix starts with `.`, and support `Ctrl+H` to
+  toggle hidden entries without bypassing validated file I/O.

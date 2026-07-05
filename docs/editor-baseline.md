@@ -270,9 +270,10 @@ Paste policy:
 - pasted controls are buffer content only and must not be interpreted as
   terminal controls or editor commands;
 - prompts may accept pasted text, but paste must not auto-submit a prompt;
-- Open/Save As file dialogs use Rust-owned directory listing and Tab path
-  completion plus PageUp/PageDown list navigation, while all actual open/save
-  file operations still go through the same validated editor file I/O paths;
+- Open/Save As file dialogs use Rust-owned directory listing, `..` navigation,
+  hidden-file filtering, Tab path completion, and PageUp/PageDown list
+  navigation, while all actual open/save file operations still go through the
+  same validated editor file I/O paths;
 - external clipboard commands and OSC 52 clipboard writes are out of scope for
   the baseline.
 

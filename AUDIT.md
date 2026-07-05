@@ -157,8 +157,8 @@ Current implementation:
   button text before rendering.
 - Open/Save As file dialog directory entries and path input are rendered
   through the same modal overlay sanitizer; the dialog may list directories,
-  but all actual file open/save operations remain in `dun-cli` validated file
-  I/O paths.
+  including `..` and optionally hidden dotfiles, but all actual file open/save
+  operations remain in `dun-cli` validated file I/O paths.
 - UTF-8 mode uses Unicode control pictures for C0 controls.
 - ASCII mode uses caret notation and escapes non-ASCII characters as
   `\u{...}`.
@@ -172,8 +172,9 @@ Current implementation:
   windows, place the cursor, update a text selection, resize a split, or
   open a typed dropdown menu and dispatch an existing submenu `EditorCommand`.
   In file dialogs, mouse clicks can select visible entries, enter directories,
-  or submit an Open path through the same validated Open path. Mouse input does
-  not trigger paste, arbitrary direct file operations, or plugin actions.
+  including `..`, or submit an Open path through the same validated Open path.
+  Mouse input does not trigger paste, arbitrary direct file operations, or
+  plugin actions.
 - Future paste support must treat pasted bytes as untrusted text routed through
   the normal edit transaction path. It must not parse terminal escapes inside
   editor state, auto-submit prompts, or use OSC 52/external clipboard commands

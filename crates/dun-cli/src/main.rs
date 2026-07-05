@@ -1774,6 +1774,11 @@ impl AppState {
         match event.code {
             CrosstermKeyCode::Esc => self.cancel_file_dialog(),
             CrosstermKeyCode::Enter => self.submit_file_dialog(),
+            CrosstermKeyCode::Char('h')
+                if event.modifiers.contains(CrosstermKeyModifiers::CONTROL) =>
+            {
+                self.toggle_file_dialog_hidden()
+            }
             CrosstermKeyCode::Up => self.move_file_dialog_selection(-1),
             CrosstermKeyCode::Down => self.move_file_dialog_selection(1),
             CrosstermKeyCode::PageUp => self.page_file_dialog_selection(-1),
@@ -1820,6 +1825,12 @@ impl AppState {
     fn scroll_file_dialog(&mut self, delta: isize) {
         if let Some(dialog) = &mut self.file_dialog {
             dialog.scroll(delta);
+        }
+    }
+
+    fn toggle_file_dialog_hidden(&mut self) {
+        if let Some(dialog) = &mut self.file_dialog {
+            dialog.toggle_hidden();
         }
     }
 
@@ -2611,6 +2622,7 @@ struct FileDialogState {
     entries: Vec<FileDialogEntry>,
     selected_index: Option<usize>,
     scroll_offset: usize,
+    show_hidden: bool,
     selection_touched: bool,
     message: Option<String>,
     after_success: Option<PendingAction>,
@@ -2624,6 +2636,7 @@ impl FileDialogState {
             entries: Vec::new(),
             selected_index: None,
             scroll_offset: 0,
+            show_hidden: false,
             selection_touched: false,
             message: None,
             after_success,
@@ -2648,6 +2661,10 @@ impl FileDialogState {
             self.message
                 .clone()
                 .unwrap_or_else(|| self.kind.help_text().to_string()),
+            format!(
+                "Hidden: {} (Ctrl+H)",
+                if self.show_hidden { "shown" } else { "hidden" }
+            ),
         ];
         if self.entries.len() > FILE_DIALOG_VISIBLE_ENTRIES {
             if let Some((start, end, _)) = self.visible_entry_range() {
@@ -2668,13 +2685,13 @@ impl FileDialogState {
             UnicodeWidthStr::width(self.input.as_str()),
             list,
             selected,
-            vec!["Enter  Tab complete  Up/Down select  Esc cancel".to_string()],
+            vec!["Enter  Tab complete  Ctrl+H hidden  Up/Down select  Esc cancel".to_string()],
         )
     }
 
     fn refresh_entries(&mut self) {
         let context = file_dialog_context(&self.input);
-        match list_file_dialog_entries(&context) {
+        match list_file_dialog_entries(&context, self.show_hidden) {
             Ok(entries) => {
                 self.entries = entries;
                 self.selected_index = if self.entries.is_empty() {
@@ -2830,19 +2847,41 @@ impl FileDialogState {
         self.message = None;
     }
 
+    fn toggle_hidden(&mut self) {
+        self.show_hidden = !self.show_hidden;
+        self.refresh_entries();
+        self.message = Some(format!(
+            "Hidden files {}",
+            if self.show_hidden { "shown" } else { "hidden" }
+        ));
+    }
+
     fn complete(&mut self, forward: bool) {
         if self.entries.is_empty() {
             self.message = Some("No matches".to_string());
             return;
         }
 
-        if self.entries.len() == 1 {
-            self.apply_entry(0);
+        let context = file_dialog_context(&self.input);
+        let completion_indices = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| is_completable_file_dialog_entry(entry, &context.prefix))
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+
+        if completion_indices.is_empty() {
+            self.message = Some("No matches".to_string());
             return;
         }
 
-        let context = file_dialog_context(&self.input);
-        if let Some(prefix) = common_entry_prefix(&self.entries) {
+        if completion_indices.len() == 1 {
+            self.apply_entry(completion_indices[0]);
+            return;
+        }
+
+        if let Some(prefix) = common_entry_prefix(&self.entries, &context.prefix) {
             if prefix.len() > context.prefix.len() {
                 self.input = format!("{}{}", context.base_input, prefix);
                 self.refresh_entries();
@@ -2850,13 +2889,18 @@ impl FileDialogState {
             }
         }
 
-        let selected = self.selected_index.unwrap_or_else(|| {
-            if forward {
-                0
-            } else {
-                self.entries.len().saturating_sub(1)
-            }
-        });
+        let selected = self
+            .selected_index
+            .filter(|index| completion_indices.contains(index))
+            .unwrap_or_else(|| {
+                if forward {
+                    completion_indices[0]
+                } else {
+                    *completion_indices
+                        .last()
+                        .expect("completion indices are non-empty")
+                }
+            });
         self.apply_entry(selected);
     }
 
@@ -2874,9 +2918,8 @@ impl FileDialogState {
                 let entry = self.entries[index].clone();
                 let context = file_dialog_context(&self.input);
                 let should_use_selected = self.selection_touched
-                    || input.ends_with('/')
                     || entry.name == context.prefix
-                    || context.prefix.is_empty();
+                    || entry.is_parent && context.prefix == "..";
                 if should_use_selected {
                     if entry.is_dir {
                         self.apply_entry(index);
@@ -2961,6 +3004,7 @@ struct FileDialogEntry {
     input: String,
     path: PathBuf,
     is_dir: bool,
+    is_parent: bool,
 }
 
 impl FileDialogEntry {
@@ -3604,11 +3648,47 @@ fn directory_path_from_dialog_base(base: &str) -> PathBuf {
     }
 }
 
-fn list_file_dialog_entries(context: &FileDialogContext) -> io::Result<Vec<FileDialogEntry>> {
+fn parent_input_for_dialog_base(base: &str) -> String {
+    if base.is_empty() {
+        return "../".to_string();
+    }
+    if base == "/" {
+        return "/".to_string();
+    }
+
+    let trimmed = base.trim_end_matches('/');
+    if trimmed.is_empty() {
+        return "/".to_string();
+    }
+
+    if let Some(index) = trimmed.rfind('/') {
+        return trimmed[..=index].to_string();
+    }
+
+    String::new()
+}
+
+fn list_file_dialog_entries(
+    context: &FileDialogContext,
+    show_hidden: bool,
+) -> io::Result<Vec<FileDialogEntry>> {
     let mut entries = Vec::new();
+    let parent_input = parent_input_for_dialog_base(&context.base_input);
+    entries.push(FileDialogEntry {
+        name: "..".to_string(),
+        input: parent_input.clone(),
+        path: expand_user_path(&parent_input),
+        is_dir: true,
+        is_parent: true,
+    });
+
+    let include_hidden = show_hidden || context.prefix.starts_with('.');
     for entry in fs::read_dir(&context.directory)? {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.') && !include_hidden {
+            continue;
+        }
         if !name.starts_with(&context.prefix) {
             continue;
         }
@@ -3626,20 +3706,24 @@ fn list_file_dialog_entries(context: &FileDialogContext) -> io::Result<Vec<FileD
             path: expand_user_path(&input),
             input,
             is_dir,
+            is_parent: false,
         });
     }
 
     entries.sort_by(|left, right| {
         right
-            .is_dir
-            .cmp(&left.is_dir)
+            .is_parent
+            .cmp(&left.is_parent)
+            .then_with(|| right.is_dir.cmp(&left.is_dir))
             .then_with(|| left.name.cmp(&right.name))
     });
     Ok(entries)
 }
 
-fn common_entry_prefix(entries: &[FileDialogEntry]) -> Option<String> {
-    let mut iter = entries.iter();
+fn common_entry_prefix(entries: &[FileDialogEntry], current_prefix: &str) -> Option<String> {
+    let mut iter = entries
+        .iter()
+        .filter(|entry| is_completable_file_dialog_entry(entry, current_prefix));
     let first = iter.next()?.name.clone();
     let mut prefix = first;
 
@@ -3653,6 +3737,10 @@ fn common_entry_prefix(entries: &[FileDialogEntry]) -> Option<String> {
     Some(prefix)
 }
 
+fn is_completable_file_dialog_entry(entry: &FileDialogEntry, current_prefix: &str) -> bool {
+    !entry.is_parent || current_prefix.starts_with("..")
+}
+
 fn common_prefix(left: &str, right: &str) -> String {
     let mut end = 0;
     for ((left_index, left_char), (_, right_char)) in left.char_indices().zip(right.char_indices())
@@ -3662,6 +3750,7 @@ fn common_prefix(left: &str, right: &str) -> String {
         }
         end = left_index + left_char.len_utf8();
     }
+
     left[..end].to_string()
 }
 
@@ -3768,7 +3857,7 @@ fn help_text(keymap: &Keymap) -> String {
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
     );
     out.push_str(
-        "File Dialogs\n  Enter           Open/save selected path\n  Esc             Cancel dialog\n  Tab             Complete path\n  Up/Down         Move file selection\n  PageUp/PageDown Page file selection\n  Mouse click     Select list entry when mouse is enabled\n  Mouse wheel     Scroll list when mouse is enabled\n\n",
+        "File Dialogs\n  Enter           Open/save selected path\n  Esc             Cancel dialog\n  Tab             Complete path\n  Ctrl+H          Toggle hidden files\n  Up/Down         Move file selection\n  PageUp/PageDown Page file selection\n  Mouse click     Select list entry when mouse is enabled\n  Mouse wheel     Scroll list when mouse is enabled\n\n",
     );
     out.push_str(
         "Menus\n  Alt+F/E/V/H     Open File/Edit/View/Help menu\n  Left/Right      Switch open menu\n  Up/Down         Move menu selection\n  Enter           Run selected menu command\n  Esc             Close open menu\n\n",
@@ -6146,6 +6235,10 @@ key.app.help = F10
         );
         handle_key_event(
             &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
             CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
         );
 
@@ -6191,11 +6284,11 @@ key.app.help = F10
             app.file_dialog
                 .as_ref()
                 .and_then(|dialog| dialog.selected_index),
-            Some(19)
+            Some(20)
         );
         assert_eq!(
             app.file_dialog.as_ref().map(|dialog| dialog.scroll_offset),
-            Some(8)
+            Some(9)
         );
         handle_key_event(
             &mut app,
@@ -6205,7 +6298,7 @@ key.app.help = F10
             app.file_dialog
                 .as_ref()
                 .and_then(|dialog| dialog.selected_index),
-            Some(8)
+            Some(9)
         );
         handle_key_event(
             &mut app,
@@ -6225,6 +6318,98 @@ key.app.help = F10
         for index in 0..20 {
             let _ = std::fs::remove_file(directory.join(format!("item{index:02}.txt")));
         }
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn file_dialog_parent_entry_is_first_and_enters_parent_directory() {
+        let directory = temp_file_path("file-dialog-parent");
+        let child = directory.join("child");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::create_dir(&child).unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", child.display()));
+
+        let dialog = app.file_dialog.as_ref().unwrap();
+        assert_eq!(
+            dialog.entries.first().map(|entry| entry.name.as_str()),
+            Some("..")
+        );
+        assert_eq!(
+            dialog.entries.first().map(|entry| entry.is_parent),
+            Some(true)
+        );
+
+        app.click_file_dialog_visible_index(0);
+
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Open: {}/", directory.display()))
+        );
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "");
+
+        let _ = std::fs::remove_dir(child);
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn file_dialog_hides_dotfiles_until_prefix_or_toggle() {
+        let directory = temp_file_path("file-dialog-hidden");
+        let hidden = directory.join(".secret");
+        let visible = directory.join("visible.txt");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(&hidden, "hidden").unwrap();
+        std::fs::write(&visible, "visible").unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", directory.display()));
+
+        let entry_names = app
+            .file_dialog
+            .as_ref()
+            .unwrap()
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect::<Vec<_>>();
+        assert!(entry_names.contains(&".."));
+        assert!(entry_names.contains(&"visible.txt"));
+        assert!(!entry_names.contains(&".secret"));
+
+        send_text(&mut app, ".");
+        let entry_names = app
+            .file_dialog
+            .as_ref()
+            .unwrap()
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect::<Vec<_>>();
+        assert!(entry_names.contains(&".secret"));
+
+        let mut app = AppState::new();
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", directory.display()));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::CONTROL),
+        );
+
+        let dialog = app.file_dialog.as_ref().unwrap();
+        let entry_names = dialog
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect::<Vec<_>>();
+        assert!(dialog.show_hidden);
+        assert!(entry_names.contains(&".secret"));
+        assert_eq!(dialog.message.as_deref(), Some("Hidden files shown"));
+
+        let _ = std::fs::remove_file(hidden);
+        let _ = std::fs::remove_file(visible);
         let _ = std::fs::remove_dir(directory);
     }
 
@@ -6253,9 +6438,9 @@ key.app.help = F10
         let (x, y) = file_dialog_list_point(&app, 0);
         handle_mouse_event(&mut app, left_click(x, y));
 
-        let path = directory.join("item01.txt");
+        let path = directory.join("item00.txt");
         let state = app.buffer_state(BufferId(1)).unwrap();
-        assert_eq!(state.buffer.to_text(), "item01");
+        assert_eq!(state.buffer.to_text(), "item00");
         assert_eq!(state.path.as_ref(), Some(&path));
 
         for index in 0..14 {
@@ -6278,7 +6463,8 @@ key.app.help = F10
 
         app.handle_command(&EditorCommand::File(FileCommand::Open));
         send_text(&mut app, &format!("{}/", directory.display()));
-        handle_mouse_event(&mut app, left_click(20, 9));
+        let (x, y) = file_dialog_list_point(&app, 2);
+        handle_mouse_event(&mut app, left_click(x, y));
 
         let state = app.buffer_state(BufferId(1)).unwrap();
         assert_eq!(state.buffer.to_text(), "second");
@@ -6302,7 +6488,8 @@ key.app.help = F10
 
         app.handle_command(&EditorCommand::File(FileCommand::Open));
         send_text(&mut app, &format!("{}/", directory.display()));
-        handle_mouse_event(&mut app, left_click(20, 8));
+        let (x, y) = file_dialog_list_point(&app, 1);
+        handle_mouse_event(&mut app, left_click(x, y));
 
         assert_eq!(
             app.prompt_status_text(),
@@ -6327,7 +6514,8 @@ key.app.help = F10
 
         app.handle_command(&EditorCommand::File(FileCommand::SaveAs));
         send_text(&mut app, &format!("{}/", directory.display()));
-        handle_mouse_event(&mut app, left_click(20, 8));
+        let (x, y) = file_dialog_list_point(&app, 1);
+        handle_mouse_event(&mut app, left_click(x, y));
 
         assert_eq!(
             app.prompt_status_text(),

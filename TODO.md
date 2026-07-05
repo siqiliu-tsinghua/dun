@@ -70,7 +70,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add Tab path completion to the Open/Save As file dialog baseline.
 - [x] Add mouse hit testing for file dialog entries.
 - [x] Add file dialog list scrolling and PageUp/PageDown navigation.
-- [ ] Add parent-directory and hidden-file polish to file dialogs.
+- [x] Add parent-directory and hidden-file polish to file dialogs.
+- [ ] Add file dialog path-input cursor movement and Home/End editing.
 
 ## `dun-config`
 
