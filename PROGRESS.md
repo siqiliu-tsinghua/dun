@@ -210,3 +210,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   them instead of writing escaped fallback text over the original bytes.
 - Added CLI tests for invalid UTF-8 fallback display, valid Unicode preservation
   inside fallback buffers, and Save/Save As rejection for fallback buffers.
+- Added the first Rust-owned configuration file loader. `dun-config` now parses
+  line-based `key = value` overrides for theme, terminal overrides, limits, and
+  command keybindings without adding external parser dependencies.
+- Wired startup config loading into `dun-cli` through `--config PATH`,
+  `--config=PATH`, `--no-config`, `DUN_CONFIG`, and default
+  `$XDG_CONFIG_HOME/dun/config` or `$HOME/.config/dun/config` discovery.
+- Added parser and CLI tests for config overrides, keybinding unbinds,
+  duplicate key detection, explicit config loading, and parse-error reporting.

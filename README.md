@@ -36,9 +36,9 @@ open, or close would discard changes.
 dun [OPTIONS] [--] [PATH]
 ```
 
-Supported options are `--help`/`-h` and `--version`/`-V`. `dun` exits with
-`0` for success/help/version, `1` for runtime or file I/O errors, and `2` for
-command-line usage errors.
+Supported options are `--help`/`-h`, `--version`/`-V`, `--config PATH`, and
+`--no-config`. `dun` exits with `0` for success/help/version, `1` for runtime
+or file I/O errors, and `2` for command-line usage errors.
 
 The current baseline decisions are:
 
@@ -147,5 +147,7 @@ drawing.
   deferral.
 - [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md):
   PTY smoke coverage and manual SSH terminal compatibility checklist.
+- [docs/configuration.md](./docs/configuration.md): current Rust-owned config
+  file loader and supported keys.
 - [docs/crate-map.md](./docs/crate-map.md): current Rust workspace crate
   boundaries and dependency rules.

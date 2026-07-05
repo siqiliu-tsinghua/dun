@@ -61,6 +61,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define typed config defaults.
 - [x] Define typed keybinding schema.
 - [x] Define default keymap.
+- [x] Load config files through Rust-owned parsing.
 - [x] Support multi-stroke key sequence prefix matching.
 - [x] Define theme selection config.
 - [x] Define terminal override config.

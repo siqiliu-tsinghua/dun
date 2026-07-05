@@ -1,0 +1,69 @@
+# Configuration
+
+`dun` currently supports a small Rust-owned configuration file format. This is
+a baseline loader, not the future `rum` configuration language.
+
+The loader starts from `Config::default()` and applies `key = value` overrides.
+Blank lines and text after `#` are ignored.
+
+## Loading
+
+Configuration is loaded in this order:
+
+1. `--no-config` disables configuration loading.
+2. `--config PATH` or `--config=PATH` loads the explicit path.
+3. `DUN_CONFIG` loads the path named by the environment variable.
+4. `$XDG_CONFIG_HOME/dun/config` is loaded if present.
+5. `$HOME/.config/dun/config` is loaded if present.
+6. If no config file is found, defaults are used.
+
+Explicit or environment-provided config paths must be readable and valid. A
+missing default config file is ignored.
+
+## Format
+
+Supported scalar keys:
+
+```text
+theme = msedit | turbo | dark | dun
+terminal.encoding = utf8 | ascii
+terminal.colors = 256 | 16 | mono
+limits.editable_file_soft_limit_bytes = 16 MiB
+limits.line_display_soft_limit_bytes = 16 KiB
+```
+
+Byte values accept plain bytes or binary units: `KiB`, `MiB`, and `GiB`.
+
+Keybindings use command ids:
+
+```text
+key.app.quit = Ctrl+Q
+key.edit.find = Ctrl+F
+key.window.split_horizontal = Ctrl+W,H
+```
+
+Set a command to `none`, `disabled`, or `unbind` to remove its default binding:
+
+```text
+key.edit.find = none
+```
+
+Changing a command binding removes that command's default binding first. If the
+new key sequence conflicts with another command, config validation fails.
+
+## Example
+
+```text
+# ~/.config/dun/config
+theme = dark
+terminal.colors = 16
+limits.editable_file_soft_limit_bytes = 8 MiB
+
+key.app.quit = Ctrl+Q
+key.edit.find = Ctrl+F
+key.window.split_horizontal = Ctrl+W,H
+key.window.split_vertical = Ctrl+W,V
+```
+
+Future `rum` configuration should produce the same typed `Config` model rather
+than mutating editor state directly.

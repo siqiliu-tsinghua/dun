@@ -157,7 +157,7 @@ Goal: make the app usable across inconsistent terminals.
 
 - [x] Define typed config defaults.
 - [x] Define keybinding schema.
-- [ ] Load a config file through Rust-owned parsing first.
+- [x] Load a config file through Rust-owned parsing first.
 - [x] Support terminal profile overrides.
 - [x] Support theme selection.
 - [x] Validate duplicate or invalid keybindings.

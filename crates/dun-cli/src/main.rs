@@ -16,7 +16,7 @@ use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use dun_config::{Config, Key, KeyModifiers, KeySequence, KeyStroke, Limits};
+use dun_config::{Config, Key, KeyModifiers, KeySequence, KeyStroke, Limits, parse_config};
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
     FileCommand, LineEnding, Position, Rect, SearchMatch, TextBuffer, WindowCommand, WindowId,
@@ -31,6 +31,7 @@ use unicode_width::UnicodeWidthStr;
 
 const EXIT_RUNTIME_ERROR: u8 = 1;
 const EXIT_USAGE_ERROR: u8 = 2;
+const DUN_CONFIG_ENV: &str = "DUN_CONFIG";
 
 fn main() -> ExitCode {
     match run_cli(env::args_os().skip(1)) {
@@ -55,12 +56,17 @@ where
             println!("{}", cli_version_text());
             Ok(())
         }
-        CliAction::Run { path } => run_tui(path).map_err(CliError::Io),
+        CliAction::Run {
+            config_path,
+            no_config,
+            path,
+        } => run_tui(config_path, no_config, path).map_err(CliError::Io),
     }
 }
 
-fn run_tui(path: Option<PathBuf>) -> io::Result<()> {
-    let mut app = AppState::from_path(path)?;
+fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>) -> io::Result<()> {
+    let config = load_startup_config(config_path.as_deref(), no_config)?;
+    let mut app = AppState::from_config_path(config, path)?;
     let _guard = TerminalGuard::enter()?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
@@ -74,7 +80,11 @@ fn run_tui(path: Option<PathBuf>) -> io::Result<()> {
 enum CliAction {
     Help,
     Version,
-    Run { path: Option<PathBuf> },
+    Run {
+        config_path: Option<PathBuf>,
+        no_config: bool,
+        path: Option<PathBuf>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -133,9 +143,12 @@ where
 {
     let mut action = None;
     let mut paths = Vec::new();
+    let mut config_path = None;
+    let mut no_config = false;
     let mut parse_options = true;
+    let mut args = args.into_iter();
 
-    for arg in args {
+    while let Some(arg) = args.next() {
         let arg = arg.into();
         if parse_options && arg == "--" {
             parse_options = false;
@@ -150,6 +163,46 @@ where
                 }
                 "-V" | "--version" => {
                     set_cli_action(&mut action, CliAction::Version)?;
+                    continue;
+                }
+                "--no-config" => {
+                    if config_path.is_some() {
+                        return Err(UsageError::new(
+                            "--config and --no-config cannot be used together",
+                        ));
+                    }
+                    no_config = true;
+                    continue;
+                }
+                "--config" => {
+                    if no_config {
+                        return Err(UsageError::new(
+                            "--config and --no-config cannot be used together",
+                        ));
+                    }
+                    if config_path.is_some() {
+                        return Err(UsageError::new("--config may only be used once"));
+                    }
+                    let Some(path) = args.next() else {
+                        return Err(UsageError::new("missing path after --config"));
+                    };
+                    config_path = Some(PathBuf::from(path.into()));
+                    continue;
+                }
+                option if option.starts_with("--config=") => {
+                    if no_config {
+                        return Err(UsageError::new(
+                            "--config and --no-config cannot be used together",
+                        ));
+                    }
+                    if config_path.is_some() {
+                        return Err(UsageError::new("--config may only be used once"));
+                    }
+                    let path = option.trim_start_matches("--config=");
+                    if path.is_empty() {
+                        return Err(UsageError::new("missing path after --config"));
+                    }
+                    config_path = Some(PathBuf::from(path));
                     continue;
                 }
                 option if option.starts_with('-') && option != "-" => {
@@ -172,8 +225,14 @@ where
     }
 
     match paths.len() {
-        0 => Ok(CliAction::Run { path: None }),
+        0 => Ok(CliAction::Run {
+            config_path,
+            no_config,
+            path: None,
+        }),
         1 => Ok(CliAction::Run {
+            config_path,
+            no_config,
             path: paths.into_iter().next(),
         }),
         count => Err(UsageError::new(format!(
@@ -214,12 +273,67 @@ Arguments:
 Options:
   -h, --help        Show this help text and exit.
   -V, --version     Show version information and exit.
+      --config PATH Load configuration from PATH.
+      --no-config   Ignore DUN_CONFIG and default config paths.
 
 Exit codes:
   0                 Success, --help, or --version.
   1                 Runtime, terminal, or file I/O error.
   2                 Command-line usage error.
 "
+}
+
+fn load_startup_config(explicit_path: Option<&Path>, no_config: bool) -> io::Result<Config> {
+    if no_config {
+        return Ok(Config::default());
+    }
+
+    if let Some(path) = explicit_path {
+        return read_config_file(path);
+    }
+
+    if let Some(path) = env_config_path() {
+        return read_config_file(&path);
+    }
+
+    if let Some(path) = default_config_path() {
+        if path.exists() {
+            return read_config_file(&path);
+        }
+    }
+
+    Ok(Config::default())
+}
+
+fn read_config_file(path: &Path) -> io::Result<Config> {
+    let text = fs::read_to_string(path)?;
+    parse_config(&text).map_err(|error| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{}: {error}", path.display()),
+        )
+    })
+}
+
+fn env_config_path() -> Option<PathBuf> {
+    env::var_os(DUN_CONFIG_ENV)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
+fn default_config_path() -> Option<PathBuf> {
+    if let Some(config_home) = env::var_os("XDG_CONFIG_HOME").filter(|value| !value.is_empty()) {
+        return Some(PathBuf::from(config_home).join("dun").join("config"));
+    }
+
+    env::var_os("HOME")
+        .filter(|value| !value.is_empty())
+        .map(|home| {
+            PathBuf::from(home)
+                .join(".config")
+                .join("dun")
+                .join("config")
+        })
 }
 
 struct AppState {
@@ -239,6 +353,7 @@ struct AppState {
 }
 
 impl AppState {
+    #[cfg(test)]
     fn new() -> Self {
         Self::from_config(Config::default())
     }
@@ -265,6 +380,7 @@ impl AppState {
         }
     }
 
+    #[cfg(test)]
     fn from_path(path: Option<PathBuf>) -> io::Result<Self> {
         let mut app = Self::new();
         if let Some(path) = path {
@@ -273,7 +389,6 @@ impl AppState {
         Ok(app)
     }
 
-    #[cfg(test)]
     fn from_config_path(config: Config, path: Option<PathBuf>) -> io::Result<Self> {
         let mut app = Self::from_config(config);
         if let Some(path) = path {
@@ -1991,17 +2106,24 @@ fn detect_terminal_profile() -> dun_term::TerminalProfile {
 mod tests {
     use super::*;
     use dun_core::TextRange;
+    use std::str::FromStr;
 
     #[test]
     fn parse_cli_args_accepts_no_path_or_single_path() {
         assert_eq!(
             parse_cli_args(Vec::<&str>::new()).unwrap(),
-            CliAction::Run { path: None }
+            CliAction::Run {
+                config_path: None,
+                no_config: false,
+                path: None,
+            }
         );
 
         assert_eq!(
             parse_cli_args(["sample.txt"]).unwrap(),
             CliAction::Run {
+                config_path: None,
+                no_config: false,
                 path: Some(PathBuf::from("sample.txt"))
             }
         );
@@ -2016,7 +2138,37 @@ mod tests {
         assert_eq!(
             parse_cli_args(["--", "--literal-path"]).unwrap(),
             CliAction::Run {
+                config_path: None,
+                no_config: false,
                 path: Some(PathBuf::from("--literal-path"))
+            }
+        );
+    }
+
+    #[test]
+    fn parse_cli_args_accepts_config_options() {
+        assert_eq!(
+            parse_cli_args(["--config", "dun.conf", "sample.txt"]).unwrap(),
+            CliAction::Run {
+                config_path: Some(PathBuf::from("dun.conf")),
+                no_config: false,
+                path: Some(PathBuf::from("sample.txt")),
+            }
+        );
+        assert_eq!(
+            parse_cli_args(["--config=dun.conf"]).unwrap(),
+            CliAction::Run {
+                config_path: Some(PathBuf::from("dun.conf")),
+                no_config: false,
+                path: None,
+            }
+        );
+        assert_eq!(
+            parse_cli_args(["--no-config", "sample.txt"]).unwrap(),
+            CliAction::Run {
+                config_path: None,
+                no_config: true,
+                path: Some(PathBuf::from("sample.txt")),
             }
         );
     }
@@ -2043,6 +2195,22 @@ mod tests {
                 .to_string(),
             "only one of --help or --version may be used"
         );
+        assert_eq!(
+            parse_cli_args(["--config"]).unwrap_err().to_string(),
+            "missing path after --config"
+        );
+        assert_eq!(
+            parse_cli_args(["--config", "one", "--config", "two"])
+                .unwrap_err()
+                .to_string(),
+            "--config may only be used once"
+        );
+        assert_eq!(
+            parse_cli_args(["--config", "one", "--no-config"])
+                .unwrap_err()
+                .to_string(),
+            "--config and --no-config cannot be used together"
+        );
     }
 
     #[test]
@@ -2050,10 +2218,52 @@ mod tests {
         assert_eq!(CliError::Usage(UsageError::new("bad")).exit_code(), 2);
         assert_eq!(CliError::Io(io::Error::other("boom")).exit_code(), 1);
         assert!(cli_help_text().contains("Exit codes:"));
+        assert!(cli_help_text().contains("--config PATH"));
         assert_eq!(
             cli_version_text(),
             format!("dun {}", env!("CARGO_PKG_VERSION"))
         );
+    }
+
+    #[test]
+    fn load_startup_config_reads_explicit_config_path() {
+        let path = temp_file_path("dun-config");
+        std::fs::write(
+            &path,
+            "\
+theme = dark
+limits.editable_file_soft_limit_bytes = 3 KiB
+key.app.quit = Esc
+",
+        )
+        .unwrap();
+
+        let config = load_startup_config(Some(&path), false).unwrap();
+
+        assert_eq!(config.theme, dun_config::ThemeName::Dark);
+        assert_eq!(config.limits.editable_file_soft_limit_bytes, 3 * 1024);
+        assert_eq!(
+            config
+                .keybindings
+                .command_for_sequence(&KeySequence::from_str("Esc").unwrap()),
+            Some(&EditorCommand::App(AppCommand::Quit))
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn load_startup_config_reports_parse_errors_with_path() {
+        let path = temp_file_path("bad-dun-config");
+        std::fs::write(&path, "bad = value").unwrap();
+
+        let error = load_startup_config(Some(&path), false).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains(path.to_string_lossy().as_ref()));
+        assert!(error.to_string().contains("line 1"));
+
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]
