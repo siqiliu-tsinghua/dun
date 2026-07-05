@@ -879,6 +879,26 @@ impl AppState {
         had_pending_keys
     }
 
+    fn handle_selection_key_stroke(&mut self, stroke: KeyStroke) -> bool {
+        if stroke.modifiers != KeyModifiers::SHIFT {
+            return false;
+        }
+
+        let Some(buffer) = self.focused_buffer_mut() else {
+            return false;
+        };
+
+        match stroke.key {
+            Key::Left => buffer.buffer.extend_selection_left(),
+            Key::Right => buffer.buffer.extend_selection_right(),
+            Key::Up => buffer.buffer.extend_selection_up(),
+            Key::Down => buffer.buffer.extend_selection_down(),
+            Key::Home => buffer.buffer.extend_selection_to_line_start(),
+            Key::End => buffer.buffer.extend_selection_to_line_end(),
+            _ => false,
+        }
+    }
+
     fn handle_app_command(&mut self, command: &AppCommand) {
         match command {
             AppCommand::ConfigDiagnostics => self.open_config_diagnostics_screen(),
@@ -3960,6 +3980,10 @@ fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
         return;
     }
 
+    if app.handle_selection_key_stroke(stroke) {
+        return;
+    }
+
     if handle_menu_mnemonic_key_event(app, event) {
         return;
     }
@@ -4331,6 +4355,9 @@ fn help_text(keymap: &Keymap, file_dialog_keys: &FileDialogKeymap) -> String {
 
     out.push_str(
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
+    );
+    out.push_str(
+        "Selection\n  Shift+Arrow     Extend selection by character or line\n  Shift+Home/End  Extend selection to line edge\n\n",
     );
     out.push_str("File Dialogs\n");
     push_file_dialog_help(
@@ -6547,6 +6574,114 @@ key.app.help = F10
 
         assert_eq!(text_input_from_crossterm(plain), Some('x'));
         assert_eq!(text_input_from_crossterm(control), None);
+    }
+
+    #[test]
+    fn shift_arrow_keys_extend_selection_in_editor_buffer() {
+        let mut app = app_with_text("abcd");
+        app.buffers[0]
+            .buffer
+            .set_cursor(Position::new(0, 1))
+            .unwrap();
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::SHIFT),
+        );
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .selection_range(),
+            Some(TextRange::new(Position::new(0, 1), Position::new(0, 2)))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::SHIFT),
+        );
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .selection_range(),
+            Some(TextRange::new(Position::new(0, 1), Position::new(0, 3)))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::SHIFT),
+        );
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .selection_range(),
+            Some(TextRange::new(Position::new(0, 1), Position::new(0, 2)))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        );
+        let buffer = &app.buffer_state(BufferId(1)).unwrap().buffer;
+        assert_eq!(buffer.selection_range(), None);
+        assert_eq!(buffer.cursor_position(), Position::new(0, 1));
+    }
+
+    #[test]
+    fn shift_home_end_extend_selection_to_line_edges() {
+        let mut app = app_with_text("abc\ndef");
+        app.buffers[0]
+            .buffer
+            .set_cursor(Position::new(1, 1))
+            .unwrap();
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::SHIFT),
+        );
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .selection_range(),
+            Some(TextRange::new(Position::new(1, 1), Position::new(1, 3)))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::SHIFT),
+        );
+        let buffer = &app.buffer_state(BufferId(1)).unwrap().buffer;
+        assert_eq!(
+            buffer.selection_range(),
+            Some(TextRange::new(Position::new(1, 0), Position::new(1, 1)))
+        );
+        assert_eq!(buffer.cursor_position(), Position::new(1, 0));
+    }
+
+    #[test]
+    fn configured_shift_arrow_binding_wins_before_selection_fallback() {
+        let config = parse_config("key.window.split_horizontal = Shift+Right").unwrap();
+        let mut app = AppState::from_config(config);
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+        app.handle_text_input('a');
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::SHIFT),
+        );
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(app.status_message, Some("Split horizontally".to_string()));
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .selection_range(),
+            None
+        );
     }
 
     #[test]

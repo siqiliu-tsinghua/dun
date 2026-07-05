@@ -176,6 +176,9 @@ Editing:
 - `Ctrl+P` opens the command prompt, and Up/Down recall command history.
 - Prompt inputs support Left/Right/Home/End/Delete/Backspace at UTF-8 character
   boundaries.
+- `Shift+Arrow` extends the editor selection by character or line, and
+  `Shift+Home`/`Shift+End` extends to the current line edge when those strokes
+  are not remapped by the active keymap.
 - Edit menu or command-line ids `edit.copy`, `edit.cut`, and `edit.paste`
   operate on the process-local internal clipboard. They should copy/cut the
   active selection and paste through the normal edit path without requiring OS

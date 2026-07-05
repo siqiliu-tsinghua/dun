@@ -229,6 +229,8 @@ supports:
 - crossterm key events mapped into the typed keymap;
 - Alt+F/E/V/H menu mnemonics after the active keymap has had the first chance
   to consume those strokes;
+- keyboard selection with `Shift+Arrow` and `Shift+Home/End` after the active
+  keymap has had the first chance to consume those strokes;
 - `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
 
 ## Mouse

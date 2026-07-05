@@ -140,6 +140,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
   commands.
 - [x] Implement internal Cut/Copy/Paste baseline for active selections without
   using the OS clipboard.
+- [x] Add keyboard selection baseline with `Shift+Arrow` and `Shift+Home/End`.
 
 ## File and Display Safety
 

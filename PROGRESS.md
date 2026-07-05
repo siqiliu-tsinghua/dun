@@ -420,3 +420,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   targets with visible status messages, remains separate from the OS clipboard
   and OSC 52, and is covered by CLI tests for copy, cut, paste replacement,
   undo after cut, empty clipboard, and read-only buffers.
+- Added keyboard selection baseline support. `dun-core::TextBuffer` now has
+  UTF-8-safe selection extension methods for left/right/up/down and line
+  start/end. `dun-cli` maps unbound `Shift+Arrow` and `Shift+Home/End` strokes
+  to those methods after the active keymap has had priority.
+- Added tests for selection anchor/cursor behavior, vertical preferred-column
+  selection, line-edge selection, CLI Shift selection fallback, and configured
+  Shift-arrow bindings taking precedence over fallback selection.

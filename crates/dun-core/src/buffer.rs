@@ -350,6 +350,65 @@ impl TextBuffer {
         moved
     }
 
+    pub fn extend_selection_left(&mut self) -> bool {
+        let Some(position) = self.previous_position(self.cursor.position) else {
+            return false;
+        };
+        self.extend_selection_to(position, false);
+        true
+    }
+
+    pub fn extend_selection_right(&mut self) -> bool {
+        let Some(position) = self.next_position(self.cursor.position) else {
+            return false;
+        };
+        self.extend_selection_to(position, false);
+        true
+    }
+
+    pub fn extend_selection_up(&mut self) -> bool {
+        let position = self.cursor.position;
+        if position.line == 0 {
+            return false;
+        }
+
+        let column =
+            self.clamp_column_to_char_boundary(position.line - 1, self.cursor.preferred_column);
+        self.extend_selection_to(Position::new(position.line - 1, column), true);
+        true
+    }
+
+    pub fn extend_selection_down(&mut self) -> bool {
+        let position = self.cursor.position;
+        if position.line + 1 >= self.lines.len() {
+            return false;
+        }
+
+        let column =
+            self.clamp_column_to_char_boundary(position.line + 1, self.cursor.preferred_column);
+        self.extend_selection_to(Position::new(position.line + 1, column), true);
+        true
+    }
+
+    pub fn extend_selection_to_line_start(&mut self) -> bool {
+        let position = Position::new(self.cursor.position.line, 0);
+        if self.cursor.position == position {
+            return false;
+        }
+        self.extend_selection_to(position, false);
+        true
+    }
+
+    pub fn extend_selection_to_line_end(&mut self) -> bool {
+        let line = self.cursor.position.line;
+        let position = Position::new(line, self.lines[line].len());
+        if self.cursor.position == position {
+            return false;
+        }
+        self.extend_selection_to(position, false);
+        true
+    }
+
     pub fn insert_char(&mut self, ch: char) -> Result<(), BufferError> {
         let mut encoded = [0; 4];
         self.insert_str(ch.encode_utf8(&mut encoded))
@@ -569,6 +628,22 @@ impl TextBuffer {
             self.cursor.preferred_column = position.column;
         }
         self.selection = None;
+    }
+
+    fn extend_selection_to(&mut self, position: Position, keep_preferred_column: bool) {
+        let anchor = self
+            .selection
+            .map(|selection| selection.anchor)
+            .unwrap_or(self.cursor.position);
+        self.cursor.position = position;
+        if !keep_preferred_column {
+            self.cursor.preferred_column = position.column;
+        }
+        self.selection = if anchor == position {
+            None
+        } else {
+            Some(Selection::new(anchor, position))
+        };
     }
 
     fn commit_replace(
@@ -806,6 +881,88 @@ mod tests {
         assert_eq!(buffer.cursor_position(), Position::new(1, 1));
         assert!(buffer.move_down());
         assert_eq!(buffer.cursor_position(), Position::new(2, 4));
+    }
+
+    #[test]
+    fn extend_selection_tracks_anchor_and_utf8_boundaries() {
+        let mut buffer = TextBuffer::from_text("aébc");
+        buffer.set_cursor(Position::new(0, 1)).unwrap();
+
+        assert!(buffer.extend_selection_right());
+        assert_eq!(buffer.cursor_position(), Position::new(0, 3));
+        assert_eq!(
+            buffer.selection(),
+            Some(Selection::new(Position::new(0, 1), Position::new(0, 3)))
+        );
+        assert_eq!(
+            buffer.selection_range(),
+            Some(TextRange::new(Position::new(0, 1), Position::new(0, 3)))
+        );
+
+        assert!(buffer.extend_selection_right());
+        assert_eq!(
+            buffer.selection(),
+            Some(Selection::new(Position::new(0, 1), Position::new(0, 4)))
+        );
+
+        assert!(buffer.extend_selection_left());
+        assert_eq!(
+            buffer.selection(),
+            Some(Selection::new(Position::new(0, 1), Position::new(0, 3)))
+        );
+        assert!(buffer.extend_selection_left());
+        assert_eq!(buffer.selection(), None);
+        assert_eq!(buffer.cursor_position(), Position::new(0, 1));
+    }
+
+    #[test]
+    fn extend_selection_crosses_lines_and_keeps_preferred_column() {
+        let mut buffer = TextBuffer::from_text("abcd\nx\nwxyz");
+        buffer.set_cursor(Position::new(0, 4)).unwrap();
+
+        assert!(buffer.extend_selection_down());
+        assert_eq!(buffer.cursor_position(), Position::new(1, 1));
+        assert_eq!(
+            buffer.selection(),
+            Some(Selection::new(Position::new(0, 4), Position::new(1, 1)))
+        );
+
+        assert!(buffer.extend_selection_down());
+        assert_eq!(buffer.cursor_position(), Position::new(2, 4));
+        assert_eq!(
+            buffer.selection(),
+            Some(Selection::new(Position::new(0, 4), Position::new(2, 4)))
+        );
+
+        assert!(buffer.extend_selection_up());
+        assert_eq!(buffer.cursor_position(), Position::new(1, 1));
+        assert_eq!(
+            buffer.selection(),
+            Some(Selection::new(Position::new(0, 4), Position::new(1, 1)))
+        );
+    }
+
+    #[test]
+    fn extend_selection_to_line_edges() {
+        let mut buffer = TextBuffer::from_text("abc\ndef");
+        buffer.set_cursor(Position::new(1, 1)).unwrap();
+
+        assert!(buffer.extend_selection_to_line_end());
+        assert_eq!(
+            buffer.selection(),
+            Some(Selection::new(Position::new(1, 1), Position::new(1, 3)))
+        );
+
+        assert!(buffer.extend_selection_to_line_start());
+        assert_eq!(
+            buffer.selection(),
+            Some(Selection::new(Position::new(1, 1), Position::new(1, 0)))
+        );
+        assert!(buffer.extend_selection_to_line_end());
+        assert_eq!(
+            buffer.selection(),
+            Some(Selection::new(Position::new(1, 1), Position::new(1, 3)))
+        );
     }
 
     #[test]

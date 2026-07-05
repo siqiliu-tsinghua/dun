@@ -97,6 +97,9 @@ The default window-management bindings prefer MacBook- and SSH-friendly
 terminal applications, and Option only appears as Alt/Meta when the terminal is
 configured to send it. `Alt+Arrow` and `Alt+Shift+Arrow` remain compatibility
 aliases where available.
+Unbound `Shift+Arrow` and `Shift+Home/End` strokes extend the editor selection
+as a fallback after the active keymap is checked. Binding one of those strokes
+to a command gives the configured command priority.
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window
