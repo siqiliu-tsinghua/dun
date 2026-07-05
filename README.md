@@ -51,7 +51,8 @@ The command prompt keeps a bounded in-memory history navigated with Up/Down.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
 Mouse support is optional and disabled by default; when enabled in config,
-left-clicks can focus tiled windows and place the cursor in an editor body.
+left-clicks can focus tiled windows, place the cursor in an editor body, drag
+text selections, drag split borders, and click menu commands.
 The external SSH and low-capability terminal release matrix is documented in
 [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
 the local PTY harness covers common terminal profiles, small VT100-style

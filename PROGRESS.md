@@ -339,3 +339,9 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added core/UI/CLI tests for workspace coordinate focus, UI hit testing,
   wide-character cursor mapping, disabled mouse behavior, window focus, and
   body cursor placement.
+- Extended optional mouse support with menu command clicks, editor-body
+  selection drag, and split-border dragging. Split dragging is backed by a pure
+  `dun-core` split handle and ratio update API.
+- Added tests for menu hit testing, mouse menu dispatch, selection drag,
+  split drag, and a PTY smoke case that starts and exits with
+  `mouse.enabled = true`.

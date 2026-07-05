@@ -124,39 +124,9 @@ impl LayoutNode {
                 first,
                 second,
             } => {
-                let ratio = (*ratio).clamp(MIN_SPLIT_RATIO, MAX_SPLIT_RATIO);
-                match axis {
-                    Axis::Horizontal => {
-                        let first_width = split_dimension(area.width, ratio);
-                        let second_width = area.width.saturating_sub(first_width);
-
-                        first.resolved(Rect::new(area.x, area.y, first_width, area.height), out);
-                        second.resolved(
-                            Rect::new(
-                                area.x.saturating_add(first_width),
-                                area.y,
-                                second_width,
-                                area.height,
-                            ),
-                            out,
-                        );
-                    }
-                    Axis::Vertical => {
-                        let first_height = split_dimension(area.height, ratio);
-                        let second_height = area.height.saturating_sub(first_height);
-
-                        first.resolved(Rect::new(area.x, area.y, area.width, first_height), out);
-                        second.resolved(
-                            Rect::new(
-                                area.x,
-                                area.y.saturating_add(first_height),
-                                area.width,
-                                second_height,
-                            ),
-                            out,
-                        );
-                    }
-                }
+                let (first_rect, second_rect) = split_rects(area, *axis, *ratio);
+                first.resolved(first_rect, out);
+                second.resolved(second_rect, out);
             }
         }
     }
@@ -186,6 +156,17 @@ pub struct WindowState {
 pub struct WindowLayout {
     pub id: WindowId,
     pub rect: Rect,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SplitDragHandle {
+    path: Vec<SplitPathStep>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SplitPathStep {
+    First,
+    Second,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -378,6 +359,29 @@ impl Workspace {
         Some(window_id)
     }
 
+    pub fn split_at(&self, area: Rect, x: u16, y: u16) -> Option<SplitDragHandle> {
+        let mut path = Vec::new();
+        split_at_node(&self.root, area, x, y, &mut path)
+    }
+
+    pub fn resize_split_to(
+        &mut self,
+        handle: &SplitDragHandle,
+        area: Rect,
+        x: u16,
+        y: u16,
+    ) -> Result<u16, WorkspaceError> {
+        let Some((node, rect)) = split_node_mut_at_path(&mut self.root, &handle.path, area) else {
+            return Err(WorkspaceError::NoResizableSplit);
+        };
+        let LayoutNode::Split { axis, ratio, .. } = node else {
+            return Err(WorkspaceError::NoResizableSplit);
+        };
+
+        *ratio = ratio_for_split_position(*axis, rect, x, y);
+        Ok(*ratio)
+    }
+
     fn create_untitled_window(&mut self) -> WindowId {
         let window_id = WindowId(self.next_window_id);
         let buffer_id = BufferId(self.next_buffer_id);
@@ -394,6 +398,70 @@ impl Workspace {
         });
 
         window_id
+    }
+}
+
+fn split_at_node(
+    node: &LayoutNode,
+    area: Rect,
+    x: u16,
+    y: u16,
+    path: &mut Vec<SplitPathStep>,
+) -> Option<SplitDragHandle> {
+    let LayoutNode::Split {
+        axis,
+        ratio,
+        first,
+        second,
+    } = node
+    else {
+        return None;
+    };
+
+    let (first_rect, second_rect) = split_rects(area, *axis, *ratio);
+    if first_rect.contains(x, y) {
+        path.push(SplitPathStep::First);
+        if let Some(handle) = split_at_node(first, first_rect, x, y, path) {
+            return Some(handle);
+        }
+        path.pop();
+    }
+    if second_rect.contains(x, y) {
+        path.push(SplitPathStep::Second);
+        if let Some(handle) = split_at_node(second, second_rect, x, y, path) {
+            return Some(handle);
+        }
+        path.pop();
+    }
+    if split_boundary_contains(*axis, first_rect, second_rect, x, y) {
+        return Some(SplitDragHandle { path: path.clone() });
+    }
+
+    None
+}
+
+fn split_node_mut_at_path<'a>(
+    node: &'a mut LayoutNode,
+    path: &[SplitPathStep],
+    area: Rect,
+) -> Option<(&'a mut LayoutNode, Rect)> {
+    let Some((step, rest)) = path.split_first() else {
+        return Some((node, area));
+    };
+    let LayoutNode::Split {
+        axis,
+        ratio,
+        first,
+        second,
+    } = node
+    else {
+        return None;
+    };
+    let (first_rect, second_rect) = split_rects(area, *axis, *ratio);
+
+    match step {
+        SplitPathStep::First => split_node_mut_at_path(first, rest, first_rect),
+        SplitPathStep::Second => split_node_mut_at_path(second, rest, second_rect),
     }
 }
 
@@ -484,6 +552,67 @@ fn split_dimension(total: u16, ratio: u16) -> u16 {
     let raw = ((total as u32 * ratio.clamp(MIN_SPLIT_RATIO, MAX_SPLIT_RATIO) as u32) / 1000)
         .min(total as u32) as u16;
     raw.clamp(1, total - 1)
+}
+
+fn split_rects(area: Rect, axis: Axis, ratio: u16) -> (Rect, Rect) {
+    let ratio = ratio.clamp(MIN_SPLIT_RATIO, MAX_SPLIT_RATIO);
+    match axis {
+        Axis::Horizontal => {
+            let first_width = split_dimension(area.width, ratio);
+            let second_width = area.width.saturating_sub(first_width);
+            (
+                Rect::new(area.x, area.y, first_width, area.height),
+                Rect::new(
+                    area.x.saturating_add(first_width),
+                    area.y,
+                    second_width,
+                    area.height,
+                ),
+            )
+        }
+        Axis::Vertical => {
+            let first_height = split_dimension(area.height, ratio);
+            let second_height = area.height.saturating_sub(first_height);
+            (
+                Rect::new(area.x, area.y, area.width, first_height),
+                Rect::new(
+                    area.x,
+                    area.y.saturating_add(first_height),
+                    area.width,
+                    second_height,
+                ),
+            )
+        }
+    }
+}
+
+fn split_boundary_contains(axis: Axis, first: Rect, second: Rect, x: u16, y: u16) -> bool {
+    match axis {
+        Axis::Horizontal => {
+            y >= first.y
+                && y < first.bottom()
+                && (x == first.right().saturating_sub(1) || x == second.x)
+        }
+        Axis::Vertical => {
+            x >= first.x
+                && x < first.right()
+                && (y == first.bottom().saturating_sub(1) || y == second.y)
+        }
+    }
+}
+
+fn ratio_for_split_position(axis: Axis, area: Rect, x: u16, y: u16) -> u16 {
+    let (total, offset) = match axis {
+        Axis::Horizontal => (area.width, x.saturating_sub(area.x)),
+        Axis::Vertical => (area.height, y.saturating_sub(area.y)),
+    };
+    if total < 2 {
+        return DEFAULT_SPLIT_RATIO;
+    }
+
+    let offset = offset.clamp(1, total - 1);
+    ((offset as u32 * 1000) / total as u32).clamp(MIN_SPLIT_RATIO as u32, MAX_SPLIT_RATIO as u32)
+        as u16
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -717,6 +846,42 @@ mod tests {
         assert_eq!(workspace.resize_focused(Direction::Left).unwrap(), 500);
         assert_eq!(layout_rect(&workspace, first), Rect::new(0, 0, 50, 40));
         assert_eq!(layout_rect(&workspace, second), Rect::new(50, 0, 50, 40));
+    }
+
+    #[test]
+    fn split_at_returns_handle_for_split_boundary() {
+        let mut workspace = Workspace::new_untitled();
+        workspace.split_focused(Axis::Horizontal).unwrap();
+
+        assert!(workspace.split_at(area(), 49, 10).is_some());
+        assert!(workspace.split_at(area(), 50, 10).is_some());
+        assert!(workspace.split_at(area(), 10, 10).is_none());
+    }
+
+    #[test]
+    fn resize_split_to_moves_split_boundary_to_coordinate() {
+        let mut workspace = Workspace::new_untitled();
+        let first = workspace.focused;
+        let second = workspace.split_focused(Axis::Horizontal).unwrap();
+        let handle = workspace.split_at(area(), 50, 10).unwrap();
+
+        assert_eq!(workspace.resize_split_to(&handle, area(), 75, 10), Ok(750));
+
+        assert_eq!(layout_rect(&workspace, first), Rect::new(0, 0, 75, 40));
+        assert_eq!(layout_rect(&workspace, second), Rect::new(75, 0, 25, 40));
+    }
+
+    #[test]
+    fn resize_split_to_clamps_to_supported_ratio_range() {
+        let mut workspace = Workspace::new_untitled();
+        let first = workspace.focused;
+        let second = workspace.split_focused(Axis::Horizontal).unwrap();
+        let handle = workspace.split_at(area(), 50, 10).unwrap();
+
+        assert_eq!(workspace.resize_split_to(&handle, area(), 99, 10), Ok(900));
+
+        assert_eq!(layout_rect(&workspace, first), Rect::new(0, 0, 90, 40));
+        assert_eq!(layout_rect(&workspace, second), Rect::new(90, 0, 10, 40));
     }
 
     #[test]

@@ -49,6 +49,8 @@ It also opens fixtures for:
   sequences are not emitted as file content;
 - an invalid-byte file, checking that escaped bytes and `Escaped bytes` status
   are visible;
+- a `mouse.enabled = true` config, checking that mouse capture setup still
+  starts and exits cleanly;
 - a `40x12` VT100/C-locale startup case.
 
 If `expect(1)` is not installed, the test exits successfully after printing a
@@ -188,8 +190,9 @@ Low-capability expectations:
   the failure is recorded as a keybinding compatibility note, not an editor
   state failure.
 - Mouse support is optional and disabled by default. If enabled, left-click
-  focus/cursor placement should work in capable terminals, but mouse support is
-  not required for passing the matrix.
+  focus, cursor placement, selection drag, split drag, and menu clicks should
+  work in capable terminals, but mouse support is not required for passing the
+  matrix.
 - ASCII/VT100 cases must remain keyboard usable even if colors are reduced or
   absent.
 - UTF-8 text is not required to render correctly in `LANG=C`/ASCII cases, but

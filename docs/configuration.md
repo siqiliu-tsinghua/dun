@@ -59,8 +59,9 @@ keymap. Custom bindings and unbound commands are reflected on startup and after
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window
-focus and editor-body cursor placement. Selection, right-click paste, split
-dragging, and menu clicks remain deferred.
+focus, editor-body cursor placement, text selection drag, split-border drag,
+and menu command dispatch. Right-click paste and clipboard integration remain
+deferred.
 
 ## Example
 

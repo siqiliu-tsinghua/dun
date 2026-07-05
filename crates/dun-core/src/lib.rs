@@ -14,6 +14,6 @@ pub use command::{AppCommand, EditCommand, EditorCommand, FileCommand, WindowCom
 pub use display::{DisplayClass, DisplaySanitizer, DisplaySegment, SanitizedLine};
 pub use file_text::{DecodedFileText, FileTextEncoding, decode_file_text};
 pub use workspace::{
-    Axis, Direction, LayoutNode, Rect, WindowId, WindowKind, WindowLayout, WindowState, Workspace,
-    WorkspaceError,
+    Axis, Direction, LayoutNode, Rect, SplitDragHandle, WindowId, WindowKind, WindowLayout,
+    WindowState, Workspace, WorkspaceError,
 };

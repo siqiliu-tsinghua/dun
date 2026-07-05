@@ -55,6 +55,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Render focused buffer cursor inside the active window body.
 - [x] Render selected text ranges in the active window body.
 - [x] Add UI hit testing for optional mouse focus and cursor placement.
+- [x] Add menu hit testing for optional mouse command dispatch.
 - [x] Polish tiled rendering for small terminals and narrow panes.
 - [x] Keep rendering free of file I/O.
 
@@ -107,6 +108,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
   `window.*` commands.
 - [x] Add optional mouse capture, left-click window focus, and body cursor
   placement.
+- [x] Add mouse text selection, menu clicks, and split dragging.
+- [x] Document right-click paste and clipboard safety policy.
 
 ## File and Display Safety
 
@@ -139,7 +142,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 ## Deferred
 
-- [ ] Mouse selection, right-click paste, and split dragging.
+- [ ] Right-click paste and clipboard/bracketed-paste implementation.
 - [x] Crash recovery and orphaned atomic-save temp-file cleanup.
 - [ ] `rum` configuration evaluation.
 - [ ] `dun-plugin-api`.

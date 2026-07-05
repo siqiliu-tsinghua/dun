@@ -162,9 +162,14 @@ Current implementation:
 - Long-line display work is capped by byte count without splitting a UTF-8
   character.
 - Mouse capture is disabled by default, enabled only through typed config, and
-  restored on exit or runtime disable. Current mouse input only focuses tiled
-  windows or places the cursor in an editor body; it does not trigger paste,
-  file operations, or plugin actions.
+  restored on exit or runtime disable. Current mouse input can focus tiled
+  windows, place the cursor, update a text selection, resize a split, or
+  dispatch an existing menu `EditorCommand`; it does not trigger paste,
+  direct file operations, or plugin actions.
+- Future paste support must treat pasted bytes as untrusted text routed through
+  the normal edit transaction path. It must not parse terminal escapes inside
+  editor state, auto-submit prompts, or use OSC 52/external clipboard commands
+  in the baseline.
 - Tests cover OSC title/clipboard/hyperlink payloads, CSI/SGR/clear-screen,
   DCS, graphics escapes, bracketed paste markers, `ESC`, BEL, NUL, DEL, CR,
   backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and final

@@ -164,8 +164,8 @@ to terminal users:
 - equalize layout;
 - open command palette or command line.
 
-Every window operation must be keyboard accessible. Mouse resizing can be added
-later as a convenience only.
+Every window operation must be keyboard accessible. Optional mouse split
+dragging is a convenience layer over the same ratio resize model.
 
 ## Layout Algorithms
 
@@ -226,7 +226,8 @@ All actual split/close/resize operations are performed by `dun`.
 7. Implement collapse/expand.
 8. Render single-window msedit-style frame.
 9. Render multiple tiled windows.
-10. Add optional mouse affordances after keyboard flow works.
+10. Add optional mouse focus, selection, split dragging, and menu clicks after
+    keyboard flow works.
 11. Add log and filter views after `rum` is ready enough to embed deliberately.
 
 ## Open Questions

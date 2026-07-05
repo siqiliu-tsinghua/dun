@@ -166,6 +166,46 @@ fn pty_smoke_handles_small_low_capability_terminal() -> io::Result<()> {
 }
 
 #[test]
+fn pty_smoke_quits_cleanly_with_mouse_capture_enabled() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    let config_path = temp_path("dun-pty-mouse-config", "conf");
+    fs::write(&config_path, "mouse.enabled = true\n")?;
+    let case = TerminalCase::new(
+        "xterm-256color mouse enabled",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
+    let run = run_dun_in_pty(
+        &expect,
+        case,
+        &[OsStr::new("--config"), config_path.as_os_str()],
+        "Untitled",
+        CTRL_Q,
+    );
+    let _ = fs::remove_file(&config_path);
+    let run = run?;
+
+    assert!(
+        run.status.success(),
+        "{} failed with status {:?}\n{}",
+        case.name,
+        run.status,
+        run.output
+    );
+    assert_output_contains(&run.output, "Untitled", case.name);
+
+    Ok(())
+}
+
+#[test]
 fn pty_smoke_renders_escape_payloads_as_text() -> io::Result<()> {
     let _guard = pty_test_guard();
     let Some(expect) = command_on_path("expect") else {

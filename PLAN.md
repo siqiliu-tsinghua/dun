@@ -140,8 +140,8 @@ Goal: a running editor frame that restores the terminal correctly.
 - [x] Show focused buffer name, dirty state, and line/column status.
 - [x] Add optional mouse capture for left-click window focus and body cursor
   placement.
-- [x] Keep selection, right-click paste, split dragging, and menu clicks
-  deferred.
+- [x] Add mouse text selection, split dragging, and menu clicks.
+- [x] Keep right-click paste deferred until paste policy is explicit.
 
 Primary crates: `dun-cli`, `dun-ui`, `dun-core`, `dun-term`.
 

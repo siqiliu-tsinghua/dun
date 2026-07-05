@@ -24,8 +24,8 @@ use dun_config::{
 };
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
-    FileCommand, FileTextEncoding, LineEnding, Position, Rect, SearchMatch, TextBuffer,
-    WindowCommand, WindowId, WindowKind, Workspace, WorkspaceError, decode_file_text,
+    FileCommand, FileTextEncoding, LineEnding, Position, Rect, SearchMatch, SplitDragHandle,
+    TextBuffer, WindowCommand, WindowId, WindowKind, Workspace, WorkspaceError, decode_file_text,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
 use dun_ui::{BufferView, UiMouseTarget, UiShell};
@@ -443,6 +443,7 @@ struct AppState {
     shell: UiShell,
     limits: Limits,
     mouse_enabled: bool,
+    mouse_drag: Option<MouseDragState>,
     should_quit: bool,
     workspace_area: Rect,
     pending_keys: Vec<KeyStroke>,
@@ -487,6 +488,7 @@ impl AppState {
             shell,
             limits,
             mouse_enabled,
+            mouse_drag: None,
             should_quit: false,
             workspace_area: Rect::default(),
             pending_keys: Vec::new(),
@@ -553,10 +555,27 @@ impl AppState {
         buffer.ensure_cursor_visible(body_height);
     }
 
-    fn handle_left_click(&mut self, screen_x: u16, screen_y: u16) -> bool {
+    fn handle_mouse_down(&mut self, screen_x: u16, screen_y: u16) -> bool {
+        self.mouse_drag = None;
+        if screen_y == 0 {
+            if let Some(command) = self.shell.menu_command_at_column(screen_x) {
+                self.pending_keys.clear();
+                self.handle_command(&command);
+                return true;
+            }
+            return false;
+        }
+
         let Some((x, y)) = self.workspace_point_from_screen(screen_x, screen_y) else {
             return false;
         };
+        if let Some(handle) = self.workspace.split_at(self.workspace_area, x, y) {
+            let _ = self.workspace.focus_at(self.workspace_area, x, y);
+            self.pending_keys.clear();
+            self.mouse_drag = Some(MouseDragState::Split { handle });
+            return true;
+        }
+
         let hit = {
             let buffer_views = self.buffer_views();
             self.shell
@@ -575,10 +594,80 @@ impl AppState {
             if let Some(buffer) = self.buffer_state_mut(hit.buffer_id) {
                 let _ = buffer.buffer.set_cursor(position);
             }
+            self.mouse_drag = Some(MouseDragState::Selection {
+                buffer_id: hit.buffer_id,
+                anchor: position,
+            });
             self.sync_view_for_area(self.workspace_area);
         }
 
         true
+    }
+
+    fn handle_mouse_drag(&mut self, screen_x: u16, screen_y: u16) -> bool {
+        let Some(drag) = self.mouse_drag.clone() else {
+            return false;
+        };
+
+        match drag {
+            MouseDragState::Selection { buffer_id, anchor } => {
+                self.update_mouse_selection(buffer_id, anchor, screen_x, screen_y)
+            }
+            MouseDragState::Split { handle } => {
+                let Some((x, y)) = self.clamped_workspace_point_from_screen(screen_x, screen_y)
+                else {
+                    return false;
+                };
+                if self
+                    .workspace
+                    .resize_split_to(&handle, self.workspace_area, x, y)
+                    .is_ok()
+                {
+                    self.sync_view_for_area(self.workspace_area);
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    fn handle_mouse_up(&mut self) {
+        self.mouse_drag = None;
+    }
+
+    fn update_mouse_selection(
+        &mut self,
+        buffer_id: BufferId,
+        anchor: Position,
+        screen_x: u16,
+        screen_y: u16,
+    ) -> bool {
+        let Some((x, y)) = self.clamped_workspace_point_from_screen(screen_x, screen_y) else {
+            return false;
+        };
+        let hit = {
+            let buffer_views = self.buffer_views();
+            self.shell
+                .hit_test_workspace(&self.workspace, self.workspace_area, &buffer_views, x, y)
+        };
+        let Some(hit) = hit else {
+            return false;
+        };
+        if hit.buffer_id != buffer_id {
+            return false;
+        }
+        let UiMouseTarget::Body(position) = hit.target else {
+            return false;
+        };
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            let _ = buffer.buffer.select(anchor, position);
+            self.sync_view_for_area(self.workspace_area);
+            true
+        } else {
+            false
+        }
     }
 
     fn workspace_point_from_screen(&self, column: u16, row: u16) -> Option<(u16, u16)> {
@@ -592,6 +681,18 @@ impl AppState {
         }
 
         Some((column, y))
+    }
+
+    fn clamped_workspace_point_from_screen(&self, column: u16, row: u16) -> Option<(u16, u16)> {
+        if self.workspace_area.width == 0 || self.workspace_area.height == 0 {
+            return None;
+        }
+
+        Some((
+            column.min(self.workspace_area.width.saturating_sub(1)),
+            row.saturating_sub(1)
+                .min(self.workspace_area.height.saturating_sub(1)),
+        ))
     }
 
     fn handle_command(&mut self, command: &EditorCommand) {
@@ -655,6 +756,7 @@ impl AppState {
 
     fn apply_loaded_config(&mut self, loaded_config: LoadedConfig) {
         self.pending_keys.clear();
+        self.mouse_drag = None;
         self.shell = UiShell::from_config(&loaded_config.config, self.detected_profile);
         self.limits = loaded_config.config.limits;
         self.mouse_enabled = loaded_config.config.mouse.enabled;
@@ -2264,6 +2366,17 @@ enum PendingAction {
     CloseWindow,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum MouseDragState {
+    Selection {
+        buffer_id: BufferId,
+        anchor: Position,
+    },
+    Split {
+        handle: SplitDragHandle,
+    },
+}
+
 const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, goto LINE, or any command id such as window.split_horizontal";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2680,14 +2793,21 @@ fn run_event_loop(
 
 fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
     if !app.mouse_enabled() || app.prompt.is_some() || app.confirm.is_some() {
+        app.handle_mouse_up();
         return;
     }
 
-    if matches!(
-        event.kind,
-        CrosstermMouseEventKind::Down(CrosstermMouseButton::Left)
-    ) {
-        app.handle_left_click(event.column, event.row);
+    match event.kind {
+        CrosstermMouseEventKind::Down(CrosstermMouseButton::Left) => {
+            app.handle_mouse_down(event.column, event.row);
+        }
+        CrosstermMouseEventKind::Drag(CrosstermMouseButton::Left) => {
+            app.handle_mouse_drag(event.column, event.row);
+        }
+        CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
+            app.handle_mouse_up();
+        }
+        _ => {}
     }
 }
 
@@ -3528,6 +3648,24 @@ mod tests {
         }
     }
 
+    fn left_drag(column: u16, row: u16) -> CrosstermMouseEvent {
+        CrosstermMouseEvent {
+            kind: CrosstermMouseEventKind::Drag(CrosstermMouseButton::Left),
+            column,
+            row,
+            modifiers: CrosstermKeyModifiers::NONE,
+        }
+    }
+
+    fn left_up(column: u16, row: u16) -> CrosstermMouseEvent {
+        CrosstermMouseEvent {
+            kind: CrosstermMouseEventKind::Up(CrosstermMouseButton::Left),
+            column,
+            row,
+            modifiers: CrosstermKeyModifiers::NONE,
+        }
+    }
+
     #[test]
     fn parse_cli_args_accepts_no_path_or_single_path() {
         assert_eq!(
@@ -3787,6 +3925,79 @@ key.app.quit = Esc
                 .cursor_position(),
             Position::new(0, 2)
         );
+    }
+
+    #[test]
+    fn mouse_menu_click_dispatches_command_when_enabled() {
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        assert_eq!(
+            app.shell.menu_command_at_column(61),
+            Some(EditorCommand::App(AppCommand::Help))
+        );
+
+        handle_mouse_event(&mut app, left_click(61, 0));
+
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Help
+        );
+    }
+
+    #[test]
+    fn mouse_drag_selects_text_in_editor_body() {
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+        app.handle_text_input('a');
+        app.handle_text_input('b');
+        app.handle_text_input('c');
+        app.handle_text_input('d');
+
+        handle_mouse_event(&mut app, left_click(4, 2));
+        handle_mouse_event(&mut app, left_drag(6, 2));
+        handle_mouse_event(&mut app, left_up(6, 2));
+
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .selection_range(),
+            Some(TextRange::new(Position::new(0, 1), Position::new(0, 3)))
+        );
+        assert_eq!(app.mouse_drag, None);
+    }
+
+    #[test]
+    fn mouse_drag_resizes_split_boundary() {
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+        let left = app.workspace.focused;
+        let right = app.workspace.split_focused(Axis::Horizontal).unwrap();
+
+        handle_mouse_event(&mut app, left_click(40, 2));
+        handle_mouse_event(&mut app, left_drag(60, 2));
+        handle_mouse_event(&mut app, left_up(60, 2));
+
+        let layouts = app.workspace.resolved_layout(Rect::new(0, 0, 80, 20));
+        assert_eq!(
+            layouts
+                .iter()
+                .find(|layout| layout.id == left)
+                .unwrap()
+                .rect,
+            Rect::new(0, 0, 60, 20)
+        );
+        assert_eq!(
+            layouts
+                .iter()
+                .find(|layout| layout.id == right)
+                .unwrap()
+                .rect,
+            Rect::new(60, 0, 20, 20)
+        );
+        assert_eq!(app.mouse_drag, None);
     }
 
     #[test]

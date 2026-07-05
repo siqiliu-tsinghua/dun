@@ -227,16 +227,30 @@ Current mouse baseline:
 - left-clicking a tiled window focuses that window;
 - left-clicking an editor body places the cursor at the nearest valid text
   position;
-- clicks in the menu/status areas do nothing.
+- dragging in an editor body updates the current text selection;
+- dragging a tiled split border resizes that split ratio;
+- clicking a menu item dispatches its existing `EditorCommand`;
+- clicks in the status area do nothing.
 
 Deferred mouse features:
 
-- selection;
 - right-click paste where terminal support allows it;
-- split resize by dragging;
-- menu clicks.
+- clipboard integration.
 
 Every feature must remain keyboard accessible.
+
+Paste policy:
+
+- right-click events are ignored until a paste path is implemented;
+- paste input must come from a typed terminal event or editor command, never
+  from ad hoc escape parsing in editor state code;
+- pasted text is untrusted text and must enter through the same edit
+  transaction path as normal insertion;
+- pasted controls are buffer content only and must not be interpreted as
+  terminal controls or editor commands;
+- prompts may accept pasted text, but paste must not auto-submit a prompt;
+- external clipboard commands and OSC 52 clipboard writes are out of scope for
+  the baseline.
 
 ## Log and rum Work
 

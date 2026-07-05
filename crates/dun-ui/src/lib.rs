@@ -98,6 +98,20 @@ impl UiShell {
         })
     }
 
+    pub fn menu_command_at_column(&self, column: u16) -> Option<EditorCommand> {
+        let mut x = 1usize;
+        for item in self.menu_bar().items {
+            let width = display_width(item.label).saturating_add(2);
+            let end = x.saturating_add(width);
+            if (column as usize) >= x && (column as usize) < end {
+                return Some(item.command);
+            }
+            x = end;
+        }
+
+        None
+    }
+
     pub fn describe_workspace(&self, workspace: &Workspace) -> String {
         format!(
             "theme={} windows={} border={}{}{}{}",
@@ -1090,6 +1104,21 @@ mod tests {
             }]
         );
         assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 3, y: 1 }));
+    }
+
+    #[test]
+    fn menu_command_hit_test_maps_columns_to_commands() {
+        let shell = UiShell::default();
+
+        assert_eq!(
+            shell.menu_command_at_column(2),
+            Some(EditorCommand::File(FileCommand::New))
+        );
+        assert_eq!(
+            shell.menu_command_at_column(61),
+            Some(EditorCommand::App(AppCommand::Help))
+        );
+        assert_eq!(shell.menu_command_at_column(0), None);
     }
 
     #[test]
