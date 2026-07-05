@@ -9,10 +9,11 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode as CrosstermKeyCode,
-    KeyEvent as CrosstermKeyEvent, KeyEventKind as CrosstermKeyEventKind,
-    KeyModifiers as CrosstermKeyModifiers, MouseButton as CrosstermMouseButton,
-    MouseEvent as CrosstermMouseEvent, MouseEventKind as CrosstermMouseEventKind,
+    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    Event, KeyCode as CrosstermKeyCode, KeyEvent as CrosstermKeyEvent,
+    KeyEventKind as CrosstermKeyEventKind, KeyModifiers as CrosstermKeyModifiers,
+    MouseButton as CrosstermMouseButton, MouseEvent as CrosstermMouseEvent,
+    MouseEventKind as CrosstermMouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -20,7 +21,8 @@ use crossterm::terminal::{
 };
 use dun_config::{
     Config, FileDialogAction, FileDialogKeymap, Key, KeyModifiers, KeySequence, KeyStroke, Keymap,
-    Limits, ThemeName, command_from_id, command_id, file_dialog_action_id, parse_config,
+    Limits, ThemeName, command_from_id, command_id, default_config_text, file_dialog_action_id,
+    parse_config,
 };
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
@@ -61,6 +63,10 @@ where
             println!("{}", cli_version_text());
             Ok(())
         }
+        CliAction::DumpConfig => {
+            print!("{}", default_config_text());
+            Ok(())
+        }
         CliAction::Run {
             config_path,
             no_config,
@@ -86,6 +92,7 @@ fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>)
 enum CliAction {
     Help,
     Version,
+    DumpConfig,
     Run {
         config_path: Option<PathBuf>,
         no_config: bool,
@@ -171,6 +178,10 @@ where
                     set_cli_action(&mut action, CliAction::Version)?;
                     continue;
                 }
+                "--dump-config" => {
+                    set_cli_action(&mut action, CliAction::DumpConfig)?;
+                    continue;
+                }
                 "--no-config" => {
                     if config_path.is_some() {
                         return Err(UsageError::new(
@@ -226,7 +237,7 @@ where
             return Ok(action);
         }
         return Err(UsageError::new(
-            "options --help and --version cannot be combined with paths",
+            "options --help, --version, and --dump-config cannot be combined with paths",
         ));
     }
 
@@ -250,7 +261,7 @@ where
 fn set_cli_action(action: &mut Option<CliAction>, new_action: CliAction) -> Result<(), UsageError> {
     if action.is_some() {
         return Err(UsageError::new(
-            "only one of --help or --version may be used",
+            "only one of --help, --version, or --dump-config may be used",
         ));
     }
 
@@ -280,10 +291,11 @@ Options:
   -h, --help        Show this help text and exit.
   -V, --version     Show version information and exit.
       --config PATH Load configuration from PATH.
+      --dump-config Print the built-in default configuration and exit.
       --no-config   Ignore DUN_CONFIG and default config paths.
 
 Exit codes:
-  0                 Success, --help, or --version.
+  0                 Success, --help, --version, or --dump-config.
   1                 Runtime, terminal, or file I/O error.
   2                 Command-line usage error.
 "
@@ -961,6 +973,10 @@ impl AppState {
             }
             EditCommand::GoToLine => {
                 self.start_prompt(PromptKind::GoToLine, String::new());
+                return;
+            }
+            EditCommand::Paste => {
+                self.set_status("Paste: use terminal paste or right-click paste");
                 return;
             }
             _ => {}
@@ -1947,6 +1963,45 @@ impl AppState {
         }
     }
 
+    fn handle_paste(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+
+        self.pending_keys.clear();
+
+        if self.confirm.is_some() {
+            self.set_status("Paste ignored during confirmation");
+            return;
+        }
+
+        if let Some(dialog) = &mut self.file_dialog {
+            let text = single_line_paste_text(text);
+            dialog.insert_text(&text);
+            return;
+        }
+
+        if let Some(prompt) = &mut self.prompt {
+            prompt.detach_history();
+            let text = single_line_paste_text(text);
+            prompt.input.insert_str(&text);
+            return;
+        }
+
+        self.clear_active_menu();
+        let Some(buffer) = self.focused_buffer_mut() else {
+            return;
+        };
+
+        if let Err(error) = buffer.buffer.insert_str(text) {
+            self.set_status(format!("Paste failed: {}", buffer_error_text(error)));
+        }
+    }
+
+    fn note_right_click_paste(&mut self) {
+        self.set_status("Paste: waiting for terminal bracketed paste data");
+    }
+
     fn handle_prompt_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
         if self.prompt.is_none() {
             return false;
@@ -1965,17 +2020,43 @@ impl AppState {
             CrosstermKeyCode::Down => {
                 self.recall_next_command();
             }
+            CrosstermKeyCode::Left => {
+                if let Some(prompt) = &mut self.prompt {
+                    prompt.input.move_left();
+                }
+            }
+            CrosstermKeyCode::Right => {
+                if let Some(prompt) = &mut self.prompt {
+                    prompt.input.move_right();
+                }
+            }
+            CrosstermKeyCode::Home => {
+                if let Some(prompt) = &mut self.prompt {
+                    prompt.input.move_start();
+                }
+            }
+            CrosstermKeyCode::End => {
+                if let Some(prompt) = &mut self.prompt {
+                    prompt.input.move_end();
+                }
+            }
+            CrosstermKeyCode::Delete => {
+                if let Some(prompt) = &mut self.prompt {
+                    prompt.detach_history();
+                    prompt.input.delete_forward();
+                }
+            }
             CrosstermKeyCode::Backspace => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.detach_history();
-                    prompt.input.pop();
+                    prompt.input.delete_backward();
                 }
             }
             _ => {
                 if let Some(ch) = text_input_from_crossterm(event) {
                     if let Some(prompt) = &mut self.prompt {
                         prompt.detach_history();
-                        prompt.input.push(ch);
+                        prompt.input.insert_char(ch);
                     }
                 }
             }
@@ -1998,7 +2079,7 @@ impl AppState {
                 Some(0) => 0,
                 Some(index) => index - 1,
                 None => {
-                    prompt.history_draft = prompt.input.clone();
+                    prompt.history_draft = prompt.input.as_str().to_string();
                     history_len - 1
                 }
             };
@@ -2008,7 +2089,7 @@ impl AppState {
 
         let input = self.command_history[next_index].clone();
         if let Some(prompt) = self.command_line_prompt_mut() {
-            prompt.input = input;
+            prompt.input.set_text(input);
         }
     }
 
@@ -2036,7 +2117,7 @@ impl AppState {
             .or(draft)
             .unwrap_or_default();
         if let Some(prompt) = self.command_line_prompt_mut() {
-            prompt.input = input;
+            prompt.input.set_text(input);
         }
     }
 
@@ -2062,7 +2143,7 @@ impl AppState {
 
         match prompt.kind {
             PromptKind::Find => {
-                let input = prompt.input.trim().to_string();
+                let input = prompt.input.as_str().trim().to_string();
                 if input.is_empty() {
                     self.set_status(format!("{} cancelled", prompt.kind.name()));
                     return;
@@ -2072,7 +2153,7 @@ impl AppState {
                 self.find_in_focused_buffer(&input, SearchDirection::Forward);
             }
             PromptKind::ReplaceFind => {
-                let input = prompt.input.trim().to_string();
+                let input = prompt.input.as_str().trim().to_string();
                 if input.is_empty() {
                     self.pending_replace_query = None;
                     self.set_status(format!("{} cancelled", prompt.kind.name()));
@@ -2089,10 +2170,10 @@ impl AppState {
                 };
 
                 self.last_find_query = Some(query.clone());
-                self.replace_in_focused_buffer(&query, &prompt.input);
+                self.replace_in_focused_buffer(&query, prompt.input.as_str());
             }
             PromptKind::GoToLine => {
-                let input = prompt.input.trim();
+                let input = prompt.input.as_str().trim();
                 if input.is_empty() {
                     self.set_status(format!("{} cancelled", prompt.kind.name()));
                     return;
@@ -2101,7 +2182,7 @@ impl AppState {
                 self.go_to_line(input);
             }
             PromptKind::CommandLine => {
-                let input = prompt.input.trim().to_string();
+                let input = prompt.input.as_str().trim().to_string();
                 if input.is_empty() {
                     self.set_status(format!("{} cancelled", prompt.kind.name()));
                     return;
@@ -2461,8 +2542,8 @@ impl AppState {
         let prompt = self.prompt.as_ref()?;
         Some(UiOverlay::prompt(
             prompt.kind.name(),
-            prompt.input.clone(),
-            UnicodeWidthStr::width(prompt.input.as_str()),
+            prompt.input.as_str().to_string(),
+            prompt.input.cursor_display_column(),
         ))
     }
 
@@ -2618,7 +2699,7 @@ impl AppState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct PromptState {
     kind: PromptKind,
-    input: String,
+    input: LineInput,
     history_index: Option<usize>,
     history_draft: String,
 }
@@ -2627,7 +2708,7 @@ impl PromptState {
     fn new(kind: PromptKind, input: String) -> Self {
         Self {
             kind,
-            input,
+            input: LineInput::new(input),
             history_index: None,
             history_draft: String::new(),
         }
@@ -2635,7 +2716,7 @@ impl PromptState {
 
     #[cfg(test)]
     fn status_text(&self) -> String {
-        format!("{}{}", self.kind.label(), self.input)
+        format!("{}{}", self.kind.label(), self.input.as_str())
     }
 
     fn detach_history(&mut self) {
@@ -2684,8 +2765,7 @@ impl PromptKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FileDialogState {
     kind: FileDialogKind,
-    input: String,
-    cursor_index: usize,
+    input: LineInput,
     entries: Vec<FileDialogEntry>,
     selected_index: Option<usize>,
     scroll_offset: usize,
@@ -2699,8 +2779,7 @@ impl FileDialogState {
     fn new(kind: FileDialogKind, input: String, after_success: Option<PendingAction>) -> Self {
         let mut state = Self {
             kind,
-            cursor_index: input.len(),
-            input,
+            input: LineInput::new(input),
             entries: Vec::new(),
             selected_index: None,
             scroll_offset: 0,
@@ -2719,11 +2798,11 @@ impl FileDialogState {
             FileDialogKind::Open => "Open: ",
             FileDialogKind::SaveAs => "Save As: ",
         };
-        format!("{label}{}", self.input)
+        format!("{label}{}", self.input.as_str())
     }
 
     fn overlay(&self, keymap: &FileDialogKeymap) -> UiOverlay {
-        let context = file_dialog_context(&self.input);
+        let context = file_dialog_context(self.input.as_str());
         let hidden_state = if self.show_hidden {
             "shown"
         } else if context.prefix.starts_with('.') {
@@ -2756,23 +2835,16 @@ impl FileDialogState {
         UiOverlay::file_dialog(
             self.kind.name(),
             lines,
-            self.input.clone(),
-            self.cursor_display_column(),
+            self.input.as_str().to_string(),
+            self.input.cursor_display_column(),
             list,
             selected,
             vec![file_dialog_shortcuts_text(keymap)],
         )
     }
 
-    fn cursor_display_column(&self) -> usize {
-        self.input
-            .get(..self.cursor_index)
-            .map(UnicodeWidthStr::width)
-            .unwrap_or_else(|| UnicodeWidthStr::width(self.input.as_str()))
-    }
-
     fn refresh_entries(&mut self) {
-        let context = file_dialog_context(&self.input);
+        let context = file_dialog_context(self.input.as_str());
         match list_file_dialog_entries(&context, self.show_hidden) {
             Ok(listing) => {
                 self.message = file_dialog_list_message(
@@ -2935,57 +3007,42 @@ impl FileDialogState {
     }
 
     fn move_input_left(&mut self) {
-        if self.cursor_index == 0 {
-            return;
-        }
-
-        self.cursor_index = previous_char_boundary(&self.input, self.cursor_index);
+        self.input.move_left();
         self.message = None;
     }
 
     fn move_input_right(&mut self) {
-        if self.cursor_index >= self.input.len() {
-            return;
-        }
-
-        self.cursor_index = next_char_boundary(&self.input, self.cursor_index);
+        self.input.move_right();
         self.message = None;
     }
 
     fn move_input_start(&mut self) {
-        self.cursor_index = 0;
+        self.input.move_start();
         self.message = None;
     }
 
     fn move_input_end(&mut self) {
-        self.cursor_index = self.input.len();
+        self.input.move_end();
         self.message = None;
     }
 
     fn insert_char(&mut self, ch: char) {
-        self.input.insert(self.cursor_index, ch);
-        self.cursor_index += ch.len_utf8();
+        self.input.insert_char(ch);
+        self.refresh_entries();
+    }
+
+    fn insert_text(&mut self, text: &str) {
+        self.input.insert_str(text);
         self.refresh_entries();
     }
 
     fn delete_backward(&mut self) {
-        if self.cursor_index == 0 {
-            return;
-        }
-
-        let start = previous_char_boundary(&self.input, self.cursor_index);
-        self.input.drain(start..self.cursor_index);
-        self.cursor_index = start;
+        self.input.delete_backward();
         self.refresh_entries();
     }
 
     fn delete_forward(&mut self) {
-        if self.cursor_index >= self.input.len() {
-            return;
-        }
-
-        let end = next_char_boundary(&self.input, self.cursor_index);
-        self.input.drain(self.cursor_index..end);
+        self.input.delete_forward();
         self.refresh_entries();
     }
 
@@ -3004,7 +3061,7 @@ impl FileDialogState {
             return;
         }
 
-        let context = file_dialog_context(&self.input);
+        let context = file_dialog_context(self.input.as_str());
         let completion_indices = self
             .entries
             .iter()
@@ -3025,8 +3082,8 @@ impl FileDialogState {
 
         if let Some(prefix) = common_entry_prefix(&self.entries, &context.prefix) {
             if prefix.len() > context.prefix.len() {
-                self.input = format!("{}{}", context.base_input, prefix);
-                self.cursor_index = self.input.len();
+                self.input
+                    .set_text(format!("{}{}", context.base_input, prefix));
                 self.refresh_entries();
                 return;
             }
@@ -3048,7 +3105,7 @@ impl FileDialogState {
     }
 
     fn submit(&mut self) -> FileDialogSubmit {
-        let input = self.input.trim();
+        let input = self.input.as_str().trim().to_string();
         if input.is_empty() {
             return FileDialogSubmit::Cancel;
         }
@@ -3059,7 +3116,7 @@ impl FileDialogState {
                 .filter(|index| *index < self.entries.len())
             {
                 let entry = self.entries[index].clone();
-                let context = file_dialog_context(&self.input);
+                let context = file_dialog_context(self.input.as_str());
                 let should_use_selected = self.selection_touched
                     || entry.name == context.prefix
                     || entry.is_parent && context.prefix == "..";
@@ -3072,16 +3129,17 @@ impl FileDialogState {
                 }
             }
 
-            let path = expand_user_path(input);
+            let path = expand_user_path(&input);
             if path.is_dir() {
-                self.input = ensure_trailing_separator(input.to_string());
+                self.input
+                    .set_text(ensure_trailing_separator(input.to_string()));
                 self.refresh_entries();
                 return FileDialogSubmit::ContinueEditing;
             }
             return FileDialogSubmit::Path(path);
         }
 
-        FileDialogSubmit::Path(expand_user_path(input))
+        FileDialogSubmit::Path(expand_user_path(&input))
     }
 
     fn click_visible_entry(&mut self, visible_index: usize) -> FileDialogSubmit {
@@ -3114,8 +3172,7 @@ impl FileDialogState {
         let Some(entry) = self.entries.get(index) else {
             return;
         };
-        self.input = entry.input.clone();
-        self.cursor_index = self.input.len();
+        self.input.set_text(entry.input.clone());
         self.refresh_entries();
     }
 }
@@ -3538,11 +3595,95 @@ impl StatusLevel {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LineInput {
+    text: String,
+    cursor_index: usize,
+}
+
+impl LineInput {
+    fn new(text: String) -> Self {
+        Self {
+            cursor_index: text.len(),
+            text,
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        &self.text
+    }
+
+    fn set_text(&mut self, text: String) {
+        self.cursor_index = text.len();
+        self.text = text;
+    }
+
+    fn cursor_display_column(&self) -> usize {
+        self.text
+            .get(..self.cursor_index)
+            .map(UnicodeWidthStr::width)
+            .unwrap_or_else(|| UnicodeWidthStr::width(self.text.as_str()))
+    }
+
+    fn move_left(&mut self) {
+        if self.cursor_index > 0 {
+            self.cursor_index = previous_char_boundary(&self.text, self.cursor_index);
+        }
+    }
+
+    fn move_right(&mut self) {
+        if self.cursor_index < self.text.len() {
+            self.cursor_index = next_char_boundary(&self.text, self.cursor_index);
+        }
+    }
+
+    fn move_start(&mut self) {
+        self.cursor_index = 0;
+    }
+
+    fn move_end(&mut self) {
+        self.cursor_index = self.text.len();
+    }
+
+    fn insert_char(&mut self, ch: char) {
+        self.text.insert(self.cursor_index, ch);
+        self.cursor_index += ch.len_utf8();
+    }
+
+    fn insert_str(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        self.text.insert_str(self.cursor_index, text);
+        self.cursor_index += text.len();
+    }
+
+    fn delete_backward(&mut self) {
+        if self.cursor_index == 0 {
+            return;
+        }
+
+        let start = previous_char_boundary(&self.text, self.cursor_index);
+        self.text.drain(start..self.cursor_index);
+        self.cursor_index = start;
+    }
+
+    fn delete_forward(&mut self) {
+        if self.cursor_index >= self.text.len() {
+            return;
+        }
+
+        let end = next_char_boundary(&self.text, self.cursor_index);
+        self.text.drain(self.cursor_index..end);
+    }
+}
+
 const STATUS_HISTORY_LIMIT: usize = 128;
 const COMMAND_HISTORY_LIMIT: usize = 128;
 
 struct TerminalGuard {
     mouse_enabled: bool,
+    bracketed_paste_enabled: bool,
 }
 
 impl TerminalGuard {
@@ -3553,14 +3694,23 @@ impl TerminalGuard {
             let _ = disable_raw_mode();
             return Err(error);
         }
+        if let Err(error) = execute!(stdout, EnableBracketedPaste) {
+            let _ = execute!(stdout, LeaveAlternateScreen);
+            let _ = disable_raw_mode();
+            return Err(error);
+        }
         if mouse_enabled {
             if let Err(error) = execute!(stdout, EnableMouseCapture) {
+                let _ = execute!(stdout, DisableBracketedPaste);
                 let _ = execute!(stdout, LeaveAlternateScreen);
                 let _ = disable_raw_mode();
                 return Err(error);
             }
         }
-        Ok(Self { mouse_enabled })
+        Ok(Self {
+            mouse_enabled,
+            bracketed_paste_enabled: true,
+        })
     }
 
     fn set_mouse_enabled(&mut self, enabled: bool) -> io::Result<()> {
@@ -3584,6 +3734,9 @@ impl Drop for TerminalGuard {
         let mut stdout = io::stdout();
         if self.mouse_enabled {
             let _ = execute!(stdout, DisableMouseCapture);
+        }
+        if self.bracketed_paste_enabled {
+            let _ = execute!(stdout, DisableBracketedPaste);
         }
         let _ = execute!(stdout, LeaveAlternateScreen);
         let _ = disable_raw_mode();
@@ -3628,6 +3781,7 @@ fn run_event_loop(
         if event::poll(Duration::from_millis(250))? {
             match event::read()? {
                 Event::Key(event) => handle_key_event(app, event),
+                Event::Paste(text) => app.handle_paste(&text),
                 Event::Mouse(event) => handle_mouse_event(app, event),
                 Event::Resize(_, _) => {}
                 _ => {}
@@ -3649,6 +3803,9 @@ fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
             CrosstermMouseEventKind::Down(CrosstermMouseButton::Left) => {
                 app.handle_file_dialog_mouse_down(event.column, event.row);
             }
+            CrosstermMouseEventKind::Down(CrosstermMouseButton::Right) => {
+                app.note_right_click_paste();
+            }
             CrosstermMouseEventKind::ScrollUp => {
                 app.scroll_file_dialog(-1);
             }
@@ -3666,6 +3823,9 @@ fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
     match event.kind {
         CrosstermMouseEventKind::Down(CrosstermMouseButton::Left) => {
             app.handle_mouse_down(event.column, event.row);
+        }
+        CrosstermMouseEventKind::Down(CrosstermMouseButton::Right) => {
+            app.note_right_click_paste();
         }
         CrosstermMouseEventKind::Drag(CrosstermMouseButton::Left) => {
             app.handle_mouse_drag(event.column, event.row);
@@ -3958,6 +4118,23 @@ fn next_char_boundary(input: &str, index: usize) -> usize {
         .next()
         .map(|ch| index + ch.len_utf8())
         .unwrap_or(input.len())
+}
+
+fn single_line_paste_text(input: &str) -> String {
+    let mut output = String::new();
+    let mut in_line_break = false;
+    for ch in input.chars() {
+        if matches!(ch, '\r' | '\n') {
+            if !in_line_break {
+                output.push(' ');
+                in_line_break = true;
+            }
+        } else {
+            output.push(ch);
+            in_line_break = false;
+        }
+    }
+    output
 }
 
 fn expand_user_path(input: &str) -> PathBuf {
@@ -4921,6 +5098,15 @@ mod tests {
         }
     }
 
+    fn right_click(column: u16, row: u16) -> CrosstermMouseEvent {
+        CrosstermMouseEvent {
+            kind: CrosstermMouseEventKind::Down(CrosstermMouseButton::Right),
+            column,
+            row,
+            modifiers: CrosstermKeyModifiers::NONE,
+        }
+    }
+
     fn left_drag(column: u16, row: u16) -> CrosstermMouseEvent {
         CrosstermMouseEvent {
             kind: CrosstermMouseEventKind::Drag(CrosstermMouseButton::Left),
@@ -4976,6 +5162,10 @@ mod tests {
         assert_eq!(parse_cli_args(["--version"]).unwrap(), CliAction::Version);
         assert_eq!(parse_cli_args(["-V"]).unwrap(), CliAction::Version);
         assert_eq!(
+            parse_cli_args(["--dump-config"]).unwrap(),
+            CliAction::DumpConfig
+        );
+        assert_eq!(
             parse_cli_args(["--", "--literal-path"]).unwrap(),
             CliAction::Run {
                 config_path: None,
@@ -5027,13 +5217,13 @@ mod tests {
             parse_cli_args(["--help", "file.txt"])
                 .unwrap_err()
                 .to_string(),
-            "options --help and --version cannot be combined with paths"
+            "options --help, --version, and --dump-config cannot be combined with paths"
         );
         assert_eq!(
             parse_cli_args(["--help", "--version"])
                 .unwrap_err()
                 .to_string(),
-            "only one of --help or --version may be used"
+            "only one of --help, --version, or --dump-config may be used"
         );
         assert_eq!(
             parse_cli_args(["--config"]).unwrap_err().to_string(),
@@ -5059,6 +5249,7 @@ mod tests {
         assert_eq!(CliError::Io(io::Error::other("boom")).exit_code(), 1);
         assert!(cli_help_text().contains("Exit codes:"));
         assert!(cli_help_text().contains("--config PATH"));
+        assert!(cli_help_text().contains("--dump-config"));
         assert_eq!(
             cli_version_text(),
             format!("dun {}", env!("CARGO_PKG_VERSION"))
@@ -5820,6 +6011,66 @@ key.window.close = none
     }
 
     #[test]
+    fn command_line_prompt_cursor_edits_middle_of_input() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(&mut app, "ac");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, "b");
+        assert_eq!(app.prompt_status_text(), Some("Command: abc".to_string()));
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, ">");
+        assert_eq!(app.prompt_status_text(), Some("Command: >abc".to_string()));
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+        );
+        send_text(&mut app, "<");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.prompt_status_text(), Some("Command: >ab<".to_string()));
+    }
+
+    #[test]
+    fn command_line_prompt_cursor_respects_utf8_boundaries() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(&mut app, "中b");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.prompt_status_text(), Some("Command: b".to_string()));
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Delete, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.prompt_status_text(), Some("Command: ".to_string()));
+    }
+
+    #[test]
     fn command_line_theme_switches_runtime_theme_and_refreshes_diagnostics() {
         let mut app = AppState::new();
         app.shell.profile = TerminalProfile::utf8_256();
@@ -6566,7 +6817,9 @@ key.app.help = F10
             Some(format!("Open: {}/aXb", directory.display()))
         );
         assert_eq!(
-            app.file_dialog.as_ref().map(|dialog| dialog.cursor_index),
+            app.file_dialog
+                .as_ref()
+                .map(|dialog| dialog.input.cursor_index),
             Some(format!("{}/aX", directory.display()).len())
         );
 
@@ -6827,6 +7080,55 @@ key.app.help = F10
 
         let _ = std::fs::remove_file(hidden);
         let _ = std::fs::remove_file(visible);
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn file_dialog_overlay_exposes_msedit_like_dialog_fields() {
+        let directory = temp_file_path("file-dialog-overlay");
+        let file = directory.join("alpha.log");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(&file, "alpha").unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", directory.display()));
+
+        let overlay = app.active_overlay().expect("file dialog overlay");
+        assert_eq!(overlay.title, "Open");
+        assert_eq!(
+            overlay.input.as_deref(),
+            Some(format!("{}/", directory.display()).as_str())
+        );
+        assert!(
+            overlay
+                .lines
+                .iter()
+                .any(|line| line.starts_with("Look in: "))
+        );
+        assert!(overlay.lines.iter().any(|line| line == "File name:"));
+        assert!(
+            overlay
+                .lines
+                .iter()
+                .any(|line| line.starts_with("Hidden: "))
+        );
+        assert!(
+            overlay
+                .list
+                .iter()
+                .any(|line| line == "[..] Parent directory")
+        );
+        assert!(overlay.list.iter().any(|line| line.contains("alpha.log")));
+        assert!(
+            overlay
+                .buttons
+                .iter()
+                .any(|line| line.contains("[Enter] OK"))
+        );
+        assert_eq!(overlay.min_width, 60);
+
+        let _ = std::fs::remove_file(file);
         let _ = std::fs::remove_dir(directory);
     }
 
@@ -7689,6 +7991,97 @@ key.app.help = F10
         let state = app.buffer_state(BufferId(1)).unwrap();
         assert_eq!(app.prompt_status_text(), Some("Find: ab".to_string()));
         assert_eq!(state.buffer.to_text(), "");
+    }
+
+    #[test]
+    fn bracketed_paste_inserts_text_into_editor_buffer() {
+        let mut app = AppState::new();
+
+        app.handle_paste("a\r\nb\x1b[31m");
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "a\nb\x1b[31m");
+        assert!(state.buffer.is_dirty());
+    }
+
+    #[test]
+    fn paste_command_reports_terminal_paste_hint() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Paste));
+
+        assert_eq!(
+            app.status_message,
+            Some("Paste: use terminal paste or right-click paste".to_string())
+        );
+    }
+
+    #[test]
+    fn bracketed_paste_rejects_read_only_focused_buffer() {
+        let mut app = AppState::new();
+        app.handle_command(&EditorCommand::App(AppCommand::Help));
+        let buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+        let before = app.buffer_state(buffer_id).unwrap().buffer.to_text();
+
+        app.handle_paste("x");
+
+        assert_eq!(
+            app.buffer_state(buffer_id).unwrap().buffer.to_text(),
+            before
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Paste failed: buffer is read-only".to_string())
+        );
+    }
+
+    #[test]
+    fn bracketed_paste_targets_prompt_and_file_dialog_as_single_line() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        app.handle_paste("theme\r\nmsedit");
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: theme msedit".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        );
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        app.handle_paste("a\nb");
+        assert_eq!(app.prompt_status_text(), Some("Open: a b".to_string()));
+    }
+
+    #[test]
+    fn bracketed_paste_is_ignored_during_unsaved_confirmation() {
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+        app.handle_command(&EditorCommand::App(AppCommand::Quit));
+
+        app.handle_paste("y");
+
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "x");
+        assert!(app.confirm.is_some());
+        assert_eq!(
+            app.status_message,
+            Some("Paste ignored during confirmation".to_string())
+        );
+    }
+
+    #[test]
+    fn right_click_reports_paste_wait_status_when_mouse_is_enabled() {
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+
+        handle_mouse_event(&mut app, right_click(3, 2));
+
+        assert_eq!(
+            app.status_message,
+            Some("Paste: waiting for terminal bracketed paste data".to_string())
+        );
     }
 
     #[test]

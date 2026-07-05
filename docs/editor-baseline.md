@@ -255,21 +255,24 @@ Current mouse baseline:
 
 Deferred mouse features:
 
-- right-click paste where terminal support allows it;
-- clipboard integration.
+- external clipboard integration.
 
 Every feature must remain keyboard accessible.
 
 Paste policy:
 
-- right-click events are ignored until a paste path is implemented;
+- bracketed paste is enabled only for the TUI session and disabled during
+  terminal restoration;
 - paste input must come from a typed terminal event or editor command, never
   from ad hoc escape parsing in editor state code;
+- right-click paste only waits for the terminal to deliver bracketed paste
+  data; it must not invoke external clipboard commands;
 - pasted text is untrusted text and must enter through the same edit
   transaction path as normal insertion;
 - pasted controls are buffer content only and must not be interpreted as
   terminal controls or editor commands;
-- prompts may accept pasted text, but paste must not auto-submit a prompt;
+- prompts and file dialogs may accept pasted text as single-line input, but
+  paste must not auto-submit a prompt or dialog;
 - Open/Save As file dialogs use Rust-owned directory listing, `..` navigation,
   hidden-file filtering, path-input cursor editing, Tab path completion,
   PageUp/PageDown list navigation, empty/no-match diagnostics, and typed

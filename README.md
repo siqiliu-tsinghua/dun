@@ -45,7 +45,8 @@ toggle, Home/End/Left/Right/Delete path editing, empty/no-match diagnostics,
 and mouse-wheel list scrolling when mouse support is enabled. File-dialog
 modal keys have their own typed config bindings.
 Lightweight modal prompts remain available for Find, Replace, and Go To Line
-entry. Find now supports next/previous navigation and selected match
+entry, with Left/Right/Home/End/Delete/Backspace editing at UTF-8 character
+boundaries. Find now supports next/previous navigation and selected match
 highlighting, Replace can replace the current or next match, and Go To Line
 moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
@@ -70,6 +71,12 @@ or Option-key terminal settings.
 The command prompt keeps a bounded in-memory history navigated with Up/Down.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
+Terminal bracketed paste is enabled during the TUI session and restored on
+exit. Paste text is treated as untrusted input: editor paste goes through the
+normal buffer insertion path, prompt and file-dialog paste is kept single-line
+and never auto-submits, and confirmation prompts ignore paste. Right-click
+paste only waits for the terminal to deliver bracketed paste data; `dun` does
+not call external clipboard commands or emit OSC 52 clipboard writes.
 Mouse support is optional and disabled by default; when enabled in config,
 left-clicks can focus tiled windows, place the cursor in an editor body, drag
 text selections, drag split borders, open top-menu dropdowns, and click
@@ -90,9 +97,10 @@ status bar, color, and terminal setup reference markers.
 dun [OPTIONS] [--] [PATH]
 ```
 
-Supported options are `--help`/`-h`, `--version`/`-V`, `--config PATH`, and
-`--no-config`. `dun` exits with `0` for success/help/version, `1` for runtime
-or file I/O errors, and `2` for command-line usage errors.
+Supported options are `--help`/`-h`, `--version`/`-V`, `--config PATH`,
+`--dump-config`, and `--no-config`. `dun` exits with `0` for
+success/help/version/default-config output, `1` for runtime or file I/O
+errors, and `2` for command-line usage errors.
 
 The current baseline decisions are:
 

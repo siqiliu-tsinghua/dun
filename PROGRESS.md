@@ -397,3 +397,18 @@ This is an append-only progress log. Keep new entries dated and factual.
   diagnostics, render more explicit file-list labels, and resolve file-dialog
   actions through typed configurable single-stroke bindings listed in Help and
   Config Diagnostics.
+- Added `--dump-config` to print the built-in default configuration, including
+  global command bindings and file-dialog modal bindings, and covered it with
+  parser/config tests.
+- Added UTF-8-safe cursor editing to lightweight prompts, so command/find/
+  replace/go-to-line inputs support Left/Right/Home/End/Delete/Backspace
+  without touching the editor buffer.
+- Added bracketed paste handling. During the TUI session `dun-cli` enables
+  bracketed paste, routes `Event::Paste` into editor buffers, prompts, or file
+  dialogs, ignores paste during unsaved-change confirmations, and disables
+  bracketed paste during terminal restoration.
+- Added right-click paste status handling for mouse-enabled terminals without
+  invoking external clipboard commands or OSC 52 clipboard behavior.
+- Added tests for prompt cursor editing, bracketed paste routing, read-only
+  paste rejection, right-click paste status, and file-dialog overlay structure
+  fields used by the Microsoft Edit-like modal layout.

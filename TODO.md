@@ -73,6 +73,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add parent-directory and hidden-file polish to file dialogs.
 - [x] Add file dialog path-input cursor movement and Home/End editing.
 - [x] Add file dialog empty/no-match diagnostics and tighter Open/Save visuals.
+- [x] Add file-dialog overlay structure tests for Microsoft Edit-like visual
+  fields.
 
 ## `dun-config`
 
@@ -89,6 +91,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define optional mouse enablement config.
 - [x] Define configurable file-dialog modal keybindings.
 - [x] Define large-file and display limits.
+- [x] Expose built-in defaults through `--dump-config`.
 - [x] Add config validation tests.
 - [x] Add MacBook-friendly `Ctrl+W` window focus/resize aliases while keeping
   `Alt` compatibility bindings where terminals deliver them.
@@ -129,6 +132,12 @@ items belong in [PROGRESS.md](./PROGRESS.md).
   placement.
 - [x] Add mouse text selection, menu clicks, and split dragging.
 - [x] Document right-click paste and clipboard safety policy.
+- [x] Add UTF-8-safe prompt cursor editing for command/find/replace/go-to-line
+  prompts.
+- [x] Add bracketed paste routing for editor buffers, prompts, and file
+  dialogs.
+- [x] Add right-click paste status handling without invoking external clipboard
+  commands.
 
 ## File and Display Safety
 
@@ -161,7 +170,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 ## Deferred
 
-- [ ] Right-click paste and clipboard/bracketed-paste implementation.
+- [ ] External clipboard integration and OSC 52 copy/paste support.
 - [x] Crash recovery and orphaned atomic-save temp-file cleanup.
 - [ ] `rum` configuration evaluation.
 - [ ] `dun-plugin-api`.

@@ -174,6 +174,12 @@ Editing:
   modal keys can be remapped in config for terminals or KVM paths that do not
   deliver the defaults.
 - `Ctrl+P` opens the command prompt, and Up/Down recall command history.
+- Prompt inputs support Left/Right/Home/End/Delete/Backspace at UTF-8 character
+  boundaries.
+- Terminal bracketed paste inserts into editor buffers through the normal edit
+  path. In prompts and Open/Save As dialogs, multiline paste is converted to a
+  single-line input and does not submit automatically. Right-click paste only
+  works when the terminal sends bracketed paste data.
 - Dirty buffers ask for confirmation before quit, new, open, or close.
 
 Search and navigation:

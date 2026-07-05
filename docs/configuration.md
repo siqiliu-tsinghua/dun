@@ -20,6 +20,10 @@ Configuration is loaded in this order:
 Explicit or environment-provided config paths must be readable and valid. A
 missing default config file is ignored.
 
+`dun --dump-config` prints the built-in default configuration, including
+global command bindings and Open/Save As modal bindings, so it can be used as a
+starting point for a user config file.
+
 ## Format
 
 Supported scalar keys:
@@ -97,8 +101,9 @@ aliases where available.
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window
 focus, editor-body cursor placement, text selection drag, split-border drag,
-and menu command dispatch. Right-click paste and clipboard integration remain
-deferred.
+and menu command dispatch. Right-click paste waits for terminal bracketed paste
+data when the terminal supports it. External clipboard commands and OSC 52
+clipboard integration remain deferred.
 
 ## Example
 

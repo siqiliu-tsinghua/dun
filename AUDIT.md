@@ -178,10 +178,15 @@ Current implementation:
   including `..`, or submit an Open path through the same validated Open path.
   Mouse input does not trigger paste, arbitrary direct file operations, or
   plugin actions.
-- Future paste support must treat pasted bytes as untrusted text routed through
-  the normal edit transaction path. It must not parse terminal escapes inside
-  editor state, auto-submit prompts, or use OSC 52/external clipboard commands
-  in the baseline.
+- Bracketed paste is enabled only during the TUI session and disabled during
+  terminal restoration. `Event::Paste` payloads are treated as untrusted text:
+  editor paste enters through the normal buffer insertion path, prompt and
+  file-dialog paste is kept single-line, and confirmation prompts ignore paste.
+  Pasted control bytes remain buffer content and must be neutralized at
+  rendering time. Paste must not parse terminal escapes inside editor state,
+  auto-submit prompts, or use OSC 52/external clipboard commands in the
+  baseline. Right-click paste only records a status hint and waits for the
+  terminal to deliver bracketed paste data.
 - Tests cover OSC title/clipboard/hyperlink payloads, CSI/SGR/clear-screen,
   DCS, graphics escapes, bracketed paste markers, `ESC`, BEL, NUL, DEL, CR,
   backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and final

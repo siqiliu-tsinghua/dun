@@ -52,6 +52,61 @@ pub fn parse_config(input: &str) -> Result<Config, ConfigParseError> {
     parse_config_overlay(Config::default(), input)
 }
 
+pub fn default_config_text() -> String {
+    let config = Config::default();
+    let mut out = String::from(
+        "\
+# Dun default configuration
+# Copy to ~/.config/dun/config and edit as needed.
+
+",
+    );
+
+    out.push_str(&format!("theme = {}\n", config.theme.as_str()));
+    out.push_str("# terminal.encoding = utf8\n");
+    out.push_str("# terminal.colors = 256\n");
+    out.push_str(&format!("mouse.enabled = {}\n", config.mouse.enabled));
+    out.push_str(&format!(
+        "limits.editable_file_soft_limit_bytes = {}\n",
+        config.limits.editable_file_soft_limit_bytes
+    ));
+    out.push_str(&format!(
+        "limits.line_display_soft_limit_bytes = {}\n",
+        config.limits.line_display_soft_limit_bytes
+    ));
+
+    out.push_str("\n# Global editor command keybindings\n");
+    let mut keybindings = config
+        .keybindings
+        .bindings
+        .iter()
+        .map(|binding| (command_id(&binding.command), binding.sequence.to_string()))
+        .collect::<Vec<_>>();
+    keybindings.sort_by(|left, right| left.0.cmp(right.0));
+    for (command, sequence) in keybindings {
+        out.push_str(&format!("key.{command} = {sequence}\n"));
+    }
+
+    out.push_str("\n# Open/Save As modal keybindings\n");
+    let mut file_dialog_bindings = config
+        .file_dialog_keys
+        .bindings
+        .iter()
+        .map(|binding| {
+            (
+                file_dialog_action_id(binding.action),
+                binding.stroke.to_string(),
+            )
+        })
+        .collect::<Vec<_>>();
+    file_dialog_bindings.sort_by(|left, right| left.0.cmp(right.0));
+    for (action, stroke) in file_dialog_bindings {
+        out.push_str(&format!("key.{action} = {stroke}\n"));
+    }
+
+    out
+}
+
 pub fn parse_config_overlay(mut config: Config, input: &str) -> Result<Config, ConfigParseError> {
     for (index, raw_line) in input.lines().enumerate() {
         let line_number = index + 1;
@@ -1611,6 +1666,17 @@ file_dialog.key.delete_forward = none
     #[test]
     fn default_config_keeps_mouse_disabled() {
         assert!(!Config::default().mouse.enabled);
+    }
+
+    #[test]
+    fn default_config_text_lists_parseable_default_bindings() {
+        let text = default_config_text();
+
+        assert!(text.contains("theme = msedit"));
+        assert!(text.contains("mouse.enabled = false"));
+        assert!(text.contains("key.app.help = F1"));
+        assert!(text.contains("key.file_dialog.toggle_hidden = Ctrl+H"));
+        parse_config(&text).unwrap().validate().unwrap();
     }
 
     #[test]
