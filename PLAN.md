@@ -214,6 +214,7 @@ release-facing host API.
 - [x] Corrupt file handling.
 - [x] Non-UTF-8 file strategy.
 - [x] Define external SSH and low-capability terminal test matrix.
+- [x] Add broad local PTY terminal compatibility harness.
 - [ ] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
 - [x] Security audit suite for control-byte rendering.

@@ -12,8 +12,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{fmt::Write as _, thread};
 
 const CTRL_Q: &[u8] = b"\x11";
-const PTY_ROWS: u16 = 24;
-const PTY_COLS: u16 = 80;
+const DEFAULT_PTY_ROWS: u16 = 24;
+const DEFAULT_PTY_COLS: u16 = 80;
 static PTY_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Copy, Debug)]
@@ -23,13 +23,104 @@ struct TerminalCase {
     lang: &'static str,
     lc_ctype: &'static str,
     no_color: bool,
-    expected_profile: &'static str,
+    rows: u16,
+    cols: u16,
+    expected_profile: Option<&'static str>,
+}
+
+impl TerminalCase {
+    const fn new(
+        name: &'static str,
+        term: &'static str,
+        lang: &'static str,
+        lc_ctype: &'static str,
+        no_color: bool,
+        expected_profile: &'static str,
+    ) -> Self {
+        Self {
+            name,
+            term,
+            lang,
+            lc_ctype,
+            no_color,
+            rows: DEFAULT_PTY_ROWS,
+            cols: DEFAULT_PTY_COLS,
+            expected_profile: Some(expected_profile),
+        }
+    }
+
+    const fn sized(mut self, rows: u16, cols: u16) -> Self {
+        self.rows = rows;
+        self.cols = cols;
+        self
+    }
+
+    const fn without_profile_marker(mut self) -> Self {
+        self.expected_profile = None;
+        self
+    }
 }
 
 #[derive(Debug)]
 struct PtyRun {
     status: ExitStatus,
     output: String,
+}
+
+fn terminal_profile_cases() -> [TerminalCase; 9] {
+    [
+        TerminalCase::new(
+            "xterm-256color utf8",
+            "xterm-256color",
+            "en_US.UTF-8",
+            "en_US.UTF-8",
+            false,
+            "UTF-8/256",
+        ),
+        TerminalCase::new(
+            "screen-256color utf8",
+            "screen-256color",
+            "en_US.UTF-8",
+            "en_US.UTF-8",
+            false,
+            "UTF-8/256",
+        ),
+        TerminalCase::new(
+            "tmux-256color utf8",
+            "tmux-256color",
+            "en_US.UTF-8",
+            "en_US.UTF-8",
+            false,
+            "UTF-8/256",
+        ),
+        TerminalCase::new(
+            "screen utf8",
+            "screen",
+            "en_US.UTF-8",
+            "en_US.UTF-8",
+            false,
+            "UTF-8/16",
+        ),
+        TerminalCase::new(
+            "xterm-color c locale",
+            "xterm-color",
+            "C",
+            "C",
+            false,
+            "ASCII/16",
+        ),
+        TerminalCase::new("vt100 ascii", "vt100", "C", "C", false, "ASCII/16"),
+        TerminalCase::new("ansi ascii", "ansi", "C", "C", false, "ASCII/16"),
+        TerminalCase::new("dumb ascii mono", "dumb", "C", "C", false, "ASCII/mono"),
+        TerminalCase::new(
+            "xterm-256color no color",
+            "xterm-256color",
+            "en_US.UTF-8",
+            "en_US.UTF-8",
+            true,
+            "UTF-8/mono",
+        ),
+    ]
 }
 
 #[test]
@@ -40,34 +131,7 @@ fn pty_smoke_quits_cleanly_for_common_terminal_profiles() -> io::Result<()> {
         return Ok(());
     };
 
-    let cases = [
-        TerminalCase {
-            name: "xterm-256color utf8",
-            term: "xterm-256color",
-            lang: "en_US.UTF-8",
-            lc_ctype: "en_US.UTF-8",
-            no_color: false,
-            expected_profile: "UTF-8/256",
-        },
-        TerminalCase {
-            name: "screen-256color utf8",
-            term: "screen-256color",
-            lang: "en_US.UTF-8",
-            lc_ctype: "en_US.UTF-8",
-            no_color: false,
-            expected_profile: "UTF-8/256",
-        },
-        TerminalCase {
-            name: "vt100 ascii",
-            term: "vt100",
-            lang: "C",
-            lc_ctype: "C",
-            no_color: false,
-            expected_profile: "ASCII/16",
-        },
-    ];
-
-    for case in cases {
+    for case in terminal_profile_cases() {
         let run = run_dun_in_pty(&expect, case, &[], "Untitled", CTRL_Q)?;
         assert!(
             run.status.success(),
@@ -78,7 +142,9 @@ fn pty_smoke_quits_cleanly_for_common_terminal_profiles() -> io::Result<()> {
         );
         assert_output_contains(&run.output, "Untitled", case.name);
         assert_output_contains(&run.output, "Ln 1/1, Col 1", case.name);
-        assert_output_contains(&run.output, case.expected_profile, case.name);
+        if let Some(profile) = case.expected_profile {
+            assert_output_contains(&run.output, profile, case.name);
+        }
     }
 
     Ok(())
@@ -100,14 +166,14 @@ fn pty_smoke_opens_utf8_file_and_renders_initial_content() -> io::Result<()> {
         .to_string();
     fs::write(&file_path, "alpha\nbeta\n")?;
 
-    let case = TerminalCase {
-        name: "xterm-256color file open",
-        term: "xterm-256color",
-        lang: "en_US.UTF-8",
-        lc_ctype: "en_US.UTF-8",
-        no_color: false,
-        expected_profile: "UTF-8/256",
-    };
+    let case = TerminalCase::new(
+        "xterm-256color file open",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
 
     let run = run_dun_in_pty(&expect, case, &[file_path.as_os_str()], "alpha", CTRL_Q);
     let _ = fs::remove_file(&file_path);
@@ -124,6 +190,112 @@ fn pty_smoke_opens_utf8_file_and_renders_initial_content() -> io::Result<()> {
     assert_output_contains(&run.output, "alpha", case.name);
     assert_output_contains(&run.output, "beta", case.name);
     assert_output_contains(&run.output, "Opened ", case.name);
+    assert_output_contains(&run.output, "Text UTF-8", case.name);
+
+    Ok(())
+}
+
+#[test]
+fn pty_smoke_handles_small_low_capability_terminal() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    let case = TerminalCase::new("small vt100 ascii", "vt100", "C", "C", false, "ASCII/16")
+        .sized(12, 40)
+        .without_profile_marker();
+    let run = run_dun_in_pty(&expect, case, &[], "Untitled", CTRL_Q)?;
+
+    assert!(
+        run.status.success(),
+        "{} failed with status {:?}\n{}",
+        case.name,
+        run.status,
+        run.output
+    );
+    assert_output_contains(&run.output, "Untitled", case.name);
+
+    Ok(())
+}
+
+#[test]
+fn pty_smoke_renders_escape_payloads_as_text() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    let file_path = temp_path("dun-pty-escape", "txt");
+    fs::write(&file_path, b"safe\x1b]0;owned\x07\n\x1b[31mred?\x1b[0m\n")?;
+    let case = TerminalCase::new(
+        "xterm-256color escape payload",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
+
+    let run = run_dun_in_pty(&expect, case, &[file_path.as_os_str()], "safe", CTRL_Q);
+    let _ = fs::remove_file(&file_path);
+    let run = run?;
+
+    assert!(
+        run.status.success(),
+        "{} failed with status {:?}\n{}",
+        case.name,
+        run.status,
+        run.output
+    );
+    assert_output_contains(&run.output, "safe", case.name);
+    assert_output_contains(&run.output, "red?", case.name);
+    assert_output_not_contains(&run.output, "\x1b]0;owned\x07", case.name);
+    assert_output_not_contains(&run.output, "\x1b[31mred?\x1b[0m", case.name);
+
+    Ok(())
+}
+
+#[test]
+fn pty_smoke_opens_invalid_bytes_as_read_only_escapes() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    let file_path = temp_path("dun-pty-invalid", "bin");
+    fs::write(&file_path, [b'o', b'k', 0xff, b'\n'])?;
+    let case = TerminalCase::new(
+        "xterm-256color invalid bytes",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
+
+    let run = run_dun_in_pty(
+        &expect,
+        case,
+        &[file_path.as_os_str()],
+        "Escaped bytes",
+        CTRL_Q,
+    );
+    let _ = fs::remove_file(&file_path);
+    let run = run?;
+
+    assert!(
+        run.status.success(),
+        "{} failed with status {:?}\n{}",
+        case.name,
+        run.status,
+        run.output
+    );
+    assert_output_contains(&run.output, "ok\\xFF", case.name);
+    assert_output_contains(&run.output, "Escaped bytes", case.name);
 
     Ok(())
 }
@@ -138,7 +310,7 @@ fn run_dun_in_pty(
     let script_path = temp_path("dun-pty-expect", "tcl");
     fs::write(
         &script_path,
-        expect_script_for_dun(args, ready_marker, input),
+        expect_script_for_dun(case, args, ready_marker, input),
     )?;
 
     let result = run_expect_script(expect, case, &script_path);
@@ -154,8 +326,8 @@ fn run_expect_script(expect: &Path, case: TerminalCase, script_path: &Path) -> i
         .env("TERM", case.term)
         .env("LANG", case.lang)
         .env("LC_CTYPE", case.lc_ctype)
-        .env("COLUMNS", PTY_COLS.to_string())
-        .env("LINES", PTY_ROWS.to_string())
+        .env("COLUMNS", case.cols.to_string())
+        .env("LINES", case.rows.to_string())
         .env_remove("COLORTERM")
         .env_remove("NO_COLOR")
         .stdin(Stdio::null())
@@ -181,7 +353,12 @@ fn run_expect_script(expect: &Path, case: TerminalCase, script_path: &Path) -> i
     })
 }
 
-fn expect_script_for_dun(args: &[&OsStr], ready_marker: &str, input: &[u8]) -> String {
+fn expect_script_for_dun(
+    case: TerminalCase,
+    args: &[&OsStr],
+    ready_marker: &str,
+    input: &[u8],
+) -> String {
     format!(
         "\
 set timeout 10
@@ -218,15 +395,15 @@ if {{$exit_code eq \"\"}} {{
 }}
 exit $exit_code
 ",
-        tcl_brace_quote(&shell_command_for_dun(args)),
+        tcl_brace_quote(&shell_command_for_dun(case, args)),
         tcl_brace_quote(&regex_literal(ready_marker)),
         tcl_escaped_bytes(input),
         tcl_escaped_bytes(input)
     )
 }
 
-fn shell_command_for_dun(args: &[&OsStr]) -> String {
-    let mut command = format!("stty rows {PTY_ROWS} cols {PTY_COLS}; exec ");
+fn shell_command_for_dun(case: TerminalCase, args: &[&OsStr]) -> String {
+    let mut command = format!("stty rows {} cols {}; exec ", case.rows, case.cols);
     command.push_str(&shell_quote(dun_binary().as_os_str()));
     for arg in args {
         command.push(' ');
@@ -321,6 +498,13 @@ fn assert_output_contains(output: &str, needle: &str, case: &str) {
     assert!(
         output.contains(needle),
         "{case} output did not contain {needle:?}\n{output}"
+    );
+}
+
+fn assert_output_not_contains(output: &str, needle: &str, case: &str) {
+    assert!(
+        !output.contains(needle),
+        "{case} output unexpectedly contained {needle:?}\n{output}"
     );
 }
 

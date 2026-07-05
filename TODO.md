@@ -125,6 +125,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 ## Terminal Compatibility Testing
 
 - [x] Add PTY smoke tests for common SSH-style terminal profiles.
+- [x] Expand PTY tests into a broad terminal compatibility harness.
 - [x] Document manual SSH terminal checks and current-environment verification.
 - [x] Define the external SSH and low-capability terminal release matrix.
 - [ ] Run the external SSH and low-capability terminal release matrix before
@@ -142,4 +143,4 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [ ] Syntax highlighting plugins backed by `rum`.
 - [ ] Log viewing and filtering after `rum` is ready to embed.
 - [ ] Memory watchdog design for long-running plugin evaluation.
-- [ ] Broad terminal compatibility test harness.
+- [x] Broad terminal compatibility test harness.

@@ -29,12 +29,27 @@ cargo test -p dun-cli --test pty_smoke
 ```
 
 That test runs the real `dun` binary in a pseudo-terminal through `expect(1)`.
-It fixes the PTY size to `80x24`, sends `Ctrl+Q`, and checks startup/exit under:
+Most cases use `80x24`; one low-capability case uses `40x12` to catch narrow
+terminal regressions. The harness sends `Ctrl+Q` and checks startup/exit under:
 
 - `TERM=xterm-256color`, UTF-8 locale;
 - `TERM=screen-256color`, UTF-8 locale;
+- `TERM=tmux-256color`, UTF-8 locale;
+- `TERM=screen`, UTF-8 locale;
+- `TERM=xterm-color`, `C` locale;
 - `TERM=vt100`, `C` locale;
-- startup with a UTF-8 file path.
+- `TERM=ansi`, `C` locale;
+- `TERM=dumb`, `C` locale;
+- `NO_COLOR=1` with a UTF-8 locale.
+
+It also opens fixtures for:
+
+- a normal UTF-8 file;
+- a file containing terminal escape payloads, checking that the raw payload
+  sequences are not emitted as file content;
+- an invalid-byte file, checking that escaped bytes and `Escaped bytes` status
+  are visible;
+- a `40x12` VT100/C-locale startup case.
 
 If `expect(1)` is not installed, the test exits successfully after printing a
 skip message. Full workspace tests still run normally.

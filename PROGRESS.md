@@ -324,3 +324,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   matrix now covers local PTY, direct SSH, tmux, screen, VT100/C locale, mono,
   small terminal, and KVM/ASCII-style cases with a result-record template and
   low-capability pass criteria.
+- Expanded `dun-cli` PTY tests into a broader terminal compatibility harness.
+  The harness now covers xterm/screen/tmux/VT100/ANSI/dumb/NO_COLOR profiles,
+  a small VT100-style terminal, safe rendering of terminal escape payload
+  files, and invalid-byte escaped fallback files.

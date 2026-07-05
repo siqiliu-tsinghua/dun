@@ -52,7 +52,9 @@ Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
 The external SSH and low-capability terminal release matrix is documented in
 [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
-external host results still need to be recorded before a tagged release.
+the local PTY harness covers common terminal profiles, small VT100-style
+fallback, terminal escape payloads, and invalid-byte fallback files. External
+host results still need to be recorded before a tagged release.
 
 ## CLI Usage
 

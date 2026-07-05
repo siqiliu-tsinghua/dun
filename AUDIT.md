@@ -168,6 +168,9 @@ Current implementation:
 - The external SSH and low-capability terminal release matrix is documented in
   `docs/terminal-compatibility-checks.md`; release candidates must record real
   external host results separately from local PTY automation.
+- Local PTY automation now covers a broader terminal matrix, small
+  VT100/C-locale startup, terminal escape payload files, and invalid-byte
+  fallback files.
 
 ## Future rum Integration Requirements
 
