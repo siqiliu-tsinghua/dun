@@ -29,6 +29,8 @@ pub enum EditCommand {
     MoveDown,
     MovePageUp,
     MovePageDown,
+    ScrollLeft,
+    ScrollRight,
     MoveWordLeft,
     MoveWordRight,
     MoveLineStart,

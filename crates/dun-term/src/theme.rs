@@ -126,6 +126,9 @@ pub struct Palette {
     pub current_line: Style,
     pub selection: Style,
     pub selection_text: Style,
+    pub search_match: Style,
+    pub active_search_match: Style,
+    pub scrollbar_thumb: Style,
     pub modal_scrim: Style,
     pub modal: Style,
     pub modal_text: Style,
@@ -192,6 +195,13 @@ impl Theme {
                 current_line: Style::plain(editor_fg, current_line_bg),
                 selection: Style::plain(editor_fg, TerminalColor::Indexed(24)),
                 selection_text: Style::plain(editor_fg, TerminalColor::Indexed(24)),
+                search_match: Style::plain(editor_bg, TerminalColor::Indexed(220)),
+                active_search_match: Style::new(
+                    editor_bg,
+                    TerminalColor::Indexed(226),
+                    StyleAttrs::BOLD,
+                ),
+                scrollbar_thumb: Style::new(chrome_fg, chrome_bg, StyleAttrs::BOLD),
                 modal_scrim: Style::plain(TerminalColor::Indexed(245), editor_bg),
                 modal: Style::plain(panel_fg, panel_bg),
                 modal_text: Style::plain(panel_fg, panel_bg),
@@ -290,6 +300,20 @@ impl Theme {
                     TerminalColor::Ansi(AnsiColor::BrightWhite),
                     TerminalColor::Ansi(AnsiColor::Magenta),
                 ),
+                search_match: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::Black),
+                    TerminalColor::Ansi(AnsiColor::BrightYellow),
+                ),
+                active_search_match: Style::new(
+                    TerminalColor::Ansi(AnsiColor::Black),
+                    TerminalColor::Ansi(AnsiColor::Yellow),
+                    StyleAttrs::BOLD,
+                ),
+                scrollbar_thumb: Style::new(
+                    TerminalColor::Ansi(AnsiColor::BrightYellow),
+                    editor_bg,
+                    StyleAttrs::BOLD,
+                ),
                 modal_scrim: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), editor_bg),
                 modal: Style::plain(
                     TerminalColor::Ansi(AnsiColor::BrightWhite),
@@ -384,6 +408,17 @@ impl Theme {
                 current_line: reverse,
                 selection: reverse,
                 selection_text: reverse,
+                search_match: reverse,
+                active_search_match: Style::new(
+                    TerminalColor::Default,
+                    TerminalColor::Default,
+                    StyleAttrs::BOLD_REVERSE,
+                ),
+                scrollbar_thumb: Style::new(
+                    TerminalColor::Default,
+                    TerminalColor::Default,
+                    StyleAttrs::BOLD_REVERSE,
+                ),
                 modal_scrim: plain,
                 modal: plain,
                 modal_text: plain,
@@ -480,6 +515,20 @@ impl Theme {
                 selection_text: Style::plain(
                     TerminalColor::Ansi(AnsiColor::Black),
                     TerminalColor::Ansi(AnsiColor::BrightWhite),
+                ),
+                search_match: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::Black),
+                    TerminalColor::Ansi(AnsiColor::BrightYellow),
+                ),
+                active_search_match: Style::new(
+                    TerminalColor::Ansi(AnsiColor::Black),
+                    TerminalColor::Ansi(AnsiColor::Yellow),
+                    StyleAttrs::BOLD,
+                ),
+                scrollbar_thumb: Style::new(
+                    TerminalColor::Ansi(AnsiColor::BrightYellow),
+                    bg,
+                    StyleAttrs::BOLD,
                 ),
                 modal_scrim: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), bg),
                 modal: Style::plain(
@@ -586,6 +635,9 @@ impl Theme {
                 current_line: Style::plain(editor_fg, TerminalColor::Indexed(bg + 4)),
                 selection: Style::plain(editor_fg, TerminalColor::Indexed(bg + 5)),
                 selection_text: Style::plain(editor_fg, TerminalColor::Indexed(bg + 5)),
+                search_match: Style::plain(editor_bg, warning),
+                active_search_match: Style::new(editor_bg, accent, StyleAttrs::BOLD),
+                scrollbar_thumb: Style::new(accent, editor_bg, StyleAttrs::BOLD),
                 modal_scrim: Style::plain(TerminalColor::Indexed(244), editor_bg),
                 modal: Style::plain(editor_fg, TerminalColor::Indexed(bg + 7)),
                 modal_text: Style::plain(editor_fg, TerminalColor::Indexed(bg + 7)),

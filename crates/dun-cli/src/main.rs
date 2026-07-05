@@ -561,14 +561,30 @@ impl AppState {
         self.buffers
             .iter()
             .map(|buffer| {
+                let search_matches = buffer
+                    .search
+                    .as_ref()
+                    .map(|search| search.matches.as_slice())
+                    .unwrap_or(&[]);
+                let active_search_match = buffer
+                    .search
+                    .as_ref()
+                    .and_then(|search| search.active_index);
                 BufferView::scrolled_xy(
                     buffer.id,
                     &buffer.buffer,
                     buffer.first_line,
                     buffer.first_column,
                 )
+                .with_search(search_matches, active_search_match)
             })
             .collect()
+    }
+
+    fn refresh_search_caches(&mut self) {
+        for buffer in &mut self.buffers {
+            buffer.refresh_search_cache();
+        }
     }
 
     const fn mouse_enabled(&self) -> bool {
@@ -663,6 +679,7 @@ impl AppState {
 
     fn sync_view_for_area(&mut self, area: Rect) {
         self.workspace_area = area;
+        self.refresh_search_caches();
         let Some(context) = self.focused_buffer_view_context(area) else {
             return;
         };
@@ -1075,6 +1092,14 @@ impl AppState {
                 self.move_focused_page(1);
                 return;
             }
+            EditCommand::ScrollLeft => {
+                self.scroll_focused_columns(-1);
+                return;
+            }
+            EditCommand::ScrollRight => {
+                self.scroll_focused_columns(1);
+                return;
+            }
             EditCommand::ExtendSelectionPageUp => {
                 self.extend_focused_page(-1);
                 return;
@@ -1152,6 +1177,8 @@ impl AppState {
             | EditCommand::GoToLine
             | EditCommand::MovePageUp
             | EditCommand::MovePageDown
+            | EditCommand::ScrollLeft
+            | EditCommand::ScrollRight
             | EditCommand::ExtendSelectionPageUp
             | EditCommand::ExtendSelectionPageDown => {}
         }
@@ -1205,6 +1232,36 @@ impl AppState {
             buffer.move_page_down(page_lines)
         };
         buffer.ensure_cursor_visible(body_height, context.body_width);
+        moved
+    }
+
+    fn scroll_focused_columns(&mut self, direction: isize) -> bool {
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id: BufferId(0),
+                body_height: 1,
+                body_width: 1,
+            });
+        let step = context.body_width.saturating_div(2).max(1) as isize;
+        let Some(buffer) = self.focused_buffer_mut() else {
+            return false;
+        };
+
+        let moved = buffer.scroll_view_columns(direction.saturating_mul(step), context.body_width);
+        let first_column = buffer.first_column;
+        let status = if moved {
+            if direction < 0 {
+                format!("Scrolled left to column {}", first_column + 1)
+            } else {
+                format!("Scrolled right to column {}", first_column + 1)
+            }
+        } else if direction < 0 {
+            "Already at left edge".to_string()
+        } else {
+            "Already at right edge".to_string()
+        };
+        self.set_status(status);
         moved
     }
 
@@ -2622,11 +2679,17 @@ impl AppState {
     fn run_replace_command(&mut self, args: &[String]) {
         match args {
             [] => self.handle_edit_command(&EditCommand::Replace),
+            [mode, query, replacement] if normalize_command_line_token(mode) == "all" => {
+                self.last_find_query = Some(query.clone());
+                self.replace_all_in_focused_buffer(query, replacement);
+            }
             [query, replacement] => {
                 self.last_find_query = Some(query.clone());
                 self.replace_in_focused_buffer(query, replacement);
             }
-            _ => self.set_status("Command failed: replace expects query and replacement"),
+            _ => self.set_status(
+                "Command failed: replace expects query and replacement, or all query replacement",
+            ),
         }
     }
 
@@ -2661,6 +2724,7 @@ impl AppState {
         let matches = buffer.buffer.find_all(query);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
+            buffer.set_search(query.to_string(), matches, None);
             self.set_status(format!("Find: no matches for {query}"));
             return;
         }
@@ -2680,12 +2744,14 @@ impl AppState {
         let selection = choose_search_match(&matches, origin, direction);
         let selected = matches[selection.index].range;
         let _ = buffer.buffer.select(selected.start, selected.end);
+        let match_count = matches.len();
+        buffer.set_search(query.to_string(), matches, Some(selection.index));
 
         let suffix = if selection.wrapped { " (wrapped)" } else { "" };
         self.set_status(format!(
             "Find: {}/{} {query}{suffix}",
             selection.index + 1,
-            matches.len()
+            match_count
         ));
     }
 
@@ -2703,6 +2769,7 @@ impl AppState {
         let matches = buffer.buffer.find_all(query);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
+            buffer.set_search(query.to_string(), matches, None);
             self.set_status(format!("Replace: no matches for {query}"));
             return;
         }
@@ -2716,17 +2783,82 @@ impl AppState {
             choose_search_match(&matches, origin, SearchDirection::Forward)
         });
         let target = matches[selection.index].range;
+        let old_total = matches.len();
 
         match buffer.buffer.replace_range(target, replacement) {
             Ok(()) => {
                 let suffix = if selection.wrapped { " (wrapped)" } else { "" };
+                let new_matches = buffer.buffer.find_all(query);
+                let next_selection = if new_matches.is_empty() {
+                    None
+                } else {
+                    Some(choose_search_match(
+                        &new_matches,
+                        buffer.buffer.cursor_position(),
+                        SearchDirection::Forward,
+                    ))
+                };
+                if let Some(next) = next_selection {
+                    let selected = new_matches[next.index].range;
+                    let _ = buffer.buffer.select(selected.start, selected.end);
+                }
+                let next_status = match next_selection {
+                    Some(next) => format!("; next {}/{}", next.index + 1, new_matches.len()),
+                    None => "; no matches left".to_string(),
+                };
+                buffer.set_search(
+                    query.to_string(),
+                    new_matches,
+                    next_selection.map(|selection| selection.index),
+                );
                 self.set_status(format!(
-                    "Replace: {}/{} {query}{suffix}",
+                    "Replace: {}/{} {query} -> {}{suffix}{next_status}",
                     selection.index + 1,
-                    matches.len()
+                    old_total,
+                    replacement_status_text(replacement)
                 ));
             }
             Err(error) => self.set_status(format!("Replace failed: {}", buffer_error_text(error))),
+        }
+    }
+
+    fn replace_all_in_focused_buffer(&mut self, query: &str, replacement: &str) {
+        if query.is_empty() {
+            self.set_status("Replace All: no query");
+            return;
+        }
+
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Replace All: focused buffer is missing");
+            return;
+        };
+
+        let matches = buffer.buffer.find_all(query);
+        if matches.is_empty() {
+            buffer.buffer.clear_selection();
+            buffer.set_search(query.to_string(), matches, None);
+            self.set_status(format!("Replace All: no matches for {query}"));
+            return;
+        }
+
+        match buffer.buffer.replace_all(query, replacement) {
+            Ok(count) => {
+                let new_matches = buffer.buffer.find_all(query);
+                let remaining = new_matches.len();
+                buffer.set_search(query.to_string(), new_matches, None);
+                let suffix = if remaining == 0 {
+                    String::new()
+                } else {
+                    format!("; {remaining} matches remain")
+                };
+                self.set_status(format!(
+                    "Replace All: {count} {query} -> {}{suffix}",
+                    replacement_status_text(replacement)
+                ));
+            }
+            Err(error) => {
+                self.set_status(format!("Replace All failed: {}", buffer_error_text(error)))
+            }
         }
     }
 
@@ -2925,6 +3057,9 @@ impl AppState {
         ];
         if let Some(selection) = selection_status(&buffer.buffer) {
             parts.insert(4, bracket(&selection));
+        }
+        if let Some(search) = buffer.search_status() {
+            parts.insert(4, bracket(&search));
         }
 
         parts.join(" ")
@@ -3569,7 +3704,7 @@ enum MouseDragState {
     },
 }
 
-const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, goto LINE, or any command id such as window.split_horizontal";
+const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CommandLineParseError {
@@ -3724,6 +3859,14 @@ fn current_match_selection(
         })
 }
 
+fn replacement_status_text(replacement: &str) -> &str {
+    if replacement.is_empty() {
+        "<empty>"
+    } else {
+        replacement
+    }
+}
+
 fn selection_status(buffer: &TextBuffer) -> Option<String> {
     let range = buffer.selection_range()?;
     if range.is_empty() {
@@ -3835,6 +3978,43 @@ const fn axis_name(axis: Axis) -> &'static str {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BufferSearchState {
+    query: String,
+    matches: Vec<SearchMatch>,
+    revision: u64,
+    active_index: Option<usize>,
+}
+
+impl BufferSearchState {
+    fn refresh(&mut self, buffer: &TextBuffer) {
+        if self.revision == buffer.revision() {
+            self.active_index = current_match_selection(buffer, &self.matches)
+                .map(|selection| selection.index)
+                .or_else(|| {
+                    self.active_index
+                        .filter(|index| *index < self.matches.len())
+                });
+            return;
+        }
+
+        let previous_active = self.active_index;
+        self.matches = buffer.find_all(&self.query);
+        self.revision = buffer.revision();
+        self.active_index = current_match_selection(buffer, &self.matches)
+            .map(|selection| selection.index)
+            .or_else(|| previous_active.filter(|index| *index < self.matches.len()));
+    }
+
+    fn status_text(&self) -> String {
+        match (self.matches.len(), self.active_index) {
+            (0, _) => "Find 0".to_string(),
+            (total, Some(index)) => format!("Find {}/{total}", index + 1),
+            (total, None) => format!("Find {total}"),
+        }
+    }
+}
+
 struct BufferState {
     id: BufferId,
     buffer: TextBuffer,
@@ -3842,6 +4022,7 @@ struct BufferState {
     encoding: FileTextEncoding,
     first_line: usize,
     first_column: usize,
+    search: Option<BufferSearchState>,
 }
 
 impl BufferState {
@@ -3853,6 +4034,7 @@ impl BufferState {
             encoding: FileTextEncoding::Utf8,
             first_line: 0,
             first_column: 0,
+            search: None,
         }
     }
 
@@ -3864,7 +4046,34 @@ impl BufferState {
             encoding: loaded.encoding,
             first_line: 0,
             first_column: 0,
+            search: None,
         }
+    }
+
+    fn set_search(
+        &mut self,
+        query: impl Into<String>,
+        matches: Vec<SearchMatch>,
+        active_index: Option<usize>,
+    ) {
+        let active_index = active_index.filter(|index| *index < matches.len());
+        self.search = Some(BufferSearchState {
+            query: query.into(),
+            matches,
+            revision: self.buffer.revision(),
+            active_index,
+        });
+    }
+
+    fn refresh_search_cache(&mut self) {
+        if let Some(search) = &mut self.search {
+            search.refresh(&self.buffer);
+        }
+    }
+
+    fn search_status(&self) -> Option<String> {
+        let search = self.search.as_ref()?;
+        (search.revision == self.buffer.revision()).then(|| search.status_text())
     }
 
     fn ensure_cursor_visible(&mut self, body_height: usize, body_width: usize) {
@@ -3917,6 +4126,25 @@ impl BufferState {
         self.first_line != old_first_line
     }
 
+    fn scroll_view_columns(&mut self, delta: isize, body_width: usize) -> bool {
+        if body_width == 0 {
+            return false;
+        }
+
+        let old_first_column = self.first_column;
+        let max_first_column = self
+            .max_line_display_width()
+            .saturating_sub(body_width.max(1));
+        self.first_column = if delta < 0 {
+            self.first_column.saturating_sub(delta.unsigned_abs())
+        } else {
+            self.first_column
+                .saturating_add(delta as usize)
+                .min(max_first_column)
+        };
+        self.first_column != old_first_column
+    }
+
     fn extend_page_up(&mut self, lines: usize) -> bool {
         let mut moved = false;
         for _ in 0..lines.max(1) {
@@ -3953,6 +4181,15 @@ impl BufferState {
             .line(position.line)
             .and_then(|line| line.get(..position.column))
             .map(UnicodeWidthStr::width)
+            .unwrap_or(0)
+    }
+
+    fn max_line_display_width(&self) -> usize {
+        self.buffer
+            .lines()
+            .iter()
+            .map(|line| UnicodeWidthStr::width(line.as_str()))
+            .max()
             .unwrap_or(0)
     }
 
@@ -4262,6 +4499,7 @@ fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
             CrosstermMouseEventKind::ScrollDown => {
                 app.scroll_file_dialog(1);
             }
+            CrosstermMouseEventKind::ScrollLeft | CrosstermMouseEventKind::ScrollRight => {}
             CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
                 app.handle_mouse_up();
             }
@@ -4289,6 +4527,12 @@ fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
         }
         CrosstermMouseEventKind::ScrollDown => {
             app.handle_mouse_scroll(event.column, event.row, EDITOR_MOUSE_WHEEL_LINES as isize);
+        }
+        CrosstermMouseEventKind::ScrollLeft => {
+            app.scroll_focused_columns(-1);
+        }
+        CrosstermMouseEventKind::ScrollRight => {
+            app.scroll_focused_columns(1);
         }
         CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
             app.handle_mouse_up();
@@ -4947,6 +5191,14 @@ const HELP_SECTIONS: &[HelpSection] = &[
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::MovePageDown),
                 description: "Move page down",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ScrollLeft),
+                description: "Scroll view left",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ScrollRight),
+                description: "Scroll view right",
             },
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::MoveWordLeft),
@@ -6230,6 +6482,31 @@ key.app.quit = Esc
                 .body
                 .first()
                 .is_some_and(|line| line.as_plain_text().ends_with("bcdef"))
+        );
+    }
+
+    #[test]
+    fn horizontal_scroll_commands_move_viewport_without_moving_cursor() {
+        let mut app = app_with_text("0123456789abcdef");
+        app.sync_view_for_area(Rect::new(0, 0, 10, 4));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::ScrollRight));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.first_column, 3);
+        assert_eq!(state.buffer.cursor_position(), Position::zero());
+        assert_eq!(
+            app.status_message,
+            Some("Scrolled right to column 4".to_string())
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::ScrollLeft));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.first_column, 0);
+        assert_eq!(
+            app.status_message,
+            Some("Scrolled left to column 1".to_string())
         );
     }
 
@@ -8558,7 +8835,14 @@ key.app.help = F10
         assert_eq!(state.buffer.to_text(), "uno two one");
         assert!(state.buffer.is_dirty());
         assert_eq!(app.last_find_query, Some("one".to_string()));
-        assert_eq!(app.status_message, Some("Replace: 1/2 one".to_string()));
+        assert_eq!(
+            app.status_message,
+            Some("Replace: 1/2 one -> uno; next 1/1".to_string())
+        );
+        assert_eq!(
+            state.buffer.selection_range(),
+            Some(TextRange::new(Position::new(0, 8), Position::new(0, 11)))
+        );
     }
 
     #[test]
@@ -8585,7 +8869,14 @@ key.app.help = F10
 
         let state = app.buffer_state(BufferId(1)).unwrap();
         assert_eq!(state.buffer.to_text(), "one two uno");
-        assert_eq!(app.status_message, Some("Replace: 2/2 one".to_string()));
+        assert_eq!(
+            app.status_message,
+            Some("Replace: 2/2 one -> uno; next 1/1".to_string())
+        );
+        assert_eq!(
+            state.buffer.selection_range(),
+            Some(TextRange::new(Position::new(0, 0), Position::new(0, 3)))
+        );
     }
 
     #[test]
@@ -8605,7 +8896,45 @@ key.app.help = F10
 
         let state = app.buffer_state(BufferId(1)).unwrap();
         assert_eq!(state.buffer.to_text(), " two");
-        assert_eq!(app.status_message, Some("Replace: 1/1 one".to_string()));
+        assert_eq!(
+            app.status_message,
+            Some("Replace: 1/1 one -> <empty>; no matches left".to_string())
+        );
+    }
+
+    #[test]
+    fn command_line_replace_all_is_single_undo_step() {
+        let mut app = app_with_text("one two one");
+
+        app.run_command_line("replace all one uno");
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "uno two uno");
+        assert_eq!(
+            app.status_message,
+            Some("Replace All: 2 one -> uno".to_string())
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Undo));
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "one two one"
+        );
+    }
+
+    #[test]
+    fn find_populates_status_field_and_view_highlights() {
+        let mut app = app_with_text("one two one");
+        app.workspace_area = Rect::new(0, 0, 80, 8);
+
+        app.last_find_query = Some("one".to_string());
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+        app.sync_view_for_area(app.workspace_area);
+
+        assert!(app.focused_detail_status().contains("[Find 1/2]"));
+        let buffer_views = app.buffer_views();
+        assert_eq!(buffer_views[0].search_matches.len(), 2);
+        assert_eq!(buffer_views[0].active_search_match, Some(0));
     }
 
     #[test]

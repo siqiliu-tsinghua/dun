@@ -3,7 +3,7 @@
 use dun_config::{Config, KeySequence, KeyStroke, Keymap};
 use dun_core::{
     BufferId, DisplayClass, DisplaySanitizer, DisplaySegment, EditorCommand, Position, Rect,
-    SanitizedLine, TextBuffer, TextRange, WindowId, WindowState, Workspace,
+    SanitizedLine, SearchMatch, TextBuffer, TextRange, WindowId, WindowState, Workspace,
 };
 use dun_term::{
     AnsiColor, BorderGlyphs, EncodingProfile, GlyphSet, Style as DunStyle, StyleAttrs,
@@ -308,6 +308,18 @@ impl UiShell {
         } else {
             Vec::new()
         };
+        let search_matches = if !window.collapsed {
+            buffer
+                .map(|buffer| self.search_matches_for_buffer(buffer, rect, gutter_width))
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let scrollbar = if !window.collapsed {
+            buffer.and_then(|buffer| self.scrollbar_for_buffer(buffer, rect))
+        } else {
+            None
+        };
         let gutter = if !window.collapsed {
             buffer
                 .map(|buffer| self.gutter_for_buffer(buffer, rect, gutter_width))
@@ -334,6 +346,8 @@ impl UiShell {
             gutter,
             cursor,
             selection,
+            search_matches,
+            scrollbar,
             body,
         }
     }
@@ -479,6 +493,109 @@ impl UiShell {
             y: 1 + (line_index - buffer.first_line) as u16,
             start_x: 1 + start_x as u16 + gutter_width as u16,
             end_x: 1 + end_x as u16 + gutter_width as u16,
+        })
+    }
+
+    fn search_matches_for_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        gutter_width: u16,
+    ) -> Vec<UiSearchMatchLine> {
+        if buffer.search_matches.is_empty() {
+            return Vec::new();
+        }
+        let Some(inner_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
+            return Vec::new();
+        };
+        let gutter_width = gutter_width.min(inner_width as u16) as usize;
+        let body_width = inner_width.saturating_sub(gutter_width);
+        let Some(body_height) = rect.height.checked_sub(2).map(|height| height as usize) else {
+            return Vec::new();
+        };
+        if body_width == 0 || body_height == 0 {
+            return Vec::new();
+        }
+
+        let visible_start = buffer.first_line;
+        let visible_end = buffer.first_line.saturating_add(body_height);
+        let mut lines = Vec::new();
+        for (index, item) in buffer.search_matches.iter().enumerate() {
+            let range = item.range;
+            if range.is_empty() || range.start.line != range.end.line {
+                continue;
+            }
+            if range.start.line < visible_start || range.start.line >= visible_end {
+                continue;
+            }
+            if let Some(line) =
+                self.search_match_line(buffer, range, body_width, gutter_width, index)
+            {
+                lines.push(line);
+            }
+        }
+
+        lines
+    }
+
+    fn search_match_line(
+        &self,
+        buffer: &BufferView<'_>,
+        range: TextRange,
+        body_width: usize,
+        gutter_width: usize,
+        index: usize,
+    ) -> Option<UiSearchMatchLine> {
+        let line = buffer.buffer.line(range.start.line)?;
+        let first_column = buffer.first_column;
+        let last_column = first_column.saturating_add(body_width);
+        let start_display = self.display_column(line, range.start.column)?;
+        let end_display = self.display_column(line, range.end.column)?;
+        if end_display <= first_column || start_display >= last_column {
+            return None;
+        }
+
+        let start_x = start_display.saturating_sub(first_column).min(body_width);
+        let end_x = end_display.saturating_sub(first_column).min(body_width);
+        if start_x >= end_x {
+            return None;
+        }
+
+        Some(UiSearchMatchLine {
+            y: 1 + (range.start.line - buffer.first_line) as u16,
+            start_x: 1 + start_x as u16 + gutter_width as u16,
+            end_x: 1 + end_x as u16 + gutter_width as u16,
+            active: buffer.active_search_match == Some(index),
+        })
+    }
+
+    fn scrollbar_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> Option<UiScrollbar> {
+        let body_height = rect.height.checked_sub(2)? as usize;
+        let total = buffer.buffer.line_count();
+        if body_height == 0 || total <= body_height {
+            return None;
+        }
+
+        let thumb_height = body_height
+            .saturating_mul(body_height)
+            .saturating_add(total.saturating_sub(1))
+            / total;
+        let thumb_height = thumb_height.max(1).min(body_height);
+        let max_thumb_top = body_height.saturating_sub(thumb_height);
+        let max_first_line = total.saturating_sub(body_height);
+        let thumb_top = if max_first_line == 0 {
+            0
+        } else {
+            buffer
+                .first_line
+                .min(max_first_line)
+                .saturating_mul(max_thumb_top)
+                / max_first_line
+        };
+
+        Some(UiScrollbar {
+            y: 1 + thumb_top as u16,
+            height: thumb_height as u16,
         })
     }
 
@@ -642,6 +759,14 @@ impl UiShell {
                         MenuEntry::new(
                             "Toggle Collapse (C)",
                             EditorCommand::Window(dun_core::WindowCommand::ToggleCollapse),
+                        ),
+                        MenuEntry::new(
+                            "Scroll Left ([)",
+                            EditorCommand::Edit(dun_core::EditCommand::ScrollLeft),
+                        ),
+                        MenuEntry::new(
+                            "Scroll Right (])",
+                            EditorCommand::Edit(dun_core::EditCommand::ScrollRight),
                         ),
                         MenuEntry::new(
                             "Close Window (X)",
@@ -1138,11 +1263,25 @@ fn render_window(frame: &mut Frame<'_>, shell: &UiShell, window: &UiWindow, work
         window.cursor,
         to_ratatui_style(shell.theme.palette.current_line),
     );
+    render_search_matches(
+        frame.buffer_mut(),
+        area,
+        &window.search_matches,
+        to_ratatui_style(shell.theme.palette.search_match),
+        to_ratatui_style(shell.theme.palette.active_search_match),
+    );
     render_selection(
         frame.buffer_mut(),
         area,
         &window.selection,
         to_ratatui_style(shell.theme.palette.selection_text),
+    );
+    render_scrollbar(
+        frame.buffer_mut(),
+        shell,
+        area,
+        window.scrollbar.as_ref(),
+        to_ratatui_style(shell.theme.palette.scrollbar_thumb),
     );
 
     if let Some(cursor) = window.cursor {
@@ -1225,6 +1364,69 @@ fn render_selection(
         for x in start..end.min(right) {
             buffer[(x, y)].set_style(style);
         }
+    }
+}
+
+fn render_search_matches(
+    buffer: &mut Buffer,
+    window_area: TuiRect,
+    matches: &[UiSearchMatchLine],
+    style: Style,
+    active_style: Style,
+) {
+    for line in matches {
+        let y = window_area.y.saturating_add(line.y);
+        if y >= window_area.y.saturating_add(window_area.height) {
+            continue;
+        }
+
+        let start = window_area.x.saturating_add(line.start_x);
+        let end = window_area.x.saturating_add(line.end_x);
+        let right = window_area.x.saturating_add(window_area.width);
+        let style = if line.active { active_style } else { style };
+        for x in start..end.min(right) {
+            buffer[(x, y)].set_style(style);
+        }
+    }
+}
+
+fn render_scrollbar(
+    buffer: &mut Buffer,
+    shell: &UiShell,
+    window_area: TuiRect,
+    scrollbar: Option<&UiScrollbar>,
+    style: Style,
+) {
+    let Some(scrollbar) = scrollbar else {
+        return;
+    };
+    if window_area.width == 0 || window_area.height <= 2 || scrollbar.height == 0 {
+        return;
+    }
+
+    let x = window_area
+        .x
+        .saturating_add(window_area.width)
+        .saturating_sub(1);
+    let bottom = window_area
+        .y
+        .saturating_add(window_area.height)
+        .saturating_sub(1);
+    let thumb = if shell.profile.supports_unicode_glyphs() {
+        '█'
+    } else {
+        '#'
+    };
+
+    for offset in 0..scrollbar.height {
+        let y = window_area
+            .y
+            .saturating_add(scrollbar.y)
+            .saturating_add(offset);
+        if y >= bottom {
+            break;
+        }
+        buffer[(x, y)].set_char(thumb).set_style(style);
     }
 }
 
@@ -1558,6 +1760,8 @@ pub struct BufferView<'a> {
     pub buffer: &'a TextBuffer,
     pub first_line: usize,
     pub first_column: usize,
+    pub search_matches: &'a [SearchMatch],
+    pub active_search_match: Option<usize>,
 }
 
 impl<'a> BufferView<'a> {
@@ -1567,6 +1771,8 @@ impl<'a> BufferView<'a> {
             buffer,
             first_line: 0,
             first_column: 0,
+            search_matches: &[],
+            active_search_match: None,
         }
     }
 
@@ -1576,6 +1782,8 @@ impl<'a> BufferView<'a> {
             buffer,
             first_line,
             first_column: 0,
+            search_matches: &[],
+            active_search_match: None,
         }
     }
 
@@ -1590,8 +1798,34 @@ impl<'a> BufferView<'a> {
             buffer,
             first_line,
             first_column,
+            search_matches: &[],
+            active_search_match: None,
         }
     }
+
+    pub const fn with_search(
+        mut self,
+        search_matches: &'a [SearchMatch],
+        active_search_match: Option<usize>,
+    ) -> Self {
+        self.search_matches = search_matches;
+        self.active_search_match = active_search_match;
+        self
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UiScrollbar {
+    pub y: u16,
+    pub height: u16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UiSearchMatchLine {
+    pub y: u16,
+    pub start_x: u16,
+    pub end_x: u16,
+    pub active: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1755,6 +1989,8 @@ pub struct UiWindow {
     pub gutter: Vec<UiGutterLine>,
     pub cursor: Option<UiCursor>,
     pub selection: Vec<UiSelectionLine>,
+    pub search_matches: Vec<UiSearchMatchLine>,
+    pub scrollbar: Option<UiScrollbar>,
     pub body: Vec<SanitizedLine>,
 }
 
@@ -2093,6 +2329,82 @@ mod tests {
                 start_x: 3,
                 end_x: 6,
             }]
+        );
+    }
+
+    #[test]
+    fn frame_maps_search_matches_to_window_body() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "one two one");
+        let matches = buffer.find_all("one");
+        let buffer_view = BufferView::new(BufferId(1), &buffer).with_search(&matches, Some(0));
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 80, 10),
+            &[buffer_view],
+        );
+
+        assert_eq!(
+            frame.windows[0].search_matches,
+            vec![
+                UiSearchMatchLine {
+                    y: 1,
+                    start_x: 3,
+                    end_x: 6,
+                    active: true,
+                },
+                UiSearchMatchLine {
+                    y: 1,
+                    start_x: 11,
+                    end_x: 14,
+                    active: false,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn frame_clips_search_matches_by_horizontal_scroll() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdef");
+        let matches = buffer.find_all("cd");
+        let buffer_view =
+            BufferView::scrolled_xy(BufferId(1), &buffer, 0, 2).with_search(&matches, Some(0));
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 80, 10),
+            &[buffer_view],
+        );
+
+        assert_eq!(
+            frame.windows[0].search_matches,
+            vec![UiSearchMatchLine {
+                y: 1,
+                start_x: 3,
+                end_x: 5,
+                active: true,
+            }]
+        );
+    }
+
+    #[test]
+    fn frame_reports_vertical_scrollbar_for_scrolled_buffer() {
+        let workspace = Workspace::new_untitled();
+        let buffer =
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
+        let buffer_view = BufferView::scrolled(BufferId(1), &buffer, 3);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 80, 6),
+            &[buffer_view],
+        );
+
+        assert_eq!(
+            frame.windows[0].scrollbar,
+            Some(UiScrollbar { y: 2, height: 2 })
         );
     }
 

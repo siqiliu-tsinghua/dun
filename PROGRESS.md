@@ -457,3 +457,17 @@ This is an append-only progress log. Keep new entries dated and factual.
   and read-only/focused-buffer errors.
 - Added tests for horizontal render/hit mapping, horizontal cursor visibility,
   page-wise selection, scroll status, and Undo/Redo status feedback.
+- Added cached search result view state per buffer. Find now feeds `dun-ui`
+  search-match highlights, tracks the active match, and exposes `[Find n/m]`
+  in the focused status fields without recomputing matches every frame.
+- Polished replace flow: replacing one match now reports the replacement text,
+  advances to the next remaining match when possible, and keeps search
+  highlights in sync. The command prompt also accepts `replace all QUERY TEXT`.
+- Added `TextBuffer::replace_all` as a single undo transaction and covered it
+  with core and CLI tests.
+- Added explicit horizontal viewport commands `edit.scroll_left` and
+  `edit.scroll_right`, default `Ctrl+W,[`/`Ctrl+W,]` bindings, View-menu
+  entries, command ids, help text, and horizontal mouse wheel handling when a
+  terminal delivers it.
+- Added lightweight right-border scrollbar thumbs for vertically scrollable
+  editor panes, with 256-color, 16-color, and mono theme styles.

@@ -234,6 +234,8 @@ supports:
   bracket-style status fields including visible scroll range and horizontal
   offset, lightweight modal prompts, and larger Open/Save As file dialogs with
   path input plus a selectable directory match list;
+- rendering cached search match highlights and a lightweight right-border
+  scrollbar thumb for vertically scrollable editor panes;
 - crossterm key events mapped into the typed keymap;
 - Alt+F/E/V/H menu mnemonics after the active keymap has had the first chance
   to consume those strokes;
@@ -241,9 +243,16 @@ supports:
   keymap has had the first chance to consume those strokes;
 - PageUp/PageDown visible-page movement, UTF-8-safe word movement/deletion, and
   configurable word-selection and page-selection commands;
-- horizontal scrolling for long lines, keeping the focused cursor visible;
+- horizontal scrolling for long lines, keeping the focused cursor visible, plus
+  explicit `edit.scroll_left` and `edit.scroll_right` viewport commands;
 - visible Undo/Redo status feedback for successful actions and empty stacks;
 - `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
+
+The current search/replace baseline is literal string based. Find caches match
+locations per buffer revision, highlights visible matches, reports the active
+match as `[Find n/m]`, and supports next/previous wraparound. Replace can
+replace the current or next match, advance to the next remaining match, and
+`replace all QUERY TEXT` replaces all literal matches as one undo transaction.
 
 ## Mouse
 
@@ -266,6 +275,8 @@ Current mouse baseline:
   delivers them;
 - mouse wheel events scroll editor panes when mouse support is enabled, keeping
   the cursor inside the visible pane;
+- horizontal mouse wheel events scroll the focused editor viewport when the
+  terminal delivers them;
 - pressing `Esc` closes an open menu before normal keymap dispatch;
 - clicks in the status area do nothing.
 

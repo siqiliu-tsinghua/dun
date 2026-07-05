@@ -102,6 +102,7 @@ as a fallback after the active keymap is checked. Binding one of those strokes
 to a command gives the configured command priority.
 Default editor movement also includes PageUp/PageDown for visible-page
 movement, `Shift+PageUp/PageDown` for visible-page selection,
+`Ctrl+W,[`/`Ctrl+W,]` for explicit horizontal viewport scrolling,
 `Ctrl+Left/Right` for word movement, `Ctrl+Shift+Left/Right` for word
 selection, and `Ctrl+Backspace/Delete` for word deletion. These are ordinary
 command bindings and can be remapped or disabled like other `key.edit.*`
@@ -128,6 +129,8 @@ key.app.quit = Ctrl+Q
 key.app.reload_config = F5
 key.app.config_diagnostics = F6
 key.edit.find = Ctrl+F
+key.edit.scroll_left = Ctrl+W,[
+key.edit.scroll_right = Ctrl+W,]
 key.window.split_horizontal = Ctrl+W,H
 key.window.split_vertical = Ctrl+W,V
 key.window.focus_left = Ctrl+W,Left

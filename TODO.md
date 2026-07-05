@@ -152,6 +152,10 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Report Undo/Redo status feedback.
 - [x] Add scroll range and horizontal offset status fields.
 - [x] Add optional mouse wheel scrolling for editor panes.
+- [x] Add cached search match highlighting and focused match status fields.
+- [x] Add command-line `replace all QUERY TEXT` with one undo transaction.
+- [x] Add explicit horizontal viewport scroll commands.
+- [x] Add a lightweight vertical scrollbar indicator for long buffers.
 
 ## File and Display Safety
 

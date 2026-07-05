@@ -608,6 +608,56 @@ impl TextBuffer {
         self.commit_replace(range, &new_text).map(|_| ())
     }
 
+    pub fn replace_all(&mut self, query: &str, new_text: &str) -> Result<usize, BufferError> {
+        self.ensure_editable()?;
+        self.break_undo_merge();
+        if query.is_empty() {
+            return Ok(0);
+        }
+
+        let matches = self.find_all(query);
+        if matches.is_empty() {
+            return Ok(0);
+        }
+
+        let new_text = normalize_edit_text(new_text);
+        let before_cursor = self.cursor.position;
+        let before_selection = self.selection;
+        let mut replacements = Vec::with_capacity(matches.len());
+        for item in &matches {
+            replacements.push((item.range, self.text_in_range(item.range)?));
+        }
+
+        let mut edits = Vec::with_capacity(replacements.len());
+        for (range, old_text) in replacements.into_iter().rev() {
+            self.replace_range_inner(range, &new_text)?;
+            edits.push(TextEdit::Replace {
+                range,
+                old_text,
+                new_text: new_text.clone(),
+            });
+        }
+
+        let after_cursor = matches
+            .first()
+            .map(|item| end_position_after_text(item.range.start, &new_text))
+            .unwrap_or(before_cursor);
+        self.cursor = Cursor::new(after_cursor);
+        self.selection = None;
+        self.undo_stack.push(EditTransaction {
+            edits,
+            before_cursor,
+            after_cursor,
+            before_selection,
+            after_selection: None,
+            merge_kind: EditMergeKind::None,
+        });
+        self.redo_stack.clear();
+        self.bump_revision();
+
+        Ok(matches.len())
+    }
+
     pub fn text_in_range(&self, range: TextRange) -> Result<String, BufferError> {
         let range = range.normalized();
         self.validate_range(range)?;
@@ -1744,5 +1794,30 @@ mod tests {
         let buffer = TextBuffer::from_text("text");
 
         assert!(buffer.find_all("").is_empty());
+    }
+
+    #[test]
+    fn replace_all_is_one_undo_transaction() {
+        let mut buffer = TextBuffer::from_text("one two one");
+
+        assert_eq!(buffer.replace_all("one", "uno"), Ok(2));
+        assert_eq!(buffer.to_text(), "uno two uno");
+        assert!(buffer.can_undo());
+
+        assert_eq!(buffer.undo(), Ok(true));
+        assert_eq!(buffer.to_text(), "one two one");
+
+        assert_eq!(buffer.redo(), Ok(true));
+        assert_eq!(buffer.to_text(), "uno two uno");
+    }
+
+    #[test]
+    fn replace_all_reports_zero_for_missing_or_empty_query() {
+        let mut buffer = TextBuffer::from_text("abc");
+
+        assert_eq!(buffer.replace_all("z", "x"), Ok(0));
+        assert_eq!(buffer.replace_all("", "x"), Ok(0));
+        assert_eq!(buffer.to_text(), "abc");
+        assert!(!buffer.can_undo());
     }
 }

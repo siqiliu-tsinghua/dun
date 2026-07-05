@@ -186,6 +186,12 @@ Editing:
   those modifiers.
 - Long editor lines scroll horizontally to keep the cursor visible; the status
   bar reports the visible line range and horizontal offset.
+- `Ctrl+W,[` and `Ctrl+W,]` scroll the focused editor viewport left/right when
+  the line is wider than the pane.
+- Long buffers display a lightweight right-border scrollbar thumb when there
+  are more lines than fit in the pane.
+- Terminals that emit horizontal mouse wheel events should scroll the focused
+  editor viewport without requiring a separate capability.
 - Continuous ordinary typing and continuous same-direction Backspace/Delete
   should undo as grouped steps. Cursor movement, selection changes, newline,
   word delete, replace, and paste should make separate undo steps.
@@ -204,8 +210,11 @@ Editing:
 Search and navigation:
 
 - `Ctrl+F` opens Find and selects the first match.
-- `F3` and `Shift+F3` move between matches.
-- `Ctrl+R` performs the replace prompt flow.
+- `F3` and `Shift+F3` move between matches; all visible matches are
+  highlighted and the status fields show the active match count.
+- `Ctrl+R` performs the replace prompt flow, advances to the next remaining
+  match, and command prompt `replace all QUERY TEXT` replaces all matches as
+  one undo step.
 - `Ctrl+G` moves to a valid 1-based line number.
 - `F1` opens the key reference window.
 - `F2` opens the status history window.

@@ -47,12 +47,14 @@ modal keys have their own typed config bindings.
 Lightweight modal prompts remain available for Find, Replace, and Go To Line
 entry, with Left/Right/Home/End/Delete/Backspace editing at UTF-8 character
 boundaries. Find now supports next/previous navigation and selected match
-highlighting, Replace can replace the current or next match, and Go To Line
+highlighting, the focused status area reports the active match count, Replace
+can replace the current or next match and advance to the next remaining match,
+`replace all QUERY TEXT` is available from the command prompt, and Go To Line
 moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty/read-only markers, and status fields for position, total lines,
-selection, visible scroll range, horizontal scroll offset, line ending,
-file-text encoding, terminal profile, and focused window index.
+selection, active search count, visible scroll range, horizontal scroll offset,
+line ending, file-text encoding, terminal profile, and focused window index.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, giving Cut/Copy a pure
 keyboard path without requiring mouse support. PageUp/PageDown move by the
@@ -67,7 +69,9 @@ transaction boundaries. Undo and redo commands report visible status for
 successful actions and empty stacks.
 On narrow panes, the gutter is dropped before it consumes the editable body,
 pane titles/status fields are clipped by terminal display width, and long lines
-scroll horizontally to keep the focused cursor visible.
+scroll horizontally to keep the focused cursor visible. `edit.scroll_left` and
+`edit.scroll_right` provide explicit viewport movement, and long buffers show a
+lightweight right-border scrollbar thumb.
 Buffer text, pane titles, and status fields are sanitized before rendering so
 file content and file names cannot emit terminal control sequences.
 By default, `F1` opens a read-only Help window with the active configured key
@@ -97,7 +101,9 @@ not call external clipboard commands or emit OSC 52 clipboard writes.
 Mouse support is optional and disabled by default; when enabled in config,
 left-clicks can focus tiled windows, place the cursor in an editor body, drag
 text selections, drag split borders, open top-menu dropdowns, and click
-submenu commands. Mouse wheel events scroll editor panes and file dialog lists.
+submenu commands. Mouse wheel events scroll editor panes and file dialog lists,
+and terminals that deliver horizontal wheel events can scroll the focused
+editor viewport left/right.
 File dialog list clicks enter directories, open selected files from Open, and
 update the Save As path input without immediately saving.
 The external SSH and low-capability terminal release matrix is documented in
