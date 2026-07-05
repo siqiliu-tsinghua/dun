@@ -98,6 +98,9 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Show focused buffer name, dirty state, and line/column status.
 - [x] Confirm before quit/new/open/close would discard dirty buffers.
 - [x] Return stable exit codes.
+- [x] Report visible success/failure status for tiling window commands.
+- [x] Run full command ids from the command-line prompt, including
+  `window.*` commands.
 
 ## File and Display Safety
 

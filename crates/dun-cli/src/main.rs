@@ -17,13 +17,13 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use dun_config::{
-    Config, Key, KeyModifiers, KeySequence, KeyStroke, Keymap, Limits, ThemeName, command_id,
-    parse_config,
+    Config, Key, KeyModifiers, KeySequence, KeyStroke, Keymap, Limits, ThemeName, command_from_id,
+    command_id, parse_config,
 };
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
     FileCommand, LineEnding, Position, Rect, SearchMatch, TextBuffer, WindowCommand, WindowId,
-    WindowKind, Workspace,
+    WindowKind, Workspace, WorkspaceError,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
 use dun_ui::{BufferView, UiShell};
@@ -724,53 +724,51 @@ impl AppState {
 
     fn handle_window_command(&mut self, command: &WindowCommand) {
         match command {
-            WindowCommand::SplitHorizontal => self.split_focused(Axis::Horizontal),
-            WindowCommand::SplitVertical => self.split_focused(Axis::Vertical),
-            WindowCommand::FocusLeft => {
-                let _ = self
-                    .workspace
-                    .focus_direction(Direction::Left, self.workspace_area);
+            WindowCommand::SplitHorizontal => {
+                self.split_focused(Axis::Horizontal, "Split horizontally")
             }
-            WindowCommand::FocusRight => {
-                let _ = self
-                    .workspace
-                    .focus_direction(Direction::Right, self.workspace_area);
+            WindowCommand::SplitVertical => self.split_focused(Axis::Vertical, "Split vertically"),
+            WindowCommand::FocusLeft => self.focus_window_direction(Direction::Left, "left"),
+            WindowCommand::FocusRight => self.focus_window_direction(Direction::Right, "right"),
+            WindowCommand::FocusUp => self.focus_window_direction(Direction::Up, "up"),
+            WindowCommand::FocusDown => self.focus_window_direction(Direction::Down, "down"),
+            WindowCommand::ResizeLeft => self.resize_window_direction(Direction::Left, "left"),
+            WindowCommand::ResizeRight => self.resize_window_direction(Direction::Right, "right"),
+            WindowCommand::ResizeUp => self.resize_window_direction(Direction::Up, "up"),
+            WindowCommand::ResizeDown => self.resize_window_direction(Direction::Down, "down"),
+            WindowCommand::Equalize => {
+                self.workspace.equalize();
+                self.set_status("Equalized splits");
             }
-            WindowCommand::FocusUp => {
-                let _ = self
-                    .workspace
-                    .focus_direction(Direction::Up, self.workspace_area);
-            }
-            WindowCommand::FocusDown => {
-                let _ = self
-                    .workspace
-                    .focus_direction(Direction::Down, self.workspace_area);
-            }
-            WindowCommand::ResizeLeft => {
-                let _ = self.workspace.resize_focused(Direction::Left);
-            }
-            WindowCommand::ResizeRight => {
-                let _ = self.workspace.resize_focused(Direction::Right);
-            }
-            WindowCommand::ResizeUp => {
-                let _ = self.workspace.resize_focused(Direction::Up);
-            }
-            WindowCommand::ResizeDown => {
-                let _ = self.workspace.resize_focused(Direction::Down);
-            }
-            WindowCommand::Equalize => self.workspace.equalize(),
-            WindowCommand::RotateSplit => {
-                let _ = self.workspace.rotate_focused_split();
-            }
-            WindowCommand::Collapse => {
-                let _ = self.workspace.collapse_focused();
-            }
-            WindowCommand::Expand => {
-                let _ = self.workspace.expand_focused();
-            }
-            WindowCommand::ToggleCollapse => {
-                let _ = self.workspace.toggle_focused_collapse();
-            }
+            WindowCommand::RotateSplit => match self.workspace.rotate_focused_split() {
+                Ok(axis) => {
+                    self.set_status(format!("Rotated focused split to {}", axis_name(axis)))
+                }
+                Err(error) => self.set_status(format!(
+                    "Rotate split failed: {}",
+                    workspace_error_text(error)
+                )),
+            },
+            WindowCommand::Collapse => match self.workspace.collapse_focused() {
+                Ok(()) => self.set_status("Collapsed pane"),
+                Err(error) => {
+                    self.set_status(format!("Collapse failed: {}", workspace_error_text(error)))
+                }
+            },
+            WindowCommand::Expand => match self.workspace.expand_focused() {
+                Ok(()) => self.set_status("Expanded pane"),
+                Err(error) => {
+                    self.set_status(format!("Expand failed: {}", workspace_error_text(error)))
+                }
+            },
+            WindowCommand::ToggleCollapse => match self.workspace.toggle_focused_collapse() {
+                Ok(true) => self.set_status("Collapsed pane"),
+                Ok(false) => self.set_status("Expanded pane"),
+                Err(error) => self.set_status(format!(
+                    "Toggle collapse failed: {}",
+                    workspace_error_text(error)
+                )),
+            },
             WindowCommand::Close => {
                 if self.workspace.window_count() > 1
                     && self.confirm_focused_dirty(PendingAction::CloseWindow)
@@ -779,7 +777,30 @@ impl AppState {
                 }
                 self.close_focused_window_unchecked();
             }
-            WindowCommand::Only => {}
+            WindowCommand::Only => self.set_status("Only window is not implemented yet"),
+        }
+    }
+
+    fn focus_window_direction(&mut self, direction: Direction, label: &str) {
+        match self
+            .workspace
+            .focus_direction(direction, self.workspace_area)
+        {
+            Ok(_) => self.set_status(format!("Focused {label}")),
+            Err(error) => self.set_status(format!(
+                "Focus {label} failed: {}",
+                workspace_error_text(error)
+            )),
+        }
+    }
+
+    fn resize_window_direction(&mut self, direction: Direction, label: &str) {
+        match self.workspace.resize_focused(direction) {
+            Ok(_) => self.set_status(format!("Resized {label}")),
+            Err(error) => self.set_status(format!(
+                "Resize {label} failed: {}",
+                workspace_error_text(error)
+            )),
         }
     }
 
@@ -916,12 +937,20 @@ impl AppState {
         Ok(())
     }
 
-    fn split_focused(&mut self, axis: Axis) {
-        let Ok(window_id) = self.workspace.split_focused(axis) else {
-            return;
+    fn split_focused(&mut self, axis: Axis, success_status: &'static str) {
+        let window_id = match self.workspace.split_focused(axis) {
+            Ok(window_id) => window_id,
+            Err(error) => {
+                self.set_status(format!("Split failed: {}", workspace_error_text(error)));
+                return;
+            }
         };
-        let Ok(window) = self.workspace.window(window_id) else {
-            return;
+        let window = match self.workspace.window(window_id) {
+            Ok(window) => window,
+            Err(error) => {
+                self.set_status(format!("Split failed: {}", workspace_error_text(error)));
+                return;
+            }
         };
 
         if self.buffer_state(window.buffer_id).is_none() {
@@ -930,6 +959,8 @@ impl AppState {
                 TextBuffer::new_untitled(),
             ));
         }
+
+        self.set_status(success_status);
     }
 
     fn open_help_screen(&mut self) {
@@ -1195,9 +1226,15 @@ impl AppState {
             .focused_window()
             .ok()
             .map(|window| window.buffer_id);
-        if self.workspace.close_focused().is_ok() {
-            if let Some(buffer_id) = closing_buffer_id {
-                self.drop_buffer_if_unreferenced(buffer_id);
+        match self.workspace.close_focused() {
+            Ok(_) => {
+                if let Some(buffer_id) = closing_buffer_id {
+                    self.drop_buffer_if_unreferenced(buffer_id);
+                }
+                self.set_status("Closed window");
+            }
+            Err(error) => {
+                self.set_status(format!("Close failed: {}", workspace_error_text(error)));
             }
         }
     }
@@ -1541,7 +1578,14 @@ impl AppState {
             "replace" => self.run_replace_command(args),
             "goto" | "gotoline" | "line" => self.run_go_to_line_command(args),
             "commands" => self.set_status(COMMAND_LINE_HELP),
-            _ => self.set_status(format!("Unknown command: {command}")),
+            _ => self.run_command_id_command(command, args),
+        }
+    }
+
+    fn run_command_id_command(&mut self, command: &str, args: &[String]) {
+        match command_from_id(command) {
+            Ok(command) => self.run_no_arg_command(args, command),
+            Err(_) => self.set_status(format!("Unknown command: {command}")),
         }
     }
 
@@ -2030,7 +2074,7 @@ enum PendingAction {
     CloseWindow,
 }
 
-const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, theme [name], open [path], save [path], save-as [path], quit";
+const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, goto LINE, or any command id such as window.split_horizontal";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CommandLineParseError {
@@ -2247,6 +2291,23 @@ const fn buffer_error_text(error: BufferError) -> &'static str {
         BufferError::InvalidPosition(_) => "invalid position",
         BufferError::InvalidRange(_) => "invalid range",
         BufferError::ReadOnly => "buffer is read-only",
+    }
+}
+
+const fn workspace_error_text(error: WorkspaceError) -> &'static str {
+    match error {
+        WorkspaceError::CannotCloseLastWindow => "cannot close the last window",
+        WorkspaceError::FocusMissing => "focused window is missing",
+        WorkspaceError::NoNeighbor => "no neighboring pane",
+        WorkspaceError::NoResizableSplit => "no matching split",
+        WorkspaceError::WindowMissing => "window is missing",
+    }
+}
+
+const fn axis_name(axis: Axis) -> &'static str {
+    match axis {
+        Axis::Horizontal => "horizontal",
+        Axis::Vertical => "vertical",
     }
 }
 
@@ -3107,6 +3168,70 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn window_focus_and_resize_commands_report_status() {
+        let mut app = AppState::new();
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::FocusLeft));
+        assert_eq!(
+            app.status_message,
+            Some("Focus left failed: no neighboring pane".to_string())
+        );
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+        assert_eq!(app.status_message, Some("Split horizontally".to_string()));
+
+        let right = app.workspace.focused;
+        app.handle_command(&EditorCommand::Window(WindowCommand::FocusLeft));
+        assert_ne!(app.workspace.focused, right);
+        assert_eq!(app.status_message, Some("Focused left".to_string()));
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::ResizeDown));
+        assert_eq!(
+            app.status_message,
+            Some("Resize down failed: no matching split".to_string())
+        );
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::ResizeRight));
+        assert_eq!(app.status_message, Some("Resized right".to_string()));
+    }
+
+    #[test]
+    fn window_layout_commands_report_status() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::RotateSplit));
+        assert_eq!(
+            app.status_message,
+            Some("Rotate split failed: no matching split".to_string())
+        );
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+        app.handle_command(&EditorCommand::Window(WindowCommand::RotateSplit));
+        assert_eq!(
+            app.status_message,
+            Some("Rotated focused split to vertical".to_string())
+        );
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::ToggleCollapse));
+        assert!(app.workspace.focused_window().unwrap().collapsed);
+        assert_eq!(app.status_message, Some("Collapsed pane".to_string()));
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::Expand));
+        assert!(!app.workspace.focused_window().unwrap().collapsed);
+        assert_eq!(app.status_message, Some("Expanded pane".to_string()));
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::Equalize));
+        assert_eq!(app.status_message, Some("Equalized splits".to_string()));
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::Only));
+        assert_eq!(
+            app.status_message,
+            Some("Only window is not implemented yet".to_string())
+        );
+    }
+
+    #[test]
     fn window_close_drops_unreferenced_buffer() {
         let mut app = AppState::new();
         app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
@@ -3117,6 +3242,41 @@ key.app.quit = Esc
         assert_eq!(app.workspace.window_count(), 1);
         assert_eq!(app.buffers.len(), 1);
         assert!(app.buffer_state(closed_buffer_id).is_none());
+        assert_eq!(app.status_message, Some("Closed window".to_string()));
+    }
+
+    #[test]
+    fn window_close_reports_last_window_failure() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+
+        assert_eq!(app.workspace.window_count(), 1);
+        assert_eq!(
+            app.status_message,
+            Some("Close failed: cannot close the last window".to_string())
+        );
+    }
+
+    #[test]
+    fn command_line_runs_window_command_ids() {
+        let mut app = AppState::new();
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+
+        submit_command_line(&mut app, "window.split_horizontal");
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(app.status_message, Some("Split horizontally".to_string()));
+
+        let right = app.workspace.focused;
+        submit_command_line(&mut app, "window.focus_left");
+        assert_ne!(app.workspace.focused, right);
+        assert_eq!(app.status_message, Some("Focused left".to_string()));
+
+        submit_command_line(&mut app, "window.resize_down extra");
+        assert_eq!(
+            app.status_message,
+            Some("Command failed: window.resize_down expects no arguments".to_string())
+        );
     }
 
     #[test]

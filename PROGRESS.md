@@ -248,3 +248,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   configured theme.
 - Added CLI tests for theme switching, diagnostics refresh, unknown theme
   errors, and reload restoring the configured theme.
+- Polished tiled-window command application in `dun-cli`: split, focus,
+  resize, equalize, rotate, collapse/expand, close, and the deferred `only`
+  command now report visible success or failure status instead of silently
+  ignoring no-op/error cases.
+- The command-line prompt now falls back to the typed command-id parser, so
+  full ids such as `window.split_horizontal` and `window.focus_left` can be
+  executed directly when they take no arguments.
+- Added CLI tests for tiling command status feedback, close-last-window
+  rejection, and command-line execution of `window.*` command ids.

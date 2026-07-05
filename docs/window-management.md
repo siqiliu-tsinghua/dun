@@ -135,19 +135,20 @@ WindowCommand
   ResizeDown
   Equalize
   RotateSplit
-  MoveWindowLeft
-  MoveWindowRight
-  MoveWindowUp
-  MoveWindowDown
-  CollapseWindow
-  ExpandWindow
+  Collapse
+  Expand
   ToggleCollapse
-  CloseWindow
-  OnlyWindow
+  Close
+  Only
 ```
 
-`OnlyWindow` closes or hides other panes according to a policy chosen later. It
+`Only` closes or hides other panes according to a policy chosen later. It
 is not a maximize state; it is a command that simplifies the current layout.
+The current CLI reports it as unimplemented until that policy is chosen.
+
+The command-line prompt can execute full command ids such as
+`window.split_horizontal`, `window.focus_left`, and `window.close`. Window
+commands report visible status text for both success and failure cases.
 
 ## Initial Keybinding Shape
 
