@@ -139,8 +139,15 @@ checks file metadata before and after reading, rejects size or modification
 changes, and on Unix rejects device/inode changes so a path replacement during
 Open does not become an apparently normal buffer.
 
+Non-UTF-8 files must not be decoded through locale guesses or lossy conversion.
+Dun's current strategy is UTF-8 first: valid UTF-8 becomes editable text, while
+unknown byte streams become an escaped byte view tagged as `EscapedBytes`. That
+state is visible in the UI and is not save-safe.
+
 Current implementation:
 
+- `dun-core::decode_file_text` is the single file-byte decoding strategy for
+  editable Open. It returns either UTF-8 text or an escaped byte view.
 - `dun-core::DisplaySanitizer` converts untrusted text into `DisplaySegment`
   values before UI rendering.
 - `dun-ui` sanitizes pane titles and status fields before final ratatui
@@ -150,6 +157,8 @@ Current implementation:
 - ASCII mode uses caret notation and escapes non-ASCII characters as
   `\u{...}`.
 - C1 controls are rendered as visible code point markers.
+- CLI buffers track file-text encoding metadata; Save and Save As reject
+  read-only or non-save-safe fallback buffers.
 - Long-line display work is capped by byte count without splitting a UTF-8
   character.
 - Tests cover OSC title/clipboard/hyperlink payloads, CSI/SGR/clear-screen,

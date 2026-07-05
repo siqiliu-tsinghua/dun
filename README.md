@@ -16,7 +16,10 @@ It can open valid UTF-8 file paths supplied on the command line and save the
 focused buffer back to that path through a same-directory temp file and atomic
 rename. Stale atomic-save temp files are cleaned up, while newer recovery
 candidates are preserved and reported. Invalid UTF-8 files open as read-only
-escaped fallback buffers instead of being decoded lossy.
+escaped fallback buffers instead of being decoded lossy. Opened buffers track a
+file-text encoding state: UTF-8 files are editable and save-safe, while
+non-UTF-8 byte streams are shown as escaped bytes, marked read-only, and
+blocked from Save/Save As.
 Editable file loading enforces the configured soft limit before reading large
 files into memory; the default editable limit is 16 MiB. If a file changes,
 disappears, or is replaced while being read, Open rejects the unstable snapshot
@@ -32,7 +35,8 @@ selected match highlighting, Replace can replace the current or next match,
 and Go To Line moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty/read-only markers, and status fields for position, total lines,
-selection, line ending, terminal profile, and focused window index.
+selection, line ending, file-text encoding, terminal profile, and focused
+window index.
 On narrow panes, the gutter is dropped before it consumes the editable body,
 and pane titles/status fields are clipped by terminal display width.
 Buffer text, pane titles, and status fields are sanitized before rendering so

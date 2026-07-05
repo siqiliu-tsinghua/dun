@@ -52,9 +52,13 @@ Current implementation note: valid UTF-8 files open as editable buffers.
 Invalid UTF-8 files open as read-only fallback buffers. Valid UTF-8 spans stay
 readable, invalid bytes and non-newline controls are rendered as visible
 escapes such as `\xFF`, and ordinary Save/Save As rejects those read-only
-buffers to avoid corrupting the original file. Editable saves write a
-same-directory temporary file, sync it, and atomically rename it over the
-destination. Existing destination permissions are preserved, read-only
+buffers to avoid corrupting the original file. This is an explicit file-text
+strategy rather than best-effort encoding detection: `dun-core` decodes file
+bytes as UTF-8 when possible, otherwise produces an escaped byte view tagged as
+`EscapedBytes`. The CLI stores that file-text encoding with the buffer, shows it
+in the status line, and treats only UTF-8 buffers as save-safe. Editable saves
+write a same-directory temporary file, sync it, and atomically rename it over
+the destination. Existing destination permissions are preserved, read-only
 destinations are rejected before replacement, and symlink paths are resolved so
 the linked target is updated without replacing the symlink itself.
 When opening or saving a path, Dun reconciles its own same-directory atomic-save

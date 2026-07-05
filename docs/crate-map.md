@@ -35,6 +35,7 @@ Owns terminal-independent editor state and operations.
 Responsibilities:
 
 - buffer ids and buffer metadata;
+- file-text decoding strategy for UTF-8 and escaped unknown bytes;
 - tiled workspace ids and layout tree;
 - typed editor commands;
 - edit transactions and undo/redo later;

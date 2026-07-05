@@ -315,3 +315,8 @@ This is an append-only progress log. Keep new entries dated and factual.
   if the path disappears.
 - Added CLI tests for stable reads, truncation during read, deletion during
   read, and same-size replacement detection on Unix.
+- Added an explicit non-UTF-8 file strategy. `dun-core` now decodes file bytes
+  as UTF-8 when possible and otherwise returns a read-only escaped byte view
+  tagged as `EscapedBytes`.
+- CLI buffer state now tracks file-text encoding, shows escaped-byte fallback
+  state in buffer/status fields, and treats only UTF-8 buffers as save-safe.

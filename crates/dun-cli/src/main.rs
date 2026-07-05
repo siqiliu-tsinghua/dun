@@ -22,8 +22,8 @@ use dun_config::{
 };
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
-    FileCommand, LineEnding, Position, Rect, SearchMatch, TextBuffer, WindowCommand, WindowId,
-    WindowKind, Workspace, WorkspaceError,
+    FileCommand, FileTextEncoding, LineEnding, Position, Rect, SearchMatch, TextBuffer,
+    WindowCommand, WindowId, WindowKind, Workspace, WorkspaceError, decode_file_text,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
 use dun_ui::{BufferView, UiShell};
@@ -830,17 +830,17 @@ impl AppState {
     }
 
     fn open_file_path(&mut self, path: PathBuf) -> io::Result<()> {
-        let buffer =
+        let loaded =
             load_text_buffer(&path, self.limits).map_err(|error| path_io_error(&path, error))?;
         let temp_report = reconcile_atomic_save_temp_files(&path);
-        self.replace_focused_buffer_with_file(path, buffer, temp_report);
+        self.replace_focused_buffer_with_file(path, loaded, temp_report);
         Ok(())
     }
 
     fn replace_focused_buffer_with_file(
         &mut self,
         path: PathBuf,
-        buffer: TextBuffer,
+        loaded: LoadedTextBuffer,
         temp_report: AtomicTempReconcileReport,
     ) {
         let Ok(window) = self.workspace.focused_window() else {
@@ -849,13 +849,14 @@ impl AppState {
         let window_id = window.id;
         let buffer_id = window.buffer_id;
         let title = title_for_path(&path);
-        let kind = buffer.kind();
+        let kind = loaded.buffer.kind();
+        let encoding = loaded.encoding;
 
         if let Some(state) = self.buffer_state_mut(buffer_id) {
-            *state = BufferState::from_file(buffer_id, path.clone(), buffer);
+            *state = BufferState::from_file(buffer_id, path.clone(), loaded);
         } else {
             self.buffers
-                .push(BufferState::from_file(buffer_id, path.clone(), buffer));
+                .push(BufferState::from_file(buffer_id, path.clone(), loaded));
         }
 
         if let Ok(window) = self.workspace.window_mut(window_id) {
@@ -863,14 +864,7 @@ impl AppState {
             window.buffer_kind = kind;
         }
 
-        let status = if kind == BufferKind::ReadOnly {
-            format!(
-                "Opened {} read-only: invalid UTF-8 bytes escaped",
-                path.display()
-            )
-        } else {
-            format!("Opened {}", path.display())
-        };
+        let status = opened_file_status(&path, encoding);
         self.set_status(status_with_atomic_temp_report(status, &temp_report));
     }
 
@@ -890,6 +884,12 @@ impl AppState {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "focused buffer is read-only",
+                ));
+            }
+            if !buffer.encoding.is_save_safe() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "focused buffer encoding is not save-safe",
                 ));
             }
             let path = buffer.path.clone().ok_or_else(|| {
@@ -931,6 +931,12 @@ impl AppState {
                     "focused buffer is read-only",
                 ));
             }
+            if !buffer.encoding.is_save_safe() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "focused buffer encoding is not save-safe",
+                ));
+            }
             buffer.buffer.to_text()
         };
 
@@ -939,6 +945,7 @@ impl AppState {
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             buffer.path = Some(path.clone());
+            buffer.encoding = FileTextEncoding::Utf8;
             buffer.buffer.set_kind(dun_core::BufferKind::File);
             buffer.buffer.mark_saved();
         }
@@ -2024,8 +2031,13 @@ impl AppState {
         } else {
             ""
         };
+        let escaped = if buffer.encoding == FileTextEncoding::EscapedBytes {
+            " [escaped]"
+        } else {
+            ""
+        };
 
-        format!("{name}{dirty}{read_only}")
+        format!("{name}{dirty}{read_only}{escaped}")
     }
 
     fn focused_detail_status(&self) -> String {
@@ -2054,6 +2066,7 @@ impl AppState {
                 column
             ),
             line_ending_status(buffer.buffer.line_ending()).to_string(),
+            buffer.encoding.status_label().to_string(),
             profile,
             window,
         ];
@@ -2431,6 +2444,7 @@ struct BufferState {
     id: BufferId,
     buffer: TextBuffer,
     path: Option<PathBuf>,
+    encoding: FileTextEncoding,
     first_line: usize,
 }
 
@@ -2440,15 +2454,17 @@ impl BufferState {
             id,
             buffer,
             path: None,
+            encoding: FileTextEncoding::Utf8,
             first_line: 0,
         }
     }
 
-    fn from_file(id: BufferId, path: PathBuf, buffer: TextBuffer) -> Self {
+    fn from_file(id: BufferId, path: PathBuf, loaded: LoadedTextBuffer) -> Self {
         Self {
             id,
-            buffer,
+            buffer: loaded.buffer,
             path: Some(path),
+            encoding: loaded.encoding,
             first_line: 0,
         }
     }
@@ -2922,15 +2938,19 @@ fn clamp_to_char_boundary(line: &str, column: usize) -> usize {
     column
 }
 
-fn load_text_buffer(path: &Path, limits: Limits) -> io::Result<TextBuffer> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LoadedTextBuffer {
+    buffer: TextBuffer,
+    encoding: FileTextEncoding,
+}
+
+fn load_text_buffer(path: &Path, limits: Limits) -> io::Result<LoadedTextBuffer> {
     let bytes = read_editable_file(path, limits.editable_file_soft_limit_bytes)?;
-    match String::from_utf8(bytes) {
-        Ok(text) => Ok(TextBuffer::from_text(&text)),
-        Err(error) => Ok(TextBuffer::from_text_with_kind(
-            BufferKind::ReadOnly,
-            &escaped_invalid_utf8_text(error.as_bytes()),
-        )),
-    }
+    let decoded = decode_file_text(bytes);
+    Ok(LoadedTextBuffer {
+        buffer: TextBuffer::from_text_with_kind(decoded.encoding.buffer_kind(), &decoded.text),
+        encoding: decoded.encoding,
+    })
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -3354,57 +3374,14 @@ fn editable_file_soft_limit_error(size: u64, soft_limit: u64) -> io::Error {
     )
 }
 
-fn escaped_invalid_utf8_text(bytes: &[u8]) -> String {
-    let mut output = String::new();
-    let mut remaining = bytes;
-
-    while !remaining.is_empty() {
-        match std::str::from_utf8(remaining) {
-            Ok(valid) => {
-                push_fallback_valid_text(&mut output, valid);
-                break;
-            }
-            Err(error) => {
-                let valid_up_to = error.valid_up_to();
-                let valid = std::str::from_utf8(&remaining[..valid_up_to])
-                    .expect("valid prefix reported by Utf8Error should decode");
-                push_fallback_valid_text(&mut output, valid);
-
-                let invalid_len = error
-                    .error_len()
-                    .unwrap_or_else(|| remaining.len() - valid_up_to);
-                for byte in &remaining[valid_up_to..valid_up_to + invalid_len] {
-                    push_byte_escape(&mut output, *byte);
-                }
-                remaining = &remaining[valid_up_to + invalid_len..];
-            }
-        }
+fn opened_file_status(path: &Path, encoding: FileTextEncoding) -> String {
+    match encoding {
+        FileTextEncoding::Utf8 => format!("Opened {}", path.display()),
+        FileTextEncoding::EscapedBytes => format!(
+            "Opened {} read-only: non-UTF-8 bytes shown as escapes",
+            path.display()
+        ),
     }
-
-    output
-}
-
-fn push_fallback_valid_text(output: &mut String, text: &str) {
-    for ch in text.chars() {
-        match ch {
-            '\n' => output.push('\n'),
-            '\\' => output.push_str("\\\\"),
-            ch if ch.is_control() => {
-                let mut bytes = [0; 4];
-                for byte in ch.encode_utf8(&mut bytes).as_bytes() {
-                    push_byte_escape(output, *byte);
-                }
-            }
-            _ => output.push(ch),
-        }
-    }
-}
-
-fn push_byte_escape(output: &mut String, byte: u8) {
-    const HEX: &[u8; 16] = b"0123456789ABCDEF";
-    output.push_str("\\x");
-    output.push(HEX[(byte >> 4) as usize] as char);
-    output.push(HEX[(byte & 0x0f) as usize] as char);
 }
 
 fn title_for_path(path: &Path) -> String {
@@ -4495,6 +4472,7 @@ key.app.help = F10
         let state = app.buffer_state(BufferId(1)).unwrap();
 
         assert_eq!(state.path.as_ref(), Some(&path));
+        assert_eq!(state.encoding, FileTextEncoding::Utf8);
         assert_eq!(state.buffer.line(0), Some("one"));
         assert_eq!(state.buffer.line(1), Some("two"));
         assert_eq!(state.buffer.line_ending(), dun_core::LineEnding::CrLf);
@@ -4579,13 +4557,19 @@ key.app.help = F10
 
         assert!(state.buffer.is_read_only());
         assert_eq!(state.buffer.kind(), BufferKind::ReadOnly);
+        assert_eq!(state.encoding, FileTextEncoding::EscapedBytes);
         assert_eq!(state.buffer.to_text(), "ok\\xFF\n\\\\\\x09\\xE4");
         assert_eq!(state.path.as_ref(), Some(&path));
         assert_eq!(window.buffer_kind, BufferKind::ReadOnly);
         assert_eq!(
+            app.focused_buffer_status(),
+            format!("{} [readonly] [escaped]", title_for_path(&path))
+        );
+        assert!(app.focused_detail_status().contains("Escaped bytes"));
+        assert_eq!(
             app.status_message,
             Some(format!(
-                "Opened {} read-only: invalid UTF-8 bytes escaped",
+                "Opened {} read-only: non-UTF-8 bytes shown as escapes",
                 path.display()
             ))
         );
@@ -4602,6 +4586,7 @@ key.app.help = F10
         let state = app.buffer_state(BufferId(1)).unwrap();
 
         assert!(state.buffer.is_read_only());
+        assert_eq!(state.encoding, FileTextEncoding::EscapedBytes);
         assert_eq!(state.buffer.to_text(), "a中\\xFFb");
 
         let _ = std::fs::remove_file(path);
@@ -5354,7 +5339,7 @@ key.app.help = F10
 
         assert_eq!(
             app.focused_detail_status(),
-            "Ln 2/2, Col 3 | LF | ASCII/mono | Win 1/1"
+            "Ln 2/2, Col 3 | LF | Text UTF-8 | ASCII/mono | Win 1/1"
         );
     }
 
@@ -5367,14 +5352,14 @@ key.app.help = F10
 
         assert_eq!(
             app.focused_detail_status(),
-            "Ln 1/1, Col 1 | LF | UTF-8/16c | Win 2/2"
+            "Ln 1/1, Col 1 | LF | Text UTF-8 | UTF-8/16c | Win 2/2"
         );
 
         app.workspace.focused = WindowId(1);
 
         assert_eq!(
             app.focused_detail_status(),
-            "Ln 1/2, Col 1 | CRLF | UTF-8/16c | Win 1/2"
+            "Ln 1/2, Col 1 | CRLF | Text UTF-8 | UTF-8/16c | Win 1/2"
         );
     }
 
@@ -5389,7 +5374,7 @@ key.app.help = F10
 
         assert_eq!(
             app.focused_detail_status(),
-            "Ln 1/1, Col 4 | Sel 3c | LF | UTF-8/256c | Win 1/1"
+            "Ln 1/1, Col 4 | Sel 3c | LF | Text UTF-8 | UTF-8/256c | Win 1/1"
         );
     }
 
