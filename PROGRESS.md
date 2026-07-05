@@ -257,3 +257,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   executed directly when they take no arguments.
 - Added CLI tests for tiling command status feedback, close-last-window
   rejection, and command-line execution of `window.*` command ids.
+- Added an atomic save baseline in `dun-cli`: Save and Save As now write
+  through same-directory temporary files, sync the temporary file, and rename
+  it over the destination only after the write succeeds.
+- Atomic saves preserve existing destination permissions, reject read-only
+  destinations before replacement, clean up temporary files on error, and
+  resolve symlink paths so the linked target is updated without replacing the
+  symlink itself.
+- Added CLI tests for atomic temp cleanup, read-only destination rejection, and
+  save-through-symlink behavior.

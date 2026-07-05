@@ -13,8 +13,9 @@ This repository now has a Rust workspace baseline with the first pure editor
 core, terminal profile/theme layer, typed configuration/keymap layer,
 backend-neutral UI model, and a minimal runnable `ratatui` shell.
 It can open valid UTF-8 file paths supplied on the command line and save the
-focused buffer back to that path. Invalid UTF-8 files open as read-only escaped
-fallback buffers instead of being decoded lossy.
+focused buffer back to that path through a same-directory temp file and atomic
+rename. Invalid UTF-8 files open as read-only escaped fallback buffers instead
+of being decoded lossy.
 Editable file loading enforces the configured soft limit before reading large
 files into memory; the default editable limit is 16 MiB.
 Interactive status-line prompts are available for Open, Save As, Find,

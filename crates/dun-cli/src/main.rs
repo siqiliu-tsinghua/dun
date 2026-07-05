@@ -1,9 +1,9 @@
 #![forbid(unsafe_code)]
 
 use std::env;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs;
-use std::io::{self, Read, Stdout};
+use std::io::{self, Read, Stdout, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
@@ -891,7 +891,7 @@ impl AppState {
             (path, buffer.buffer.to_text())
         };
 
-        fs::write(&path, text.as_bytes())?;
+        atomic_write_text_file(&path, &text)?;
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             buffer.buffer.mark_saved();
@@ -920,7 +920,7 @@ impl AppState {
             buffer.buffer.to_text()
         };
 
-        fs::write(&path, text.as_bytes())?;
+        atomic_write_text_file(&path, &text)?;
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             buffer.path = Some(path.clone());
@@ -2816,6 +2816,112 @@ fn load_text_buffer(path: &Path, limits: Limits) -> io::Result<TextBuffer> {
     }
 }
 
+fn atomic_write_text_file(path: &Path, text: &str) -> io::Result<()> {
+    let destination = atomic_write_destination(path)?;
+    let existing_permissions = existing_atomic_write_permissions(&destination)?;
+    let (temp_path, mut temp_file) = create_atomic_temp_file(&destination)?;
+
+    let write_result = (|| {
+        if let Some(permissions) = existing_permissions {
+            temp_file.set_permissions(permissions)?;
+        }
+        temp_file.write_all(text.as_bytes())?;
+        temp_file.sync_all()?;
+        Ok(())
+    })();
+
+    if let Err(error) = write_result {
+        drop(temp_file);
+        let _ = fs::remove_file(&temp_path);
+        return Err(error);
+    }
+
+    drop(temp_file);
+    if let Err(error) = fs::rename(&temp_path, &destination) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(error);
+    }
+
+    Ok(())
+}
+
+fn atomic_write_destination(path: &Path) -> io::Result<PathBuf> {
+    if path.as_os_str().is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "save path is empty",
+        ));
+    }
+
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => fs::canonicalize(path),
+        Ok(_) => Ok(path.to_path_buf()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(path.to_path_buf()),
+        Err(error) => Err(error),
+    }
+}
+
+fn existing_atomic_write_permissions(path: &Path) -> io::Result<Option<fs::Permissions>> {
+    match fs::metadata(path) {
+        Ok(metadata) => {
+            if !metadata.is_file() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "destination is not a regular file",
+                ));
+            }
+
+            let permissions = metadata.permissions();
+            if permissions.readonly() {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "destination is read-only",
+                ));
+            }
+
+            Ok(Some(permissions))
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn create_atomic_temp_file(path: &Path) -> io::Result<(PathBuf, fs::File)> {
+    let directory = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let file_name = path
+        .file_name()
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "save path has no file name"))?;
+
+    for attempt in 0..1000 {
+        let temp_path = atomic_temp_path(directory, file_name, attempt);
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)
+        {
+            Ok(file) => return Ok((temp_path, file)),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "could not allocate atomic save temp file",
+    ))
+}
+
+fn atomic_temp_path(directory: &Path, file_name: &OsStr, attempt: u32) -> PathBuf {
+    let mut temp_name = OsString::from(".");
+    temp_name.push(file_name);
+    temp_name.push(format!(".dun-save-{}-{attempt}.tmp", std::process::id()));
+    directory.join(temp_name)
+}
+
 fn read_editable_file(path: &Path, soft_limit: u64) -> io::Result<Vec<u8>> {
     let file = fs::File::open(path)?;
     let metadata = file.metadata()?;
@@ -4052,6 +4158,76 @@ key.app.help = F10
     }
 
     #[test]
+    fn save_command_cleans_atomic_temp_file() {
+        let path = temp_file_path("atomic-save.txt");
+        std::fs::write(&path, "old").unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
+        app.handle_text_input('!');
+        app.handle_command(&EditorCommand::File(FileCommand::Save));
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old!");
+        assert!(atomic_temp_files_for(&path).is_empty());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn save_rejects_read_only_target_without_replacing_it() {
+        let path = temp_file_path("readonly-save.txt");
+        std::fs::write(&path, "old").unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
+        app.handle_text_input('!');
+        set_path_readonly(&path, true);
+
+        app.handle_command(&EditorCommand::File(FileCommand::Save));
+
+        set_path_readonly(&path, false);
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old");
+        assert!(state.buffer.is_dirty());
+        assert_eq!(
+            app.status_message,
+            Some("Save failed: destination is read-only".to_string())
+        );
+        assert!(atomic_temp_files_for(&path).is_empty());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_through_symlink_preserves_link_and_updates_target() {
+        let target = temp_file_path("atomic-symlink-target.txt");
+        let link = temp_file_path("atomic-symlink-link.txt");
+        std::fs::write(&target, "old").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let mut app = AppState::from_path(Some(link.clone())).unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
+        app.handle_text_input('!');
+        app.handle_command(&EditorCommand::File(FileCommand::Save));
+
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "old!");
+        assert!(
+            std::fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(
+            app.status_message,
+            Some(format!("Saved {}", link.display()))
+        );
+
+        let _ = std::fs::remove_file(link);
+        let _ = std::fs::remove_file(target);
+    }
+
+    #[test]
     fn save_without_path_reports_status_message() {
         let mut app = AppState::new();
 
@@ -4679,6 +4855,31 @@ key.app.help = F10
             "dun-cli-test-{}-{unique}-{name}",
             std::process::id()
         ))
+    }
+
+    fn atomic_temp_files_for(path: &Path) -> Vec<PathBuf> {
+        let directory = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let file_name = path.file_name().unwrap_or_default();
+        let mut prefix = OsString::from(".");
+        prefix.push(file_name);
+        prefix.push(".dun-save-");
+        let prefix = prefix.to_string_lossy();
+
+        std::fs::read_dir(directory)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with(&*prefix))
+            .map(|entry| entry.path())
+            .collect()
+    }
+
+    fn set_path_readonly(path: &Path, readonly: bool) {
+        let mut permissions = std::fs::metadata(path).unwrap().permissions();
+        permissions.set_readonly(readonly);
+        std::fs::set_permissions(path, permissions).unwrap();
     }
 
     fn send_text(app: &mut AppState, text: &str) {

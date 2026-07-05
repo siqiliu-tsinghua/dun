@@ -108,6 +108,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Open invalid UTF-8 files as read-only escaped fallback buffers.
 - [x] Define invalid-byte fallback behavior.
 - [x] Prevent save from silently corrupting lossy/fallback buffers.
+- [x] Save files through same-directory temporary files and atomic rename.
 - [x] Define large-file soft limit behavior.
 - [x] Implement display sanitizer for C0/C1 controls.
 - [x] Render `ESC`, OSC, BEL, NUL, DEL, CR, and backspace visibly.
@@ -124,6 +125,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 ## Deferred
 
 - [ ] Mouse selection, right-click paste, and split dragging.
+- [ ] Crash recovery and orphaned atomic-save temp-file cleanup.
 - [ ] Repeat the terminal compatibility checklist on external SSH hosts before
   release.
 - [ ] `rum` configuration evaluation.

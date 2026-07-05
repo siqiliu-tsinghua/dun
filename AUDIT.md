@@ -126,6 +126,10 @@ Required controls:
 - make lossy or read-only fallback decoding visible to the user.
 
 Saving must not silently corrupt files opened through a fallback or lossy path.
+Editable saves use host-owned same-directory temporary files followed by
+atomic rename. The save path rejects read-only destinations before replacement
+and resolves symlink paths to their target so saving does not replace a symlink
+with a regular file.
 
 Current implementation:
 

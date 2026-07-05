@@ -52,7 +52,11 @@ Current implementation note: valid UTF-8 files open as editable buffers.
 Invalid UTF-8 files open as read-only fallback buffers. Valid UTF-8 spans stay
 readable, invalid bytes and non-newline controls are rendered as visible
 escapes such as `\xFF`, and ordinary Save/Save As rejects those read-only
-buffers to avoid corrupting the original file.
+buffers to avoid corrupting the original file. Editable saves write a
+same-directory temporary file, sync it, and atomically rename it over the
+destination. Existing destination permissions are preserved, read-only
+destinations are rejected before replacement, and symlink paths are resolved so
+the linked target is updated without replacing the symlink itself.
 
 ## Large Files
 
