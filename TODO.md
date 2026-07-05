@@ -63,6 +63,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define default keymap.
 - [x] Load config files through Rust-owned parsing.
 - [x] Apply configured command keybindings in the runtime input path.
+- [x] Reload runtime configuration without restarting the editor.
 - [x] Support multi-stroke key sequence prefix matching.
 - [x] Define theme selection config.
 - [x] Define terminal override config.
@@ -78,6 +79,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Save focused buffer back to its loaded file path.
 - [x] Wire config/profile/workspace/UI construction.
 - [x] Apply editor commands to the focused buffer/window.
+- [x] Add runtime config reload command.
 - [x] Add interactive status-line prompts for open, save-as, and find entry.
 - [x] Route printable text input into the focused buffer.
 - [x] Track pending multi-stroke key sequences.

@@ -64,6 +64,7 @@ pub enum WindowCommand {
 pub enum AppCommand {
     CommandLine,
     Help,
+    ReloadConfig,
     StatusHistory,
     Quit,
 }

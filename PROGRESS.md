@@ -224,3 +224,9 @@ This is an append-only progress log. Keep new entries dated and factual.
 - The Help window now renders its key reference from the active keymap and
   includes command ids for config editing. `cargo test -p dun-config` and
   `cargo test -p dun-cli` pass.
+- Added runtime config reload through `AppCommand::ReloadConfig`, default
+  `F5`, and `app.reload_config`. Reload keeps buffers and workspace intact,
+  updates shell/keymap/theme-derived state and limits, refreshes an open Help
+  window, and reports failures through status history without exiting.
+- Added CLI tests for successful reload, failed reload preserving the previous
+  keymap, and Help refresh after reload. `cargo test --workspace` passes.

@@ -38,6 +38,7 @@ Keybindings use command ids:
 
 ```text
 key.app.quit = Ctrl+Q
+key.app.reload_config = F5
 key.edit.find = Ctrl+F
 key.window.split_horizontal = Ctrl+W,H
 ```
@@ -51,8 +52,8 @@ key.edit.find = none
 Changing a command binding removes that command's default binding first. If the
 new key sequence conflicts with another command, config validation fails.
 The runtime input path and the in-editor Help window both use the active
-keymap, so custom bindings and unbound commands are reflected immediately on
-startup.
+keymap. Custom bindings and unbound commands are reflected on startup and after
+`app.reload_config` reloads the active configuration.
 
 ## Example
 
@@ -63,6 +64,7 @@ terminal.colors = 16
 limits.editable_file_soft_limit_bytes = 8 MiB
 
 key.app.quit = Ctrl+Q
+key.app.reload_config = F5
 key.edit.find = Ctrl+F
 key.window.split_horizontal = Ctrl+W,H
 key.window.split_vertical = Ctrl+W,V

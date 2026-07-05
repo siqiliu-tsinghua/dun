@@ -161,6 +161,7 @@ Goal: make the app usable across inconsistent terminals.
 - [x] Support terminal profile overrides.
 - [x] Support theme selection.
 - [x] Apply configured command keybindings at runtime.
+- [x] Reload runtime configuration without restarting the editor.
 - [x] Validate duplicate or invalid keybindings.
 - [x] Keep future `rum` config evaluation as a producer of the same typed
   config.

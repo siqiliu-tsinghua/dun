@@ -433,6 +433,7 @@ impl Keymap {
             bindings: vec![
                 KeyBinding::new("F1", EditorCommand::App(AppCommand::Help)),
                 KeyBinding::new("F2", EditorCommand::App(AppCommand::StatusHistory)),
+                KeyBinding::new("F5", EditorCommand::App(AppCommand::ReloadConfig)),
                 KeyBinding::new("Ctrl+Q", EditorCommand::App(AppCommand::Quit)),
                 KeyBinding::new("Ctrl+P", EditorCommand::App(AppCommand::CommandLine)),
                 KeyBinding::new("Ctrl+N", EditorCommand::File(FileCommand::New)),
@@ -901,6 +902,7 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Window(WindowCommand::Only) => "window.only",
         EditorCommand::App(AppCommand::CommandLine) => "app.command_line",
         EditorCommand::App(AppCommand::Help) => "app.help",
+        EditorCommand::App(AppCommand::ReloadConfig) => "app.reload_config",
         EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
         EditorCommand::App(AppCommand::Quit) => "app.quit",
     }
@@ -952,6 +954,7 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "window.only" => Ok(EditorCommand::Window(WindowCommand::Only)),
         "app.command_line" => Ok(EditorCommand::App(AppCommand::CommandLine)),
         "app.help" => Ok(EditorCommand::App(AppCommand::Help)),
+        "app.reload_config" => Ok(EditorCommand::App(AppCommand::ReloadConfig)),
         "app.status_history" => Ok(EditorCommand::App(AppCommand::StatusHistory)),
         "app.quit" => Ok(EditorCommand::App(AppCommand::Quit)),
         _ => Err(CommandParseError::UnknownCommand(input.to_string())),
@@ -1120,6 +1123,10 @@ mod tests {
             Some(&EditorCommand::App(AppCommand::StatusHistory))
         );
         assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("F5").unwrap()),
+            Some(&EditorCommand::App(AppCommand::ReloadConfig))
+        );
+        assert_eq!(
             keymap.sequence_for_command(&EditorCommand::File(FileCommand::Save)),
             Some(&sequence)
         );
@@ -1170,6 +1177,10 @@ mod tests {
 
         assert_eq!(id, "window.toggle_collapse");
         assert_eq!(command_from_id(id), Ok(command));
+        assert_eq!(
+            command_from_id("app.reload_config"),
+            Ok(EditorCommand::App(AppCommand::ReloadConfig))
+        );
         assert_eq!(
             command_from_id("app.nope"),
             Err(CommandParseError::UnknownCommand("app.nope".to_string()))

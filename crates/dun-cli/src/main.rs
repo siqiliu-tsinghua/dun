@@ -67,8 +67,9 @@ where
 }
 
 fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>) -> io::Result<()> {
-    let config = load_startup_config(config_path.as_deref(), no_config)?;
-    let mut app = AppState::from_config_path(config, path)?;
+    let config_request = ConfigLoadRequest::new(config_path, no_config);
+    let loaded_config = load_config(&config_request)?;
+    let mut app = AppState::from_loaded_config_path(config_request, loaded_config, path)?;
     let _guard = TerminalGuard::enter()?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
@@ -285,30 +286,101 @@ Exit codes:
 "
 }
 
-fn load_startup_config(explicit_path: Option<&Path>, no_config: bool) -> io::Result<Config> {
-    if no_config {
-        return Ok(Config::default());
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ConfigLoadRequest {
+    explicit_path: Option<PathBuf>,
+    no_config: bool,
+}
+
+impl ConfigLoadRequest {
+    const fn new(explicit_path: Option<PathBuf>, no_config: bool) -> Self {
+        Self {
+            explicit_path,
+            no_config,
+        }
     }
 
-    if let Some(path) = explicit_path {
-        return read_config_file(path);
+    #[cfg(test)]
+    fn explicit(path: PathBuf) -> Self {
+        Self::new(Some(path), false)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LoadedConfig {
+    config: Config,
+    source: ConfigSource,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ConfigSource {
+    Disabled,
+    Explicit(PathBuf),
+    Environment(PathBuf),
+    DefaultFile(PathBuf),
+    BuiltInDefaults,
+}
+
+impl ConfigSource {
+    fn status_text(&self) -> String {
+        match self {
+            Self::Disabled => "Config reloaded from built-in defaults (--no-config)".to_string(),
+            Self::Explicit(path) => format!("Config reloaded from {}", path.display()),
+            Self::Environment(path) => {
+                format!("Config reloaded from {DUN_CONFIG_ENV}={}", path.display())
+            }
+            Self::DefaultFile(path) => format!("Config reloaded from {}", path.display()),
+            Self::BuiltInDefaults => "Config reloaded from built-in defaults".to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
+fn load_startup_config(explicit_path: Option<&Path>, no_config: bool) -> io::Result<Config> {
+    let request = ConfigLoadRequest::new(explicit_path.map(Path::to_path_buf), no_config);
+    load_config(&request).map(|loaded| loaded.config)
+}
+
+fn load_config(request: &ConfigLoadRequest) -> io::Result<LoadedConfig> {
+    if request.no_config {
+        return Ok(LoadedConfig {
+            config: Config::default(),
+            source: ConfigSource::Disabled,
+        });
+    }
+
+    if let Some(path) = &request.explicit_path {
+        return Ok(LoadedConfig {
+            config: read_config_file(path)?,
+            source: ConfigSource::Explicit(path.clone()),
+        });
     }
 
     if let Some(path) = env_config_path() {
-        return read_config_file(&path);
+        return Ok(LoadedConfig {
+            config: read_config_file(&path)?,
+            source: ConfigSource::Environment(path),
+        });
     }
 
     if let Some(path) = default_config_path() {
         if path.exists() {
-            return read_config_file(&path);
+            return Ok(LoadedConfig {
+                config: read_config_file(&path)?,
+                source: ConfigSource::DefaultFile(path),
+            });
         }
     }
 
-    Ok(Config::default())
+    Ok(LoadedConfig {
+        config: Config::default(),
+        source: ConfigSource::BuiltInDefaults,
+    })
 }
 
 fn read_config_file(path: &Path) -> io::Result<Config> {
-    let text = fs::read_to_string(path)?;
+    let text = fs::read_to_string(path)
+        .map_err(|error| io::Error::new(error.kind(), format!("{}: {error}", path.display())))?;
     parse_config(&text).map_err(|error| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -341,6 +413,9 @@ fn default_config_path() -> Option<PathBuf> {
 struct AppState {
     workspace: Workspace,
     buffers: Vec<BufferState>,
+    config_request: ConfigLoadRequest,
+    config_source: ConfigSource,
+    detected_profile: TerminalProfile,
     shell: UiShell,
     limits: Limits,
     should_quit: bool,
@@ -360,14 +435,28 @@ impl AppState {
         Self::from_config(Config::default())
     }
 
+    #[cfg(test)]
     fn from_config(config: Config) -> Self {
+        Self::from_loaded_config(
+            ConfigLoadRequest::new(None, true),
+            LoadedConfig {
+                config,
+                source: ConfigSource::Disabled,
+            },
+        )
+    }
+
+    fn from_loaded_config(config_request: ConfigLoadRequest, loaded_config: LoadedConfig) -> Self {
         let detected_profile = detect_terminal_profile();
-        let shell = UiShell::from_config(&config, detected_profile);
-        let limits = config.limits;
+        let shell = UiShell::from_config(&loaded_config.config, detected_profile);
+        let limits = loaded_config.config.limits;
 
         Self {
             workspace: Workspace::new_untitled(),
             buffers: vec![BufferState::new(BufferId(1), TextBuffer::new_untitled())],
+            config_request,
+            config_source: loaded_config.source,
+            detected_profile,
             shell,
             limits,
             should_quit: false,
@@ -391,8 +480,21 @@ impl AppState {
         Ok(app)
     }
 
+    #[cfg(test)]
     fn from_config_path(config: Config, path: Option<PathBuf>) -> io::Result<Self> {
         let mut app = Self::from_config(config);
+        if let Some(path) = path {
+            app.open_file_path(path)?;
+        }
+        Ok(app)
+    }
+
+    fn from_loaded_config_path(
+        config_request: ConfigLoadRequest,
+        loaded_config: LoadedConfig,
+        path: Option<PathBuf>,
+    ) -> io::Result<Self> {
+        let mut app = Self::from_loaded_config(config_request, loaded_config);
         if let Some(path) = path {
             app.open_file_path(path)?;
         }
@@ -451,6 +553,7 @@ impl AppState {
     fn handle_app_command(&mut self, command: &AppCommand) {
         match command {
             AppCommand::Help => self.open_help_screen(),
+            AppCommand::ReloadConfig => self.reload_config(),
             AppCommand::StatusHistory => self.open_status_history_screen(),
             AppCommand::Quit => {
                 if self.confirm_any_dirty(PendingAction::Quit) {
@@ -462,6 +565,25 @@ impl AppState {
                 self.set_status("Command line is not implemented yet");
             }
         }
+    }
+
+    fn reload_config(&mut self) {
+        match load_config(&self.config_request) {
+            Ok(loaded_config) => {
+                let status = loaded_config.source.status_text();
+                self.apply_loaded_config(loaded_config);
+                self.set_status(status);
+            }
+            Err(error) => self.set_status(format!("Config reload failed: {error}")),
+        }
+    }
+
+    fn apply_loaded_config(&mut self, loaded_config: LoadedConfig) {
+        self.pending_keys.clear();
+        self.shell = UiShell::from_config(&loaded_config.config, self.detected_profile);
+        self.limits = loaded_config.config.limits;
+        self.config_source = loaded_config.source;
+        self.refresh_help_buffer();
     }
 
     fn handle_file_command(&mut self, command: &FileCommand) {
@@ -826,6 +948,25 @@ impl AppState {
             .iter()
             .find(|window| window.kind == WindowKind::Help)
             .map(|window| window.id)
+    }
+
+    fn help_buffer_id(&self) -> Option<BufferId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::Help)
+            .map(|window| window.buffer_id)
+    }
+
+    fn refresh_help_buffer(&mut self) {
+        let Some(buffer_id) = self.help_buffer_id() else {
+            return;
+        };
+        let help = BufferState::new(buffer_id, help_buffer(&self.shell.keymap));
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = help;
+        }
     }
 
     fn open_status_history_screen(&mut self) {
@@ -1986,6 +2127,10 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Command line",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::ReloadConfig),
+                description: "Reload config",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::Quit),
                 description: "Quit",
             },
@@ -2650,6 +2795,110 @@ key.window.close = none
         assert!(text.contains("(unbound)"));
         assert!(text.contains("Close focused window [window.close]"));
         assert!(!text.contains("Ctrl+G"));
+    }
+
+    #[test]
+    fn reload_config_applies_updated_keymap_and_limits_without_resetting_buffers() {
+        let path = temp_file_path("reload-config");
+        std::fs::write(&path, "limits.editable_file_soft_limit_bytes = 4 KiB\n").unwrap();
+        let mut app = app_from_config_path(path.clone());
+        app.handle_text_input('x');
+
+        std::fs::write(
+            &path,
+            "\
+limits.editable_file_soft_limit_bytes = 8 KiB
+key.app.help = F10
+",
+        )
+        .unwrap();
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(5), CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.status_message,
+            Some(format!("Config reloaded from {}", path.display()))
+        );
+        assert_eq!(app.limits.editable_file_soft_limit_bytes, 8 * 1024);
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "x");
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.workspace.window_count(), 1);
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(10), CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Help
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reload_config_failure_keeps_previous_keymap() {
+        let path = temp_file_path("bad-reload-config");
+        std::fs::write(&path, "key.app.help = F10\n").unwrap();
+        let mut app = app_from_config_path(path.clone());
+
+        std::fs::write(&path, "bad = value\n").unwrap();
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(5), CrosstermKeyModifiers::NONE),
+        );
+
+        assert!(
+            app.status_message
+                .as_ref()
+                .is_some_and(|message| message.starts_with("Config reload failed:"))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.workspace.window_count(), 1);
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(10), CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Help
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reload_config_refreshes_open_help_screen() {
+        let path = temp_file_path("reload-help-config");
+        std::fs::write(&path, "\n").unwrap();
+        let mut app = app_from_config_path(path.clone());
+
+        app.handle_command(&EditorCommand::App(AppCommand::Help));
+        let help_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+        let text = app.buffer_state(help_buffer_id).unwrap().buffer.to_text();
+        assert!(help_command_line(&text).contains("F1"));
+
+        std::fs::write(&path, "key.app.help = F10\n").unwrap();
+        app.handle_command(&EditorCommand::App(AppCommand::ReloadConfig));
+
+        let text = app.buffer_state(help_buffer_id).unwrap().buffer.to_text();
+        let line = help_command_line(&text);
+        assert!(line.contains("F10"));
+        assert!(!line.contains("F1 "));
+
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]
@@ -3567,6 +3816,18 @@ key.window.close = none
             },
             ..Config::default()
         }
+    }
+
+    fn app_from_config_path(path: PathBuf) -> AppState {
+        let request = ConfigLoadRequest::explicit(path);
+        let loaded_config = load_config(&request).unwrap();
+        AppState::from_loaded_config(request, loaded_config)
+    }
+
+    fn help_command_line(text: &str) -> &str {
+        text.lines()
+            .find(|line| line.contains("Help [app.help]"))
+            .expect("help command line should be present")
     }
 
     fn temp_file_path(name: &str) -> PathBuf {
