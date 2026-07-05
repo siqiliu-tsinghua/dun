@@ -91,6 +91,7 @@ Goal: safe file round trips and safe terminal display.
 - [x] Save through same-directory temp files and atomic rename.
 - [x] Define large-file soft limit behavior.
 - [x] Add visible diagnostics for fallback/large-file state.
+- [x] Add readable path diagnostics for common Open/Save failures.
 - [x] Implement display sanitizer for ASCII controls and terminal escapes.
 - [x] Add tests for `ESC`, OSC, BEL, NUL, DEL, CR, backspace, tabs, and long
   lines.

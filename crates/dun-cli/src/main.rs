@@ -830,7 +830,8 @@ impl AppState {
     }
 
     fn open_file_path(&mut self, path: PathBuf) -> io::Result<()> {
-        let buffer = load_text_buffer(&path, self.limits)?;
+        let buffer =
+            load_text_buffer(&path, self.limits).map_err(|error| path_io_error(&path, error))?;
         self.replace_focused_buffer_with_file(path, buffer);
         Ok(())
     }
@@ -893,7 +894,7 @@ impl AppState {
             (path, buffer.buffer.to_text())
         };
 
-        atomic_write_text_file(&path, &text)?;
+        atomic_write_text_file(&path, &text).map_err(|error| path_io_error(&path, error))?;
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             buffer.buffer.mark_saved();
@@ -922,7 +923,7 @@ impl AppState {
             buffer.buffer.to_text()
         };
 
-        atomic_write_text_file(&path, &text)?;
+        atomic_write_text_file(&path, &text).map_err(|error| path_io_error(&path, error))?;
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             buffer.path = Some(path.clone());
@@ -2965,6 +2966,12 @@ fn atomic_write_destination(path: &Path) -> io::Result<PathBuf> {
 fn existing_atomic_write_permissions(path: &Path) -> io::Result<Option<fs::Permissions>> {
     match fs::metadata(path) {
         Ok(metadata) => {
+            if metadata.is_dir() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "destination is a directory",
+                ));
+            }
             if !metadata.is_file() {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -2992,6 +2999,7 @@ fn create_atomic_temp_file(path: &Path) -> io::Result<(PathBuf, fs::File)> {
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
+    validate_save_parent_directory(directory)?;
     let file_name = path
         .file_name()
         .filter(|name| !name.is_empty())
@@ -3023,36 +3031,83 @@ fn atomic_temp_path(directory: &Path, file_name: &OsStr, attempt: u32) -> PathBu
     directory.join(temp_name)
 }
 
+fn path_io_error(path: &Path, error: io::Error) -> io::Error {
+    let kind = error.kind();
+    io::Error::new(
+        kind,
+        format!("{}: {}", path_error_label(path), path_error_detail(&error)),
+    )
+}
+
+fn path_error_label(path: &Path) -> String {
+    if path.as_os_str().is_empty() {
+        "(empty path)".to_string()
+    } else {
+        path.display().to_string()
+    }
+}
+
+fn path_error_detail(error: &io::Error) -> String {
+    let message = error.to_string();
+    match error.kind() {
+        io::ErrorKind::NotFound if message == "parent directory does not exist" => message,
+        io::ErrorKind::NotFound => "not found".to_string(),
+        io::ErrorKind::PermissionDenied if message == "destination is read-only" => message,
+        io::ErrorKind::PermissionDenied => "permission denied".to_string(),
+        _ => message,
+    }
+}
+
+fn validate_save_parent_directory(directory: &Path) -> io::Result<()> {
+    match fs::metadata(directory) {
+        Ok(metadata) if metadata.is_dir() => Ok(()),
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "parent path is not a directory",
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "parent directory does not exist",
+        )),
+        Err(error) => Err(error),
+    }
+}
+
 fn read_editable_file(path: &Path, soft_limit: u64) -> io::Result<Vec<u8>> {
-    let file = fs::File::open(path)?;
-    let metadata = file.metadata()?;
-    if metadata.is_file() && metadata.len() > soft_limit {
-        return Err(editable_file_soft_limit_error(
-            path,
-            metadata.len(),
-            soft_limit,
+    let metadata = fs::metadata(path)?;
+    if metadata.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "path is a directory",
         ));
     }
+    if !metadata.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "path is not a regular file",
+        ));
+    }
+    if metadata.len() > soft_limit {
+        return Err(editable_file_soft_limit_error(metadata.len(), soft_limit));
+    }
 
+    let file = fs::File::open(path)?;
     let mut reader = file.take(soft_limit.saturating_add(1));
     let mut bytes = Vec::new();
     reader.read_to_end(&mut bytes)?;
     let bytes_read = bytes.len() as u64;
     if bytes_read > soft_limit {
-        return Err(editable_file_soft_limit_error(path, bytes_read, soft_limit));
+        return Err(editable_file_soft_limit_error(bytes_read, soft_limit));
     }
 
     Ok(bytes)
 }
 
-fn editable_file_soft_limit_error(path: &Path, size: u64, soft_limit: u64) -> io::Error {
+fn editable_file_soft_limit_error(size: u64, soft_limit: u64) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
         format!(
-            "{} is too large for editable mode: {} bytes exceeds the {} byte soft limit",
-            path.display(),
-            size,
-            soft_limit,
+            "too large for editable mode: {size} bytes exceeds the {soft_limit} byte soft limit",
         ),
     )
 }
@@ -4345,6 +4400,50 @@ key.app.help = F10
     }
 
     #[test]
+    fn open_prompt_reports_missing_file_with_path() {
+        let path = temp_file_path("missing-open.txt");
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.status_message,
+            Some(format!("Open failed: {}: not found", path.display()))
+        );
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "");
+    }
+
+    #[test]
+    fn open_prompt_reports_directory_path() {
+        let path = temp_file_path("open-dir");
+        std::fs::create_dir(&path).unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.status_message,
+            Some(format!(
+                "Open failed: {}: path is a directory",
+                path.display()
+            ))
+        );
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "");
+
+        let _ = std::fs::remove_dir(path);
+    }
+
+    #[test]
     fn save_command_writes_focused_file_buffer() {
         let path = temp_file_path("save.txt");
         std::fs::write(&path, "old").unwrap();
@@ -4399,7 +4498,10 @@ key.app.help = F10
         assert!(state.buffer.is_dirty());
         assert_eq!(
             app.status_message,
-            Some("Save failed: destination is read-only".to_string())
+            Some(format!(
+                "Save failed: {}: destination is read-only",
+                path.display()
+            ))
         );
         assert!(atomic_temp_files_for(&path).is_empty());
 
@@ -4518,6 +4620,61 @@ key.app.help = F10
         assert_eq!(window.title, title_for_path(&path));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn save_as_reports_missing_parent_directory() {
+        let parent = temp_file_path("missing-save-parent");
+        let path = parent.join("out.txt");
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::File(FileCommand::SaveAs));
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(
+            app.status_message,
+            Some(format!(
+                "Save As failed: {}: parent directory does not exist",
+                path.display()
+            ))
+        );
+        assert!(state.buffer.is_dirty());
+        assert_eq!(state.path, None);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn save_as_reports_directory_destination() {
+        let path = temp_file_path("save-as-dir");
+        std::fs::create_dir(&path).unwrap();
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::File(FileCommand::SaveAs));
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(
+            app.status_message,
+            Some(format!(
+                "Save As failed: {}: destination is a directory",
+                path.display()
+            ))
+        );
+        assert!(state.buffer.is_dirty());
+        assert_eq!(state.path, None);
+
+        let _ = std::fs::remove_dir(path);
     }
 
     #[test]

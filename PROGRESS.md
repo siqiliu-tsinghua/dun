@@ -273,3 +273,9 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added Help text for command history navigation and CLI tests for recall,
   repeat-last-command behavior, history capping, duplicate suppression, and
   keeping non-command prompts unaffected.
+- Polished Open, Save, and Save As path diagnostics. File-operation errors now
+  include the relevant path and normalize common cases such as missing files,
+  directory paths, missing parent directories, permission denial, read-only
+  destinations, non-regular files, and large-file soft-limit rejection.
+- Added CLI tests for missing Open paths, directory Open paths, missing Save As
+  parent directories, directory Save As targets, and read-only Save targets.

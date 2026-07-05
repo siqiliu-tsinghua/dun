@@ -58,6 +58,11 @@ destination. Existing destination permissions are preserved, read-only
 destinations are rejected before replacement, and symlink paths are resolved so
 the linked target is updated without replacing the symlink itself.
 
+Open and save failures report the relevant path plus a normalized reason for
+common cases: missing paths, directories where files are expected, missing
+parent directories, permission denial, read-only destinations, and large-file
+soft-limit rejection.
+
 ## Large Files
 
 Use a Vim-inspired conservative policy rather than promising arbitrary large

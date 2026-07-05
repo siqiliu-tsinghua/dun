@@ -18,6 +18,9 @@ rename. Invalid UTF-8 files open as read-only escaped fallback buffers instead
 of being decoded lossy.
 Editable file loading enforces the configured soft limit before reading large
 files into memory; the default editable limit is 16 MiB.
+Open, Save, and Save As failures include the relevant path and normalized
+diagnostics for common cases such as missing files, directories, missing parent
+directories, permission denial, and read-only destinations.
 Interactive status-line prompts are available for Open, Save As, Find,
 Replace, and Go To Line entry. Find now supports next/previous navigation and
 selected match highlighting, Replace can replace the current or next match,

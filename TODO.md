@@ -110,6 +110,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define invalid-byte fallback behavior.
 - [x] Prevent save from silently corrupting lossy/fallback buffers.
 - [x] Save files through same-directory temporary files and atomic rename.
+- [x] Add readable path diagnostics for common open/save failures.
 - [x] Define large-file soft limit behavior.
 - [x] Implement display sanitizer for C0/C1 controls.
 - [x] Render `ESC`, OSC, BEL, NUL, DEL, CR, and backspace visibly.
