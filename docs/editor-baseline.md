@@ -231,15 +231,18 @@ supports:
 - highlighting the keyboard-selected submenu entry when a menu is opened from
   the keyboard;
 - rendering current-line highlight, a persistent gutter separator, compact
-  bracket-style status fields, lightweight modal prompts, and larger Open/Save
-  As file dialogs with path input plus a selectable directory match list;
+  bracket-style status fields including visible scroll range and horizontal
+  offset, lightweight modal prompts, and larger Open/Save As file dialogs with
+  path input plus a selectable directory match list;
 - crossterm key events mapped into the typed keymap;
 - Alt+F/E/V/H menu mnemonics after the active keymap has had the first chance
   to consume those strokes;
 - keyboard selection with `Shift+Arrow` and `Shift+Home/End` after the active
   keymap has had the first chance to consume those strokes;
 - PageUp/PageDown visible-page movement, UTF-8-safe word movement/deletion, and
-  configurable word-selection commands;
+  configurable word-selection and page-selection commands;
+- horizontal scrolling for long lines, keeping the focused cursor visible;
+- visible Undo/Redo status feedback for successful actions and empty stacks;
 - `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
 
 ## Mouse

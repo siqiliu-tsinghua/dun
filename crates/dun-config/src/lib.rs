@@ -606,6 +606,14 @@ impl Keymap {
                 KeyBinding::new("Down", EditorCommand::Edit(EditCommand::MoveDown)),
                 KeyBinding::new("PageUp", EditorCommand::Edit(EditCommand::MovePageUp)),
                 KeyBinding::new("PageDown", EditorCommand::Edit(EditCommand::MovePageDown)),
+                KeyBinding::new(
+                    "Shift+PageUp",
+                    EditorCommand::Edit(EditCommand::ExtendSelectionPageUp),
+                ),
+                KeyBinding::new(
+                    "Shift+PageDown",
+                    EditorCommand::Edit(EditCommand::ExtendSelectionPageDown),
+                ),
                 KeyBinding::new("Ctrl+Left", EditorCommand::Edit(EditCommand::MoveWordLeft)),
                 KeyBinding::new(
                     "Ctrl+Right",
@@ -1195,6 +1203,10 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Edit(EditCommand::MoveWordRight) => "edit.move_word_right",
         EditorCommand::Edit(EditCommand::MoveLineStart) => "edit.move_line_start",
         EditorCommand::Edit(EditCommand::MoveLineEnd) => "edit.move_line_end",
+        EditorCommand::Edit(EditCommand::ExtendSelectionPageUp) => "edit.extend_selection_page_up",
+        EditorCommand::Edit(EditCommand::ExtendSelectionPageDown) => {
+            "edit.extend_selection_page_down"
+        }
         EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft) => {
             "edit.extend_selection_word_left"
         }
@@ -1313,6 +1325,12 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "edit.move_word_right" => Ok(EditorCommand::Edit(EditCommand::MoveWordRight)),
         "edit.move_line_start" => Ok(EditorCommand::Edit(EditCommand::MoveLineStart)),
         "edit.move_line_end" => Ok(EditorCommand::Edit(EditCommand::MoveLineEnd)),
+        "edit.extend_selection_page_up" => {
+            Ok(EditorCommand::Edit(EditCommand::ExtendSelectionPageUp))
+        }
+        "edit.extend_selection_page_down" => {
+            Ok(EditorCommand::Edit(EditCommand::ExtendSelectionPageDown))
+        }
         "edit.extend_selection_word_left" => {
             Ok(EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft))
         }
@@ -1518,6 +1536,10 @@ mod tests {
             Some(&EditorCommand::Edit(EditCommand::MovePageDown))
         );
         assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Shift+PageDown").unwrap()),
+            Some(&EditorCommand::Edit(EditCommand::ExtendSelectionPageDown))
+        );
+        assert_eq!(
             keymap.command_for_sequence(&KeySequence::from_str("Ctrl+Right").unwrap()),
             Some(&EditorCommand::Edit(EditCommand::MoveWordRight))
         );
@@ -1668,6 +1690,10 @@ mod tests {
         assert_eq!(
             command_from_id("edit.move-word-right"),
             Ok(EditorCommand::Edit(EditCommand::MoveWordRight))
+        );
+        assert_eq!(
+            command_from_id("edit.extend_selection_page_down"),
+            Ok(EditorCommand::Edit(EditCommand::ExtendSelectionPageDown))
         );
         assert_eq!(
             command_from_id("edit.delete_word_backward"),

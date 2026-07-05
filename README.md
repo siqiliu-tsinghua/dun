@@ -51,20 +51,23 @@ highlighting, Replace can replace the current or next match, and Go To Line
 moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty/read-only markers, and status fields for position, total lines,
-selection, line ending, file-text encoding, terminal profile, and focused
-window index.
+selection, visible scroll range, horizontal scroll offset, line ending,
+file-text encoding, terminal profile, and focused window index.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, giving Cut/Copy a pure
 keyboard path without requiring mouse support. PageUp/PageDown move by the
 visible pane height, `Ctrl+Left/Right` move by UTF-8-safe word boundaries,
 `Ctrl+Backspace/Delete` delete by word, and `Ctrl+Shift+Left/Right` extends
-selection by word when the terminal delivers those modifiers.
+selection by word when the terminal delivers those modifiers. `Shift+PageUp`
+and `Shift+PageDown` extend selection by the visible pane height.
 Undo groups continuous ordinary character typing and continuous same-direction
 Backspace/Delete runs into transactions, while cursor movement, selection
 changes, replace, newline, paste-like bulk insertion, undo, and redo keep clear
-transaction boundaries.
+transaction boundaries. Undo and redo commands report visible status for
+successful actions and empty stacks.
 On narrow panes, the gutter is dropped before it consumes the editable body,
-and pane titles/status fields are clipped by terminal display width.
+pane titles/status fields are clipped by terminal display width, and long lines
+scroll horizontally to keep the focused cursor visible.
 Buffer text, pane titles, and status fields are sanitized before rendering so
 file content and file names cannot emit terminal control sequences.
 By default, `F1` opens a read-only Help window with the active configured key

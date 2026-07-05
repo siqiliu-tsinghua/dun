@@ -179,13 +179,18 @@ Editing:
 - `Shift+Arrow` extends the editor selection by character or line, and
   `Shift+Home`/`Shift+End` extends to the current line edge when those strokes
   are not remapped by the active keymap.
-- PageUp/PageDown move by the visible editor pane height.
+- PageUp/PageDown move by the visible editor pane height, and
+  Shift+PageUp/PageDown extends selection by the same amount when delivered.
 - `Ctrl+Left/Right` move by word, `Ctrl+Backspace/Delete` delete by word, and
   `Ctrl+Shift+Left/Right` extends selection by word when the terminal delivers
   those modifiers.
+- Long editor lines scroll horizontally to keep the cursor visible; the status
+  bar reports the visible line range and horizontal offset.
 - Continuous ordinary typing and continuous same-direction Backspace/Delete
   should undo as grouped steps. Cursor movement, selection changes, newline,
   word delete, replace, and paste should make separate undo steps.
+- Undo/Redo should report `Undo`, `Redo`, `Nothing to undo`, or
+  `Nothing to redo` in the status area.
 - Edit menu or command-line ids `edit.copy`, `edit.cut`, and `edit.paste`
   operate on the process-local internal clipboard. They should copy/cut the
   active selection and paste through the normal edit path without requiring OS

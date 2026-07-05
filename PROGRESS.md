@@ -445,3 +445,15 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added tests for delete-run undo grouping, word boundary behavior, default
   keybindings, editor page movement, word edit command dispatch, and editor
   mouse wheel scrolling.
+- Added scroll position indicators to the focused detail status. The status
+  now reports the visible line range and includes an `X` offset when a long
+  line is horizontally scrolled.
+- Added horizontal editor scrolling for long lines by carrying a display-column
+  offset through `BufferState`, `BufferView`, cursor mapping, selection
+  mapping, body rendering, and mouse hit testing.
+- Added `Shift+PageUp/PageDown` selection commands, default keybindings, help
+  text, and command ids. Selection extends by the active pane body height.
+- Added visible Undo/Redo status feedback for successful actions, empty stacks,
+  and read-only/focused-buffer errors.
+- Added tests for horizontal render/hit mapping, horizontal cursor visibility,
+  page-wise selection, scroll status, and Undo/Redo status feedback.

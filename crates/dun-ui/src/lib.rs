@@ -269,7 +269,9 @@ impl UiShell {
             return UiMouseTarget::Body(buffer_end_position(buffer.buffer));
         }
 
-        let body_x = inner_x.saturating_sub(gutter_width) as usize;
+        let body_x = buffer
+            .first_column
+            .saturating_add(inner_x.saturating_sub(gutter_width) as usize);
         let line = buffer.buffer.line(line_index).unwrap_or_default();
         UiMouseTarget::Body(Position::new(
             line_index,
@@ -349,7 +351,8 @@ impl UiShell {
             }
 
             let line = buffer.buffer.line(line_index).unwrap_or_default();
-            lines.push(self.display_sanitizer.sanitize_line(line));
+            let start = self.byte_column_for_display_column(line, buffer.first_column);
+            lines.push(self.display_sanitizer.sanitize_line(&line[start..]));
         }
 
         lines
@@ -381,7 +384,12 @@ impl UiShell {
 
         let line = buffer.buffer.line(position.line)?;
         let display_column = self.display_column(line, position.column)?;
-        let display_column = display_column.min(body_width.saturating_sub(1));
+        if display_column < buffer.first_column {
+            return None;
+        }
+        let display_column = display_column
+            .saturating_sub(buffer.first_column)
+            .min(body_width.saturating_sub(1));
 
         Some(UiCursor {
             x: 1 + gutter_width as u16 + display_column as u16,
@@ -453,8 +461,16 @@ impl UiShell {
             return None;
         }
 
-        let start_x = self.display_column(line, start_column)?.min(body_width);
-        let end_x = self.display_column(line, end_column)?.min(body_width);
+        let first_column = buffer.first_column;
+        let last_column = first_column.saturating_add(body_width);
+        let start_display = self.display_column(line, start_column)?;
+        let end_display = self.display_column(line, end_column)?;
+        if end_display <= first_column || start_display >= last_column {
+            return None;
+        }
+
+        let start_x = start_display.saturating_sub(first_column).min(body_width);
+        let end_x = end_display.saturating_sub(first_column).min(body_width);
         if start_x >= end_x {
             return None;
         }
@@ -1541,6 +1557,7 @@ pub struct BufferView<'a> {
     pub id: BufferId,
     pub buffer: &'a TextBuffer,
     pub first_line: usize,
+    pub first_column: usize,
 }
 
 impl<'a> BufferView<'a> {
@@ -1549,6 +1566,7 @@ impl<'a> BufferView<'a> {
             id,
             buffer,
             first_line: 0,
+            first_column: 0,
         }
     }
 
@@ -1557,6 +1575,21 @@ impl<'a> BufferView<'a> {
             id,
             buffer,
             first_line,
+            first_column: 0,
+        }
+    }
+
+    pub const fn scrolled_xy(
+        id: BufferId,
+        buffer: &'a TextBuffer,
+        first_line: usize,
+        first_column: usize,
+    ) -> Self {
+        Self {
+            id,
+            buffer,
+            first_line,
+            first_column,
         }
     }
 }
@@ -1997,6 +2030,20 @@ mod tests {
     }
 
     #[test]
+    fn hit_test_accounts_for_horizontal_scroll() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdef");
+        let buffer_view = BufferView::scrolled_xy(BufferId(1), &buffer, 0, 2);
+        let shell = UiShell::default();
+
+        let hit = shell
+            .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view], 3, 1)
+            .unwrap();
+
+        assert_eq!(hit.target, UiMouseTarget::Body(Position::new(0, 2)));
+    }
+
+    #[test]
     fn frame_maps_buffer_selection_to_window_body() {
         let workspace = Workspace::new_untitled();
         let mut buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abc\n中x");
@@ -2017,6 +2064,34 @@ mod tests {
                 y: 2,
                 start_x: 3,
                 end_x: 5,
+            }]
+        );
+    }
+
+    #[test]
+    fn frame_maps_horizontal_scroll_to_body_cursor_and_selection() {
+        let workspace = Workspace::new_untitled();
+        let mut buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdef");
+        buffer.set_cursor(Position::new(0, 4)).unwrap();
+        buffer
+            .select(Position::new(0, 2), Position::new(0, 5))
+            .unwrap();
+        let buffer_view = BufferView::scrolled_xy(BufferId(1), &buffer, 0, 2);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 80, 10),
+            &[buffer_view],
+        );
+
+        assert_eq!(frame.windows[0].body[0].as_plain_text(), "cdef");
+        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 6, y: 1 }));
+        assert_eq!(
+            frame.windows[0].selection,
+            vec![UiSelectionLine {
+                y: 1,
+                start_x: 3,
+                end_x: 6,
             }]
         );
     }

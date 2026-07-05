@@ -26,6 +26,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Coalesce continuous same-direction Backspace/Delete runs into undo
   transactions.
 - [x] Add UTF-8-safe word movement, word selection, and word delete commands.
+- [x] Keep the horizontal cursor position visible in long editor lines.
 - [x] Implement dirty-state tracking.
 - [x] Implement split focused window.
 - [x] Implement close focused window and tree repair.
@@ -147,6 +148,9 @@ items belong in [PROGRESS.md](./PROGRESS.md).
   using the OS clipboard.
 - [x] Add keyboard selection baseline with `Shift+Arrow` and `Shift+Home/End`.
 - [x] Add editor PageUp/PageDown movement and viewport synchronization.
+- [x] Add `Shift+PageUp/PageDown` page-wise selection.
+- [x] Report Undo/Redo status feedback.
+- [x] Add scroll range and horizontal offset status fields.
 - [x] Add optional mouse wheel scrolling for editor panes.
 
 ## File and Display Safety

@@ -101,7 +101,8 @@ Unbound `Shift+Arrow` and `Shift+Home/End` strokes extend the editor selection
 as a fallback after the active keymap is checked. Binding one of those strokes
 to a command gives the configured command priority.
 Default editor movement also includes PageUp/PageDown for visible-page
-movement, `Ctrl+Left/Right` for word movement, `Ctrl+Shift+Left/Right` for word
+movement, `Shift+PageUp/PageDown` for visible-page selection,
+`Ctrl+Left/Right` for word movement, `Ctrl+Shift+Left/Right` for word
 selection, and `Ctrl+Backspace/Delete` for word deletion. These are ordinary
 command bindings and can be remapped or disabled like other `key.edit.*`
 entries.

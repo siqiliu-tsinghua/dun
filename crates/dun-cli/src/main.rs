@@ -40,6 +40,7 @@ const EXIT_USAGE_ERROR: u8 = 2;
 const DUN_CONFIG_ENV: &str = "DUN_CONFIG";
 const FILE_DIALOG_VISIBLE_ENTRIES: usize = 12;
 const EDITOR_MOUSE_WHEEL_LINES: usize = 3;
+const MIN_BODY_COLUMNS_WITH_GUTTER: u16 = 4;
 
 fn main() -> ExitCode {
     match run_cli(env::args_os().skip(1)) {
@@ -559,7 +560,14 @@ impl AppState {
     fn buffer_views(&self) -> Vec<BufferView<'_>> {
         self.buffers
             .iter()
-            .map(|buffer| BufferView::scrolled(buffer.id, &buffer.buffer, buffer.first_line))
+            .map(|buffer| {
+                BufferView::scrolled_xy(
+                    buffer.id,
+                    &buffer.buffer,
+                    buffer.first_line,
+                    buffer.first_column,
+                )
+            })
             .collect()
     }
 
@@ -655,14 +663,14 @@ impl AppState {
 
     fn sync_view_for_area(&mut self, area: Rect) {
         self.workspace_area = area;
-        let Some((buffer_id, body_height)) = self.focused_buffer_view_context(area) else {
+        let Some(context) = self.focused_buffer_view_context(area) else {
             return;
         };
-        let Some(buffer) = self.buffer_state_mut(buffer_id) else {
+        let Some(buffer) = self.buffer_state_mut(context.buffer_id) else {
             return;
         };
 
-        buffer.ensure_cursor_visible(body_height);
+        buffer.ensure_cursor_visible(context.body_height, context.body_width);
     }
 
     fn handle_mouse_down(&mut self, screen_x: u16, screen_y: u16) -> bool {
@@ -843,14 +851,20 @@ impl AppState {
         else {
             return false;
         };
-        let body_height = self
+        let context = self
             .focused_buffer_view_context(self.workspace_area)
-            .map(|(_, body_height)| body_height)
-            .unwrap_or(1);
+            .unwrap_or(BufferViewContext {
+                buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
 
         self.pending_keys.clear();
-        self.buffer_state_mut(buffer_id)
-            .is_some_and(|buffer| buffer.scroll_view_lines(delta, body_height))
+        self.buffer_state_mut(buffer_id).is_some_and(|buffer| {
+            let moved = buffer.scroll_view_lines(delta, context.body_height);
+            buffer.ensure_cursor_column_visible(context.body_width);
+            moved
+        })
     }
 
     fn workspace_point_from_screen(&self, column: u16, row: u16) -> Option<(u16, u16)> {
@@ -912,6 +926,12 @@ impl AppState {
     fn handle_selection_key_stroke(&mut self, stroke: KeyStroke) -> bool {
         if stroke.modifiers != KeyModifiers::SHIFT {
             return false;
+        }
+
+        match stroke.key {
+            Key::PageUp => return self.extend_focused_page(-1),
+            Key::PageDown => return self.extend_focused_page(1),
+            _ => {}
         }
 
         let Some(buffer) = self.focused_buffer_mut() else {
@@ -1039,12 +1059,28 @@ impl AppState {
                 self.paste_internal_clipboard();
                 return;
             }
+            EditCommand::Undo => {
+                self.undo_focused_buffer();
+                return;
+            }
+            EditCommand::Redo => {
+                self.redo_focused_buffer();
+                return;
+            }
             EditCommand::MovePageUp => {
                 self.move_focused_page(-1);
                 return;
             }
             EditCommand::MovePageDown => {
                 self.move_focused_page(1);
+                return;
+            }
+            EditCommand::ExtendSelectionPageUp => {
+                self.extend_focused_page(-1);
+                return;
+            }
+            EditCommand::ExtendSelectionPageDown => {
+                self.extend_focused_page(1);
                 return;
             }
             _ => {}
@@ -1055,12 +1091,6 @@ impl AppState {
         };
 
         match command {
-            EditCommand::Undo => {
-                let _ = buffer.buffer.undo();
-            }
-            EditCommand::Redo => {
-                let _ = buffer.buffer.redo();
-            }
             EditCommand::SelectAll => {
                 let end = buffer_end_position(&buffer.buffer);
                 let _ = buffer.buffer.select(Position::zero(), end);
@@ -1113,21 +1143,57 @@ impl AppState {
             EditCommand::Cut
             | EditCommand::Copy
             | EditCommand::Paste
+            | EditCommand::Undo
+            | EditCommand::Redo
             | EditCommand::Find
             | EditCommand::FindNext
             | EditCommand::FindPrevious
             | EditCommand::Replace
             | EditCommand::GoToLine
             | EditCommand::MovePageUp
-            | EditCommand::MovePageDown => {}
+            | EditCommand::MovePageDown
+            | EditCommand::ExtendSelectionPageUp
+            | EditCommand::ExtendSelectionPageDown => {}
         }
     }
 
+    fn undo_focused_buffer(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Undo failed: focused buffer is missing");
+            return;
+        };
+
+        let status = match buffer.buffer.undo() {
+            Ok(true) => "Undo".to_string(),
+            Ok(false) => "Nothing to undo".to_string(),
+            Err(error) => format!("Undo failed: {}", buffer_error_text(error)),
+        };
+        self.set_status(status);
+    }
+
+    fn redo_focused_buffer(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Redo failed: focused buffer is missing");
+            return;
+        };
+
+        let status = match buffer.buffer.redo() {
+            Ok(true) => "Redo".to_string(),
+            Ok(false) => "Nothing to redo".to_string(),
+            Err(error) => format!("Redo failed: {}", buffer_error_text(error)),
+        };
+        self.set_status(status);
+    }
+
     fn move_focused_page(&mut self, direction: isize) -> bool {
-        let body_height = self
+        let context = self
             .focused_buffer_view_context(self.workspace_area)
-            .map(|(_, body_height)| body_height)
-            .unwrap_or(1);
+            .unwrap_or(BufferViewContext {
+                buffer_id: BufferId(0),
+                body_height: 1,
+                body_width: 1,
+            });
+        let body_height = context.body_height;
         let page_lines = body_height.saturating_sub(1).max(1);
         let Some(buffer) = self.focused_buffer_mut() else {
             return false;
@@ -1138,7 +1204,30 @@ impl AppState {
         } else {
             buffer.move_page_down(page_lines)
         };
-        buffer.ensure_cursor_visible(body_height);
+        buffer.ensure_cursor_visible(body_height, context.body_width);
+        moved
+    }
+
+    fn extend_focused_page(&mut self, direction: isize) -> bool {
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id: BufferId(0),
+                body_height: 1,
+                body_width: 1,
+            });
+        let body_height = context.body_height;
+        let page_lines = body_height.saturating_sub(1).max(1);
+        let Some(buffer) = self.focused_buffer_mut() else {
+            return false;
+        };
+
+        let moved = if direction < 0 {
+            buffer.extend_page_up(page_lines)
+        } else {
+            buffer.extend_page_down(page_lines)
+        };
+        buffer.ensure_cursor_visible(body_height, context.body_width);
         moved
     }
 
@@ -2827,6 +2916,10 @@ impl AppState {
             bracket(file_encoding_status(buffer.encoding)),
             bracket("Spaces:4"),
             format!("{}:{}", position.line + 1, column),
+            bracket(&scroll_status(
+                buffer,
+                self.focused_buffer_view_context(self.workspace_area),
+            )),
             bracket(&profile),
             bracket(&window),
         ];
@@ -2874,16 +2967,29 @@ impl AppState {
         self.buffers.retain(|buffer| buffer.id != id);
     }
 
-    fn focused_buffer_view_context(&self, area: Rect) -> Option<(BufferId, usize)> {
+    fn focused_buffer_view_context(&self, area: Rect) -> Option<BufferViewContext> {
         let window = self.workspace.focused_window().ok()?;
         let layout = self
             .workspace
             .resolved_layout(area)
             .into_iter()
             .find(|layout| layout.id == window.id)?;
+        let buffer = self.buffer_state(window.buffer_id)?;
         let body_height = layout.rect.height.saturating_sub(2) as usize;
-        Some((window.buffer_id, body_height))
+        let body_width = editor_body_width(buffer, layout.rect);
+        Some(BufferViewContext {
+            buffer_id: window.buffer_id,
+            body_height,
+            body_width,
+        })
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct BufferViewContext {
+    buffer_id: BufferId,
+    body_height: usize,
+    body_width: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3633,6 +3739,24 @@ fn selection_status(buffer: &TextBuffer) -> Option<String> {
     Some(format!("Sel {}L", range.end.line - range.start.line + 1))
 }
 
+fn scroll_status(buffer: &BufferState, context: Option<BufferViewContext>) -> String {
+    let total = buffer.buffer.line_count().max(1);
+    let height = context
+        .map(|context| context.body_height.max(1))
+        .unwrap_or(1);
+    let start = buffer.first_line.min(total.saturating_sub(1));
+    let end = start.saturating_add(height).min(total);
+    if buffer.first_column == 0 {
+        format!("View {}-{end}/{total}", start + 1)
+    } else {
+        format!(
+            "View {}-{end}/{total} X{}",
+            start + 1,
+            buffer.first_column + 1
+        )
+    }
+}
+
 fn bracket(text: &str) -> String {
     format!("[{text}]")
 }
@@ -3717,6 +3841,7 @@ struct BufferState {
     path: Option<PathBuf>,
     encoding: FileTextEncoding,
     first_line: usize,
+    first_column: usize,
 }
 
 impl BufferState {
@@ -3727,6 +3852,7 @@ impl BufferState {
             path: None,
             encoding: FileTextEncoding::Utf8,
             first_line: 0,
+            first_column: 0,
         }
     }
 
@@ -3737,21 +3863,23 @@ impl BufferState {
             path: Some(path),
             encoding: loaded.encoding,
             first_line: 0,
+            first_column: 0,
         }
     }
 
-    fn ensure_cursor_visible(&mut self, body_height: usize) {
+    fn ensure_cursor_visible(&mut self, body_height: usize, body_width: usize) {
         if body_height == 0 {
             self.first_line = self.buffer.cursor_position().line;
-            return;
+        } else {
+            let cursor_line = self.buffer.cursor_position().line;
+            if cursor_line < self.first_line {
+                self.first_line = cursor_line;
+            } else if cursor_line >= self.first_line.saturating_add(body_height) {
+                self.first_line = cursor_line.saturating_sub(body_height - 1);
+            }
         }
 
-        let cursor_line = self.buffer.cursor_position().line;
-        if cursor_line < self.first_line {
-            self.first_line = cursor_line;
-        } else if cursor_line >= self.first_line.saturating_add(body_height) {
-            self.first_line = cursor_line.saturating_sub(body_height - 1);
-        }
+        self.ensure_cursor_column_visible(body_width);
     }
 
     fn move_page_up(&mut self, lines: usize) -> bool {
@@ -3789,6 +3917,45 @@ impl BufferState {
         self.first_line != old_first_line
     }
 
+    fn extend_page_up(&mut self, lines: usize) -> bool {
+        let mut moved = false;
+        for _ in 0..lines.max(1) {
+            moved |= self.buffer.extend_selection_up();
+        }
+        moved
+    }
+
+    fn extend_page_down(&mut self, lines: usize) -> bool {
+        let mut moved = false;
+        for _ in 0..lines.max(1) {
+            moved |= self.buffer.extend_selection_down();
+        }
+        moved
+    }
+
+    fn ensure_cursor_column_visible(&mut self, body_width: usize) {
+        let cursor_column = self.cursor_display_column();
+        if body_width == 0 {
+            self.first_column = cursor_column;
+            return;
+        }
+
+        if cursor_column < self.first_column {
+            self.first_column = cursor_column;
+        } else if cursor_column >= self.first_column.saturating_add(body_width) {
+            self.first_column = cursor_column.saturating_sub(body_width - 1);
+        }
+    }
+
+    fn cursor_display_column(&self) -> usize {
+        let position = self.buffer.cursor_position();
+        self.buffer
+            .line(position.line)
+            .and_then(|line| line.get(..position.column))
+            .map(UnicodeWidthStr::width)
+            .unwrap_or(0)
+    }
+
     fn keep_cursor_inside_visible_lines(&mut self, body_height: usize) {
         if body_height == 0 {
             return;
@@ -3820,6 +3987,32 @@ impl BufferState {
         }
         column
     }
+}
+
+fn editor_body_width(buffer: &BufferState, rect: Rect) -> usize {
+    let inner_width = rect.width.saturating_sub(2);
+    let gutter_width = editor_gutter_width(buffer, rect).min(inner_width);
+    inner_width.saturating_sub(gutter_width) as usize
+}
+
+fn editor_gutter_width(buffer: &BufferState, rect: Rect) -> u16 {
+    let inner_width = rect.width.saturating_sub(2);
+    let digits = decimal_digits_for_editor(buffer.buffer.line_count().max(1));
+    let width = (digits + 1) as u16;
+    if inner_width < width.saturating_add(MIN_BODY_COLUMNS_WITH_GUTTER) {
+        0
+    } else {
+        width
+    }
+}
+
+fn decimal_digits_for_editor(mut value: usize) -> usize {
+    let mut digits = 1;
+    while value >= 10 {
+        value /= 10;
+        digits += 1;
+    }
+    digits
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -4511,7 +4704,7 @@ fn help_text(keymap: &Keymap, file_dialog_keys: &FileDialogKeymap) -> String {
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
     );
     out.push_str(
-        "Selection\n  Shift+Arrow       Extend selection by character or line\n  Shift+Home/End    Extend selection to line edge\n  Ctrl+Shift+Arrow  Extend selection by word when delivered\n\n",
+        "Selection\n  Shift+Arrow       Extend selection by character or line\n  Shift+Home/End    Extend selection to line edge\n  Shift+PageUp/Down Extend selection by visible page\n  Ctrl+Shift+Arrow  Extend selection by word when delivered\n\n",
     );
     out.push_str("File Dialogs\n");
     push_file_dialog_help(
@@ -4770,6 +4963,14 @@ const HELP_SECTIONS: &[HelpSection] = &[
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::MoveLineEnd),
                 description: "Move to line end",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ExtendSelectionPageUp),
+                description: "Extend selection page up",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ExtendSelectionPageDown),
+                description: "Extend selection page down",
             },
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft),
@@ -5979,6 +6180,75 @@ key.app.quit = Esc
                 .cursor_position(),
             Position::new(3, 0)
         );
+    }
+
+    #[test]
+    fn shift_page_commands_extend_selection_by_visible_page() {
+        let text = (0..20)
+            .map(|index| format!("line{index}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = AppState::new();
+        app.buffer_state_mut(BufferId(1)).unwrap().buffer =
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, &text);
+        app.sync_view_for_area(Rect::new(0, 0, 80, 6));
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::PageDown, CrosstermKeyModifiers::SHIFT),
+        );
+
+        let buffer = &app.buffer_state(BufferId(1)).unwrap().buffer;
+        assert_eq!(buffer.cursor_position(), Position::new(3, 0));
+        assert_eq!(
+            buffer.selection(),
+            Some(dun_core::Selection::new(
+                Position::zero(),
+                Position::new(3, 0)
+            ))
+        );
+    }
+
+    #[test]
+    fn horizontal_scroll_keeps_cursor_visible_and_reports_offset() {
+        let mut app = app_with_text("0123456789abcdef");
+        app.sync_view_for_area(Rect::new(0, 0, 10, 4));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
+        app.sync_view_for_area(Rect::new(0, 0, 10, 4));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert!(state.first_column > 0);
+        assert!(app.focused_detail_status().contains(" X"));
+
+        let buffer_views = app.buffer_views();
+        let frame =
+            app.shell
+                .frame_for_workspace(&app.workspace, app.workspace_area, &buffer_views);
+        assert!(
+            frame.windows[0]
+                .body
+                .first()
+                .is_some_and(|line| line.as_plain_text().ends_with("bcdef"))
+        );
+    }
+
+    #[test]
+    fn undo_redo_commands_report_status() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Undo));
+        assert_eq!(app.status_message, Some("Nothing to undo".to_string()));
+
+        app.handle_text_input('x');
+        app.handle_command(&EditorCommand::Edit(EditCommand::Undo));
+        assert_eq!(app.status_message, Some("Undo".to_string()));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Redo));
+        assert_eq!(app.status_message, Some("Redo".to_string()));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Redo));
+        assert_eq!(app.status_message, Some("Nothing to redo".to_string()));
     }
 
     #[test]
@@ -8453,7 +8723,7 @@ key.app.help = F10
 
         assert_eq!(
             app.focused_detail_status(),
-            "[LF] [UTF-8] [Spaces:4] 2:3 [ASCII/mono] [Win 1/1]"
+            "[LF] [UTF-8] [Spaces:4] 2:3 [View 1-1/2] [ASCII/mono] [Win 1/1]"
         );
     }
 
@@ -8466,14 +8736,14 @@ key.app.help = F10
 
         assert_eq!(
             app.focused_detail_status(),
-            "[LF] [UTF-8] [Spaces:4] 1:1 [UTF-8/16c] [Win 2/2]"
+            "[LF] [UTF-8] [Spaces:4] 1:1 [View 1-1/1] [UTF-8/16c] [Win 2/2]"
         );
 
         app.workspace.focused = WindowId(1);
 
         assert_eq!(
             app.focused_detail_status(),
-            "[CRLF] [UTF-8] [Spaces:4] 1:1 [UTF-8/16c] [Win 1/2]"
+            "[CRLF] [UTF-8] [Spaces:4] 1:1 [View 1-1/2] [UTF-8/16c] [Win 1/2]"
         );
     }
 
@@ -8488,7 +8758,7 @@ key.app.help = F10
 
         assert_eq!(
             app.focused_detail_status(),
-            "[LF] [UTF-8] [Spaces:4] 1:4 [Sel 3c] [UTF-8/256c] [Win 1/1]"
+            "[LF] [UTF-8] [Spaces:4] 1:4 [Sel 3c] [View 1-1/1] [UTF-8/256c] [Win 1/1]"
         );
     }
 

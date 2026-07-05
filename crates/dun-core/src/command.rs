@@ -33,6 +33,8 @@ pub enum EditCommand {
     MoveWordRight,
     MoveLineStart,
     MoveLineEnd,
+    ExtendSelectionPageUp,
+    ExtendSelectionPageDown,
     ExtendSelectionWordLeft,
     ExtendSelectionWordRight,
     InsertNewline,
