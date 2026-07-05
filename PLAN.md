@@ -151,6 +151,7 @@ Goal: keyboard-first split workflow.
 - [x] Implement equalize and rotate split.
 - [x] Report success and failure status for tiling commands.
 - [x] Allow command-line prompt execution of window command ids.
+- [x] Degrade cleanly on small terminals and narrow panes.
 - [x] Ensure single-buffer startup still looks like Microsoft Edit.
 
 Primary crates: `dun-core`, `dun-ui`.

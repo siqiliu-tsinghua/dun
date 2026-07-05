@@ -181,8 +181,15 @@ Required pure functions:
 - resolve tree to rectangles;
 - enforce minimum window size.
 
-Minimum size is terminal-profile dependent. ASCII/low-end profiles should have
-slightly more conservative minimums because borders consume visible columns.
+The current baseline keeps both sides of a split visible when the parent has at
+least two cells along the split axis. The renderer then degrades each narrow
+pane by dropping the line-number gutter before it consumes the editable body,
+omitting body/cursor rendering in title-bar-only regions, and clipping titles
+and status text by terminal display width.
+
+Minimum readable body size is terminal-profile dependent. ASCII/low-end
+profiles may need slightly more conservative limits because borders consume
+visible columns.
 
 ## View Kinds
 

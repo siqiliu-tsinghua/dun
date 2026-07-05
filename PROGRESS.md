@@ -279,3 +279,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   destinations, non-regular files, and large-file soft-limit rejection.
 - Added CLI tests for missing Open paths, directory Open paths, missing Save As
   parent directories, directory Save As targets, and read-only Save targets.
+- Polished tiled rendering for small terminals. Split layout keeps both
+  children visible when the parent has room, narrow panes drop the line-number
+  gutter before it crowds out the editable body, tiny title-bar-only panes omit
+  body/gutter/cursor rendering, and title/status text now clips by terminal
+  display width.
+- Added core/UI tests for tiny split rectangles, narrow panes with large line
+  numbers, CJK title/status clipping, and title-bar-only pane rendering.

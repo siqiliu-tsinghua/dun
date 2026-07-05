@@ -123,8 +123,7 @@ impl LayoutNode {
                 let ratio = (*ratio).clamp(MIN_SPLIT_RATIO, MAX_SPLIT_RATIO);
                 match axis {
                     Axis::Horizontal => {
-                        let first_width = ((area.width as u32 * ratio as u32) / 1000) as u16;
-                        let first_width = first_width.min(area.width);
+                        let first_width = split_dimension(area.width, ratio);
                         let second_width = area.width.saturating_sub(first_width);
 
                         first.resolved(Rect::new(area.x, area.y, first_width, area.height), out);
@@ -139,8 +138,7 @@ impl LayoutNode {
                         );
                     }
                     Axis::Vertical => {
-                        let first_height = ((area.height as u32 * ratio as u32) / 1000) as u16;
-                        let first_height = first_height.min(area.height);
+                        let first_height = split_dimension(area.height, ratio);
                         let second_height = area.height.saturating_sub(first_height);
 
                         first.resolved(Rect::new(area.x, area.y, area.width, first_height), out);
@@ -457,6 +455,16 @@ fn center_delta(a: i32, b: i32) -> u16 {
     a.abs_diff(b).min(u16::MAX as u32) as u16
 }
 
+fn split_dimension(total: u16, ratio: u16) -> u16 {
+    if total < 2 {
+        return total;
+    }
+
+    let raw = ((total as u32 * ratio.clamp(MIN_SPLIT_RATIO, MAX_SPLIT_RATIO) as u32) / 1000)
+        .min(total as u32) as u16;
+    raw.clamp(1, total - 1)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SearchOutcome {
     Applied(u16),
@@ -758,5 +766,33 @@ mod tests {
         assert_eq!(workspace.rotate_focused_split().unwrap(), Axis::Vertical);
         assert_eq!(layout_rect(&workspace, first), Rect::new(0, 0, 100, 20));
         assert_eq!(layout_rect(&workspace, second), Rect::new(0, 20, 100, 20));
+    }
+
+    #[test]
+    fn resolved_layout_keeps_split_children_visible_when_possible() {
+        let mut workspace = Workspace::new_untitled();
+        let first = workspace.focused;
+        let second = workspace.split_focused(Axis::Horizontal).unwrap();
+        workspace.focused = second;
+        workspace.resize_focused_by(Direction::Left, 500).unwrap();
+
+        let layouts = workspace.resolved_layout(Rect::new(0, 0, 3, 2));
+
+        assert_eq!(
+            layouts
+                .iter()
+                .find(|layout| layout.id == first)
+                .unwrap()
+                .rect,
+            Rect::new(0, 0, 1, 2)
+        );
+        assert_eq!(
+            layouts
+                .iter()
+                .find(|layout| layout.id == second)
+                .unwrap()
+                .rect,
+            Rect::new(1, 0, 2, 2)
+        );
     }
 }

@@ -54,6 +54,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Render multiple tiled windows from resolved layout rectangles.
 - [x] Render focused buffer cursor inside the active window body.
 - [x] Render selected text ranges in the active window body.
+- [x] Polish tiled rendering for small terminals and narrow panes.
 - [x] Keep rendering free of file I/O.
 
 ## `dun-config`

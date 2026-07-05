@@ -28,6 +28,8 @@ and Go To Line moves the cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty/read-only markers, and status fields for position, total lines,
 selection, line ending, terminal profile, and focused window index.
+On narrow panes, the gutter is dropped before it consumes the editable body,
+and pane titles/status fields are clipped by terminal display width.
 By default, `F1` opens a read-only Help window with the active configured key
 reference, and `F2` opens a read-only Status History window with recent status
 and error messages. `F5` reloads the active configuration without restarting

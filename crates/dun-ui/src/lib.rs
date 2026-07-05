@@ -13,7 +13,9 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Position as TuiPosition, Rect as TuiRect};
 use ratatui::prelude::{Color, Frame, Line, Modifier, Span, Style};
 use ratatui::widgets::{Block, Paragraph};
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
+const MIN_BODY_COLUMNS_WITH_GUTTER: u16 = 4;
 
 #[derive(Clone, Debug)]
 pub struct UiShell {
@@ -279,13 +281,13 @@ impl UiShell {
 
     fn gutter_width_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> u16 {
         let inner_width = rect.width.saturating_sub(2);
-        if inner_width < 6 {
+        let digits = decimal_digits(buffer.buffer.line_count().max(1));
+        let width = (digits + 1) as u16;
+        if inner_width < width.saturating_add(MIN_BODY_COLUMNS_WITH_GUTTER) {
             return 0;
         }
 
-        let digits = decimal_digits(buffer.buffer.line_count().max(1));
-        let width = (digits + 1) as u16;
-        width.min(inner_width.saturating_sub(1))
+        width
     }
 
     fn gutter_for_buffer(
@@ -432,17 +434,12 @@ fn render_menu(frame: &mut Frame<'_>, shell: &UiShell, menu: &MenuBar, area: Tui
 }
 
 fn render_status(frame: &mut Frame<'_>, shell: &UiShell, status: &StatusBar, area: TuiRect) {
-    let mut text = status.left.clone();
-    let right = &status.right;
-    let width = area.width as usize;
-
-    if width > text.len() + right.len() {
-        text.push_str(&" ".repeat(width - text.len() - right.len()));
-        text.push_str(right);
-    } else if width > text.len() {
-        text.push(' ');
-        text.push_str(right);
-    }
+    let text = status_text_for_width(
+        &status.left,
+        &status.right,
+        area.width as usize,
+        shell.glyphs.indicators.truncation,
+    );
 
     frame.render_widget(
         Paragraph::new(text).style(to_ratatui_style(shell.theme.palette.status_bar)),
@@ -586,6 +583,57 @@ fn decimal_digits(mut value: usize) -> usize {
     digits
 }
 
+fn display_width(text: &str) -> usize {
+    UnicodeWidthStr::width(text)
+}
+
+fn fit_text_to_width(text: &str, max_width: usize, truncation: char) -> String {
+    if max_width == 0 {
+        return String::new();
+    }
+    if display_width(text) <= max_width {
+        return text.to_string();
+    }
+
+    let truncation_width = UnicodeWidthChar::width(truncation).unwrap_or(1);
+    if truncation_width > max_width {
+        return String::new();
+    }
+
+    let body_width = max_width - truncation_width;
+    let mut out = String::new();
+    let mut width = 0;
+    for ch in text.chars() {
+        let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if width + ch_width > body_width {
+            break;
+        }
+        out.push(ch);
+        width += ch_width;
+    }
+    out.push(truncation);
+    out
+}
+
+fn status_text_for_width(left: &str, right: &str, width: usize, truncation: char) -> String {
+    if width == 0 {
+        return String::new();
+    }
+
+    let right_width = display_width(right);
+    if !right.is_empty() && width >= right_width.saturating_add(2) {
+        let left_width = width - right_width - 1;
+        let left = fit_text_to_width(left, left_width, truncation);
+        let gap = width.saturating_sub(display_width(&left).saturating_add(right_width));
+        let mut out = left;
+        out.push_str(&" ".repeat(gap));
+        out.push_str(right);
+        return out;
+    }
+
+    fit_text_to_width(left, width, truncation)
+}
+
 fn render_border(buffer: &mut Buffer, area: TuiRect, glyphs: BorderGlyphs, style: Style) {
     if area.width == 0 || area.height == 0 {
         return;
@@ -640,6 +688,21 @@ fn render_window_title(frame: &mut Buffer, shell: &UiShell, window: &UiWindow, a
         return;
     }
 
+    let max_width = area.width.saturating_sub(4) as usize;
+    let title = window_title_for_width(shell, window, max_width);
+    if title.is_empty() {
+        return;
+    }
+
+    let style = if window.focused {
+        shell.theme.palette.title_focused
+    } else {
+        shell.theme.palette.title
+    };
+    frame.set_string(area.x + 2, area.y, title, to_ratatui_style(style));
+}
+
+fn window_title_for_width(shell: &UiShell, window: &UiWindow, max_width: usize) -> String {
     let mut title = String::new();
     title.push(' ');
     if window.focused {
@@ -661,18 +724,7 @@ fn render_window_title(frame: &mut Buffer, shell: &UiShell, window: &UiWindow, a
     }
     title.push(' ');
 
-    let max_width = area.width.saturating_sub(4) as usize;
-    if title.chars().count() > max_width {
-        title = title.chars().take(max_width.saturating_sub(1)).collect();
-        title.push(shell.glyphs.indicators.truncation);
-    }
-
-    let style = if window.focused {
-        shell.theme.palette.title_focused
-    } else {
-        shell.theme.palette.title
-    };
-    frame.set_string(area.x + 2, area.y, title, to_ratatui_style(style));
+    fit_text_to_width(&title, max_width, shell.glyphs.indicators.truncation)
 }
 
 fn sanitized_line_to_ratatui<'a>(shell: &UiShell, line: &'a SanitizedLine) -> Line<'a> {
@@ -999,6 +1051,80 @@ mod tests {
     }
 
     #[test]
+    fn narrow_window_omits_wide_gutter_to_keep_body_columns() {
+        let workspace = Workspace::new_untitled();
+        let text = (0..1000).map(|_| "x").collect::<Vec<_>>().join("\n");
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, &text);
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 8, 6),
+            &[buffer_view],
+        );
+
+        assert_eq!(frame.windows[0].gutter_width, 0);
+        assert!(frame.windows[0].gutter.is_empty());
+        assert_eq!(frame.windows[0].body[0].as_plain_text(), "x");
+        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 1, y: 1 }));
+    }
+
+    #[test]
+    fn tiny_windows_have_no_body_gutter_or_cursor() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "hidden");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 4, 2),
+            &[buffer_view],
+        );
+
+        assert!(frame.windows[0].body.is_empty());
+        assert_eq!(frame.windows[0].gutter_width, 0);
+        assert!(frame.windows[0].gutter.is_empty());
+        assert_eq!(frame.windows[0].cursor, None);
+    }
+
+    #[test]
+    fn status_text_is_clipped_by_display_width() {
+        let text = status_text_for_width(
+            "日志服务-error.log*",
+            "Ln 100/200 Col 42 | utf-8/256",
+            12,
+            '…',
+        );
+
+        assert!(display_width(&text) <= 12);
+        assert_eq!(text.chars().last(), Some('…'));
+
+        let text = status_text_for_width("file", "Ln 1", 12, '…');
+
+        assert_eq!(display_width(&text), 12);
+        assert!(text.starts_with("file"));
+        assert!(text.ends_with("Ln 1"));
+    }
+
+    #[test]
+    fn window_title_is_clipped_by_display_width() {
+        let mut workspace = Workspace::new_untitled();
+        workspace.window_mut(WindowId(1)).unwrap().title = "日志服务-error.log".to_string();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
+
+        let title = window_title_for_width(&shell, &frame.windows[0], 8);
+
+        assert!(display_width(&title) <= 8);
+        assert_eq!(
+            title.chars().last(),
+            Some(shell.glyphs.indicators.truncation)
+        );
+    }
+
+    #[test]
     fn frame_uses_tiled_workspace_rectangles() {
         let mut workspace = Workspace::new_untitled();
         workspace.split_focused(Axis::Horizontal).unwrap();
@@ -1093,6 +1219,26 @@ mod tests {
         let ui_frame =
             shell.frame_for_workspace(&workspace, Rect::new(0, 0, 60, 8), &[buffer_view]);
         let backend = TestBackend::new(60, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+    }
+
+    #[test]
+    fn ratatui_renderer_draws_tiny_tiled_frame_without_panicking() {
+        let mut workspace = Workspace::new_untitled();
+        workspace.split_focused(Axis::Horizontal).unwrap();
+        let first = TextBuffer::from_text_with_kind(BufferKind::Untitled, "left");
+        let second = TextBuffer::from_text_with_kind(BufferKind::Untitled, "right");
+        let buffers = [
+            BufferView::new(BufferId(1), &first),
+            BufferView::new(BufferId(2), &second),
+        ];
+        let shell = UiShell::default();
+        let ui_frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 8, 2), &buffers);
+        let backend = TestBackend::new(8, 4);
         let mut terminal = Terminal::new(backend).unwrap();
 
         terminal
