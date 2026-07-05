@@ -261,6 +261,10 @@ Every feature must remain keyboard accessible.
 
 Paste policy:
 
+- Cut, Copy, and command Paste use a process-local internal clipboard only;
+  they must not read or write the OS clipboard;
+- internal clipboard Paste enters through the same edit transaction path as
+  normal insertion and can replace an active selection;
 - bracketed paste is enabled only for the TUI session and disabled during
   terminal restoration;
 - paste input must come from a typed terminal event or editor command, never

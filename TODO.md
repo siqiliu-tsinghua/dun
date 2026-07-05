@@ -138,6 +138,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
   dialogs.
 - [x] Add right-click paste status handling without invoking external clipboard
   commands.
+- [x] Implement internal Cut/Copy/Paste baseline for active selections without
+  using the OS clipboard.
 
 ## File and Display Safety
 

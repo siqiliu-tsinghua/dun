@@ -71,6 +71,10 @@ or Option-key terminal settings.
 The command prompt keeps a bounded in-memory history navigated with Up/Down.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
+Cut, Copy, and Paste are implemented with a process-local internal clipboard:
+they operate on the active selection, never invoke the operating system
+clipboard, and still use the normal buffer edit path so read-only buffers
+reject mutation.
 Terminal bracketed paste is enabled during the TUI session and restored on
 exit. Paste text is treated as untrusted input: editor paste goes through the
 normal buffer insertion path, prompt and file-dialog paste is kept single-line

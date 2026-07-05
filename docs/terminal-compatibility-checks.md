@@ -176,6 +176,10 @@ Editing:
 - `Ctrl+P` opens the command prompt, and Up/Down recall command history.
 - Prompt inputs support Left/Right/Home/End/Delete/Backspace at UTF-8 character
   boundaries.
+- Edit menu or command-line ids `edit.copy`, `edit.cut`, and `edit.paste`
+  operate on the process-local internal clipboard. They should copy/cut the
+  active selection and paste through the normal edit path without requiring OS
+  clipboard access.
 - Terminal bracketed paste inserts into editor buffers through the normal edit
   path. In prompts and Open/Save As dialogs, multiline paste is converted to a
   single-line input and does not submit automatically. Right-click paste only

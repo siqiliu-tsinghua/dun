@@ -470,6 +470,7 @@ struct AppState {
     command_history: Vec<String>,
     last_find_query: Option<String>,
     pending_replace_query: Option<String>,
+    kill_ring: Option<String>,
 }
 
 impl AppState {
@@ -520,6 +521,7 @@ impl AppState {
             command_history: Vec::new(),
             last_find_query: None,
             pending_replace_query: None,
+            kill_ring: None,
         }
     }
 
@@ -975,8 +977,16 @@ impl AppState {
                 self.start_prompt(PromptKind::GoToLine, String::new());
                 return;
             }
+            EditCommand::Cut => {
+                self.cut_selection();
+                return;
+            }
+            EditCommand::Copy => {
+                self.copy_selection();
+                return;
+            }
             EditCommand::Paste => {
-                self.set_status("Paste: use terminal paste or right-click paste");
+                self.paste_internal_clipboard();
                 return;
             }
             _ => {}
@@ -1032,6 +1042,89 @@ impl AppState {
             | EditCommand::FindPrevious
             | EditCommand::Replace
             | EditCommand::GoToLine => {}
+        }
+    }
+
+    fn copy_selection(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Copy failed: focused buffer is missing");
+            return;
+        };
+
+        let Some(range) = buffer
+            .buffer
+            .selection_range()
+            .filter(|range| !range.is_empty())
+        else {
+            self.set_status("Copy: no selection");
+            return;
+        };
+
+        match buffer.buffer.text_in_range(range) {
+            Ok(text) => {
+                self.kill_ring = Some(text);
+                self.set_status("Copied selection");
+            }
+            Err(error) => self.set_status(format!("Copy failed: {}", buffer_error_text(error))),
+        }
+    }
+
+    fn cut_selection(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Cut failed: focused buffer is missing");
+            return;
+        };
+
+        if buffer.buffer.is_read_only() {
+            self.set_status("Cut failed: buffer is read-only");
+            return;
+        }
+
+        let Some(range) = buffer
+            .buffer
+            .selection_range()
+            .filter(|range| !range.is_empty())
+        else {
+            self.set_status("Cut: no selection");
+            return;
+        };
+
+        let text = match buffer.buffer.text_in_range(range) {
+            Ok(text) => text,
+            Err(error) => {
+                self.set_status(format!("Cut failed: {}", buffer_error_text(error)));
+                return;
+            }
+        };
+
+        match buffer.buffer.delete_range(range) {
+            Ok(true) => {
+                self.kill_ring = Some(text);
+                self.set_status("Cut selection");
+            }
+            Ok(false) => self.set_status("Cut: no selection"),
+            Err(error) => self.set_status(format!("Cut failed: {}", buffer_error_text(error))),
+        }
+    }
+
+    fn paste_internal_clipboard(&mut self) {
+        let Some(text) = self.kill_ring.clone() else {
+            self.set_status("Paste: internal clipboard empty; use terminal paste");
+            return;
+        };
+        if text.is_empty() {
+            self.set_status("Paste: internal clipboard empty; use terminal paste");
+            return;
+        }
+
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Paste failed: focused buffer is missing");
+            return;
+        };
+
+        match buffer.buffer.insert_str(&text) {
+            Ok(()) => self.set_status("Pasted selection"),
+            Err(error) => self.set_status(format!("Paste failed: {}", buffer_error_text(error))),
         }
     }
 
@@ -4500,6 +4593,18 @@ const HELP_SECTIONS: &[HelpSection] = &[
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::Redo),
                 description: "Redo",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::Cut),
+                description: "Cut selection to internal clipboard",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::Copy),
+                description: "Copy selection to internal clipboard",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::Paste),
+                description: "Paste internal clipboard",
             },
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::SelectAll),
@@ -7994,6 +8099,119 @@ key.app.help = F10
     }
 
     #[test]
+    fn copy_selection_pastes_internal_clipboard_without_mutating_source() {
+        let mut app = app_with_text("abc def");
+        app.buffers[0]
+            .buffer
+            .select(Position::new(0, 0), Position::new(0, 3))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Copy));
+
+        assert_eq!(app.kill_ring.as_deref(), Some("abc"));
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "abc def"
+        );
+        assert_eq!(app.status_message, Some("Copied selection".to_string()));
+
+        app.buffers[0]
+            .buffer
+            .set_cursor(Position::new(0, "abc def".len()))
+            .unwrap();
+        app.handle_command(&EditorCommand::Edit(EditCommand::Paste));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "abc defabc");
+        assert_eq!(state.buffer.selection_range(), None);
+        assert_eq!(app.status_message, Some("Pasted selection".to_string()));
+    }
+
+    #[test]
+    fn cut_selection_removes_text_and_preserves_internal_clipboard() {
+        let mut app = app_with_text("one two");
+        app.buffers[0]
+            .buffer
+            .select(Position::new(0, 4), Position::new(0, 7))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Cut));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(app.kill_ring.as_deref(), Some("two"));
+        assert_eq!(state.buffer.to_text(), "one ");
+        assert_eq!(state.buffer.cursor_position(), Position::new(0, 4));
+        assert_eq!(state.buffer.selection_range(), None);
+        assert_eq!(app.status_message, Some("Cut selection".to_string()));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Undo));
+
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "one two"
+        );
+        assert_eq!(app.kill_ring.as_deref(), Some("two"));
+    }
+
+    #[test]
+    fn internal_paste_replaces_active_selection() {
+        let mut app = app_with_text("abc");
+        app.kill_ring = Some("X".to_string());
+        app.buffers[0]
+            .buffer
+            .select(Position::new(0, 1), Position::new(0, 2))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Paste));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "aXc");
+        assert_eq!(state.buffer.cursor_position(), Position::new(0, 2));
+        assert_eq!(state.buffer.selection_range(), None);
+    }
+
+    #[test]
+    fn cut_copy_and_internal_paste_report_empty_or_read_only_states() {
+        let mut app = app_with_text("abc");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Copy));
+        assert_eq!(app.kill_ring, None);
+        assert_eq!(app.status_message, Some("Copy: no selection".to_string()));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Cut));
+        assert_eq!(app.kill_ring, None);
+        assert_eq!(app.status_message, Some("Cut: no selection".to_string()));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Paste));
+        assert_eq!(
+            app.status_message,
+            Some("Paste: internal clipboard empty; use terminal paste".to_string())
+        );
+
+        app.handle_command(&EditorCommand::App(AppCommand::Help));
+        let help_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+        app.buffer_state_mut(help_buffer_id)
+            .unwrap()
+            .buffer
+            .select(Position::new(0, 0), Position::new(0, 3))
+            .unwrap();
+        app.kill_ring = Some("old".to_string());
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Cut));
+        assert_eq!(app.kill_ring.as_deref(), Some("old"));
+        assert_eq!(
+            app.status_message,
+            Some("Cut failed: buffer is read-only".to_string())
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Paste));
+        assert_eq!(
+            app.status_message,
+            Some("Paste failed: buffer is read-only".to_string())
+        );
+    }
+
+    #[test]
     fn bracketed_paste_inserts_text_into_editor_buffer() {
         let mut app = AppState::new();
 
@@ -8005,14 +8223,14 @@ key.app.help = F10
     }
 
     #[test]
-    fn paste_command_reports_terminal_paste_hint() {
+    fn paste_command_reports_empty_internal_clipboard_hint() {
         let mut app = AppState::new();
 
         app.handle_command(&EditorCommand::Edit(EditCommand::Paste));
 
         assert_eq!(
             app.status_message,
-            Some("Paste: use terminal paste or right-click paste".to_string())
+            Some("Paste: internal clipboard empty; use terminal paste".to_string())
         );
     }
 

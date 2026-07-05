@@ -187,6 +187,11 @@ Current implementation:
   auto-submit prompts, or use OSC 52/external clipboard commands in the
   baseline. Right-click paste only records a status hint and waits for the
   terminal to deliver bracketed paste data.
+- Cut, Copy, and command Paste use a process-local internal clipboard. Copy can
+  read selected text from editable or read-only buffers; Cut and internal Paste
+  still enter through editable buffer operations and reject read-only targets.
+  This internal clipboard does not grant access to the OS clipboard, OSC 52,
+  external commands, files, plugins, processes, or the network.
 - Tests cover OSC title/clipboard/hyperlink payloads, CSI/SGR/clear-screen,
   DCS, graphics escapes, bracketed paste markers, `ESC`, BEL, NUL, DEL, CR,
   backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and final

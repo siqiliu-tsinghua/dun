@@ -412,3 +412,11 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added tests for prompt cursor editing, bracketed paste routing, read-only
   paste rejection, right-click paste status, and file-dialog overlay structure
   fields used by the Microsoft Edit-like modal layout.
+- Added an internal Cut/Copy/Paste baseline in `dun-cli`. The app now keeps a
+  process-local internal clipboard, copies selected text without mutating the
+  buffer, cuts selected text through the normal delete transaction path, and
+  pastes the internal clipboard through the normal insertion path.
+- Internal clipboard behavior rejects empty selections and read-only mutation
+  targets with visible status messages, remains separate from the OS clipboard
+  and OSC 52, and is covered by CLI tests for copy, cut, paste replacement,
+  undo after cut, empty clipboard, and read-only buffers.
