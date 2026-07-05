@@ -138,14 +138,19 @@ Current implementation:
 
 - `dun-core::DisplaySanitizer` converts untrusted text into `DisplaySegment`
   values before UI rendering.
+- `dun-ui` sanitizes pane titles and status fields before final ratatui
+  rendering, so file names, paths, and status/error messages do not bypass the
+  display sanitizer.
 - UTF-8 mode uses Unicode control pictures for C0 controls.
 - ASCII mode uses caret notation and escapes non-ASCII characters as
   `\u{...}`.
 - C1 controls are rendered as visible code point markers.
 - Long-line display work is capped by byte count without splitting a UTF-8
   character.
-- Tests cover OSC-style payloads, `ESC`, BEL, NUL, DEL, CR, backspace, tabs,
-  C1 controls, ASCII fallback, and truncation.
+- Tests cover OSC title/clipboard/hyperlink payloads, CSI/SGR/clear-screen,
+  DCS, graphics escapes, bracketed paste markers, `ESC`, BEL, NUL, DEL, CR,
+  backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and final
+  ratatui `TestBackend` rendering.
 
 ## Future rum Integration Requirements
 

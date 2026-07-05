@@ -117,6 +117,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Implement display sanitizer for C0/C1 controls.
 - [x] Render `ESC`, OSC, BEL, NUL, DEL, CR, and backspace visibly.
 - [x] Add tests for terminal-injection payloads.
+- [x] Add control-byte rendering audit suite for buffer text and UI chrome.
 - [x] Cap display work for very long lines.
 
 ## Terminal Compatibility Testing

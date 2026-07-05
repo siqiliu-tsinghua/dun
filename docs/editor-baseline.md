@@ -164,6 +164,10 @@ The first sanitizer emits display segments rather than raw strings:
 - OSC payloads become visible text because `ESC` and `BEL` are replaced;
 - long lines are capped without splitting UTF-8 characters.
 
+The UI layer also sanitizes pane titles and status fields before rendering.
+This keeps file names, paths, prompt/status text, and error messages from
+becoming terminal control sequences.
+
 ## Keybindings
 
 Keybindings must be configurable from the start.

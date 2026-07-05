@@ -434,12 +434,7 @@ fn render_menu(frame: &mut Frame<'_>, shell: &UiShell, menu: &MenuBar, area: Tui
 }
 
 fn render_status(frame: &mut Frame<'_>, shell: &UiShell, status: &StatusBar, area: TuiRect) {
-    let text = status_text_for_width(
-        &status.left,
-        &status.right,
-        area.width as usize,
-        shell.glyphs.indicators.truncation,
-    );
+    let text = sanitized_status_text_for_width(shell, status, area.width as usize);
 
     frame.render_widget(
         Paragraph::new(text).style(to_ratatui_style(shell.theme.palette.status_bar)),
@@ -634,6 +629,16 @@ fn status_text_for_width(left: &str, right: &str, width: usize, truncation: char
     fit_text_to_width(left, width, truncation)
 }
 
+fn sanitized_status_text_for_width(shell: &UiShell, status: &StatusBar, width: usize) -> String {
+    let left = sanitize_chrome_text(shell, &status.left);
+    let right = sanitize_chrome_text(shell, &status.right);
+    status_text_for_width(&left, &right, width, shell.glyphs.indicators.truncation)
+}
+
+fn sanitize_chrome_text(shell: &UiShell, text: &str) -> String {
+    shell.display_sanitizer.sanitize_line(text).as_plain_text()
+}
+
 fn render_border(buffer: &mut Buffer, area: TuiRect, glyphs: BorderGlyphs, style: Style) {
     if area.width == 0 || area.height == 0 {
         return;
@@ -709,7 +714,7 @@ fn window_title_for_width(shell: &UiShell, window: &UiWindow, max_width: usize) 
         title.push(shell.glyphs.indicators.focused);
         title.push(' ');
     }
-    title.push_str(&window.title);
+    title.push_str(&sanitize_chrome_text(shell, &window.title));
     if window.dirty {
         title.push(' ');
         title.push(shell.glyphs.indicators.dirty);
@@ -908,6 +913,18 @@ mod tests {
 
     use super::*;
 
+    fn assert_no_raw_controls(text: &str) {
+        assert!(
+            !text.chars().any(char::is_control),
+            "raw control text was rendered: {text:?}"
+        );
+        assert!(!text.contains('\x1b'), "raw ESC was rendered: {text:?}");
+        assert!(
+            !text.contains('\u{009b}'),
+            "raw C1 CSI was rendered: {text:?}"
+        );
+    }
+
     #[test]
     fn shell_applies_configured_terminal_fallbacks() {
         let config = Config {
@@ -960,6 +977,60 @@ mod tests {
             }]
         );
         assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 3, y: 1 }));
+    }
+
+    #[test]
+    fn status_chrome_sanitizes_terminal_control_payloads() {
+        let shell = UiShell::default();
+        let status = StatusBar {
+            left: "Opened \x1b]0;owned\x07.log".to_string(),
+            right: "Ln 1 \x1b[31mred\x1b[0m".to_string(),
+            focused_window: WindowId(1),
+        };
+
+        let text = sanitized_status_text_for_width(&shell, &status, 80);
+
+        assert_no_raw_controls(&text);
+        assert!(text.contains("␛]0;owned␇"));
+        assert!(text.contains("␛[31mred␛[0m"));
+    }
+
+    #[test]
+    fn window_title_sanitizes_terminal_control_payloads() {
+        let mut workspace = Workspace::new_untitled();
+        workspace.window_mut(WindowId(1)).unwrap().title = "evil\x1b]0;owned\x07.log".to_string();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
+
+        let title = window_title_for_width(&shell, &frame.windows[0], 40);
+
+        assert_no_raw_controls(&title);
+        assert!(title.contains("evil␛]0;owned␇.log"));
+    }
+
+    #[test]
+    fn ascii_chrome_sanitization_stays_ascii() {
+        let config = Config {
+            terminal: TerminalOverrides {
+                encoding: Some(EncodingProfile::Ascii),
+                colors: Some(ColorProfile::Color16),
+            },
+            ..Config::default()
+        };
+        let shell = UiShell::from_config(&config, TerminalProfile::default());
+        let status = StatusBar {
+            left: "打开 \x1b[2J".to_string(),
+            right: "\u{009b}31m".to_string(),
+            focused_window: WindowId(1),
+        };
+        let text = sanitized_status_text_for_width(&shell, &status, 80);
+
+        assert_no_raw_controls(&text);
+        assert!(text.is_ascii());
+        assert!(text.contains("\\u{6253}\\u{5f00} ^[[2J"));
+        assert!(text.contains("<U+009B>31m"));
     }
 
     #[test]
@@ -1244,5 +1315,40 @@ mod tests {
         terminal
             .draw(|frame| shell.render(frame, &ui_frame))
             .unwrap();
+    }
+
+    #[test]
+    fn ratatui_renderer_does_not_emit_raw_controls_from_untrusted_text() {
+        let mut workspace = Workspace::new_untitled();
+        workspace.window_mut(WindowId(1)).unwrap().title = "title\x1b]0;owned\x07".to_string();
+        let buffer = TextBuffer::from_text_with_kind(
+            BufferKind::Untitled,
+            "body\x1b[31mred\x1b[0m\n\u{009b}clear",
+        );
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let mut ui_frame =
+            shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 8), &[buffer_view]);
+        ui_frame.status.left = "Opened \x1b]52;c;SGVsbG8=\x07".to_string();
+        ui_frame.status.right = "Ln \x1b[2J".to_string();
+        let backend = TestBackend::new(80, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert_no_raw_controls(&rendered);
+        assert!(rendered.contains("␛]0;owned␇"));
+        assert!(rendered.contains("␛[31mred␛[0m"));
+        assert!(rendered.contains("<U+009B>clear"));
+        assert!(rendered.contains("␛]52;c;SGVsbG8=␇"));
     }
 }

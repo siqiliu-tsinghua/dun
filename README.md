@@ -33,6 +33,8 @@ dirty/read-only markers, and status fields for position, total lines,
 selection, line ending, terminal profile, and focused window index.
 On narrow panes, the gutter is dropped before it consumes the editable body,
 and pane titles/status fields are clipped by terminal display width.
+Buffer text, pane titles, and status fields are sanitized before rendering so
+file content and file names cannot emit terminal control sequences.
 By default, `F1` opens a read-only Help window with the active configured key
 reference, and `F2` opens a read-only Status History window with recent status
 and error messages. `F5` reloads the active configuration without restarting

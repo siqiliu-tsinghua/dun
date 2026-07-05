@@ -180,8 +180,85 @@ fn truncation_marker(ascii_only: bool) -> String {
 mod tests {
     use super::*;
 
+    struct ControlPayload {
+        name: &'static str,
+        text: String,
+    }
+
     fn plain(line: SanitizedLine) -> String {
         line.as_plain_text()
+    }
+
+    fn control_payloads() -> Vec<ControlPayload> {
+        vec![
+            ControlPayload {
+                name: "ansi_sgr",
+                text: "\x1b[31mred\x1b[0m".to_string(),
+            },
+            ControlPayload {
+                name: "ansi_clear_screen",
+                text: "\x1b[2J\x1b[Hclear".to_string(),
+            },
+            ControlPayload {
+                name: "osc_title",
+                text: "\x1b]0;owned\x07title".to_string(),
+            },
+            ControlPayload {
+                name: "osc_clipboard",
+                text: "\x1b]52;c;SGVsbG8=\x07clipboard".to_string(),
+            },
+            ControlPayload {
+                name: "osc_hyperlink",
+                text: "\x1b]8;;https://example.invalid\x07link\x1b]8;;\x07".to_string(),
+            },
+            ControlPayload {
+                name: "dcs",
+                text: "\x1bPqpayload\x1b\\".to_string(),
+            },
+            ControlPayload {
+                name: "kitty_graphics",
+                text: "\x1b_Ga=T,f=100;AAAA\x1b\\".to_string(),
+            },
+            ControlPayload {
+                name: "bracketed_paste",
+                text: "\x1b[200~paste\x1b[201~".to_string(),
+            },
+            ControlPayload {
+                name: "carriage_return_backspace",
+                text: "safe\roverwrite\x08\x08".to_string(),
+            },
+            ControlPayload {
+                name: "nul_del_tab",
+                text: "\0null\t tab\x7fdel".to_string(),
+            },
+            ControlPayload {
+                name: "all_c0_controls",
+                text: (0x00..=0x1f).filter_map(char::from_u32).collect::<String>(),
+            },
+            ControlPayload {
+                name: "c1_csi",
+                text: "\u{009b}31mred".to_string(),
+            },
+            ControlPayload {
+                name: "all_c1_controls",
+                text: (0x80..=0x9f).filter_map(char::from_u32).collect::<String>(),
+            },
+        ]
+    }
+
+    fn assert_no_raw_controls(name: &str, output: &str) {
+        assert!(
+            !output.chars().any(char::is_control),
+            "{name} emitted raw control text: {output:?}"
+        );
+        assert!(
+            !output.contains('\x1b'),
+            "{name} emitted raw ESC: {output:?}"
+        );
+        assert!(
+            !output.contains('\u{009b}'),
+            "{name} emitted raw C1 CSI: {output:?}"
+        );
     }
 
     #[test]
@@ -238,6 +315,45 @@ mod tests {
 
         assert_eq!(output, "<U+009B>31m");
         assert!(!output.chars().any(char::is_control));
+    }
+
+    #[test]
+    fn terminal_control_payloads_are_neutralized_in_utf8_mode() {
+        let sanitizer = DisplaySanitizer::unlimited_utf8();
+
+        for payload in control_payloads() {
+            let sanitized = sanitizer.sanitize_line(&payload.text);
+            let output = sanitized.as_plain_text();
+
+            assert_no_raw_controls(payload.name, &output);
+            assert!(
+                sanitized.has_non_text_segments(),
+                "{} should be classified as escaped/control text",
+                payload.name
+            );
+        }
+    }
+
+    #[test]
+    fn terminal_control_payloads_are_neutralized_in_ascii_mode() {
+        let sanitizer = DisplaySanitizer::unlimited_ascii();
+
+        for payload in control_payloads() {
+            let sanitized = sanitizer.sanitize_line(&payload.text);
+            let output = sanitized.as_plain_text();
+
+            assert_no_raw_controls(payload.name, &output);
+            assert!(
+                output.is_ascii(),
+                "{} emitted non-ASCII fallback text: {output:?}",
+                payload.name
+            );
+            assert!(
+                sanitized.has_non_text_segments(),
+                "{} should be classified as escaped/control text",
+                payload.name
+            );
+        }
     }
 
     #[test]

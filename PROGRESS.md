@@ -301,3 +301,11 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added CLI tests for stale temp cleanup on open, newer recovery temp
   reporting, stale temp cleanup after a successful save, and preservation of a
   pre-existing recovery candidate across Save.
+- Expanded the control-byte rendering security audit suite. `dun-core` now
+  tests a matrix of terminal-control payloads including CSI/SGR, clear-screen,
+  OSC title/clipboard/hyperlink, DCS, graphics escapes, bracketed paste
+  markers, all C0 controls, and all C1 controls in both UTF-8 and ASCII modes.
+- Hardened `dun-ui` chrome rendering by sanitizing pane titles and status
+  fields before final ratatui rendering. Added UI tests for malicious
+  title/status text, ASCII fallback chrome, and final `TestBackend` output with
+  untrusted title/body/status payloads.

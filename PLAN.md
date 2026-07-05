@@ -96,6 +96,7 @@ Goal: safe file round trips and safe terminal display.
 - [x] Implement display sanitizer for ASCII controls and terminal escapes.
 - [x] Add tests for `ESC`, OSC, BEL, NUL, DEL, CR, backspace, tabs, and long
   lines.
+- [x] Add a control-byte rendering audit suite for buffer text and UI chrome.
 
 Primary crates: `dun-core`, `dun-cli`, later `dun-ui`.
 
@@ -212,4 +213,5 @@ release-facing host API.
 - [ ] Non-UTF-8 file strategy.
 - [ ] External SSH and low-capability terminal test matrix before release.
 - [x] Large-file performance baselines.
-- [ ] Security audit suite for control-byte rendering and plugin policy.
+- [x] Security audit suite for control-byte rendering.
+- [ ] Security audit suite for plugin policy after plugin APIs exist.
