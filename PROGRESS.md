@@ -320,3 +320,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   tagged as `EscapedBytes`.
 - CLI buffer state now tracks file-text encoding, shows escaped-byte fallback
   state in buffer/status fields, and treats only UTF-8 buffers as save-safe.
+- Defined the external SSH and low-capability terminal release matrix. The
+  matrix now covers local PTY, direct SSH, tmux, screen, VT100/C locale, mono,
+  small terminal, and KVM/ASCII-style cases with a result-record template and
+  low-capability pass criteria.

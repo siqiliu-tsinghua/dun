@@ -165,6 +165,9 @@ Current implementation:
   DCS, graphics escapes, bracketed paste markers, `ESC`, BEL, NUL, DEL, CR,
   backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and final
   ratatui `TestBackend` rendering.
+- The external SSH and low-capability terminal release matrix is documented in
+  `docs/terminal-compatibility-checks.md`; release candidates must record real
+  external host results separately from local PTY automation.
 
 ## Future rum Integration Requirements
 
@@ -193,6 +196,7 @@ Add tests for:
 - buffer text containing `ESC`, OSC, BEL, NUL, DEL, CR, and backspace;
 - save behavior for lossy/fallback opened files;
 - large-file threshold behavior;
+- external SSH and low-capability terminal release matrix results;
 - plugin timeout;
 - plugin cancellation;
 - plugin crash or runtime failure;

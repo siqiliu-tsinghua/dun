@@ -213,7 +213,8 @@ release-facing host API.
 - [x] Crash recovery paths.
 - [x] Corrupt file handling.
 - [x] Non-UTF-8 file strategy.
-- [ ] External SSH and low-capability terminal test matrix before release.
+- [x] Define external SSH and low-capability terminal test matrix.
+- [ ] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
 - [x] Security audit suite for control-byte rendering.
 - [ ] Security audit suite for plugin policy after plugin APIs exist.

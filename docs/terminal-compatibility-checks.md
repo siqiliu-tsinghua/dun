@@ -15,9 +15,10 @@ The first editor baseline targets:
 - VT100-like, ASCII, and 16-color fallback modes;
 - keyboard-first operation without mouse support.
 
-This checklist is not a release certification matrix yet. Before a tagged
-release, repeat it on real external SSH hosts and record failures as TODO
-items or regression tests.
+This document is the release terminal matrix source of truth. Automated PTY
+tests cover local regressions, but tagged releases still need a manual pass on
+real external SSH hosts because terminal emulators, multiplexers, locales, and
+KVM devices can disagree about the same key names and glyph capabilities.
 
 ## Automated Baseline
 
@@ -38,22 +39,53 @@ It fixes the PTY size to `80x24`, sends `Ctrl+Q`, and checks startup/exit under:
 If `expect(1)` is not installed, the test exits successfully after printing a
 skip message. Full workspace tests still run normally.
 
-## Manual Matrix
+## Release Matrix
 
-Run the checklist below in these environments when available:
+Before a tagged release, run the checklist below against each applicable case
+and record the result in the release notes or a linked issue.
 
 ```text
-local terminal             TERM=xterm-256color       UTF-8 locale
-ssh direct                 TERM=xterm-256color       UTF-8 locale
-ssh inside tmux            TERM=screen-256color      UTF-8 locale
-ssh inside screen          TERM=screen               UTF-8 locale
-forced low capability      TERM=vt100                LC_CTYPE=C
-forced mono                NO_COLOR=1                UTF-8 locale
+ID              environment          command profile
+AUTO-PTY        local PTY             cargo test -p dun-cli --test pty_smoke
+LOCAL-UTF8      local terminal        TERM=xterm-256color, UTF-8 locale
+LOCAL-MONO      local terminal        NO_COLOR=1, UTF-8 locale
+LOCAL-VT100     local terminal        TERM=vt100, LANG=C, LC_CTYPE=C
+SSH-UTF8        ssh direct            TERM=xterm-256color, UTF-8 locale
+SSH-TMUX        ssh inside tmux       TERM=screen-256color, UTF-8 locale
+SSH-SCREEN      ssh inside screen     TERM=screen, UTF-8 locale
+SSH-VT100       ssh direct            TERM=vt100, LANG=C, LC_CTYPE=C
+SSH-MONO        ssh direct            NO_COLOR=1, UTF-8 locale
+SSH-SMALL       ssh direct            40x12 and 80x24 terminal sizes
+KVM-ASCII       server console/KVM    ASCII or C locale, no mouse assumption
 ```
 
 The current workspace does not provide an external SSH host. Current coverage is
-therefore the automated PTY baseline plus local command execution. The external
-SSH matrix remains a release-hardening task.
+therefore the automated PTY baseline plus local command execution. External
+results must be gathered before a tagged release.
+
+## Result Record
+
+Use this compact record for each manual run:
+
+```text
+date:
+dun commit:
+case ID:
+local terminal:
+remote OS:
+ssh path:
+multiplexer:
+TERM:
+LANG:
+LC_CTYPE:
+NO_COLOR:
+stty size:
+result: pass | fail | blocked
+notes:
+```
+
+Failures should be converted into either a focused regression test or a TODO
+entry with the exact terminal, locale, and key sequence that failed.
 
 ## Setup
 
@@ -67,6 +99,8 @@ Create a small file for open/save checks:
 
 ```text
 printf 'alpha\nbeta\n' > /tmp/dun-terminal-smoke.txt
+printf 'safe\033]0;owned\a\n\033[31mred?\033[0m\n' > /tmp/dun-terminal-escape.txt
+printf 'ok\377\n' > /tmp/dun-terminal-invalid.bin
 ```
 
 Run either the local binary or an installed `dun`:
@@ -74,12 +108,15 @@ Run either the local binary or an installed `dun`:
 ```text
 ./target/debug/dun
 ./target/debug/dun /tmp/dun-terminal-smoke.txt
+./target/debug/dun /tmp/dun-terminal-escape.txt
+./target/debug/dun /tmp/dun-terminal-invalid.bin
 TERM=vt100 LC_CTYPE=C ./target/debug/dun /tmp/dun-terminal-smoke.txt
 NO_COLOR=1 ./target/debug/dun /tmp/dun-terminal-smoke.txt
 ```
 
 Over SSH, use the same commands after copying or installing the binary on the
-remote host.
+remote host. For size-sensitive checks, resize the terminal manually or use the
+multiplexer's resize controls before launching `dun`.
 
 ## Checklist
 
@@ -97,7 +134,11 @@ Visual baseline:
 - The default UTF-8/256-color case uses Microsoft Edit-like colors.
 - UTF-8 profiles use single-line Unicode borders.
 - VT100/ASCII fallback uses `+`, `-`, and `|` borders.
+- Mono fallback remains readable without relying on color differences.
+- Narrow terminals clip status/title text without overlap.
 - No raw file controls or escape payloads execute in the terminal.
+- Non-UTF-8 files open read-only with escaped bytes visible in the buffer and
+  status fields.
 
 Editing:
 
@@ -125,6 +166,17 @@ Tiling:
 - Resize bindings work where the terminal sends `Alt+Shift+Arrow`.
 - `Ctrl+W,C` collapses or expands the focused pane.
 - `Ctrl+W,X` closes the focused pane without leaking stale buffer state.
+
+Low-capability expectations:
+
+- If `Alt+Arrow` or `Alt+Shift+Arrow` is not delivered by a terminal or KVM,
+  the failure is recorded as a keybinding compatibility note, not an editor
+  state failure.
+- Mouse support is not required for passing the matrix.
+- ASCII/VT100 cases must remain keyboard usable even if colors are reduced or
+  absent.
+- UTF-8 text is not required to render correctly in `LANG=C`/ASCII cases, but
+  the UI must not emit broken terminal controls or panic.
 
 Pass criteria:
 

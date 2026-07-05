@@ -50,6 +50,9 @@ for actions such as `help`, `config`, `reload-config`, `theme`, `open`,
 The command prompt keeps a bounded in-memory history navigated with Up/Down.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
+The external SSH and low-capability terminal release matrix is documented in
+[docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
+external host results still need to be recorded before a tagged release.
 
 ## CLI Usage
 

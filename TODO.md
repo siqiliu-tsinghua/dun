@@ -126,6 +126,9 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 - [x] Add PTY smoke tests for common SSH-style terminal profiles.
 - [x] Document manual SSH terminal checks and current-environment verification.
+- [x] Define the external SSH and low-capability terminal release matrix.
+- [ ] Run the external SSH and low-capability terminal release matrix before
+  a tagged release.
 - [ ] Add optional Microsoft Edit reference/differential tests when Dun's
   baseline UI and command behavior are stable enough to compare usefully.
 
@@ -133,8 +136,6 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 - [ ] Mouse selection, right-click paste, and split dragging.
 - [x] Crash recovery and orphaned atomic-save temp-file cleanup.
-- [ ] Repeat the terminal compatibility checklist on external SSH hosts before
-  release.
 - [ ] `rum` configuration evaluation.
 - [ ] `dun-plugin-api`.
 - [ ] `dun-plugin-rum`.
