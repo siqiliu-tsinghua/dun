@@ -62,6 +62,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define typed keybinding schema.
 - [x] Define default keymap.
 - [x] Load config files through Rust-owned parsing.
+- [x] Apply configured command keybindings in the runtime input path.
 - [x] Support multi-stroke key sequence prefix matching.
 - [x] Define theme selection config.
 - [x] Define terminal override config.
@@ -85,6 +86,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Implement replace current/next match baseline.
 - [x] Implement go-to-line prompt.
 - [x] Implement read-only help/key reference window.
+- [x] Generate help/key reference content from the active keymap.
 - [x] Implement status history window.
 - [x] Expand status bar detail fields.
 - [x] Show focused buffer name, dirty state, and line/column status.

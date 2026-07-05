@@ -218,3 +218,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   `$XDG_CONFIG_HOME/dun/config` or `$HOME/.config/dun/config` discovery.
 - Added parser and CLI tests for config overrides, keybinding unbinds,
   duplicate key detection, explicit config loading, and parse-error reporting.
+- Integrated configured command keybindings into the runtime command path:
+  changed bindings replace their defaults, disabled bindings stop dispatching,
+  and startup config conflicts report the config path plus duplicate key text.
+- The Help window now renders its key reference from the active keymap and
+  includes command ids for config editing. `cargo test -p dun-config` and
+  `cargo test -p dun-cli` pass.

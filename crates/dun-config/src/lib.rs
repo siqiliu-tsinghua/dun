@@ -350,6 +350,7 @@ fn key_stroke_text(stroke: &KeyStroke) -> String {
 
 fn key_text(key: Key) -> String {
     match key {
+        Key::Char(ch) if ch.is_ascii_alphabetic() => ch.to_ascii_uppercase().to_string(),
         Key::Char(ch) => ch.to_string(),
         Key::F(number) => format!("F{number}"),
         Key::Enter => "Enter".to_string(),
@@ -531,6 +532,13 @@ impl Keymap {
         self.command_for_sequence(&KeySequence::single(stroke))
     }
 
+    pub fn sequence_for_command(&self, command: &EditorCommand) -> Option<&KeySequence> {
+        self.bindings
+            .iter()
+            .find(|binding| &binding.command == command)
+            .map(|binding| &binding.sequence)
+    }
+
     pub fn has_sequence_prefix(&self, sequence: &KeySequence) -> bool {
         if sequence.strokes.is_empty() {
             return false;
@@ -623,6 +631,12 @@ impl FromStr for KeySequence {
     }
 }
 
+impl fmt::Display for KeySequence {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", key_sequence_text(self))
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct KeyStroke {
     pub key: Key,
@@ -647,6 +661,12 @@ impl FromStr for KeyStroke {
     }
 }
 
+impl fmt::Display for KeyStroke {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", key_stroke_text(self))
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Key {
     Char(char),
@@ -666,6 +686,12 @@ pub enum Key {
     End,
     PageUp,
     PageDown,
+}
+
+impl fmt::Display for Key {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", key_text(*self))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -1093,6 +1119,10 @@ mod tests {
             keymap.command_for_sequence(&KeySequence::from_str("F2").unwrap()),
             Some(&EditorCommand::App(AppCommand::StatusHistory))
         );
+        assert_eq!(
+            keymap.sequence_for_command(&EditorCommand::File(FileCommand::Save)),
+            Some(&sequence)
+        );
     }
 
     #[test]
@@ -1118,6 +1148,18 @@ mod tests {
             Err(KeymapError::DuplicateBinding(
                 KeySequence::from_str("Ctrl+S").unwrap()
             ))
+        );
+    }
+
+    #[test]
+    fn key_sequences_have_stable_display_text() {
+        assert_eq!(
+            KeySequence::from_str("Ctrl+W,H").unwrap().to_string(),
+            "Ctrl+W,H"
+        );
+        assert_eq!(
+            KeySequence::from_str("Alt+Shift+Left").unwrap().to_string(),
+            "Alt+Shift+Left"
         );
     }
 

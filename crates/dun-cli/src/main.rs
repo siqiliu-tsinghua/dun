@@ -16,7 +16,9 @@ use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use dun_config::{Config, Key, KeyModifiers, KeySequence, KeyStroke, Limits, parse_config};
+use dun_config::{
+    Config, Key, KeyModifiers, KeySequence, KeyStroke, Keymap, Limits, command_id, parse_config,
+};
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
     FileCommand, LineEnding, Position, Rect, SearchMatch, TextBuffer, WindowCommand, WindowId,
@@ -800,12 +802,12 @@ impl AppState {
             return;
         };
         let buffer_id = window.buffer_id;
+        let help = BufferState::new(buffer_id, help_buffer(&self.shell.keymap));
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
-            *buffer = BufferState::new(buffer_id, help_buffer());
+            *buffer = help;
         } else {
-            self.buffers
-                .push(BufferState::new(buffer_id, help_buffer()));
+            self.buffers.push(help);
         }
 
         if let Ok(window) = self.workspace.window_mut(window_id) {
@@ -1911,61 +1913,248 @@ fn text_input_from_crossterm(event: CrosstermKeyEvent) -> Option<char> {
     }
 }
 
-fn help_buffer() -> TextBuffer {
-    TextBuffer::from_text_with_kind(BufferKind::ReadOnly, HELP_TEXT)
+fn help_buffer(keymap: &Keymap) -> TextBuffer {
+    let text = help_text(keymap);
+    TextBuffer::from_text_with_kind(BufferKind::ReadOnly, &text)
 }
+
+fn help_text(keymap: &Keymap) -> String {
+    let mut out = String::from("Dun Help\n\n");
+
+    for (index, section) in HELP_SECTIONS.iter().enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        out.push_str(section.title);
+        out.push('\n');
+
+        for command in section.commands {
+            push_help_command(&mut out, keymap, &command.command, command.description);
+        }
+    }
+
+    out.push_str(
+        "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n\n",
+    );
+    out.push_str(
+        "Notes\n  Help opens as a read-only tiled window.\n  Dirty buffers ask for confirmation before changes are discarded.\n",
+    );
+
+    out
+}
+
+fn push_help_command(
+    out: &mut String,
+    keymap: &Keymap,
+    command: &EditorCommand,
+    description: &str,
+) {
+    let sequence = keymap
+        .sequence_for_command(command)
+        .map(ToString::to_string)
+        .unwrap_or_else(|| "(unbound)".to_string());
+    out.push_str(&format!(
+        "  {sequence:<15} {description} [{}]\n",
+        command_id(command)
+    ));
+}
+
+struct HelpSection {
+    title: &'static str,
+    commands: &'static [HelpCommand],
+}
+
+struct HelpCommand {
+    command: EditorCommand,
+    description: &'static str,
+}
+
+const HELP_SECTIONS: &[HelpSection] = &[
+    HelpSection {
+        title: "App",
+        commands: &[
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::Help),
+                description: "Help",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::StatusHistory),
+                description: "Status history",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandLine),
+                description: "Command line",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::Quit),
+                description: "Quit",
+            },
+        ],
+    },
+    HelpSection {
+        title: "File",
+        commands: &[
+            HelpCommand {
+                command: EditorCommand::File(FileCommand::New),
+                description: "New untitled buffer",
+            },
+            HelpCommand {
+                command: EditorCommand::File(FileCommand::Open),
+                description: "Open file",
+            },
+            HelpCommand {
+                command: EditorCommand::File(FileCommand::Save),
+                description: "Save",
+            },
+            HelpCommand {
+                command: EditorCommand::File(FileCommand::SaveAs),
+                description: "Save as",
+            },
+            HelpCommand {
+                command: EditorCommand::File(FileCommand::Close),
+                description: "Close focused file/window",
+            },
+        ],
+    },
+    HelpSection {
+        title: "Edit",
+        commands: &[
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveLeft),
+                description: "Move left",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveRight),
+                description: "Move right",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveUp),
+                description: "Move up",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveDown),
+                description: "Move down",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveLineStart),
+                description: "Move to line start",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveLineEnd),
+                description: "Move to line end",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::InsertNewline),
+                description: "Insert newline",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::DeleteBackward),
+                description: "Delete backward",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::DeleteForward),
+                description: "Delete forward",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::Undo),
+                description: "Undo",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::Redo),
+                description: "Redo",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::SelectAll),
+                description: "Select all",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::Find),
+                description: "Find",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::FindNext),
+                description: "Find next",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::FindPrevious),
+                description: "Find previous",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::Replace),
+                description: "Replace current or next match",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::GoToLine),
+                description: "Go to line",
+            },
+        ],
+    },
+    HelpSection {
+        title: "Windows",
+        commands: &[
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::SplitHorizontal),
+                description: "Split horizontally",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::SplitVertical),
+                description: "Split vertically",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::FocusLeft),
+                description: "Focus left",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::FocusRight),
+                description: "Focus right",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::FocusUp),
+                description: "Focus up",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::FocusDown),
+                description: "Focus down",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::ResizeLeft),
+                description: "Resize left",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::ResizeRight),
+                description: "Resize right",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::ResizeUp),
+                description: "Resize up",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::ResizeDown),
+                description: "Resize down",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::Equalize),
+                description: "Equalize splits",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::RotateSplit),
+                description: "Rotate focused split",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::ToggleCollapse),
+                description: "Collapse or expand focused pane",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::Close),
+                description: "Close focused window",
+            },
+        ],
+    },
+];
 
 fn status_history_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
 }
-
-const HELP_TEXT: &str = "\
-Dun Help
-
-File
-  F2              Status history
-  Ctrl+N          New untitled buffer
-  Ctrl+O          Open file
-  Ctrl+S          Save
-  Ctrl+Shift+S    Save As
-  Ctrl+W,Q        Close focused window
-  Ctrl+Q          Quit
-
-Edit
-  Arrow keys      Move cursor
-  Home / End      Move to line start / end
-  Enter           Insert newline
-  Backspace       Delete backward
-  Delete          Delete forward
-  Ctrl+Z          Undo
-  Ctrl+Y          Redo
-  Ctrl+A          Select all
-  Ctrl+F          Find
-  F3              Find next
-  Shift+F3        Find previous
-  Ctrl+R          Replace current or next match
-  Ctrl+G          Go to line
-
-Windows
-  Ctrl+W,H        Split horizontally
-  Ctrl+W,V        Split vertically
-  Alt+Arrows      Focus neighboring pane
-  Alt+Shift+Arrows Resize focused split
-  Ctrl+W,=        Equalize splits
-  Ctrl+W,R        Rotate focused split
-  Ctrl+W,C        Collapse or expand focused pane
-  Ctrl+W,X        Close focused window
-
-Prompts
-  Enter           Submit prompt
-  Esc             Cancel prompt
-  Backspace       Edit prompt input
-
-Notes
-  Help opens as a read-only tiled window.
-  Close this window with Ctrl+W,X or Ctrl+W,Q.
-  Dirty buffers ask for confirmation before changes are discarded.
-";
 
 fn buffer_end_position(buffer: &TextBuffer) -> Position {
     let last_line = buffer.line_count().saturating_sub(1);
@@ -2267,6 +2456,20 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn load_startup_config_reports_keybinding_conflicts_with_path() {
+        let path = temp_file_path("conflicting-dun-config");
+        std::fs::write(&path, "key.app.quit = Ctrl+S").unwrap();
+
+        let error = load_startup_config(Some(&path), false).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains(path.to_string_lossy().as_ref()));
+        assert!(error.to_string().contains("duplicate key sequence"));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn translates_ctrl_q_to_config_key_stroke() {
         let event =
             CrosstermKeyEvent::new(CrosstermKeyCode::Char('q'), CrosstermKeyModifiers::CONTROL);
@@ -2385,6 +2588,68 @@ key.app.quit = Esc
             app.workspace.focused_window().unwrap().kind,
             WindowKind::Help
         );
+    }
+
+    #[test]
+    fn configured_help_binding_replaces_default_runtime_binding() {
+        let config = parse_config("key.app.help = F10").unwrap();
+        let mut app = AppState::from_config(config);
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.workspace.window_count(), 1);
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(10), CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.workspace.window_count(), 2);
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Help
+        );
+    }
+
+    #[test]
+    fn configured_disabled_keybinding_is_not_dispatched() {
+        let config = parse_config("key.app.help = none").unwrap();
+        let mut app = AppState::from_config(config);
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(app.workspace.window_count(), 1);
+    }
+
+    #[test]
+    fn help_screen_lists_configured_keybindings() {
+        let config = parse_config(
+            "\
+key.app.help = F10
+key.edit.go_to_line = F9
+key.window.close = none
+",
+        )
+        .unwrap();
+        let mut app = AppState::from_config(config);
+
+        app.handle_command(&EditorCommand::App(AppCommand::Help));
+
+        let help_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+        let text = app.buffer_state(help_buffer_id).unwrap().buffer.to_text();
+        assert!(text.contains("F10"));
+        assert!(text.contains("Help [app.help]"));
+        assert!(text.contains("F9"));
+        assert!(text.contains("Go to line [edit.go_to_line]"));
+        assert!(text.contains("(unbound)"));
+        assert!(text.contains("Close focused window [window.close]"));
+        assert!(!text.contains("Ctrl+G"));
     }
 
     #[test]

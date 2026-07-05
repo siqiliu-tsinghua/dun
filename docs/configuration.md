@@ -50,6 +50,9 @@ key.edit.find = none
 
 Changing a command binding removes that command's default binding first. If the
 new key sequence conflicts with another command, config validation fails.
+The runtime input path and the in-editor Help window both use the active
+keymap, so custom bindings and unbound commands are reflected immediately on
+startup.
 
 ## Example
 
