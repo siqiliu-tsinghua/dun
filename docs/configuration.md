@@ -104,9 +104,12 @@ Default editor movement also includes PageUp/PageDown for visible-page
 movement, `Shift+PageUp/PageDown` for visible-page selection,
 `Ctrl+W,[`/`Ctrl+W,]` for explicit horizontal viewport scrolling,
 `Ctrl+Left/Right` for word movement, `Ctrl+Shift+Left/Right` for word
-selection, and `Ctrl+Backspace/Delete` for word deletion. These are ordinary
-command bindings and can be remapped or disabled like other `key.edit.*`
-entries.
+selection, `Ctrl+Backspace/Delete` for word deletion, and `Ctrl+L` for
+selecting the current line. These are ordinary command bindings and can be
+remapped or disabled like other `key.edit.*` entries.
+
+Find and Replace prompts accept search prefixes before the query: `/i query`
+for ignore-case, `/w query` for whole-word, and `/iw query` for both.
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window

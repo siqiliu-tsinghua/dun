@@ -23,6 +23,7 @@ pub enum EditCommand {
     Copy,
     Paste,
     SelectAll,
+    SelectLine,
     MoveLeft,
     MoveRight,
     MoveUp,

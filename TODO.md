@@ -163,6 +163,12 @@ items belong in [PROGRESS.md](./PROGRESS.md).
   is enabled.
 - [x] Add horizontal viewport edge indicators and ratatui visual smoke tests
   for viewport polish.
+- [x] Add current-line selection command and keyboard binding.
+- [x] Add ignore-case and whole-word search prefixes for Find and Replace.
+- [x] Add mouse selection edge scrolling.
+- [x] Add file-dialog overwrite confirmation, inline error retention, and
+  session recent-directory reuse.
+- [x] Add stable ratatui text snapshot coverage for baseline UI layout.
 
 ## File and Display Safety
 

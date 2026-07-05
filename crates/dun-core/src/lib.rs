@@ -8,7 +8,7 @@ pub mod workspace;
 
 pub use buffer::{
     BufferError, BufferId, BufferKind, Cursor, EditTransaction, LineEnding, Position, SearchMatch,
-    Selection, TextBuffer, TextEdit, TextRange,
+    SearchOptions, Selection, TextBuffer, TextEdit, TextRange,
 };
 pub use command::{AppCommand, EditCommand, EditorCommand, FileCommand, WindowCommand};
 pub use display::{DisplayClass, DisplaySanitizer, DisplaySegment, SanitizedLine};

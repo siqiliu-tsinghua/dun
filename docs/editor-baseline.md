@@ -245,6 +245,7 @@ supports:
   keymap has had the first chance to consume those strokes;
 - PageUp/PageDown visible-page movement, UTF-8-safe word movement/deletion, and
   configurable word-selection and page-selection commands;
+- current-line selection through `edit.select_line`;
 - horizontal scrolling for long lines, keeping the focused cursor visible, plus
   explicit `edit.scroll_left` and `edit.scroll_right` viewport commands;
 - visible Undo/Redo status feedback for successful actions and empty stacks;
@@ -253,10 +254,12 @@ supports:
 The current search/replace baseline is literal string based. Find caches match
 locations per buffer revision, highlights visible matches, reports the active
 match as `[Find n/m]`, previews prompt queries while typing, and supports
-next/previous wraparound. Interactive Replace previews the query, then opens a
-confirmation modal with Replace, Skip, All, and Cancel actions. Command-line
-`replace QUERY TEXT` replaces the current or next match directly, and
-`replace all QUERY TEXT` replaces all literal matches as one undo transaction.
+next/previous wraparound. Find and Replace query input accepts `/i`, `/w`, and
+`/iw` prefixes for ignore-case and whole-word matching. Interactive Replace
+previews the query, then opens a confirmation modal with Replace, Skip, All,
+and Cancel actions. Command-line `replace QUERY TEXT` replaces the current or
+next match directly, and `replace all QUERY TEXT` replaces all literal matches
+as one undo transaction.
 
 ## Mouse
 
@@ -270,6 +273,7 @@ Current mouse baseline:
 - left-clicking an editor body places the cursor at the nearest valid text
   position;
 - dragging in an editor body updates the current text selection;
+- dragging selection to the top or bottom edge scrolls the editor viewport;
 - dragging a tiled split border resizes that split ratio;
 - clicking a top-menu label opens its dropdown;
 - clicking a submenu item dispatches its existing `EditorCommand`;
@@ -313,8 +317,11 @@ Paste policy:
 - Open/Save As file dialogs use Rust-owned directory listing, `..` navigation,
   hidden-file filtering, path-input cursor editing, Tab path completion,
   PageUp/PageDown list navigation, empty/no-match diagnostics, and typed
-  configurable modal keybindings, while all actual open/save file operations
-  still go through the same validated editor file I/O paths;
+  configurable modal keybindings. Dialog errors stay inline for correction,
+  session-local recent-directory reuse seeds the next dialog, and Save As
+  requires a second Enter before overwriting an existing file, while all actual
+  open/save file operations still go through the same validated editor file
+  I/O paths;
 - external clipboard commands and OSC 52 clipboard writes are out of scope for
   the baseline.
 

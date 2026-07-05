@@ -417,12 +417,17 @@ impl UiShell {
         }
 
         let line = buffer.buffer.line(position.line)?;
+        let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
+        if position.column < visible_byte_start {
+            return None;
+        }
+        let body_origin = self.display_column(line, visible_byte_start)?;
         let display_column = self.display_column(line, position.column)?;
-        if display_column < buffer.first_column {
+        if display_column < body_origin {
             return None;
         }
         let display_column = display_column
-            .saturating_sub(buffer.first_column)
+            .saturating_sub(body_origin)
             .min(body_width.saturating_sub(1));
 
         Some(UiCursor {
@@ -495,16 +500,21 @@ impl UiShell {
             return None;
         }
 
-        let first_column = buffer.first_column;
-        let last_column = first_column.saturating_add(body_width);
+        let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
+        if end_column <= visible_byte_start {
+            return None;
+        }
+        let start_column = start_column.max(visible_byte_start);
+        let body_origin = self.display_column(line, visible_byte_start)?;
+        let last_column = body_origin.saturating_add(body_width);
         let start_display = self.display_column(line, start_column)?;
         let end_display = self.display_column(line, end_column)?;
-        if end_display <= first_column || start_display >= last_column {
+        if end_display <= body_origin || start_display >= last_column {
             return None;
         }
 
-        let start_x = start_display.saturating_sub(first_column).min(body_width);
-        let end_x = end_display.saturating_sub(first_column).min(body_width);
+        let start_x = start_display.saturating_sub(body_origin).min(body_width);
+        let end_x = end_display.saturating_sub(body_origin).min(body_width);
         if start_x >= end_x {
             return None;
         }
@@ -567,16 +577,21 @@ impl UiShell {
         index: usize,
     ) -> Option<UiSearchMatchLine> {
         let line = buffer.buffer.line(range.start.line)?;
-        let first_column = buffer.first_column;
-        let last_column = first_column.saturating_add(body_width);
-        let start_display = self.display_column(line, range.start.column)?;
+        let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
+        if range.end.column <= visible_byte_start {
+            return None;
+        }
+        let start_column = range.start.column.max(visible_byte_start);
+        let body_origin = self.display_column(line, visible_byte_start)?;
+        let last_column = body_origin.saturating_add(body_width);
+        let start_display = self.display_column(line, start_column)?;
         let end_display = self.display_column(line, range.end.column)?;
-        if end_display <= first_column || start_display >= last_column {
+        if end_display <= body_origin || start_display >= last_column {
             return None;
         }
 
-        let start_x = start_display.saturating_sub(first_column).min(body_width);
-        let end_x = end_display.saturating_sub(first_column).min(body_width);
+        let start_x = start_display.saturating_sub(body_origin).min(body_width);
+        let end_x = end_display.saturating_sub(body_origin).min(body_width);
         if start_x >= end_x {
             return None;
         }
@@ -666,8 +681,10 @@ impl UiShell {
         {
             let line = buffer.buffer.line(line_index).unwrap_or_default();
             let width = display_width(line);
-            let left = buffer.first_column > 0;
-            let right = width > buffer.first_column.saturating_add(body_width);
+            let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
+            let body_origin = self.display_column(line, visible_byte_start).unwrap_or(0);
+            let left = visible_byte_start > 0;
+            let right = width > body_origin.saturating_add(body_width);
             if left || right {
                 lines.push(UiHorizontalEdgeLine {
                     y: 1 + visible_y as u16,
@@ -803,6 +820,10 @@ impl UiShell {
                         MenuEntry::new(
                             "Select All (A)",
                             EditorCommand::Edit(dun_core::EditCommand::SelectAll),
+                        ),
+                        MenuEntry::new(
+                            "Select Line (L)",
+                            EditorCommand::Edit(dun_core::EditCommand::SelectLine),
                         ),
                         MenuEntry::new(
                             "Find (F)",
@@ -2164,6 +2185,19 @@ mod tests {
 
     use super::*;
 
+    fn terminal_text_snapshot(buffer: &Buffer, width: u16, height: u16) -> String {
+        let mut out = String::new();
+        for y in 0..height {
+            for x in 0..width {
+                out.push_str(buffer[(x, y)].symbol());
+            }
+            if y + 1 < height {
+                out.push('\n');
+            }
+        }
+        out
+    }
+
     fn assert_no_raw_controls(text: &str) {
         assert!(
             !text.chars().any(char::is_control),
@@ -2530,6 +2564,36 @@ mod tests {
     }
 
     #[test]
+    fn frame_keeps_wide_char_horizontal_viewport_on_utf8_boundaries() {
+        let workspace = Workspace::new_untitled();
+        let mut buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "中abc");
+        buffer
+            .select(Position::new(0, 0), Position::new(0, "中".len()))
+            .unwrap();
+        let matches = buffer.find_all("中");
+        let buffer_view =
+            BufferView::scrolled_xy(BufferId(1), &buffer, 0, 1).with_search(&matches, Some(0));
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 10, 4),
+            &[buffer_view],
+        );
+
+        assert_eq!(frame.windows[0].body[0].as_plain_text(), "abc");
+        assert!(frame.windows[0].selection.is_empty());
+        assert!(frame.windows[0].search_matches.is_empty());
+        assert_eq!(
+            frame.windows[0].horizontal_edges,
+            vec![UiHorizontalEdgeLine {
+                y: 1,
+                left: true,
+                right: false,
+            }]
+        );
+    }
+
+    #[test]
     fn frame_reports_vertical_scrollbar_for_scrolled_buffer() {
         let workspace = Workspace::new_untitled();
         let buffer =
@@ -2844,6 +2908,27 @@ mod tests {
         assert!(rendered.contains("File"));
         assert!(rendered.contains("Save As"));
         assert!(rendered.contains("Quit"));
+    }
+
+    #[test]
+    fn ratatui_text_snapshot_covers_menu_window_and_status_layout() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "alpha\nbeta");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let ui_frame =
+            shell.frame_for_workspace(&workspace, Rect::new(0, 0, 40, 6), &[buffer_view]);
+        let backend = TestBackend::new(40, 8);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 40, 8);
+        assert!(snapshot.contains("File"));
+        assert!(snapshot.contains("alpha"));
+        assert!(snapshot.contains("1 window"));
     }
 
     #[test]

@@ -485,3 +485,21 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added horizontal viewport edge indicators for clipped long lines and a
   ratatui `TestBackend` visual smoke test that verifies the edge marker and
   scrollbar thumb are emitted. `cargo test -p dun-ui -p dun-cli` passes.
+- Added selection polish: `edit.select_line` selects the current line including
+  the following separator when possible, defaults to `Ctrl+L`, appears in Help
+  and the Edit menu, and mouse drag selection now scrolls when dragged to a
+  window edge.
+- Added search/replace polish: Find, interactive Replace, and command-line
+  replace accept `/i`, `/w`, and `/iw` search prefixes for ignore-case and
+  whole-word matching. Search caches now preserve these options, and
+  option-aware replace-all remains one undo transaction.
+- Added viewport polish for wide-character horizontal scroll boundaries.
+  Cursor, selection, and search-match mapping now use the actual visible byte
+  start as the body origin, avoiding false highlights when a viewport begins
+  inside a double-width character.
+- Added file-dialog polish: Open/Save As errors stay in the dialog as inline
+  messages, successful dialogs remember the last directory for the session,
+  and Save As requires a second Enter before overwriting an existing file.
+- Added a stable ratatui text snapshot helper and baseline UI layout snapshot
+  coverage. `cargo test -p dun-core -p dun-config -p dun-ui -p dun-cli`
+  passes.

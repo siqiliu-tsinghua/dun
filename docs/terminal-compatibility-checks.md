@@ -171,14 +171,16 @@ Editing:
   path input, `Ctrl+H` toggles hidden files, Enter opens or saves, and Esc
   cancels. Dotfiles are hidden by default unless the typed prefix starts with
   `.`, and `..` is available for parent-directory navigation. File-dialog
-  modal keys can be remapped in config for terminals or KVM paths that do not
-  deliver the defaults.
+  errors should stay inline for correction, and Save As should require a
+  second Enter before overwriting an existing file. Modal keys can be remapped
+  in config for terminals or KVM paths that do not deliver the defaults.
 - `Ctrl+P` opens the command prompt, and Up/Down recall command history.
 - Prompt inputs support Left/Right/Home/End/Delete/Backspace at UTF-8 character
   boundaries.
 - `Shift+Arrow` extends the editor selection by character or line, and
   `Shift+Home`/`Shift+End` extends to the current line edge when those strokes
   are not remapped by the active keymap.
+- `Ctrl+L` selects the current line.
 - PageUp/PageDown move by the visible editor pane height, and
   Shift+PageUp/PageDown extends selection by the same amount when delivered.
 - `Ctrl+Left/Right` move by word, `Ctrl+Backspace/Delete` delete by word, and
@@ -213,12 +215,14 @@ Editing:
 Search and navigation:
 
 - `Ctrl+F` opens Find, previews matches while typing, Enter keeps the
-  previewed match, and Esc restores the prior cursor or selection.
+  previewed match, and Esc restores the prior cursor or selection. Prefixes
+  `/i`, `/w`, and `/iw` enable ignore-case and whole-word matching.
 - `F3` and `Shift+F3` move between matches; all visible matches are
   highlighted and the status fields show the active match count.
 - `Ctrl+R` performs the replace prompt flow, previews the query, and then uses
-  a confirmation modal for Replace, Skip, All, or Cancel. Command prompt
-  `replace all QUERY TEXT` replaces all matches as one undo step.
+  a confirmation modal for Replace, Skip, All, or Cancel. It accepts the same
+  search prefixes as Find. Command prompt `replace all QUERY TEXT` replaces all
+  matches as one undo step.
 - `Ctrl+G` moves to a valid 1-based line number.
 - `F1` opens the key reference window.
 - `F2` opens the status history window.

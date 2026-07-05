@@ -43,26 +43,32 @@ match list, Up/Down and PageUp/PageDown selection, directory navigation, Tab
 path completion, a parent-directory entry, hidden-file filtering with `Ctrl+H`
 toggle, Home/End/Left/Right/Delete path editing, empty/no-match diagnostics,
 and mouse-wheel list scrolling when mouse support is enabled. File-dialog
-modal keys have their own typed config bindings.
+modal keys have their own typed config bindings. Open/Save As errors remain
+inside the dialog for correction, successful dialogs remember the last
+directory for the session, and Save As asks for a second Enter before
+overwriting an existing file.
 Lightweight modal prompts remain available for Find, Replace, and Go To Line
 entry, with Left/Right/Home/End/Delete/Backspace editing at UTF-8 character
 boundaries. Find previews matches while typing, supports next/previous
-navigation and selected match highlighting, and the focused status area reports
-the active match count. Interactive Replace previews the query, then uses a
-confirmation modal for replace, skip, replace-all, or cancel. The command
-prompt still offers direct `replace QUERY TEXT` and `replace all QUERY TEXT`,
-and Go To Line moves the cursor by 1-based line number.
+navigation and selected match highlighting, accepts `/i`, `/w`, and `/iw`
+prefixes for ignore-case and whole-word search, and the focused status area
+reports the active match count. Interactive Replace uses the same search
+prefixes, previews the query, then uses a confirmation modal for replace, skip,
+replace-all, or cancel. The command prompt still offers direct
+`replace QUERY TEXT` and `replace all QUERY TEXT`, and Go To Line moves the
+cursor by 1-based line number.
 The editor surface includes a line-number gutter plus focused buffer name,
 dirty/read-only markers, and status fields for position, total lines,
 selection, active search count, visible scroll range, horizontal scroll offset,
 line ending, file-text encoding, terminal profile, and focused window index.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
-strokes are not consumed by the configured keymap, giving Cut/Copy a pure
-keyboard path without requiring mouse support. PageUp/PageDown move by the
-visible pane height, `Ctrl+Left/Right` move by UTF-8-safe word boundaries,
-`Ctrl+Backspace/Delete` delete by word, and `Ctrl+Shift+Left/Right` extends
-selection by word when the terminal delivers those modifiers. `Shift+PageUp`
-and `Shift+PageDown` extend selection by the visible pane height.
+strokes are not consumed by the configured keymap, and `Ctrl+L` selects the
+current line, giving Cut/Copy a pure keyboard path without requiring mouse
+support. PageUp/PageDown move by the visible pane height, `Ctrl+Left/Right`
+move by UTF-8-safe word boundaries, `Ctrl+Backspace/Delete` delete by word, and
+`Ctrl+Shift+Left/Right` extends selection by word when the terminal delivers
+those modifiers. `Shift+PageUp` and `Shift+PageDown` extend selection by the
+visible pane height.
 Undo groups continuous ordinary character typing and continuous same-direction
 Backspace/Delete runs into transactions, while cursor movement, selection
 changes, replace, newline, paste-like bulk insertion, undo, and redo keep clear
@@ -102,7 +108,8 @@ paste only waits for the terminal to deliver bracketed paste data; `dun` does
 not call external clipboard commands or emit OSC 52 clipboard writes.
 Mouse support is optional and disabled by default; when enabled in config,
 left-clicks can focus tiled windows, place the cursor in an editor body, drag
-text selections, drag split borders, open top-menu dropdowns, and click
+text selections including edge scrolling, drag split borders, open top-menu
+dropdowns, and click
 submenu commands. Mouse wheel events scroll editor panes and file dialog lists,
 right-border scrollbar clicks or drags scroll long editor buffers, and
 terminals that deliver horizontal wheel events can scroll the focused editor

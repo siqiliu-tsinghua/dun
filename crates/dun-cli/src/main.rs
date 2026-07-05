@@ -26,15 +26,15 @@ use dun_config::{
 };
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
-    FileCommand, FileTextEncoding, LineEnding, Position, Rect, SearchMatch, Selection,
-    SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind, Workspace, WorkspaceError,
-    decode_file_text,
+    FileCommand, FileTextEncoding, LineEnding, Position, Rect, SearchMatch, SearchOptions,
+    Selection, SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind, Workspace,
+    WorkspaceError, decode_file_text,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
 use dun_ui::{BufferView, MenuSelection, UiMouseTarget, UiOverlay, UiShell};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 const EXIT_RUNTIME_ERROR: u8 = 1;
 const EXIT_USAGE_ERROR: u8 = 2;
@@ -475,6 +475,7 @@ struct AppState {
     last_find_query: Option<String>,
     pending_replace_query: Option<String>,
     kill_ring: Option<String>,
+    recent_file_dialog_input: Option<String>,
 }
 
 impl AppState {
@@ -527,6 +528,7 @@ impl AppState {
             last_find_query: None,
             pending_replace_query: None,
             kill_ring: None,
+            recent_file_dialog_input: None,
         }
     }
 
@@ -851,8 +853,14 @@ impl AppState {
         if hit.buffer_id != buffer_id {
             return false;
         }
-        let UiMouseTarget::Body(position) = hit.target else {
-            return false;
+        let position = match hit.target {
+            UiMouseTarget::Body(position) => position,
+            UiMouseTarget::Chrome | UiMouseTarget::Gutter | UiMouseTarget::Scrollbar { .. } => {
+                let Some(position) = self.drag_scroll_selection_position(buffer_id, x, y) else {
+                    return false;
+                };
+                position
+            }
         };
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
@@ -862,6 +870,71 @@ impl AppState {
         } else {
             false
         }
+    }
+
+    fn drag_scroll_selection_position(
+        &mut self,
+        buffer_id: BufferId,
+        workspace_x: u16,
+        workspace_y: u16,
+    ) -> Option<Position> {
+        let layout = self
+            .workspace
+            .resolved_layout(self.workspace_area)
+            .into_iter()
+            .find(|layout| {
+                self.workspace
+                    .window(layout.id)
+                    .ok()
+                    .is_some_and(|window| window.buffer_id == buffer_id)
+            })?;
+        if layout.rect.width <= 2 || layout.rect.height <= 2 {
+            return None;
+        }
+
+        let body_height = layout.rect.height.saturating_sub(2) as usize;
+        let body_width = layout.rect.width.saturating_sub(2) as usize;
+        let top = layout.rect.y.saturating_add(1);
+        let bottom = layout
+            .rect
+            .y
+            .saturating_add(layout.rect.height)
+            .saturating_sub(2);
+        let target_line = {
+            let buffer = self.buffer_state_mut(buffer_id)?;
+            if workspace_y <= top {
+                buffer.scroll_view_lines(-1, body_height);
+                buffer.first_line
+            } else if workspace_y >= bottom {
+                buffer.scroll_view_lines(1, body_height);
+                buffer
+                    .first_line
+                    .saturating_add(body_height.saturating_sub(1))
+                    .min(buffer.buffer.line_count().saturating_sub(1))
+            } else {
+                buffer
+                    .first_line
+                    .saturating_add(workspace_y.saturating_sub(top) as usize)
+            }
+        };
+
+        let x = workspace_x
+            .clamp(
+                layout.rect.x.saturating_add(1),
+                layout
+                    .rect
+                    .x
+                    .saturating_add(layout.rect.width)
+                    .saturating_sub(2),
+            )
+            .saturating_sub(layout.rect.x.saturating_add(1)) as usize;
+        let buffer = self.buffer_state(buffer_id)?;
+        let line = buffer.buffer.line(target_line)?;
+        let display_column = buffer
+            .first_column
+            .saturating_add(x.min(body_width.saturating_sub(1)));
+        let column = clamp_to_display_column(line, display_column);
+        Some(Position::new(target_line, column))
     }
 
     fn handle_mouse_scroll(&mut self, screen_x: u16, screen_y: u16, delta: isize) -> bool {
@@ -1078,10 +1151,16 @@ impl AppState {
                 if self.confirm_focused_dirty(PendingAction::OpenPrompt) {
                     return;
                 }
-                self.start_file_dialog(FileDialogKind::Open, String::new());
+                self.start_file_dialog(FileDialogKind::Open, self.default_open_dialog_input());
             }
             FileCommand::SaveAs => {
-                self.start_file_dialog(FileDialogKind::SaveAs, self.focused_path_text());
+                let focused_path = self.focused_path_text();
+                let input = if focused_path.is_empty() {
+                    self.recent_file_dialog_input.clone().unwrap_or_default()
+                } else {
+                    focused_path
+                };
+                self.start_file_dialog(FileDialogKind::SaveAs, input);
             }
             FileCommand::Close => {
                 self.handle_window_command(&WindowCommand::Close);
@@ -1172,6 +1251,9 @@ impl AppState {
             EditCommand::SelectAll => {
                 let end = buffer_end_position(&buffer.buffer);
                 let _ = buffer.buffer.select(Position::zero(), end);
+            }
+            EditCommand::SelectLine => {
+                let _ = buffer.buffer.select_current_line();
             }
             EditCommand::MoveLeft => {
                 buffer.buffer.move_left();
@@ -2098,13 +2180,14 @@ impl AppState {
             return;
         }
 
-        self.preview_find_query(kind, &input, preview.as_ref());
+        let spec = SearchSpec::parse(&input);
+        self.preview_find_query(kind, spec, preview.as_ref());
     }
 
     fn preview_find_query(
         &mut self,
         kind: PromptKind,
-        query: &str,
+        spec: SearchSpec,
         preview: Option<&PromptPreviewState>,
     ) {
         let buffer_id = preview
@@ -2120,11 +2203,14 @@ impl AppState {
             self.status_message = Some(format!("{}focused buffer is missing", kind.name()));
             return;
         };
-        let matches = buffer.buffer.find_all(query);
+        let matches = buffer
+            .buffer
+            .find_all_with_options(&spec.query, spec.options);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
-            buffer.set_search(query.to_string(), matches, None);
-            self.status_message = Some(format!("{}no matches for {query}", kind.label()));
+            buffer.set_search(spec.clone(), matches, None);
+            self.status_message =
+                Some(format!("{}no matches for {}", kind.label(), spec.display()));
             return;
         }
 
@@ -2140,12 +2226,13 @@ impl AppState {
         let selected = matches[selection.index].range;
         let _ = buffer.buffer.select(selected.start, selected.end);
         let match_count = matches.len();
-        buffer.set_search(query.to_string(), matches, Some(selection.index));
+        buffer.set_search(spec.clone(), matches, Some(selection.index));
         self.status_message = Some(format!(
-            "{}{}/{} {query}",
+            "{}{}/{} {}",
             kind.label(),
             selection.index + 1,
-            match_count
+            match_count,
+            spec.display()
         ));
     }
 
@@ -2166,6 +2253,10 @@ impl AppState {
 
     fn start_file_dialog(&mut self, kind: FileDialogKind, initial_input: String) {
         self.start_file_dialog_after(kind, initial_input, None);
+    }
+
+    fn default_open_dialog_input(&self) -> String {
+        self.recent_file_dialog_input.clone().unwrap_or_default()
     }
 
     fn start_file_dialog_after(
@@ -2295,7 +2386,7 @@ impl AppState {
             }
             PendingAction::New => self.reset_focused_to_untitled(),
             PendingAction::OpenPrompt => {
-                self.start_file_dialog(FileDialogKind::Open, String::new())
+                self.start_file_dialog(FileDialogKind::Open, self.default_open_dialog_input())
             }
             PendingAction::CloseWindow => self.close_focused_window_unchecked(),
         }
@@ -2441,19 +2532,36 @@ impl AppState {
             }
             FileDialogSubmit::Path(path) => match dialog.kind {
                 FileDialogKind::Open => {
-                    if let Err(error) = self.open_file_path(path) {
-                        self.set_status(format!("Open failed: {error}"));
+                    if let Err(error) = self.open_file_path(path.clone()) {
+                        let status = format!("Open failed: {error}");
+                        let mut dialog = dialog;
+                        dialog.message = Some(status.clone());
+                        self.file_dialog = Some(dialog);
+                        self.set_status(status);
+                    } else {
+                        self.note_recent_file_dialog_path(&path);
                     }
                 }
                 FileDialogKind::SaveAs => {
-                    if let Err(error) = self.save_focused_buffer_as(path) {
-                        self.set_status(format!("Save As failed: {error}"));
+                    if let Err(error) = self.save_focused_buffer_as(path.clone()) {
+                        let status = format!("Save As failed: {error}");
+                        let mut dialog = dialog;
+                        dialog.message = Some(status.clone());
+                        self.file_dialog = Some(dialog);
+                        self.set_status(status);
                     } else if let Some(action) = dialog.after_success {
+                        self.note_recent_file_dialog_path(&path);
                         self.continue_pending_action(action);
+                    } else {
+                        self.note_recent_file_dialog_path(&path);
                     }
                 }
             },
         }
+    }
+
+    fn note_recent_file_dialog_path(&mut self, path: &Path) {
+        self.recent_file_dialog_input = Some(file_dialog_recent_input_for_path(path));
     }
 
     fn handle_paste(&mut self, text: &str) {
@@ -2644,17 +2752,19 @@ impl AppState {
         match prompt.kind {
             PromptKind::Find => {
                 let input = prompt.input.as_str().trim().to_string();
-                if input.is_empty() {
+                let spec = SearchSpec::parse(&input);
+                if spec.is_empty() {
                     self.set_status(format!("{} cancelled", prompt.kind.name()));
                     return;
                 }
 
                 self.last_find_query = Some(input.clone());
-                self.commit_find_preview(&input);
+                self.commit_find_preview(spec);
             }
             PromptKind::ReplaceFind => {
                 let input = prompt.input.as_str().trim().to_string();
-                if input.is_empty() {
+                let spec = SearchSpec::parse(&input);
+                if spec.is_empty() {
                     self.pending_replace_query = None;
                     self.set_status(format!("{} cancelled", prompt.kind.name()));
                     return;
@@ -2670,7 +2780,10 @@ impl AppState {
                 };
 
                 self.last_find_query = Some(query.clone());
-                self.start_replace_confirmation(query, prompt.input.as_str().to_string());
+                self.start_replace_confirmation(
+                    SearchSpec::parse(&query),
+                    prompt.input.as_str().to_string(),
+                );
             }
             PromptKind::GoToLine => {
                 let input = prompt.input.as_str().trim();
@@ -2694,16 +2807,18 @@ impl AppState {
         }
     }
 
-    fn commit_find_preview(&mut self, query: &str) {
+    fn commit_find_preview(&mut self, spec: SearchSpec) {
         let Some(buffer) = self.focused_buffer_mut() else {
             self.set_status("Find: focused buffer is missing");
             return;
         };
-        let matches = buffer.buffer.find_all(query);
+        let matches = buffer
+            .buffer
+            .find_all_with_options(&spec.query, spec.options);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
-            buffer.set_search(query.to_string(), matches, None);
-            self.set_status(format!("Find: no matches for {query}"));
+            buffer.set_search(spec.clone(), matches, None);
+            self.set_status(format!("Find: no matches for {}", spec.display()));
             return;
         }
 
@@ -2717,16 +2832,17 @@ impl AppState {
         let selected = matches[selection.index].range;
         let _ = buffer.buffer.select(selected.start, selected.end);
         let match_count = matches.len();
-        buffer.set_search(query.to_string(), matches, Some(selection.index));
+        buffer.set_search(spec.clone(), matches, Some(selection.index));
         self.set_status(format!(
-            "Find: {}/{} {query}",
+            "Find: {}/{} {}",
             selection.index + 1,
-            match_count
+            match_count,
+            spec.display()
         ));
     }
 
-    fn start_replace_confirmation(&mut self, query: String, replacement: String) {
-        if query.is_empty() {
+    fn start_replace_confirmation(&mut self, spec: SearchSpec, replacement: String) {
+        if spec.is_empty() {
             self.set_status("Replace: no query");
             return;
         }
@@ -2737,7 +2853,7 @@ impl AppState {
         };
         self.replace_confirm = Some(ReplaceConfirmState {
             buffer_id,
-            query,
+            spec,
             replacement,
             replaced: 0,
             skipped: 0,
@@ -2789,12 +2905,17 @@ impl AppState {
             return false;
         };
 
-        let matches = buffer.buffer.find_all(&confirm.query);
+        let matches = buffer
+            .buffer
+            .find_all_with_options(&confirm.spec.query, confirm.spec.options);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
-            buffer.set_search(confirm.query.clone(), matches, None);
+            buffer.set_search(confirm.spec.clone(), matches, None);
             if confirm.replaced == 0 && confirm.skipped == 0 {
-                self.set_status(format!("Replace: no matches for {}", confirm.query));
+                self.set_status(format!(
+                    "Replace: no matches for {}",
+                    confirm.spec.display()
+                ));
             } else {
                 self.set_status(format!(
                     "Replace done: {} replaced, {} skipped",
@@ -2822,12 +2943,12 @@ impl AppState {
         let selected = matches[selection.index].range;
         let _ = buffer.buffer.select(selected.start, selected.end);
         let match_count = matches.len();
-        buffer.set_search(confirm.query.clone(), matches, Some(selection.index));
+        buffer.set_search(confirm.spec.clone(), matches, Some(selection.index));
         self.status_message = Some(format!(
             "Replace confirm: {}/{} {} -> {}",
             selection.index + 1,
             match_count,
-            confirm.query,
+            confirm.spec.display(),
             replacement_status_text(&confirm.replacement)
         ));
         true
@@ -2844,10 +2965,12 @@ impl AppState {
             return;
         };
 
-        let matches = buffer.buffer.find_all(&confirm.query);
+        let matches = buffer
+            .buffer
+            .find_all_with_options(&confirm.spec.query, confirm.spec.options);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
-            buffer.set_search(confirm.query.clone(), matches, None);
+            buffer.set_search(confirm.spec.clone(), matches, None);
             self.set_status(format!(
                 "Replace done: {} replaced, {} skipped",
                 confirm.replaced, confirm.skipped
@@ -2891,10 +3014,12 @@ impl AppState {
             return;
         };
 
-        let matches = buffer.buffer.find_all(&confirm.query);
+        let matches = buffer
+            .buffer
+            .find_all_with_options(&confirm.spec.query, confirm.spec.options);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
-            buffer.set_search(confirm.query.clone(), matches, None);
+            buffer.set_search(confirm.spec.clone(), matches, None);
             self.replace_confirm = None;
             self.set_status(format!(
                 "Replace done: {} replaced, {} skipped",
@@ -2931,14 +3056,17 @@ impl AppState {
             return;
         };
 
-        match buffer
-            .buffer
-            .replace_all(&confirm.query, &confirm.replacement)
-        {
+        match buffer.buffer.replace_all_with_options(
+            &confirm.spec.query,
+            &confirm.replacement,
+            confirm.spec.options,
+        ) {
             Ok(count) => {
-                let new_matches = buffer.buffer.find_all(&confirm.query);
+                let new_matches = buffer
+                    .buffer
+                    .find_all_with_options(&confirm.spec.query, confirm.spec.options);
                 let remaining = new_matches.len();
-                buffer.set_search(confirm.query.clone(), new_matches, None);
+                buffer.set_search(confirm.spec.clone(), new_matches, None);
                 let total = confirm.replaced + count;
                 let suffix = if remaining == 0 {
                     String::new()
@@ -2947,7 +3075,7 @@ impl AppState {
                 };
                 self.set_status(format!(
                     "Replace All: {total} {} -> {}{suffix}",
-                    confirm.query,
+                    confirm.spec.display(),
                     replacement_status_text(&confirm.replacement)
                 ));
             }
@@ -3097,7 +3225,7 @@ impl AppState {
             [] => self.handle_edit_command(&EditCommand::Find),
             [query] => {
                 self.last_find_query = Some(query.clone());
-                self.find_in_focused_buffer(query, SearchDirection::Forward);
+                self.find_in_focused_buffer(SearchSpec::parse(query), SearchDirection::Forward);
             }
             _ => self.set_status("Command failed: find expects zero or one query"),
         }
@@ -3108,11 +3236,11 @@ impl AppState {
             [] => self.handle_edit_command(&EditCommand::Replace),
             [mode, query, replacement] if normalize_command_line_token(mode) == "all" => {
                 self.last_find_query = Some(query.clone());
-                self.replace_all_in_focused_buffer(query, replacement);
+                self.replace_all_in_focused_buffer(SearchSpec::parse(query), replacement);
             }
             [query, replacement] => {
                 self.last_find_query = Some(query.clone());
-                self.replace_in_focused_buffer(query, replacement);
+                self.replace_in_focused_buffer(SearchSpec::parse(query), replacement);
             }
             _ => self.set_status(
                 "Command failed: replace expects query and replacement, or all query replacement",
@@ -3134,25 +3262,28 @@ impl AppState {
             return;
         };
 
-        if query.is_empty() {
+        let spec = SearchSpec::parse(&query);
+        if spec.is_empty() {
             self.set_status("Find: no query");
             return;
         }
 
-        self.find_in_focused_buffer(&query, direction);
+        self.find_in_focused_buffer(spec, direction);
     }
 
-    fn find_in_focused_buffer(&mut self, query: &str, direction: SearchDirection) {
+    fn find_in_focused_buffer(&mut self, spec: SearchSpec, direction: SearchDirection) {
         let Some(buffer) = self.focused_buffer_mut() else {
             self.set_status("Find: focused buffer is missing");
             return;
         };
 
-        let matches = buffer.buffer.find_all(query);
+        let matches = buffer
+            .buffer
+            .find_all_with_options(&spec.query, spec.options);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
-            buffer.set_search(query.to_string(), matches, None);
-            self.set_status(format!("Find: no matches for {query}"));
+            buffer.set_search(spec.clone(), matches, None);
+            self.set_status(format!("Find: no matches for {}", spec.display()));
             return;
         }
 
@@ -3172,18 +3303,19 @@ impl AppState {
         let selected = matches[selection.index].range;
         let _ = buffer.buffer.select(selected.start, selected.end);
         let match_count = matches.len();
-        buffer.set_search(query.to_string(), matches, Some(selection.index));
+        buffer.set_search(spec.clone(), matches, Some(selection.index));
 
         let suffix = if selection.wrapped { " (wrapped)" } else { "" };
         self.set_status(format!(
-            "Find: {}/{} {query}{suffix}",
+            "Find: {}/{} {}{suffix}",
             selection.index + 1,
-            match_count
+            match_count,
+            spec.display()
         ));
     }
 
-    fn replace_in_focused_buffer(&mut self, query: &str, replacement: &str) {
-        if query.is_empty() {
+    fn replace_in_focused_buffer(&mut self, spec: SearchSpec, replacement: &str) {
+        if spec.is_empty() {
             self.set_status("Replace: no query");
             return;
         }
@@ -3193,11 +3325,13 @@ impl AppState {
             return;
         };
 
-        let matches = buffer.buffer.find_all(query);
+        let matches = buffer
+            .buffer
+            .find_all_with_options(&spec.query, spec.options);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
-            buffer.set_search(query.to_string(), matches, None);
-            self.set_status(format!("Replace: no matches for {query}"));
+            buffer.set_search(spec.clone(), matches, None);
+            self.set_status(format!("Replace: no matches for {}", spec.display()));
             return;
         }
 
@@ -3215,7 +3349,9 @@ impl AppState {
         match buffer.buffer.replace_range(target, replacement) {
             Ok(()) => {
                 let suffix = if selection.wrapped { " (wrapped)" } else { "" };
-                let new_matches = buffer.buffer.find_all(query);
+                let new_matches = buffer
+                    .buffer
+                    .find_all_with_options(&spec.query, spec.options);
                 let next_selection = if new_matches.is_empty() {
                     None
                 } else {
@@ -3234,14 +3370,15 @@ impl AppState {
                     None => "; no matches left".to_string(),
                 };
                 buffer.set_search(
-                    query.to_string(),
+                    spec.clone(),
                     new_matches,
                     next_selection.map(|selection| selection.index),
                 );
                 self.set_status(format!(
-                    "Replace: {}/{} {query} -> {}{suffix}{next_status}",
+                    "Replace: {}/{} {} -> {}{suffix}{next_status}",
                     selection.index + 1,
                     old_total,
+                    spec.display(),
                     replacement_status_text(replacement)
                 ));
             }
@@ -3249,8 +3386,8 @@ impl AppState {
         }
     }
 
-    fn replace_all_in_focused_buffer(&mut self, query: &str, replacement: &str) {
-        if query.is_empty() {
+    fn replace_all_in_focused_buffer(&mut self, spec: SearchSpec, replacement: &str) {
+        if spec.is_empty() {
             self.set_status("Replace All: no query");
             return;
         }
@@ -3260,26 +3397,34 @@ impl AppState {
             return;
         };
 
-        let matches = buffer.buffer.find_all(query);
+        let matches = buffer
+            .buffer
+            .find_all_with_options(&spec.query, spec.options);
         if matches.is_empty() {
             buffer.buffer.clear_selection();
-            buffer.set_search(query.to_string(), matches, None);
-            self.set_status(format!("Replace All: no matches for {query}"));
+            buffer.set_search(spec.clone(), matches, None);
+            self.set_status(format!("Replace All: no matches for {}", spec.display()));
             return;
         }
 
-        match buffer.buffer.replace_all(query, replacement) {
+        match buffer
+            .buffer
+            .replace_all_with_options(&spec.query, replacement, spec.options)
+        {
             Ok(count) => {
-                let new_matches = buffer.buffer.find_all(query);
+                let new_matches = buffer
+                    .buffer
+                    .find_all_with_options(&spec.query, spec.options);
                 let remaining = new_matches.len();
-                buffer.set_search(query.to_string(), new_matches, None);
+                buffer.set_search(spec.clone(), new_matches, None);
                 let suffix = if remaining == 0 {
                     String::new()
                 } else {
                     format!("; {remaining} matches remain")
                 };
                 self.set_status(format!(
-                    "Replace All: {count} {query} -> {}{suffix}",
+                    "Replace All: {count} {} -> {}{suffix}",
+                    spec.display(),
                     replacement_status_text(replacement)
                 ));
             }
@@ -3397,7 +3542,7 @@ impl AppState {
         UiOverlay::message(
             "Confirm Replace",
             vec![
-                format!("Find: {}", confirm.query),
+                format!("Find: {}", confirm.spec.display()),
                 format!(
                     "Replace with: {}",
                     replacement_status_text(&confirm.replacement)
@@ -3412,7 +3557,7 @@ impl AppState {
         let match_status = self
             .buffer_state(confirm.buffer_id)
             .and_then(|buffer| buffer.search.as_ref())
-            .filter(|search| search.query == confirm.query)
+            .filter(|search| search.spec == confirm.spec)
             .and_then(|search| match (search.matches.len(), search.active_index) {
                 (0, _) => None,
                 (total, Some(index)) => Some(format!("Match {}/{}", index + 1, total)),
@@ -3605,6 +3750,72 @@ struct BufferViewContext {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+struct SearchSpec {
+    input: String,
+    query: String,
+    options: SearchOptions,
+}
+
+impl SearchSpec {
+    fn parse(input: &str) -> Self {
+        let trimmed = input.trim();
+        let mut options = SearchOptions::default();
+
+        if let Some(rest) = trimmed.strip_prefix('/') {
+            let (flags, query) = rest
+                .find(char::is_whitespace)
+                .map(|index| (&rest[..index], rest[index..].trim_start()))
+                .unwrap_or((rest, ""));
+            if !flags.is_empty()
+                && !query.is_empty()
+                && flags
+                    .chars()
+                    .all(|ch| matches!(ch, 'i' | 'I' | 'c' | 'C' | 'w' | 'W'))
+            {
+                for flag in flags.chars() {
+                    match flag.to_ascii_lowercase() {
+                        'i' => options.case_sensitive = false,
+                        'c' => options.case_sensitive = true,
+                        'w' => options.whole_word = true,
+                        _ => {}
+                    }
+                }
+                return Self {
+                    input: trimmed.to_string(),
+                    query: query.to_string(),
+                    options,
+                };
+            }
+        }
+
+        Self {
+            input: trimmed.to_string(),
+            query: trimmed.to_string(),
+            options,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.query.is_empty()
+    }
+
+    fn display(&self) -> String {
+        let mut flags = Vec::new();
+        if !self.options.case_sensitive {
+            flags.push("ignore-case");
+        }
+        if self.options.whole_word {
+            flags.push("whole-word");
+        }
+        if flags.is_empty() {
+            self.query.clone()
+        } else {
+            format!("{} ({})", self.query, flags.join(", "))
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct PromptState {
     kind: PromptKind,
     input: LineInput,
@@ -3690,6 +3901,7 @@ struct FileDialogState {
     selection_touched: bool,
     message: Option<String>,
     after_success: Option<PendingAction>,
+    overwrite_path: Option<PathBuf>,
 }
 
 impl FileDialogState {
@@ -3704,6 +3916,7 @@ impl FileDialogState {
             selection_touched: false,
             message: None,
             after_success,
+            overwrite_path: None,
         };
         state.refresh_entries();
         state
@@ -3944,21 +4157,25 @@ impl FileDialogState {
     }
 
     fn insert_char(&mut self, ch: char) {
+        self.overwrite_path = None;
         self.input.insert_char(ch);
         self.refresh_entries();
     }
 
     fn insert_text(&mut self, text: &str) {
+        self.overwrite_path = None;
         self.input.insert_str(text);
         self.refresh_entries();
     }
 
     fn delete_backward(&mut self) {
+        self.overwrite_path = None;
         self.input.delete_backward();
         self.refresh_entries();
     }
 
     fn delete_forward(&mut self) {
+        self.overwrite_path = None;
         self.input.delete_forward();
         self.refresh_entries();
     }
@@ -4056,7 +4273,21 @@ impl FileDialogState {
             return FileDialogSubmit::Path(path);
         }
 
-        FileDialogSubmit::Path(expand_user_path(&input))
+        let path = expand_user_path(&input);
+        if self.kind == FileDialogKind::SaveAs
+            && path.exists()
+            && !path.is_dir()
+            && self.overwrite_path.as_ref() != Some(&path)
+        {
+            self.overwrite_path = Some(path.clone());
+            self.message = Some(format!(
+                "Replace existing file {}? Press Enter again.",
+                path.display()
+            ));
+            return FileDialogSubmit::ContinueEditing;
+        }
+
+        FileDialogSubmit::Path(path)
     }
 
     fn click_visible_entry(&mut self, visible_index: usize) -> FileDialogSubmit {
@@ -4089,6 +4320,7 @@ impl FileDialogState {
         let Some(entry) = self.entries.get(index) else {
             return;
         };
+        self.overwrite_path = None;
         self.input.set_text(entry.input.clone());
         self.refresh_entries();
     }
@@ -4174,7 +4406,7 @@ struct ConfirmState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ReplaceConfirmState {
     buffer_id: BufferId,
-    query: String,
+    spec: SearchSpec,
     replacement: String,
     replaced: usize,
     skipped: usize,
@@ -4505,7 +4737,7 @@ const fn axis_name(axis: Axis) -> &'static str {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BufferSearchState {
-    query: String,
+    spec: SearchSpec,
     matches: Vec<SearchMatch>,
     revision: u64,
     active_index: Option<usize>,
@@ -4524,7 +4756,7 @@ impl BufferSearchState {
         }
 
         let previous_active = self.active_index;
-        self.matches = buffer.find_all(&self.query);
+        self.matches = buffer.find_all_with_options(&self.spec.query, self.spec.options);
         self.revision = buffer.revision();
         self.active_index = current_match_selection(buffer, &self.matches)
             .map(|selection| selection.index)
@@ -4577,13 +4809,13 @@ impl BufferState {
 
     fn set_search(
         &mut self,
-        query: impl Into<String>,
+        spec: SearchSpec,
         matches: Vec<SearchMatch>,
         active_index: Option<usize>,
     ) {
         let active_index = active_index.filter(|index| *index < matches.len());
         self.search = Some(BufferSearchState {
-            query: query.into(),
+            spec,
             matches,
             revision: self.buffer.revision(),
             active_index,
@@ -5417,6 +5649,12 @@ fn ensure_trailing_separator(mut input: String) -> String {
     input
 }
 
+fn file_dialog_recent_input_for_path(path: &Path) -> String {
+    path.parent()
+        .map(|parent| ensure_trailing_separator(parent.to_string_lossy().into_owned()))
+        .unwrap_or_default()
+}
+
 fn key_stroke_from_crossterm(event: CrosstermKeyEvent) -> Option<KeyStroke> {
     let modifiers = key_modifiers_from_crossterm(event.modifiers);
     let key = match event.code {
@@ -5826,6 +6064,10 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Select all",
             },
             HelpCommand {
+                command: EditorCommand::Edit(EditCommand::SelectLine),
+                description: "Select current line",
+            },
+            HelpCommand {
                 command: EditorCommand::Edit(EditCommand::Find),
                 description: "Find",
             },
@@ -5930,6 +6172,18 @@ fn clamp_to_char_boundary(line: &str, column: usize) -> usize {
         column -= 1;
     }
     column
+}
+
+fn clamp_to_display_column(line: &str, target: usize) -> usize {
+    let mut display = 0usize;
+    for (index, ch) in line.char_indices() {
+        let width = ch.width().unwrap_or(0);
+        if display.saturating_add(width) > target {
+            return index;
+        }
+        display = display.saturating_add(width);
+    }
+    line.len()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -6914,6 +7168,31 @@ key.app.quit = Esc
             Some(TextRange::new(Position::new(0, 1), Position::new(0, 3)))
         );
         assert_eq!(app.mouse_drag, None);
+    }
+
+    #[test]
+    fn mouse_drag_selection_scrolls_when_dragged_to_window_edge() {
+        let text = (0..20)
+            .map(|index| format!("line{index}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.buffer_state_mut(BufferId(1)).unwrap().buffer =
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, &text);
+        app.sync_view_for_area(Rect::new(0, 0, 80, 8));
+
+        handle_mouse_event(&mut app, left_click(4, 6));
+        handle_mouse_event(&mut app, left_drag(4, 8));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert!(state.first_line > 0);
+        assert!(
+            state
+                .buffer
+                .selection_range()
+                .is_some_and(|range| range.end.line >= state.first_line)
+        );
     }
 
     #[test]
@@ -8076,6 +8355,29 @@ key.app.help = F10
     }
 
     #[test]
+    fn select_line_command_selects_current_line() {
+        let mut app = app_with_text("first\nsecond\nthird");
+        app.buffers[0]
+            .buffer
+            .set_cursor(Position::new(1, 2))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::SelectLine));
+
+        let buffer = &app.buffer_state(BufferId(1)).unwrap().buffer;
+        assert_eq!(
+            buffer.selection_range(),
+            Some(TextRange::new(Position::new(1, 0), Position::new(2, 0)))
+        );
+        assert_eq!(
+            buffer
+                .text_in_range(buffer.selection_range().unwrap())
+                .unwrap(),
+            "second\n"
+        );
+    }
+
+    #[test]
     fn configured_shift_arrow_binding_wins_before_selection_fallback() {
         let config = parse_config("key.window.split_horizontal = Shift+Right").unwrap();
         let mut app = AppState::from_config(config);
@@ -8375,7 +8677,40 @@ key.app.help = F10
             app.status_message,
             Some(format!("Open failed: {}: not found", path.display()))
         );
+        assert!(app.file_dialog.is_some());
+        assert!(
+            app.active_overlay()
+                .unwrap()
+                .lines
+                .iter()
+                .any(|line| line.contains("Open failed:"))
+        );
         assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "");
+    }
+
+    #[test]
+    fn open_dialog_reuses_recent_successful_directory() {
+        let directory = temp_file_path("open-dialog-recent");
+        let path = directory.join("recent.txt");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(&path, "opened").unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Open: {}/", directory.display()))
+        );
+
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_dir(directory);
     }
 
     #[test]
@@ -9206,6 +9541,44 @@ key.app.help = F10
     }
 
     #[test]
+    fn save_as_dialog_requires_second_enter_before_overwrite() {
+        let path = temp_file_path("save-as-overwrite.txt");
+        std::fs::write(&path, "old").unwrap();
+        let mut app = AppState::new();
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::File(FileCommand::SaveAs));
+        send_text(&mut app, &path.to_string_lossy());
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old");
+        assert!(app.file_dialog.is_some());
+        assert!(
+            app.active_overlay()
+                .unwrap()
+                .lines
+                .iter()
+                .any(|line| line.contains("Replace existing file"))
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "x");
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().path.as_ref(),
+            Some(&path)
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn save_as_dialog_tab_completes_directory_before_save() {
         let parent = temp_file_path("save-as-dialog-tab");
         let directory = parent.join("nested");
@@ -9348,6 +9721,44 @@ key.app.help = F10
         assert_eq!(state.buffer.cursor_position(), Position::new(0, 2));
         assert_eq!(state.buffer.selection_range(), None);
         assert_eq!(app.status_message, Some("Find cancelled".to_string()));
+    }
+
+    #[test]
+    fn find_prompt_supports_ignore_case_and_whole_word_flags() {
+        let mut app = app_with_text("ERROR errors error_error error");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::Find));
+        send_text(&mut app, "/iw error");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.status_message,
+            Some("Find: 1/2 error (ignore-case, whole-word)".to_string())
+        );
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .selection_range(),
+            Some(TextRange::new(Position::new(0, 0), Position::new(0, 5)))
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+
+        assert_eq!(
+            app.status_message,
+            Some("Find: 2/2 error (ignore-case, whole-word)".to_string())
+        );
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .selection_range(),
+            Some(TextRange::new(Position::new(0, 25), Position::new(0, 30)))
+        );
     }
 
     #[test]
@@ -9635,6 +10046,22 @@ key.app.help = F10
         assert_eq!(
             app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
             "one two one"
+        );
+    }
+
+    #[test]
+    fn command_line_replace_all_honors_search_flags() {
+        let mut app = app_with_text("ERROR errors error_error error");
+
+        app.run_command_line("replace all \"/iw error\" ok");
+
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "ok errors error_error ok"
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Replace All: 2 error (ignore-case, whole-word) -> ok".to_string())
         );
     }
 
