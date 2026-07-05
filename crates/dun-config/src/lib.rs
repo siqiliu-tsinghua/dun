@@ -604,6 +604,21 @@ impl Keymap {
                 KeyBinding::new("Right", EditorCommand::Edit(EditCommand::MoveRight)),
                 KeyBinding::new("Up", EditorCommand::Edit(EditCommand::MoveUp)),
                 KeyBinding::new("Down", EditorCommand::Edit(EditCommand::MoveDown)),
+                KeyBinding::new("PageUp", EditorCommand::Edit(EditCommand::MovePageUp)),
+                KeyBinding::new("PageDown", EditorCommand::Edit(EditCommand::MovePageDown)),
+                KeyBinding::new("Ctrl+Left", EditorCommand::Edit(EditCommand::MoveWordLeft)),
+                KeyBinding::new(
+                    "Ctrl+Right",
+                    EditorCommand::Edit(EditCommand::MoveWordRight),
+                ),
+                KeyBinding::new(
+                    "Ctrl+Shift+Left",
+                    EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft),
+                ),
+                KeyBinding::new(
+                    "Ctrl+Shift+Right",
+                    EditorCommand::Edit(EditCommand::ExtendSelectionWordRight),
+                ),
                 KeyBinding::new("Home", EditorCommand::Edit(EditCommand::MoveLineStart)),
                 KeyBinding::new("End", EditorCommand::Edit(EditCommand::MoveLineEnd)),
                 KeyBinding::new("Enter", EditorCommand::Edit(EditCommand::InsertNewline)),
@@ -612,6 +627,14 @@ impl Keymap {
                     EditorCommand::Edit(EditCommand::DeleteBackward),
                 ),
                 KeyBinding::new("Delete", EditorCommand::Edit(EditCommand::DeleteForward)),
+                KeyBinding::new(
+                    "Ctrl+Backspace",
+                    EditorCommand::Edit(EditCommand::DeleteWordBackward),
+                ),
+                KeyBinding::new(
+                    "Ctrl+Delete",
+                    EditorCommand::Edit(EditCommand::DeleteWordForward),
+                ),
                 KeyBinding::new(
                     "Ctrl+W,H",
                     EditorCommand::Window(WindowCommand::SplitHorizontal),
@@ -1166,11 +1189,23 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Edit(EditCommand::MoveRight) => "edit.move_right",
         EditorCommand::Edit(EditCommand::MoveUp) => "edit.move_up",
         EditorCommand::Edit(EditCommand::MoveDown) => "edit.move_down",
+        EditorCommand::Edit(EditCommand::MovePageUp) => "edit.move_page_up",
+        EditorCommand::Edit(EditCommand::MovePageDown) => "edit.move_page_down",
+        EditorCommand::Edit(EditCommand::MoveWordLeft) => "edit.move_word_left",
+        EditorCommand::Edit(EditCommand::MoveWordRight) => "edit.move_word_right",
         EditorCommand::Edit(EditCommand::MoveLineStart) => "edit.move_line_start",
         EditorCommand::Edit(EditCommand::MoveLineEnd) => "edit.move_line_end",
+        EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft) => {
+            "edit.extend_selection_word_left"
+        }
+        EditorCommand::Edit(EditCommand::ExtendSelectionWordRight) => {
+            "edit.extend_selection_word_right"
+        }
         EditorCommand::Edit(EditCommand::InsertNewline) => "edit.insert_newline",
         EditorCommand::Edit(EditCommand::DeleteBackward) => "edit.delete_backward",
         EditorCommand::Edit(EditCommand::DeleteForward) => "edit.delete_forward",
+        EditorCommand::Edit(EditCommand::DeleteWordBackward) => "edit.delete_word_backward",
+        EditorCommand::Edit(EditCommand::DeleteWordForward) => "edit.delete_word_forward",
         EditorCommand::Edit(EditCommand::Find) => "edit.find",
         EditorCommand::Edit(EditCommand::FindNext) => "edit.find_next",
         EditorCommand::Edit(EditCommand::FindPrevious) => "edit.find_previous",
@@ -1272,11 +1307,23 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "edit.move_right" => Ok(EditorCommand::Edit(EditCommand::MoveRight)),
         "edit.move_up" => Ok(EditorCommand::Edit(EditCommand::MoveUp)),
         "edit.move_down" => Ok(EditorCommand::Edit(EditCommand::MoveDown)),
+        "edit.move_page_up" => Ok(EditorCommand::Edit(EditCommand::MovePageUp)),
+        "edit.move_page_down" => Ok(EditorCommand::Edit(EditCommand::MovePageDown)),
+        "edit.move_word_left" => Ok(EditorCommand::Edit(EditCommand::MoveWordLeft)),
+        "edit.move_word_right" => Ok(EditorCommand::Edit(EditCommand::MoveWordRight)),
         "edit.move_line_start" => Ok(EditorCommand::Edit(EditCommand::MoveLineStart)),
         "edit.move_line_end" => Ok(EditorCommand::Edit(EditCommand::MoveLineEnd)),
+        "edit.extend_selection_word_left" => {
+            Ok(EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft))
+        }
+        "edit.extend_selection_word_right" => {
+            Ok(EditorCommand::Edit(EditCommand::ExtendSelectionWordRight))
+        }
         "edit.insert_newline" => Ok(EditorCommand::Edit(EditCommand::InsertNewline)),
         "edit.delete_backward" => Ok(EditorCommand::Edit(EditCommand::DeleteBackward)),
         "edit.delete_forward" => Ok(EditorCommand::Edit(EditCommand::DeleteForward)),
+        "edit.delete_word_backward" => Ok(EditorCommand::Edit(EditCommand::DeleteWordBackward)),
+        "edit.delete_word_forward" => Ok(EditorCommand::Edit(EditCommand::DeleteWordForward)),
         "edit.find" => Ok(EditorCommand::Edit(EditCommand::Find)),
         "edit.find_next" => Ok(EditorCommand::Edit(EditCommand::FindNext)),
         "edit.find_previous" => Ok(EditorCommand::Edit(EditCommand::FindPrevious)),
@@ -1467,6 +1514,22 @@ mod tests {
             Some(&EditorCommand::Edit(EditCommand::GoToLine))
         );
         assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("PageDown").unwrap()),
+            Some(&EditorCommand::Edit(EditCommand::MovePageDown))
+        );
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Ctrl+Right").unwrap()),
+            Some(&EditorCommand::Edit(EditCommand::MoveWordRight))
+        );
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Ctrl+Delete").unwrap()),
+            Some(&EditorCommand::Edit(EditCommand::DeleteWordForward))
+        );
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Ctrl+Shift+Left").unwrap()),
+            Some(&EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft))
+        );
+        assert_eq!(
             keymap.command_for_sequence(&KeySequence::from_str("F2").unwrap()),
             Some(&EditorCommand::App(AppCommand::StatusHistory))
         );
@@ -1601,6 +1664,14 @@ mod tests {
         assert_eq!(
             command_from_id("app.config_diagnostics"),
             Ok(EditorCommand::App(AppCommand::ConfigDiagnostics))
+        );
+        assert_eq!(
+            command_from_id("edit.move-word-right"),
+            Ok(EditorCommand::Edit(EditCommand::MoveWordRight))
+        );
+        assert_eq!(
+            command_from_id("edit.delete_word_backward"),
+            Ok(EditorCommand::Edit(EditCommand::DeleteWordBackward))
         );
         assert_eq!(
             command_from_id("app.nope"),

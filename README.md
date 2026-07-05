@@ -55,10 +55,14 @@ selection, line ending, file-text encoding, terminal profile, and focused
 window index.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, giving Cut/Copy a pure
-keyboard path without requiring mouse support.
-Undo groups continuous ordinary character typing into one transaction, while
-cursor movement, selection changes, delete, replace, newline, and paste-like
-bulk insertion keep clear transaction boundaries.
+keyboard path without requiring mouse support. PageUp/PageDown move by the
+visible pane height, `Ctrl+Left/Right` move by UTF-8-safe word boundaries,
+`Ctrl+Backspace/Delete` delete by word, and `Ctrl+Shift+Left/Right` extends
+selection by word when the terminal delivers those modifiers.
+Undo groups continuous ordinary character typing and continuous same-direction
+Backspace/Delete runs into transactions, while cursor movement, selection
+changes, replace, newline, paste-like bulk insertion, undo, and redo keep clear
+transaction boundaries.
 On narrow panes, the gutter is dropped before it consumes the editable body,
 and pane titles/status fields are clipped by terminal display width.
 Buffer text, pane titles, and status fields are sanitized before rendering so
@@ -90,8 +94,9 @@ not call external clipboard commands or emit OSC 52 clipboard writes.
 Mouse support is optional and disabled by default; when enabled in config,
 left-clicks can focus tiled windows, place the cursor in an editor body, drag
 text selections, drag split borders, open top-menu dropdowns, and click
-submenu commands. File dialog list clicks enter directories, open selected
-files from Open, and update the Save As path input without immediately saving.
+submenu commands. Mouse wheel events scroll editor panes and file dialog lists.
+File dialog list clicks enter directories, open selected files from Open, and
+update the Save As path input without immediately saving.
 The external SSH and low-capability terminal release matrix is documented in
 [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
 the local PTY harness covers common terminal profiles, small VT100-style

@@ -39,6 +39,7 @@ const EXIT_RUNTIME_ERROR: u8 = 1;
 const EXIT_USAGE_ERROR: u8 = 2;
 const DUN_CONFIG_ENV: &str = "DUN_CONFIG";
 const FILE_DIALOG_VISIBLE_ENTRIES: usize = 12;
+const EDITOR_MOUSE_WHEEL_LINES: usize = 3;
 
 fn main() -> ExitCode {
     match run_cli(env::args_os().skip(1)) {
@@ -823,6 +824,35 @@ impl AppState {
         }
     }
 
+    fn handle_mouse_scroll(&mut self, screen_x: u16, screen_y: u16, delta: isize) -> bool {
+        if self.active_menu.is_some() {
+            self.clear_active_menu();
+        }
+        let Some((x, y)) = self.workspace_point_from_screen(screen_x, screen_y) else {
+            return false;
+        };
+        let Some(window_id) = self.workspace.focus_at(self.workspace_area, x, y) else {
+            return false;
+        };
+        let Some(buffer_id) = self
+            .workspace
+            .windows
+            .iter()
+            .find(|window| window.id == window_id)
+            .map(|window| window.buffer_id)
+        else {
+            return false;
+        };
+        let body_height = self
+            .focused_buffer_view_context(self.workspace_area)
+            .map(|(_, body_height)| body_height)
+            .unwrap_or(1);
+
+        self.pending_keys.clear();
+        self.buffer_state_mut(buffer_id)
+            .is_some_and(|buffer| buffer.scroll_view_lines(delta, body_height))
+    }
+
     fn workspace_point_from_screen(&self, column: u16, row: u16) -> Option<(u16, u16)> {
         if self.workspace_area.width == 0 || self.workspace_area.height == 0 || row == 0 {
             return None;
@@ -1009,6 +1039,14 @@ impl AppState {
                 self.paste_internal_clipboard();
                 return;
             }
+            EditCommand::MovePageUp => {
+                self.move_focused_page(-1);
+                return;
+            }
+            EditCommand::MovePageDown => {
+                self.move_focused_page(1);
+                return;
+            }
             _ => {}
         }
 
@@ -1039,11 +1077,23 @@ impl AppState {
             EditCommand::MoveDown => {
                 buffer.buffer.move_down();
             }
+            EditCommand::MoveWordLeft => {
+                buffer.buffer.move_word_left();
+            }
+            EditCommand::MoveWordRight => {
+                buffer.buffer.move_word_right();
+            }
             EditCommand::MoveLineStart => {
                 buffer.buffer.move_to_line_start();
             }
             EditCommand::MoveLineEnd => {
                 buffer.buffer.move_to_line_end();
+            }
+            EditCommand::ExtendSelectionWordLeft => {
+                buffer.buffer.extend_selection_word_left();
+            }
+            EditCommand::ExtendSelectionWordRight => {
+                buffer.buffer.extend_selection_word_right();
             }
             EditCommand::InsertNewline => {
                 let _ = buffer.buffer.insert_newline();
@@ -1054,6 +1104,12 @@ impl AppState {
             EditCommand::DeleteForward => {
                 let _ = buffer.buffer.delete_forward();
             }
+            EditCommand::DeleteWordBackward => {
+                let _ = buffer.buffer.delete_word_backward();
+            }
+            EditCommand::DeleteWordForward => {
+                let _ = buffer.buffer.delete_word_forward();
+            }
             EditCommand::Cut
             | EditCommand::Copy
             | EditCommand::Paste
@@ -1061,8 +1117,29 @@ impl AppState {
             | EditCommand::FindNext
             | EditCommand::FindPrevious
             | EditCommand::Replace
-            | EditCommand::GoToLine => {}
+            | EditCommand::GoToLine
+            | EditCommand::MovePageUp
+            | EditCommand::MovePageDown => {}
         }
+    }
+
+    fn move_focused_page(&mut self, direction: isize) -> bool {
+        let body_height = self
+            .focused_buffer_view_context(self.workspace_area)
+            .map(|(_, body_height)| body_height)
+            .unwrap_or(1);
+        let page_lines = body_height.saturating_sub(1).max(1);
+        let Some(buffer) = self.focused_buffer_mut() else {
+            return false;
+        };
+
+        let moved = if direction < 0 {
+            buffer.move_page_up(page_lines)
+        } else {
+            buffer.move_page_down(page_lines)
+        };
+        buffer.ensure_cursor_visible(body_height);
+        moved
     }
 
     fn copy_selection(&mut self) {
@@ -3676,6 +3753,73 @@ impl BufferState {
             self.first_line = cursor_line.saturating_sub(body_height - 1);
         }
     }
+
+    fn move_page_up(&mut self, lines: usize) -> bool {
+        let mut moved = false;
+        for _ in 0..lines.max(1) {
+            moved |= self.buffer.move_up();
+        }
+        moved
+    }
+
+    fn move_page_down(&mut self, lines: usize) -> bool {
+        let mut moved = false;
+        for _ in 0..lines.max(1) {
+            moved |= self.buffer.move_down();
+        }
+        moved
+    }
+
+    fn scroll_view_lines(&mut self, delta: isize, body_height: usize) -> bool {
+        if body_height == 0 || self.buffer.line_count() == 0 {
+            return false;
+        }
+
+        let old_first_line = self.first_line;
+        let max_first_line = self.buffer.line_count().saturating_sub(body_height.max(1));
+        self.first_line = if delta < 0 {
+            self.first_line.saturating_sub(delta.unsigned_abs())
+        } else {
+            self.first_line
+                .saturating_add(delta as usize)
+                .min(max_first_line)
+        };
+
+        self.keep_cursor_inside_visible_lines(body_height);
+        self.first_line != old_first_line
+    }
+
+    fn keep_cursor_inside_visible_lines(&mut self, body_height: usize) {
+        if body_height == 0 {
+            return;
+        }
+
+        let cursor = self.buffer.cursor_position();
+        let last_visible = self
+            .first_line
+            .saturating_add(body_height.saturating_sub(1))
+            .min(self.buffer.line_count().saturating_sub(1));
+        let target_line = cursor.line.clamp(self.first_line, last_visible);
+        if target_line == cursor.line {
+            return;
+        }
+
+        let target_column = self.clamp_column_to_line(target_line, cursor.column);
+        let _ = self
+            .buffer
+            .set_cursor(Position::new(target_line, target_column));
+    }
+
+    fn clamp_column_to_line(&self, line_index: usize, target_column: usize) -> usize {
+        let Some(line) = self.buffer.line(line_index) else {
+            return 0;
+        };
+        let mut column = target_column.min(line.len());
+        while !line.is_char_boundary(column) {
+            column -= 1;
+        }
+        column
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3942,6 +4086,16 @@ fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
         }
         CrosstermMouseEventKind::Drag(CrosstermMouseButton::Left) => {
             app.handle_mouse_drag(event.column, event.row);
+        }
+        CrosstermMouseEventKind::ScrollUp => {
+            app.handle_mouse_scroll(
+                event.column,
+                event.row,
+                -(EDITOR_MOUSE_WHEEL_LINES as isize),
+            );
+        }
+        CrosstermMouseEventKind::ScrollDown => {
+            app.handle_mouse_scroll(event.column, event.row, EDITOR_MOUSE_WHEEL_LINES as isize);
         }
         CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
             app.handle_mouse_up();
@@ -4357,7 +4511,7 @@ fn help_text(keymap: &Keymap, file_dialog_keys: &FileDialogKeymap) -> String {
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
     );
     out.push_str(
-        "Selection\n  Shift+Arrow     Extend selection by character or line\n  Shift+Home/End  Extend selection to line edge\n\n",
+        "Selection\n  Shift+Arrow       Extend selection by character or line\n  Shift+Home/End    Extend selection to line edge\n  Ctrl+Shift+Arrow  Extend selection by word when delivered\n\n",
     );
     out.push_str("File Dialogs\n");
     push_file_dialog_help(
@@ -4594,12 +4748,36 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Move down",
             },
             HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MovePageUp),
+                description: "Move page up",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MovePageDown),
+                description: "Move page down",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveWordLeft),
+                description: "Move word left",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveWordRight),
+                description: "Move word right",
+            },
+            HelpCommand {
                 command: EditorCommand::Edit(EditCommand::MoveLineStart),
                 description: "Move to line start",
             },
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::MoveLineEnd),
                 description: "Move to line end",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft),
+                description: "Extend selection word left",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ExtendSelectionWordRight),
+                description: "Extend selection word right",
             },
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::InsertNewline),
@@ -4612,6 +4790,14 @@ const HELP_SECTIONS: &[HelpSection] = &[
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::DeleteForward),
                 description: "Delete forward",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::DeleteWordBackward),
+                description: "Delete word backward",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::DeleteWordForward),
+                description: "Delete word forward",
             },
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::Undo),
@@ -5266,6 +5452,15 @@ mod tests {
         }
     }
 
+    fn scroll_up(column: u16, row: u16) -> CrosstermMouseEvent {
+        CrosstermMouseEvent {
+            kind: CrosstermMouseEventKind::ScrollUp,
+            column,
+            row,
+            modifiers: CrosstermKeyModifiers::NONE,
+        }
+    }
+
     #[test]
     fn parse_cli_args_accepts_no_path_or_single_path() {
         assert_eq!(
@@ -5533,6 +5728,31 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn mouse_wheel_scrolls_editor_body_when_enabled() {
+        let text = (0..20)
+            .map(|index| format!("line{index}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.buffer_state_mut(BufferId(1)).unwrap().buffer =
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, &text);
+        app.sync_view_for_area(Rect::new(0, 0, 80, 8));
+
+        handle_mouse_event(&mut app, scroll_down(10, 3));
+
+        let buffer = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(buffer.first_line, EDITOR_MOUSE_WHEEL_LINES);
+        assert_eq!(
+            buffer.buffer.cursor_position(),
+            Position::new(EDITOR_MOUSE_WHEEL_LINES, 0)
+        );
+
+        handle_mouse_event(&mut app, scroll_up(10, 3));
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().first_line, 0);
+    }
+
+    #[test]
     fn mouse_menu_click_dispatches_command_when_enabled() {
         let mut app = AppState::new();
         app.mouse_enabled = true;
@@ -5718,6 +5938,81 @@ key.app.quit = Esc
         assert_eq!(buffer.line(0), Some("ax"));
         assert_eq!(buffer.line(1), Some("z"));
         assert_eq!(buffer.cursor_position(), Position::new(1, 1));
+    }
+
+    #[test]
+    fn editor_page_commands_move_cursor_by_visible_page() {
+        let text = (0..20)
+            .map(|index| format!("line{index}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut app = AppState::new();
+        app.buffer_state_mut(BufferId(1)).unwrap().buffer =
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, &text);
+        app.sync_view_for_area(Rect::new(0, 0, 80, 6));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MovePageDown));
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .cursor_position(),
+            Position::new(3, 0)
+        );
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().first_line, 0);
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MovePageDown));
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .cursor_position(),
+            Position::new(6, 0)
+        );
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().first_line, 3);
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MovePageUp));
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .cursor_position(),
+            Position::new(3, 0)
+        );
+    }
+
+    #[test]
+    fn word_edit_commands_apply_to_focused_buffer() {
+        let mut app = AppState::new();
+        app.buffer_state_mut(BufferId(1)).unwrap().buffer =
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, "alpha beta");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveWordRight));
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .cursor_position(),
+            Position::new(0, 6)
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::ExtendSelectionWordRight));
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.selection(),
+            Some(dun_core::Selection::new(
+                Position::new(0, 6),
+                Position::new(0, 10)
+            ))
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::DeleteWordBackward));
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "alpha "
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::DeleteWordBackward));
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "");
     }
 
     #[test]

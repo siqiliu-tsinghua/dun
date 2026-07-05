@@ -432,3 +432,16 @@ This is an append-only progress log. Keep new entries dated and factual.
   paste-like `insert_str` calls, undo, and redo break the active typing group.
 - Added buffer tests covering UTF-8 typing coalescing, cursor-motion breaks,
   paste-like bulk insertion boundaries, and redo followed by new typing.
+- Added same-direction Backspace/Delete undo coalescing in `dun-core`, while
+  keeping direction changes and word deletion as explicit transaction
+  boundaries.
+- Added UTF-8-safe word movement, word selection, and word deletion commands.
+  Defaults now bind `Ctrl+Left/Right`, `Ctrl+Shift+Left/Right`, and
+  `Ctrl+Backspace/Delete`, with command ids available through config and the
+  command prompt.
+- Added editor PageUp/PageDown movement based on the active pane body height,
+  plus optional mouse wheel scrolling for editor panes that keeps the cursor
+  visible.
+- Added tests for delete-run undo grouping, word boundary behavior, default
+  keybindings, editor page movement, word edit command dispatch, and editor
+  mouse wheel scrolling.

@@ -100,13 +100,19 @@ aliases where available.
 Unbound `Shift+Arrow` and `Shift+Home/End` strokes extend the editor selection
 as a fallback after the active keymap is checked. Binding one of those strokes
 to a command gives the configured command priority.
+Default editor movement also includes PageUp/PageDown for visible-page
+movement, `Ctrl+Left/Right` for word movement, `Ctrl+Shift+Left/Right` for word
+selection, and `Ctrl+Backspace/Delete` for word deletion. These are ordinary
+command bindings and can be remapped or disabled like other `key.edit.*`
+entries.
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window
 focus, editor-body cursor placement, text selection drag, split-border drag,
-and menu command dispatch. Right-click paste waits for terminal bracketed paste
-data when the terminal supports it. External clipboard commands and OSC 52
-clipboard integration remain deferred.
+menu command dispatch, and mouse wheel scrolling inside editor panes and file
+dialogs. Right-click paste waits for terminal bracketed paste data when the
+terminal supports it. External clipboard commands and OSC 52 clipboard
+integration remain deferred.
 
 ## Example
 

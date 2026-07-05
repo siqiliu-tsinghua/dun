@@ -115,10 +115,14 @@ This is deliberately simple and testable:
   boundary;
 - cursor movement is UTF-8 character-boundary aware, not display-width aware;
 - LF and CRLF files round trip through the buffer's `LineEnding` setting;
-- edits are recorded as replace transactions for undo/redo.
+- edits are recorded as replace transactions for undo/redo;
 - continuous ordinary character typing coalesces into one undo transaction;
-  movement, selection, delete, replace, newline, paste-like bulk insertion,
-  undo, and redo start clear transaction boundaries.
+- continuous same-direction Backspace/Delete runs coalesce into one undo
+  transaction;
+- movement, selection changes, word deletion, replace, newline, paste-like bulk
+  insertion, undo, and redo start clear transaction boundaries;
+- word movement and word selection use UTF-8-safe boundaries and treat
+  whitespace, alphanumeric/underscore words, and punctuation runs separately.
 
 This model is sufficient for the first editor baseline. If large-file testing
 shows it is not acceptable, the public concepts should remain while the storage
@@ -234,6 +238,8 @@ supports:
   to consume those strokes;
 - keyboard selection with `Shift+Arrow` and `Shift+Home/End` after the active
   keymap has had the first chance to consume those strokes;
+- PageUp/PageDown visible-page movement, UTF-8-safe word movement/deletion, and
+  configurable word-selection commands;
 - `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
 
 ## Mouse
@@ -255,6 +261,8 @@ Current mouse baseline:
   it opens files, while in Save As it updates the path input without saving;
 - mouse wheel events scroll Open/Save As file dialog lists when the terminal
   delivers them;
+- mouse wheel events scroll editor panes when mouse support is enabled, keeping
+  the cursor inside the visible pane;
 - pressing `Esc` closes an open menu before normal keymap dispatch;
 - clicks in the status area do nothing.
 

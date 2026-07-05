@@ -23,6 +23,9 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Implement undo/redo.
 - [x] Coalesce continuous ordinary character input into undo transactions while
   keeping paste, movement, selection, delete, and replace boundaries separate.
+- [x] Coalesce continuous same-direction Backspace/Delete runs into undo
+  transactions.
+- [x] Add UTF-8-safe word movement, word selection, and word delete commands.
 - [x] Implement dirty-state tracking.
 - [x] Implement split focused window.
 - [x] Implement close focused window and tree repair.
@@ -143,6 +146,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Implement internal Cut/Copy/Paste baseline for active selections without
   using the OS clipboard.
 - [x] Add keyboard selection baseline with `Shift+Arrow` and `Shift+Home/End`.
+- [x] Add editor PageUp/PageDown movement and viewport synchronization.
+- [x] Add optional mouse wheel scrolling for editor panes.
 
 ## File and Display Safety
 
