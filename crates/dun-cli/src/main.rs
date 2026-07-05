@@ -745,6 +745,33 @@ impl AppState {
         self.mouse_drag = None;
     }
 
+    fn handle_file_dialog_mouse_down(&mut self, screen_x: u16, screen_y: u16) -> bool {
+        self.mouse_drag = None;
+        let Some(dialog) = &self.file_dialog else {
+            return false;
+        };
+        let overlay = dialog.overlay();
+        let Some(visible_index) =
+            self.shell
+                .hit_test_overlay_list(&overlay, self.overlay_area(), screen_x, screen_y)
+        else {
+            return false;
+        };
+
+        self.pending_keys.clear();
+        self.click_file_dialog_visible_index(visible_index);
+        true
+    }
+
+    fn overlay_area(&self) -> Rect {
+        Rect::new(
+            0,
+            0,
+            self.workspace_area.width,
+            self.workspace_area.height.saturating_add(2),
+        )
+    }
+
     fn update_mouse_selection(
         &mut self,
         buffer_id: BufferId,
@@ -1792,8 +1819,20 @@ impl AppState {
         let Some(mut dialog) = self.file_dialog.take() else {
             return;
         };
+        let submit = dialog.submit();
+        self.finish_file_dialog_submit(dialog, submit);
+    }
 
-        match dialog.submit() {
+    fn click_file_dialog_visible_index(&mut self, visible_index: usize) {
+        let Some(mut dialog) = self.file_dialog.take() else {
+            return;
+        };
+        let submit = dialog.click_visible_entry(visible_index);
+        self.finish_file_dialog_submit(dialog, submit);
+    }
+
+    fn finish_file_dialog_submit(&mut self, dialog: FileDialogState, submit: FileDialogSubmit) {
+        match submit {
             FileDialogSubmit::Cancel => {
                 self.set_status(format!("{} cancelled", dialog.kind.name()));
             }
@@ -2648,8 +2687,19 @@ impl FileDialogState {
     }
 
     fn visible_entry_texts(&self) -> (Vec<String>, Option<usize>) {
-        if self.entries.is_empty() {
+        let Some((start, end, selected)) = self.visible_entry_range() else {
             return (vec!["(no matches)".to_string()], None);
+        };
+        let list = self.entries[start..end]
+            .iter()
+            .map(FileDialogEntry::display_text)
+            .collect::<Vec<_>>();
+        (list, Some(selected.saturating_sub(start)))
+    }
+
+    fn visible_entry_range(&self) -> Option<(usize, usize, usize)> {
+        if self.entries.is_empty() {
+            return None;
         }
 
         let selected = self
@@ -2660,11 +2710,13 @@ impl FileDialogState {
         let end = start
             .saturating_add(FILE_DIALOG_VISIBLE_ENTRIES)
             .min(self.entries.len());
-        let list = self.entries[start..end]
-            .iter()
-            .map(FileDialogEntry::display_text)
-            .collect::<Vec<_>>();
-        (list, Some(selected.saturating_sub(start)))
+        Some((start, end, selected))
+    }
+
+    fn entry_index_for_visible_index(&self, visible_index: usize) -> Option<usize> {
+        let (start, end, _) = self.visible_entry_range()?;
+        let index = start.saturating_add(visible_index);
+        (index < end).then_some(index)
     }
 
     fn move_selection(&mut self, delta: isize) {
@@ -2746,6 +2798,32 @@ impl FileDialogState {
         }
 
         FileDialogSubmit::Path(expand_user_path(input))
+    }
+
+    fn click_visible_entry(&mut self, visible_index: usize) -> FileDialogSubmit {
+        let Some(index) = self.entry_index_for_visible_index(visible_index) else {
+            return FileDialogSubmit::ContinueEditing;
+        };
+        let Some(entry) = self.entries.get(index).cloned() else {
+            return FileDialogSubmit::ContinueEditing;
+        };
+
+        self.selected_index = Some(index);
+        self.selection_touched = true;
+        match self.kind {
+            FileDialogKind::Open => {
+                if entry.is_dir {
+                    self.apply_entry(index);
+                    FileDialogSubmit::ContinueEditing
+                } else {
+                    FileDialogSubmit::Path(entry.path)
+                }
+            }
+            FileDialogKind::SaveAs => {
+                self.apply_entry(index);
+                FileDialogSubmit::ContinueEditing
+            }
+        }
     }
 
     fn apply_entry(&mut self, index: usize) {
@@ -3259,12 +3337,21 @@ fn run_event_loop(
 }
 
 fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
-    if !app.mouse_enabled()
-        || app.prompt.is_some()
-        || app.file_dialog.is_some()
-        || app.confirm.is_some()
-    {
+    if !app.mouse_enabled() || app.prompt.is_some() || app.confirm.is_some() {
         app.handle_mouse_up();
+        return;
+    }
+
+    if app.file_dialog.is_some() {
+        match event.kind {
+            CrosstermMouseEventKind::Down(CrosstermMouseButton::Left) => {
+                app.handle_file_dialog_mouse_down(event.column, event.row);
+            }
+            CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
+                app.handle_mouse_up();
+            }
+            _ => {}
+        }
         return;
     }
 
@@ -3577,7 +3664,7 @@ fn help_text(keymap: &Keymap) -> String {
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
     );
     out.push_str(
-        "File Dialogs\n  Enter           Open/save selected path\n  Esc             Cancel dialog\n  Tab             Complete path\n  Up/Down         Move file selection\n\n",
+        "File Dialogs\n  Enter           Open/save selected path\n  Esc             Cancel dialog\n  Tab             Complete path\n  Up/Down         Move file selection\n  Mouse click     Select list entry when mouse is enabled\n\n",
     );
     out.push_str(
         "Menus\n  Alt+F/E/V/H     Open File/Edit/View/Help menu\n  Left/Right      Switch open menu\n  Up/Down         Move menu selection\n  Enter           Run selected menu command\n  Esc             Close open menu\n\n",
@@ -5955,6 +6042,83 @@ key.app.help = F10
 
         let _ = std::fs::remove_file(first);
         let _ = std::fs::remove_file(second);
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn mouse_click_open_dialog_file_opens_selected_file() {
+        let directory = temp_file_path("open-dialog-mouse-file");
+        let first = directory.join("a.txt");
+        let second = directory.join("b.txt");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(&first, "first").unwrap();
+        std::fs::write(&second, "second").unwrap();
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 90, 14));
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", directory.display()));
+        handle_mouse_event(&mut app, left_click(20, 9));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.to_text(), "second");
+        assert_eq!(state.path.as_ref(), Some(&second));
+        assert_eq!(app.prompt_status_text(), None);
+
+        let _ = std::fs::remove_file(first);
+        let _ = std::fs::remove_file(second);
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn mouse_click_open_dialog_directory_enters_directory() {
+        let directory = temp_file_path("open-dialog-mouse-dir");
+        let child = directory.join("child");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::create_dir(&child).unwrap();
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 90, 14));
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", directory.display()));
+        handle_mouse_event(&mut app, left_click(20, 8));
+
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Open: {}/", child.display()))
+        );
+        assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "");
+
+        let _ = std::fs::remove_dir(child);
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn mouse_click_save_as_dialog_directory_updates_input_without_saving() {
+        let directory = temp_file_path("save-as-dialog-mouse");
+        let child = directory.join("child");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::create_dir(&child).unwrap();
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 90, 14));
+        app.handle_text_input('x');
+
+        app.handle_command(&EditorCommand::File(FileCommand::SaveAs));
+        send_text(&mut app, &format!("{}/", directory.display()));
+        handle_mouse_event(&mut app, left_click(20, 8));
+
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Save As: {}/", child.display()))
+        );
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert!(state.buffer.is_dirty());
+        assert_eq!(state.path, None);
+
+        let _ = std::fs::remove_dir(child);
         let _ = std::fs::remove_dir(directory);
     }
 

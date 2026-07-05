@@ -246,6 +246,8 @@ Current mouse baseline:
 - dragging a tiled split border resizes that split ratio;
 - clicking a top-menu label opens its dropdown;
 - clicking a submenu item dispatches its existing `EditorCommand`;
+- clicking an Open/Save As file dialog list entry enters directories; in Open
+  it opens files, while in Save As it updates the path input without saving;
 - pressing `Esc` closes an open menu before normal keymap dispatch;
 - clicks in the status area do nothing.
 

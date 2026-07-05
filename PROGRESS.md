@@ -379,3 +379,7 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added tests for Open dialog directory navigation, unique Tab completion,
   selection-driven Open, Save As directory completion before save, and file
   dialog overlay rendering.
+- Added optional mouse support for Open/Save As file dialogs. `dun-ui` now
+  exposes overlay list-row hit testing, and `dun-cli` maps file dialog clicks
+  to directory navigation, Open file submission, or Save As path-input updates
+  without adding direct mouse-driven file I/O paths.

@@ -201,8 +201,10 @@ Low-capability expectations:
   failure.
 - Mouse support is optional and disabled by default. If enabled, left-click
   focus, cursor placement, selection drag, split drag, top-menu dropdowns, and
-  submenu clicks should work in capable terminals, but mouse support is not
-  required for passing the matrix.
+  submenu clicks should work in capable terminals. Open/Save As file dialog
+  list clicks should enter directories; Open should open files, and Save As
+  should only update the path input. Mouse support is not required for passing
+  the matrix.
 - `Alt+F`, `Alt+E`, `Alt+V`, and `Alt+H` should open the grouped menus where
   the terminal sends Alt-modified character keys. If a terminal or KVM cannot
   deliver those strokes, command-line prompt and direct command keybindings

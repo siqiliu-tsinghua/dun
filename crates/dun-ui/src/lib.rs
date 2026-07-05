@@ -124,6 +124,36 @@ impl UiShell {
         })
     }
 
+    pub fn hit_test_overlay_list(
+        &self,
+        overlay: &UiOverlay,
+        area: Rect,
+        x: u16,
+        y: u16,
+    ) -> Option<usize> {
+        let layout = overlay_layout(
+            self,
+            overlay,
+            TuiRect::new(area.x, area.y, area.width, area.height),
+        )?;
+        let content_start = layout.rect.x.saturating_add(2);
+        let content_end = layout
+            .rect
+            .x
+            .saturating_add(layout.rect.width)
+            .saturating_sub(2);
+        if x < content_start || x >= content_end || y < layout.list_start_row {
+            return None;
+        }
+
+        let index = y.saturating_sub(layout.list_start_row) as usize;
+        if index < layout.list_rows {
+            Some(index)
+        } else {
+            None
+        }
+    }
+
     pub fn menu_index_at_column(&self, column: u16) -> Option<usize> {
         let menu = self.menu_bar(None);
         for index in 0..menu.items.len() {
@@ -786,41 +816,18 @@ fn render_overlay(frame: &mut Frame<'_>, shell: &UiShell, overlay: &UiOverlay, a
         .iter()
         .map(|entry| sanitize_chrome_text(shell, entry))
         .collect::<Vec<_>>();
-
-    let mut content_width = display_width(&title).saturating_add(4);
-    for line in &lines {
-        content_width = content_width.max(display_width(line));
-    }
-    if let Some(input) = &input {
-        content_width = content_width.max(display_width(input).max(32));
-    }
-    for button in &buttons {
-        content_width = content_width.max(display_width(button));
-    }
-    for entry in &list {
-        content_width = content_width.max(display_width(entry));
-    }
-
-    let width = content_width
-        .saturating_add(4)
-        .max(overlay.min_width as usize)
-        .min(area.width as usize) as u16;
-    let content_rows = lines
-        .len()
-        .saturating_add(usize::from(input.is_some()))
-        .saturating_add(list.len())
-        .saturating_add(buttons.len())
-        .max(1);
-    let height = content_rows
-        .saturating_add(2)
-        .max(4)
-        .min(area.height as usize) as u16;
-    let rect = TuiRect::new(
-        area.x + area.width.saturating_sub(width) / 2,
-        area.y + area.height.saturating_sub(height) / 2,
-        width,
-        height,
-    );
+    let Some(layout) = overlay_layout_for_content(
+        overlay,
+        &title,
+        &lines,
+        input.as_deref(),
+        &buttons,
+        &list,
+        area,
+    ) else {
+        return;
+    };
+    let rect = layout.rect;
 
     frame.render_widget(
         Block::default().style(to_ratatui_style(shell.theme.palette.modal)),
@@ -922,6 +929,123 @@ fn render_overlay(frame: &mut Frame<'_>, shell: &UiShell, overlay: &UiOverlay, a
         );
         row += 1;
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct OverlayLayout {
+    rect: TuiRect,
+    list_start_row: u16,
+    list_rows: usize,
+}
+
+fn overlay_layout(shell: &UiShell, overlay: &UiOverlay, area: TuiRect) -> Option<OverlayLayout> {
+    let title = sanitize_chrome_text(shell, &overlay.title);
+    let lines = overlay
+        .lines
+        .iter()
+        .map(|line| sanitize_chrome_text(shell, line))
+        .collect::<Vec<_>>();
+    let input = overlay
+        .input
+        .as_ref()
+        .map(|input| sanitize_chrome_text(shell, input));
+    let buttons = overlay
+        .buttons
+        .iter()
+        .map(|button| sanitize_chrome_text(shell, button))
+        .collect::<Vec<_>>();
+    let list = overlay
+        .list
+        .iter()
+        .map(|entry| sanitize_chrome_text(shell, entry))
+        .collect::<Vec<_>>();
+
+    overlay_layout_for_content(
+        overlay,
+        &title,
+        &lines,
+        input.as_deref(),
+        &buttons,
+        &list,
+        area,
+    )
+}
+
+fn overlay_layout_for_content(
+    overlay: &UiOverlay,
+    title: &str,
+    lines: &[String],
+    input: Option<&str>,
+    buttons: &[String],
+    list: &[String],
+    area: TuiRect,
+) -> Option<OverlayLayout> {
+    if area.width < 12 || area.height < 5 {
+        return None;
+    }
+
+    let mut content_width = display_width(title).saturating_add(4);
+    for line in lines {
+        content_width = content_width.max(display_width(line));
+    }
+    if let Some(input) = input {
+        content_width = content_width.max(display_width(input).max(32));
+    }
+    for button in buttons {
+        content_width = content_width.max(display_width(button));
+    }
+    for entry in list {
+        content_width = content_width.max(display_width(entry));
+    }
+
+    let width = content_width
+        .saturating_add(4)
+        .max(overlay.min_width as usize)
+        .min(area.width as usize) as u16;
+    let content_rows = lines
+        .len()
+        .saturating_add(usize::from(input.is_some()))
+        .saturating_add(list.len())
+        .saturating_add(buttons.len())
+        .max(1);
+    let height = content_rows
+        .saturating_add(2)
+        .max(4)
+        .min(area.height as usize) as u16;
+    let rect = TuiRect::new(
+        area.x + area.width.saturating_sub(width) / 2,
+        area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    );
+
+    let bottom = rect.y.saturating_add(rect.height).saturating_sub(1);
+    let mut row = rect.y.saturating_add(1);
+    for _ in lines {
+        if row >= bottom {
+            break;
+        }
+        row = row.saturating_add(1);
+    }
+    if input.is_some() && row < bottom {
+        row = row.saturating_add(1);
+    }
+
+    let list_start_row = row;
+    let mut list_rows = 0;
+    for _ in list {
+        if row >= bottom {
+            break;
+        }
+        list_rows += 1;
+        row = row.saturating_add(1);
+    }
+
+    Some(OverlayLayout {
+        rect,
+        list_start_row,
+        list_rows,
+    })
 }
 
 fn render_status(frame: &mut Frame<'_>, shell: &UiShell, status: &StatusBar, area: TuiRect) {
@@ -2224,6 +2348,28 @@ mod tests {
         assert!(rendered.contains("/tmp/al"));
         assert!(rendered.contains("logs"));
         assert!(rendered.contains("alpha.log"));
+    }
+
+    #[test]
+    fn overlay_hit_test_maps_file_dialog_list_rows() {
+        let shell = UiShell::default();
+        let overlay = UiOverlay::file_dialog(
+            "Open",
+            vec![
+                "Directory: /tmp".to_string(),
+                "Select a file or type a path.".to_string(),
+            ],
+            "/tmp/",
+            5,
+            vec!["[D] logs/".to_string(), "    alpha.log".to_string()],
+            Some(0),
+            vec!["Enter  Tab complete  Up/Down select  Esc cancel".to_string()],
+        );
+        let area = Rect::new(0, 0, 90, 16);
+
+        assert_eq!(shell.hit_test_overlay_list(&overlay, area, 20, 8), Some(0));
+        assert_eq!(shell.hit_test_overlay_list(&overlay, area, 20, 9), Some(1));
+        assert_eq!(shell.hit_test_overlay_list(&overlay, area, 20, 7), None);
     }
 
     #[test]

@@ -69,7 +69,8 @@ open, or close would discard changes.
 Mouse support is optional and disabled by default; when enabled in config,
 left-clicks can focus tiled windows, place the cursor in an editor body, drag
 text selections, drag split borders, open top-menu dropdowns, and click
-submenu commands.
+submenu commands. File dialog list clicks enter directories, open selected
+files from Open, and update the Save As path input without immediately saving.
 The external SSH and low-capability terminal release matrix is documented in
 [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
 the local PTY harness covers common terminal profiles, small VT100-style
