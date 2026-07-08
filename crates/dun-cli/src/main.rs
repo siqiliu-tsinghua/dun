@@ -24,9 +24,9 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use dun_config::{
-    Config, FileDialogAction, FileDialogKeymap, Key, KeyModifiers, KeySequence, KeyStroke, Keymap,
-    Limits, ThemeName, command_from_id, command_id, default_config_text, file_dialog_action_id,
-    parse_config,
+    ClipboardConfig, Config, FileDialogAction, FileDialogKeymap, Key, KeyModifiers, KeySequence,
+    KeyStroke, Keymap, Limits, ThemeName, command_from_id, command_id, default_config_text,
+    file_dialog_action_id, parse_config,
 };
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
@@ -466,6 +466,7 @@ struct AppState {
     shell: UiShell,
     limits: Limits,
     file_dialog_keys: FileDialogKeymap,
+    clipboard: ClipboardConfig,
     mouse_enabled: bool,
     mouse_drag: Option<MouseDragState>,
     active_menu: Option<usize>,
@@ -511,6 +512,7 @@ impl AppState {
         let shell = UiShell::from_config(&loaded_config.config, detected_profile);
         let limits = loaded_config.config.limits;
         let file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
+        let clipboard = loaded_config.config.clipboard;
         let mouse_enabled = loaded_config.config.mouse.enabled;
 
         Self {
@@ -522,6 +524,7 @@ impl AppState {
             shell,
             limits,
             file_dialog_keys,
+            clipboard,
             mouse_enabled,
             mouse_drag: None,
             active_menu: None,
@@ -1113,6 +1116,9 @@ impl AppState {
 
     fn handle_app_command(&mut self, command: &AppCommand) {
         match command {
+            AppCommand::CommandOutputClear => self.clear_command_output(),
+            AppCommand::CommandOutputCopy => self.copy_command_output(),
+            AppCommand::CommandOutputStderr => self.jump_command_output_stderr(),
             AppCommand::ConfigDiagnostics => self.open_config_diagnostics_screen(),
             AppCommand::Help => self.open_help_screen(),
             AppCommand::ReloadConfig => self.reload_config(),
@@ -1163,6 +1169,7 @@ impl AppState {
         self.shell = UiShell::from_config(&loaded_config.config, self.detected_profile);
         self.limits = loaded_config.config.limits;
         self.file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
+        self.clipboard = loaded_config.config.clipboard;
         self.mouse_enabled = loaded_config.config.mouse.enabled;
         self.config_source = loaded_config.source;
         self.refresh_help_buffer();
@@ -1248,6 +1255,10 @@ impl AppState {
             }
             EditCommand::Copy => {
                 self.copy_selection();
+                return;
+            }
+            EditCommand::CopyExternal => {
+                self.copy_selection_external();
                 return;
             }
             EditCommand::CopyLine => {
@@ -1396,6 +1407,7 @@ impl AppState {
             }
             EditCommand::Cut
             | EditCommand::Copy
+            | EditCommand::CopyExternal
             | EditCommand::CopyLine
             | EditCommand::Paste
             | EditCommand::DeleteLine
@@ -1727,27 +1739,70 @@ impl AppState {
     }
 
     fn copy_selection(&mut self) {
-        let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Copy failed: focused buffer is missing");
-            return;
-        };
+        match self.focused_selection_text() {
+            Ok(text) => {
+                self.kill_ring = Some(text);
+                self.set_status("Copied selection");
+            }
+            Err(CopyTextError::MissingBuffer) => {
+                self.set_status("Copy failed: focused buffer is missing")
+            }
+            Err(CopyTextError::NoSelection) => self.set_status("Copy: no selection"),
+            Err(CopyTextError::Buffer(error)) => {
+                self.set_status(format!("Copy failed: {}", buffer_error_text(error)))
+            }
+        }
+    }
 
+    fn copy_selection_external(&mut self) {
+        match self.focused_selection_text() {
+            Ok(text) => self.copy_text_external(text, "selection"),
+            Err(CopyTextError::MissingBuffer) => {
+                self.set_status("External copy failed: focused buffer is missing")
+            }
+            Err(CopyTextError::NoSelection) => self.set_status("External copy: no selection"),
+            Err(CopyTextError::Buffer(error)) => self.set_status(format!(
+                "External copy failed: {}",
+                buffer_error_text(error)
+            )),
+        }
+    }
+
+    fn focused_selection_text(&self) -> Result<String, CopyTextError> {
+        let Some(buffer) = self.focused_buffer() else {
+            return Err(CopyTextError::MissingBuffer);
+        };
         let Some(range) = buffer
             .buffer
             .selection_range()
             .filter(|range| !range.is_empty())
         else {
-            self.set_status("Copy: no selection");
-            return;
+            return Err(CopyTextError::NoSelection);
         };
 
-        match buffer.buffer.text_in_range(range) {
-            Ok(text) => {
-                self.kill_ring = Some(text);
-                self.set_status("Copied selection");
-            }
-            Err(error) => self.set_status(format!("Copy failed: {}", buffer_error_text(error))),
+        buffer
+            .buffer
+            .text_in_range(range)
+            .map_err(CopyTextError::Buffer)
+    }
+
+    fn copy_text_external(&mut self, text: String, label: &str) {
+        self.kill_ring = Some(text.clone());
+        let byte_len = text.len();
+        if !self.clipboard.osc52.enabled {
+            self.set_status(format!("External copy disabled: copied {label} internally"));
+            return;
         }
+        if byte_len > self.clipboard.osc52.max_bytes {
+            self.set_status(format!(
+                "External copy failed: {label} is {byte_len} bytes; limit is {}",
+                self.clipboard.osc52.max_bytes
+            ));
+            return;
+        }
+
+        self.runtime_action = Some(RuntimeAction::WriteTerminal(osc52_copy_sequence(&text)));
+        self.set_status(format!("Copied {label} to external clipboard"));
     }
 
     fn cut_selection(&mut self) {
@@ -2382,6 +2437,82 @@ impl AppState {
         }
     }
 
+    fn clear_command_output(&mut self) {
+        let Some(buffer_id) = self.command_output_buffer_id() else {
+            self.set_status("Command Output: no output window");
+            return;
+        };
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = BufferState::new(buffer_id, command_output_empty_buffer());
+        }
+        if let Some(window_id) = self.command_output_window_id() {
+            self.workspace.focused = window_id;
+        }
+        self.set_status("Command Output cleared");
+    }
+
+    fn copy_command_output(&mut self) {
+        let Some(text) = self.command_output_text_current() else {
+            self.set_status("Command Output: no output window");
+            return;
+        };
+        self.kill_ring = Some(text);
+        self.set_status("Copied Command Output");
+    }
+
+    fn jump_command_output_stderr(&mut self) {
+        let Some(window_id) = self.command_output_window_id() else {
+            self.set_status("Command Output: no output window");
+            return;
+        };
+        let Some(buffer_id) = self.command_output_buffer_id() else {
+            self.set_status("Command Output: no output buffer");
+            return;
+        };
+        let Some(line_index) = self
+            .buffer_state(buffer_id)
+            .and_then(|buffer| command_output_stderr_line(&buffer.buffer))
+        else {
+            self.set_status("Command Output: stderr section not found");
+            return;
+        };
+
+        self.workspace.focused = window_id;
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            let _ = buffer.buffer.set_cursor(Position::new(line_index, 0));
+            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        }
+        self.set_status("Command Output: stderr");
+    }
+
+    fn save_command_output_path(&mut self, path: PathBuf) {
+        let Some(text) = self.command_output_text_current() else {
+            self.set_status("Command Output: no output window");
+            return;
+        };
+        match atomic_write_text_file(&path, &text).map_err(|error| path_io_error(&path, error)) {
+            Ok(report) => {
+                self.set_status(status_with_atomic_temp_report(
+                    format!("Saved Command Output {}", path.display()),
+                    &report.temp_reconcile,
+                ));
+            }
+            Err(error) => self.set_status(format!("Command Output save failed: {error}")),
+        }
+    }
+
+    fn command_output_text_current(&self) -> Option<String> {
+        let buffer_id = self.command_output_buffer_id()?;
+        Some(self.buffer_state(buffer_id)?.buffer.to_text())
+    }
+
     fn status_history_window_id(&self) -> Option<WindowId> {
         self.workspace
             .windows
@@ -2465,6 +2596,20 @@ impl AppState {
             }
         ));
 
+        out.push_str("\nClipboard\n");
+        out.push_str(&format!(
+            "  osc52: {}\n",
+            if self.clipboard.osc52.enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        ));
+        out.push_str(&format!(
+            "  osc52_max_bytes: {}\n",
+            self.clipboard.osc52.max_bytes
+        ));
+
         out.push_str("\nLimits\n");
         out.push_str(&format!(
             "  editable_file_soft_limit_bytes: {}\n",
@@ -2530,6 +2675,11 @@ impl AppState {
     fn focused_buffer_mut(&mut self) -> Option<&mut BufferState> {
         let buffer_id = self.focused_buffer_id()?;
         self.buffer_state_mut(buffer_id)
+    }
+
+    fn focused_buffer(&self) -> Option<&BufferState> {
+        let buffer_id = self.focused_buffer_id()?;
+        self.buffer_state(buffer_id)
     }
 
     fn focused_buffer_id(&self) -> Option<BufferId> {
@@ -3789,6 +3939,7 @@ impl AppState {
                 self.run_no_arg_command(args, EditorCommand::App(AppCommand::ShellEscape))
             }
             "run" | "command" => self.run_external_command_line(args),
+            "output" | "commandoutput" => self.run_command_output_command(args),
             "open" | "o" => self.run_open_command(args),
             "buffers" | "switch" | "switchbuffer" => {
                 self.run_no_arg_command(args, EditorCommand::File(FileCommand::SwitchBuffer))
@@ -3846,6 +3997,26 @@ impl AppState {
             [] => self.handle_app_command(&AppCommand::RunCommand),
             [command] => self.run_external_command_to_buffer(command),
             _ => self.set_status("Command failed: run expects zero args or one quoted command"),
+        }
+    }
+
+    fn run_command_output_command(&mut self, args: &[String]) {
+        match args {
+            [action] if normalize_command_line_token(action) == "clear" => {
+                self.handle_app_command(&AppCommand::CommandOutputClear)
+            }
+            [action] if normalize_command_line_token(action) == "copy" => {
+                self.handle_app_command(&AppCommand::CommandOutputCopy)
+            }
+            [action] if normalize_command_line_token(action) == "stderr" => {
+                self.handle_app_command(&AppCommand::CommandOutputStderr)
+            }
+            [action, path] if normalize_command_line_token(action) == "save" => {
+                self.save_command_output_path(PathBuf::from(path))
+            }
+            _ => {
+                self.set_status("Command failed: output expects clear, copy, stderr, or save PATH")
+            }
         }
     }
 
@@ -5254,9 +5425,17 @@ enum PendingAction {
     CloseWindow,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum RuntimeAction {
     ShellEscape,
+    WriteTerminal(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CopyTextError {
+    MissingBuffer,
+    NoSelection,
+    Buffer(BufferError),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -5273,7 +5452,7 @@ enum MouseDragState {
     },
 }
 
-const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, shell, run [\"command\"], theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
+const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, shell, run [\"command\"], output clear|copy|stderr|save PATH, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CommandLineParseError {
@@ -6426,6 +6605,12 @@ fn handle_runtime_action(
 ) -> io::Result<()> {
     match action {
         RuntimeAction::ShellEscape => run_shell_escape(terminal, app, guard),
+        RuntimeAction::WriteTerminal(payload) => {
+            let mut stdout = io::stdout();
+            stdout.write_all(payload.as_bytes())?;
+            stdout.flush()?;
+            Ok(())
+        }
     }
 }
 
@@ -7156,6 +7341,18 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Run command to read-only output",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputStderr),
+                description: "Jump Command Output to stderr",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputCopy),
+                description: "Copy Command Output internally",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputClear),
+                description: "Clear Command Output",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::ShellEscape),
                 description: "Open interactive shell and return",
             },
@@ -7300,6 +7497,10 @@ const HELP_SECTIONS: &[HelpSection] = &[
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::Copy),
                 description: "Copy selection to internal clipboard",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::CopyExternal),
+                description: "Copy selection through OSC 52 when enabled",
             },
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::Paste),
@@ -7454,6 +7655,10 @@ fn command_output_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
 }
 
+fn command_output_empty_buffer() -> TextBuffer {
+    command_output_buffer("Dun Command Output\n\n(empty)\n")
+}
+
 fn config_diagnostics_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
 }
@@ -7513,6 +7718,33 @@ fn command_stream_summary(stream: &CapturedCommandStream) -> String {
     )
 }
 
+fn osc52_copy_sequence(text: &str) -> String {
+    format!("\x1b]52;c;{}\x07", base64_encode(text.as_bytes()))
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = chunk.get(1).copied().unwrap_or(0);
+        let b2 = chunk.get(2).copied().unwrap_or(0);
+        out.push(TABLE[(b0 >> 2) as usize] as char);
+        out.push(TABLE[(((b0 & 0b0000_0011) << 4) | (b1 >> 4)) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(TABLE[(((b1 & 0b0000_1111) << 2) | (b2 >> 6)) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(TABLE[(b2 & 0b0011_1111) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
 fn push_decoded_command_stream(out: &mut String, stream: &CapturedCommandStream) {
     if stream.bytes.is_empty() {
         out.push_str("(empty)\n");
@@ -7526,6 +7758,14 @@ fn push_decoded_command_stream(out: &mut String, stream: &CapturedCommandStream)
     if stream.truncated {
         out.push_str("[truncated]\n");
     }
+}
+
+fn command_output_stderr_line(buffer: &TextBuffer) -> Option<usize> {
+    (0..buffer.line_count()).find(|line_index| {
+        buffer
+            .line(*line_index)
+            .is_some_and(|line| line.starts_with("--- stderr"))
+    })
 }
 
 fn buffer_end_position(buffer: &TextBuffer) -> Position {
@@ -9511,6 +9751,45 @@ key.window.close = none
         assert!(text.contains("Command: printf two"));
         assert!(text.contains("two"));
         assert!(!text.contains("one"));
+    }
+
+    #[test]
+    fn command_output_actions_copy_clear_jump_and_save_output() {
+        let mut app = AppState::new();
+        app.run_external_command_to_buffer("printf stdout; printf stderr >&2");
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandOutputCopy));
+        assert!(
+            app.kill_ring
+                .as_deref()
+                .is_some_and(|text| text.contains("stdout") && text.contains("stderr"))
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Copied Command Output".to_string())
+        );
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandOutputStderr));
+        let window = app.workspace.focused_window().unwrap();
+        let buffer = app.buffer_state(window.buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("--- stderr (6 bytes, complete) ---")
+        );
+
+        let path = temp_file_path("command-output-save.txt");
+        submit_command_line(&mut app, &format!("output save {}", path.to_string_lossy()));
+        let saved = std::fs::read_to_string(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert!(saved.contains("Command: printf stdout; printf stderr >&2"));
+        assert!(saved.contains("stdout"));
+        assert!(saved.contains("stderr"));
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandOutputClear));
+        let buffer = app
+            .buffer_state(app.workspace.focused_window().unwrap().buffer_id)
+            .unwrap();
+        assert_eq!(buffer.buffer.to_text(), "Dun Command Output\n\n(empty)\n");
     }
 
     #[test]
@@ -12143,6 +12422,73 @@ key.app.help = F10
         assert_eq!(state.buffer.to_text(), "abc defabc");
         assert_eq!(state.buffer.selection_range(), None);
         assert_eq!(app.status_message, Some("Pasted selection".to_string()));
+    }
+
+    #[test]
+    fn copy_external_requires_opt_in_and_preserves_internal_clipboard() {
+        let mut app = app_with_text("abc def");
+        app.buffers[0]
+            .buffer
+            .select(Position::new(0, 0), Position::new(0, 3))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::CopyExternal));
+
+        assert_eq!(app.kill_ring.as_deref(), Some("abc"));
+        assert_eq!(app.take_runtime_action(), None);
+        assert_eq!(
+            app.status_message,
+            Some("External copy disabled: copied selection internally".to_string())
+        );
+    }
+
+    #[test]
+    fn copy_external_emits_osc52_when_enabled_and_under_limit() {
+        let mut config = Config::default();
+        config.clipboard.osc52.enabled = true;
+        config.clipboard.osc52.max_bytes = 8;
+        let mut app = AppState::from_config(config);
+        app.buffers[0].buffer.insert_str("abc").unwrap();
+        app.buffers[0]
+            .buffer
+            .select(Position::new(0, 0), Position::new(0, 3))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::CopyExternal));
+
+        assert_eq!(app.kill_ring.as_deref(), Some("abc"));
+        assert_eq!(
+            app.take_runtime_action(),
+            Some(RuntimeAction::WriteTerminal(
+                "\x1b]52;c;YWJj\x07".to_string()
+            ))
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Copied selection to external clipboard".to_string())
+        );
+    }
+
+    #[test]
+    fn copy_external_honors_osc52_byte_limit() {
+        let mut config = Config::default();
+        config.clipboard.osc52.enabled = true;
+        config.clipboard.osc52.max_bytes = 2;
+        let mut app = AppState::from_config(config);
+        app.buffers[0].buffer.insert_str("abc").unwrap();
+        app.buffers[0]
+            .buffer
+            .select(Position::new(0, 0), Position::new(0, 3))
+            .unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::CopyExternal));
+
+        assert_eq!(app.kill_ring.as_deref(), Some("abc"));
+        assert_eq!(app.take_runtime_action(), None);
+        assert_eq!(
+            app.status_message,
+            Some("External copy failed: selection is 3 bytes; limit is 2".to_string())
+        );
     }
 
     #[test]

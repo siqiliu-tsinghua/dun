@@ -68,7 +68,8 @@ line ending, file-text encoding, terminal profile, and focused window index.
 It also includes a lightweight buffer switcher for open tiled buffers, line
 commands for copy/delete/move/indent/outdent/trim, line bookmarks shown in the
 gutter, a display-layer word-wrap toggle, and visible-whitespace markers with
-ASCII fallback.
+ASCII fallback. Selection and search-match highlights now follow wrapped
+visual rows when word wrap is enabled.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, and `Ctrl+L` selects the
 current line, giving Cut/Copy a pure keyboard path without requiring mouse
@@ -103,7 +104,8 @@ non-interactive commands; stdout and stderr are captured with bounded memory,
 decoded through the same safe display path as files, and shown in a read-only
 Command Output window with per-stream byte counts and truncation status. The
 Run Command prompt keeps its own bounded history, separate from the editor
-command prompt.
+command prompt. Command Output can be copied internally, cleared, saved to a
+path, or jumped directly to stderr through typed commands.
 Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
 focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver
@@ -113,15 +115,18 @@ The command prompt keeps a bounded in-memory history navigated with Up/Down.
 Dirty buffers are protected by a status-line confirmation before quit, new,
 open, or close would discard changes.
 Cut, Copy, and Paste are implemented with a process-local internal clipboard:
-they operate on the active selection, never invoke the operating system
-clipboard, and still use the normal buffer edit path so read-only buffers
-reject mutation.
+they operate on the active selection and still use the normal buffer edit path
+so read-only buffers reject mutation. External copy is available only through
+the explicit `edit.copy_external` command and opt-in `clipboard.osc52.enabled`
+configuration; it emits a bounded OSC 52 clipboard sequence and always keeps
+the same text in the internal clipboard as fallback.
 Terminal bracketed paste is enabled during the TUI session and restored on
 exit. Paste text is treated as untrusted input: editor paste goes through the
 normal buffer insertion path, prompt and file-dialog paste is kept single-line
 and never auto-submits, and confirmation prompts ignore paste. Right-click
 paste only waits for the terminal to deliver bracketed paste data; `dun` does
-not call external clipboard commands or emit OSC 52 clipboard writes.
+not call external clipboard commands, query the terminal clipboard, or perform
+OSC 52 paste.
 Mouse support is optional and disabled by default; when enabled in config,
 left-clicks can focus tiled windows, place the cursor in an editor body, drag
 text selections including edge scrolling, drag split borders, open top-menu

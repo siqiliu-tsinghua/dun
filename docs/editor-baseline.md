@@ -290,16 +290,20 @@ Current mouse baseline:
 - pressing `Esc` closes an open menu before normal keymap dispatch;
 - clicks in the status area do nothing.
 
-Deferred mouse features:
+Deferred clipboard features:
 
-- external clipboard integration.
+- OSC 52 paste/query support;
+- platform-specific clipboard command integration.
 
 Every feature must remain keyboard accessible.
 
 Paste policy:
 
-- Cut, Copy, and command Paste use a process-local internal clipboard only;
-  they must not read or write the OS clipboard;
+- Default Cut, Copy, and command Paste use a process-local internal clipboard;
+  command Paste must not read the OS clipboard;
+- `edit.copy_external` may write the active selection through OSC 52 only when
+  explicitly enabled in config, and it must keep the same text in the internal
+  clipboard as fallback;
 - internal clipboard Paste enters through the same edit transaction path as
   normal insertion and can replace an active selection;
 - bracketed paste is enabled only for the TUI session and disabled during
@@ -322,8 +326,8 @@ Paste policy:
   requires a second Enter before overwriting an existing file, while all actual
   open/save file operations still go through the same validated editor file
   I/O paths;
-- external clipboard commands and OSC 52 clipboard writes are out of scope for
-  the baseline.
+- platform clipboard commands and OSC 52 paste/query support are out of scope
+  for the baseline.
 
 ## Log and rum Work
 

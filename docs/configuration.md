@@ -33,6 +33,8 @@ theme = msedit | turbo | dark | dun
 terminal.encoding = utf8 | ascii
 terminal.colors = 256 | 16 | mono
 mouse.enabled = true | false
+clipboard.osc52.enabled = true | false
+clipboard.osc52.max_bytes = 16 KiB
 limits.editable_file_soft_limit_bytes = 16 MiB
 limits.line_display_soft_limit_bytes = 16 KiB
 ```
@@ -46,6 +48,7 @@ key.app.quit = Ctrl+Q
 key.app.reload_config = F5
 key.app.config_diagnostics = F6
 key.edit.find = Ctrl+F
+key.edit.copy_external = Ctrl+W,Ctrl+C
 key.window.split_horizontal = Ctrl+W,H
 key.window.focus_left = Ctrl+W,Left
 key.window.resize_right = Ctrl+W,Shift+Right
@@ -116,8 +119,13 @@ Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 focus, editor-body cursor placement, text selection drag, split-border drag,
 menu command dispatch, editor scrollbar click/drag scrolling, and mouse wheel
 scrolling inside editor panes and file dialogs. Right-click paste waits for
-terminal bracketed paste data when the terminal supports it. External clipboard
-commands and OSC 52 clipboard integration remain deferred.
+terminal bracketed paste data when the terminal supports it.
+
+External copy is optional and disabled by default. When
+`clipboard.osc52.enabled = true`, `edit.copy_external` copies the active
+selection to the internal clipboard and emits an OSC 52 clipboard write if the
+UTF-8 payload is no larger than `clipboard.osc52.max_bytes`. `dun` does not
+query OSC 52 paste data or call platform clipboard commands.
 
 ## Example
 
@@ -126,12 +134,15 @@ commands and OSC 52 clipboard integration remain deferred.
 theme = dark
 terminal.colors = 16
 mouse.enabled = false
+clipboard.osc52.enabled = false
+clipboard.osc52.max_bytes = 16 KiB
 limits.editable_file_soft_limit_bytes = 8 MiB
 
 key.app.quit = Ctrl+Q
 key.app.reload_config = F5
 key.app.config_diagnostics = F6
 key.edit.find = Ctrl+F
+key.edit.copy_external = Ctrl+W,Ctrl+C
 key.edit.scroll_left = Ctrl+W,[
 key.edit.scroll_right = Ctrl+W,]
 key.window.split_horizontal = Ctrl+W,H

@@ -13,6 +13,7 @@ pub struct Config {
     pub theme: ThemeName,
     pub terminal: TerminalOverrides,
     pub mouse: MouseConfig,
+    pub clipboard: ClipboardConfig,
     pub keybindings: Keymap,
     pub file_dialog_keys: FileDialogKeymap,
     pub limits: Limits,
@@ -41,6 +42,7 @@ impl Default for Config {
             theme: ThemeName::MsEdit,
             terminal: TerminalOverrides::default(),
             mouse: MouseConfig::default(),
+            clipboard: ClipboardConfig::default(),
             keybindings: Keymap::default(),
             file_dialog_keys: FileDialogKeymap::default(),
             limits: Limits::default(),
@@ -66,6 +68,14 @@ pub fn default_config_text() -> String {
     out.push_str("# terminal.encoding = utf8\n");
     out.push_str("# terminal.colors = 256\n");
     out.push_str(&format!("mouse.enabled = {}\n", config.mouse.enabled));
+    out.push_str(&format!(
+        "clipboard.osc52.enabled = {}\n",
+        config.clipboard.osc52.enabled
+    ));
+    out.push_str(&format!(
+        "clipboard.osc52.max_bytes = {}\n",
+        config.clipboard.osc52.max_bytes
+    ));
     out.push_str(&format!(
         "limits.editable_file_soft_limit_bytes = {}\n",
         config.limits.editable_file_soft_limit_bytes
@@ -200,6 +210,16 @@ fn apply_config_entry(
         "mouse.enabled" | "input.mouse" => {
             config.mouse.enabled = parse_bool(value)
                 .ok_or_else(|| ConfigParseError::line(line_number, "expected true or false"))?;
+        }
+        "clipboard.osc52.enabled" | "clipboard.osc52" => {
+            config.clipboard.osc52.enabled = parse_bool(value)
+                .ok_or_else(|| ConfigParseError::line(line_number, "expected true or false"))?;
+        }
+        "clipboard.osc52.max_bytes" => {
+            let value = parse_byte_count(value, line_number)?;
+            config.clipboard.osc52.max_bytes = usize::try_from(value).map_err(|_| {
+                ConfigParseError::line(line_number, "OSC 52 byte limit does not fit this platform")
+            })?;
         }
         "limits.editable_file_soft_limit_bytes" => {
             config.limits.editable_file_soft_limit_bytes = parse_byte_count(value, line_number)?;
@@ -535,6 +555,34 @@ pub struct MouseConfig {
     pub enabled: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClipboardConfig {
+    pub osc52: Osc52Config,
+}
+
+impl Default for ClipboardConfig {
+    fn default() -> Self {
+        Self {
+            osc52: Osc52Config::default(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Osc52Config {
+    pub enabled: bool,
+    pub max_bytes: usize,
+}
+
+impl Default for Osc52Config {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_bytes: 16 * 1024,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConfigError {
     Keymap(KeymapError),
@@ -598,6 +646,10 @@ impl Keymap {
                 KeyBinding::new("Ctrl+W,Q", EditorCommand::File(FileCommand::Close)),
                 KeyBinding::new("Ctrl+Z", EditorCommand::Edit(EditCommand::Undo)),
                 KeyBinding::new("Ctrl+Y", EditorCommand::Edit(EditCommand::Redo)),
+                KeyBinding::new(
+                    "Ctrl+W,Ctrl+C",
+                    EditorCommand::Edit(EditCommand::CopyExternal),
+                ),
                 KeyBinding::new("Ctrl+F", EditorCommand::Edit(EditCommand::Find)),
                 KeyBinding::new("F3", EditorCommand::Edit(EditCommand::FindNext)),
                 KeyBinding::new("Shift+F3", EditorCommand::Edit(EditCommand::FindPrevious)),
@@ -1221,6 +1273,7 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Edit(EditCommand::Redo) => "edit.redo",
         EditorCommand::Edit(EditCommand::Cut) => "edit.cut",
         EditorCommand::Edit(EditCommand::Copy) => "edit.copy",
+        EditorCommand::Edit(EditCommand::CopyExternal) => "edit.copy_external",
         EditorCommand::Edit(EditCommand::Paste) => "edit.paste",
         EditorCommand::Edit(EditCommand::SelectAll) => "edit.select_all",
         EditorCommand::Edit(EditCommand::SelectLine) => "edit.select_line",
@@ -1292,6 +1345,9 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::App(AppCommand::Help) => "app.help",
         EditorCommand::App(AppCommand::ReloadConfig) => "app.reload_config",
         EditorCommand::App(AppCommand::RunCommand) => "app.run_command",
+        EditorCommand::App(AppCommand::CommandOutputClear) => "app.command_output_clear",
+        EditorCommand::App(AppCommand::CommandOutputCopy) => "app.command_output_copy",
+        EditorCommand::App(AppCommand::CommandOutputStderr) => "app.command_output_stderr",
         EditorCommand::App(AppCommand::ShellEscape) => "app.shell_escape",
         EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
         EditorCommand::App(AppCommand::Quit) => "app.quit",
@@ -1364,6 +1420,7 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "edit.redo" => Ok(EditorCommand::Edit(EditCommand::Redo)),
         "edit.cut" => Ok(EditorCommand::Edit(EditCommand::Cut)),
         "edit.copy" => Ok(EditorCommand::Edit(EditCommand::Copy)),
+        "edit.copy_external" => Ok(EditorCommand::Edit(EditCommand::CopyExternal)),
         "edit.paste" => Ok(EditorCommand::Edit(EditCommand::Paste)),
         "edit.select_all" => Ok(EditorCommand::Edit(EditCommand::SelectAll)),
         "edit.select_line" => Ok(EditorCommand::Edit(EditCommand::SelectLine)),
@@ -1439,6 +1496,9 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "app.help" => Ok(EditorCommand::App(AppCommand::Help)),
         "app.reload_config" => Ok(EditorCommand::App(AppCommand::ReloadConfig)),
         "app.run_command" => Ok(EditorCommand::App(AppCommand::RunCommand)),
+        "app.command_output_clear" => Ok(EditorCommand::App(AppCommand::CommandOutputClear)),
+        "app.command_output_copy" => Ok(EditorCommand::App(AppCommand::CommandOutputCopy)),
+        "app.command_output_stderr" => Ok(EditorCommand::App(AppCommand::CommandOutputStderr)),
         "app.shell_escape" => Ok(EditorCommand::App(AppCommand::ShellEscape)),
         "app.status_history" => Ok(EditorCommand::App(AppCommand::StatusHistory)),
         "app.quit" => Ok(EditorCommand::App(AppCommand::Quit)),
@@ -1628,6 +1688,10 @@ mod tests {
             Some(&EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft))
         );
         assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,Ctrl+C").unwrap()),
+            Some(&EditorCommand::Edit(EditCommand::CopyExternal))
+        );
+        assert_eq!(
             keymap.command_for_sequence(&KeySequence::from_str("F2").unwrap()),
             Some(&EditorCommand::App(AppCommand::StatusHistory))
         );
@@ -1788,6 +1852,14 @@ mod tests {
             Ok(EditorCommand::Edit(EditCommand::DeleteWordBackward))
         );
         assert_eq!(
+            command_from_id("edit.copy_external"),
+            Ok(EditorCommand::Edit(EditCommand::CopyExternal))
+        );
+        assert_eq!(
+            command_from_id("app.command_output_clear"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputClear))
+        );
+        assert_eq!(
             command_from_id("app.nope"),
             Err(CommandParseError::UnknownCommand("app.nope".to_string()))
         );
@@ -1802,6 +1874,8 @@ theme = dark
 terminal.encoding = ascii
 terminal.colors = mono
 mouse.enabled = true
+clipboard.osc52.enabled = true
+clipboard.osc52.max_bytes = 2 KiB
 limits.editable_file_soft_limit_bytes = 2 MiB
 limits.line_display_soft_limit_bytes = 4 KiB
 key.app.quit = Esc
@@ -1816,6 +1890,8 @@ file_dialog.key.delete_forward = none
         assert_eq!(config.terminal.encoding, Some(EncodingProfile::Ascii));
         assert_eq!(config.terminal.colors, Some(ColorProfile::Mono));
         assert!(config.mouse.enabled);
+        assert!(config.clipboard.osc52.enabled);
+        assert_eq!(config.clipboard.osc52.max_bytes, 2 * 1024);
         assert_eq!(
             config.limits.editable_file_soft_limit_bytes,
             2 * 1024 * 1024

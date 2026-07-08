@@ -569,10 +569,6 @@ impl UiShell {
         rect: Rect,
         gutter_width: u16,
     ) -> Vec<UiSelectionLine> {
-        if buffer.wrap {
-            return Vec::new();
-        }
-
         let Some(range) = buffer.buffer.selection_range() else {
             return Vec::new();
         };
@@ -586,6 +582,15 @@ impl UiShell {
         };
         if body_width == 0 || body_height == 0 || range.is_empty() {
             return Vec::new();
+        }
+        if buffer.wrap {
+            return self.selection_for_wrapped_buffer(
+                buffer,
+                range,
+                body_width,
+                body_height,
+                gutter_width,
+            );
         }
 
         let mut lines = Vec::new();
@@ -636,10 +641,10 @@ impl UiShell {
             return None;
         }
         let start_column = start_column.max(visible_byte_start);
-        let body_origin = self.display_column(line, visible_byte_start)?;
+        let body_origin = self.line_display_column_for_buffer(buffer, line, visible_byte_start)?;
         let last_column = body_origin.saturating_add(body_width);
-        let start_display = self.display_column(line, start_column)?;
-        let end_display = self.display_column(line, end_column)?;
+        let start_display = self.line_display_column_for_buffer(buffer, line, start_column)?;
+        let end_display = self.line_display_column_for_buffer(buffer, line, end_column)?;
         if end_display <= body_origin || start_display >= last_column {
             return None;
         }
@@ -657,16 +662,61 @@ impl UiShell {
         })
     }
 
+    fn selection_for_wrapped_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        range: TextRange,
+        body_width: usize,
+        body_height: usize,
+        gutter_width: usize,
+    ) -> Vec<UiSelectionLine> {
+        let mut lines = Vec::new();
+        let mut visual_y = 0usize;
+        for line_index in buffer.first_line..buffer.buffer.line_count() {
+            if visual_y >= body_height {
+                break;
+            }
+            let visual_rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
+            if line_index >= range.start.line && line_index <= range.end.line {
+                let Some(line) = buffer.buffer.line(line_index) else {
+                    visual_y = visual_y.saturating_add(visual_rows);
+                    continue;
+                };
+                let start_column = if line_index == range.start.line {
+                    range.start.column
+                } else {
+                    0
+                };
+                let end_column = if line_index == range.end.line {
+                    range.end.column
+                } else {
+                    line.len()
+                };
+                for (y, start_x, end_x) in self.wrapped_highlight_spans(
+                    buffer,
+                    line,
+                    start_column,
+                    end_column,
+                    visual_y,
+                    body_width,
+                    body_height,
+                    gutter_width,
+                ) {
+                    lines.push(UiSelectionLine { y, start_x, end_x });
+                }
+            }
+            visual_y = visual_y.saturating_add(visual_rows);
+        }
+
+        lines
+    }
+
     fn search_matches_for_buffer(
         &self,
         buffer: &BufferView<'_>,
         rect: Rect,
         gutter_width: u16,
     ) -> Vec<UiSearchMatchLine> {
-        if buffer.wrap {
-            return Vec::new();
-        }
-
         if buffer.search_matches.is_empty() {
             return Vec::new();
         }
@@ -680,6 +730,14 @@ impl UiShell {
         };
         if body_width == 0 || body_height == 0 {
             return Vec::new();
+        }
+        if buffer.wrap {
+            return self.search_matches_for_wrapped_buffer(
+                buffer,
+                body_width,
+                body_height,
+                gutter_width,
+            );
         }
 
         let visible_start = buffer.first_line;
@@ -717,10 +775,10 @@ impl UiShell {
             return None;
         }
         let start_column = range.start.column.max(visible_byte_start);
-        let body_origin = self.display_column(line, visible_byte_start)?;
+        let body_origin = self.line_display_column_for_buffer(buffer, line, visible_byte_start)?;
         let last_column = body_origin.saturating_add(body_width);
-        let start_display = self.display_column(line, start_column)?;
-        let end_display = self.display_column(line, range.end.column)?;
+        let start_display = self.line_display_column_for_buffer(buffer, line, start_column)?;
+        let end_display = self.line_display_column_for_buffer(buffer, line, range.end.column)?;
         if end_display <= body_origin || start_display >= last_column {
             return None;
         }
@@ -737,6 +795,117 @@ impl UiShell {
             end_x: 1 + end_x as u16 + gutter_width as u16,
             active: buffer.active_search_match == Some(index),
         })
+    }
+
+    fn search_matches_for_wrapped_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        body_width: usize,
+        body_height: usize,
+        gutter_width: usize,
+    ) -> Vec<UiSearchMatchLine> {
+        let mut first_visible_row_by_line = Vec::new();
+        let mut visual_y = 0usize;
+        for line_index in buffer.first_line..buffer.buffer.line_count() {
+            if visual_y >= body_height {
+                break;
+            }
+            first_visible_row_by_line.push((line_index, visual_y));
+            visual_y = visual_y
+                .saturating_add(self.wrapped_visual_line_count(buffer, line_index, body_width));
+        }
+
+        let mut lines = Vec::new();
+        for (index, item) in buffer.search_matches.iter().enumerate() {
+            let range = item.range;
+            if range.is_empty() || range.start.line != range.end.line {
+                continue;
+            }
+            let Some((_, visual_y)) = first_visible_row_by_line
+                .iter()
+                .find(|(line_index, _)| *line_index == range.start.line)
+                .copied()
+            else {
+                continue;
+            };
+            let Some(line) = buffer.buffer.line(range.start.line) else {
+                continue;
+            };
+            for (y, start_x, end_x) in self.wrapped_highlight_spans(
+                buffer,
+                line,
+                range.start.column,
+                range.end.column,
+                visual_y,
+                body_width,
+                body_height,
+                gutter_width,
+            ) {
+                lines.push(UiSearchMatchLine {
+                    y,
+                    start_x,
+                    end_x,
+                    active: buffer.active_search_match == Some(index),
+                });
+            }
+        }
+
+        lines
+    }
+
+    fn wrapped_highlight_spans(
+        &self,
+        buffer: &BufferView<'_>,
+        line: &str,
+        start_column: usize,
+        end_column: usize,
+        visual_y: usize,
+        body_width: usize,
+        body_height: usize,
+        gutter_width: usize,
+    ) -> Vec<(u16, u16, u16)> {
+        if start_column >= end_column {
+            return Vec::new();
+        }
+        let Some(start_display) = self.line_display_column_for_buffer(buffer, line, start_column)
+        else {
+            return Vec::new();
+        };
+        let Some(end_display) = self.line_display_column_for_buffer(buffer, line, end_column)
+        else {
+            return Vec::new();
+        };
+        if start_display >= end_display {
+            return Vec::new();
+        }
+
+        let visible = visible_whitespace_text(
+            line,
+            buffer.show_whitespace,
+            self.display_sanitizer.ascii_only,
+        );
+        let mut spans = Vec::new();
+        let mut segment_start = 0usize;
+        for (row_offset, segment) in wrap_line_segments(&visible, body_width).iter().enumerate() {
+            let row = visual_y.saturating_add(row_offset);
+            if row >= body_height {
+                break;
+            }
+            let segment_width = display_width(segment);
+            let segment_end = segment_start.saturating_add(segment_width);
+            let start = start_display.max(segment_start);
+            let end = end_display.min(segment_end);
+            if start < end {
+                spans.push((
+                    1 + row as u16,
+                    1 + gutter_width as u16 + (start - segment_start) as u16,
+                    1 + gutter_width as u16 + (end - segment_start) as u16,
+                ));
+            }
+            segment_start = segment_end;
+        }
+
+        spans
     }
 
     fn scrollbar_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> Option<UiScrollbar> {
@@ -923,6 +1092,25 @@ impl UiShell {
         Some(UnicodeWidthStr::width(display_text.as_str()))
     }
 
+    fn line_display_column_for_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        line: &str,
+        byte_column: usize,
+    ) -> Option<usize> {
+        let prefix = line.get(..byte_column)?;
+        if !buffer.show_whitespace {
+            return self.display_column(line, byte_column);
+        }
+        let display_sanitizer = DisplaySanitizer {
+            ascii_only: self.display_sanitizer.ascii_only,
+            max_bytes: usize::MAX,
+        };
+        let visible = visible_whitespace_prefix_text(prefix, self.display_sanitizer.ascii_only);
+        let display_text = display_sanitizer.sanitize_line(&visible).as_plain_text();
+        Some(UnicodeWidthStr::width(display_text.as_str()))
+    }
+
     fn byte_column_for_display_column(&self, line: &str, target: usize) -> usize {
         if target == 0 {
             return 0;
@@ -1006,6 +1194,10 @@ impl UiShell {
                         MenuEntry::new(
                             "Copy (C)",
                             EditorCommand::Edit(dun_core::EditCommand::Copy),
+                        ),
+                        MenuEntry::new(
+                            "Copy External (X)",
+                            EditorCommand::Edit(dun_core::EditCommand::CopyExternal),
                         ),
                         MenuEntry::new(
                             "Paste (P)",
@@ -1111,6 +1303,18 @@ impl UiShell {
                         MenuEntry::new(
                             "Status History (S)",
                             EditorCommand::App(dun_core::AppCommand::StatusHistory),
+                        ),
+                        MenuEntry::new(
+                            "Output Stderr (O)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputStderr),
+                        ),
+                        MenuEntry::new(
+                            "Output Copy (Y)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputCopy),
+                        ),
+                        MenuEntry::new(
+                            "Output Clear (K)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputClear),
                         ),
                         MenuEntry::new(
                             "Config Diagnostics (D)",
@@ -1843,7 +2047,17 @@ fn visible_whitespace_text(line: &str, show_whitespace: bool, ascii_only: bool) 
         return line.to_string();
     }
 
-    let mut text = String::with_capacity(line.len().saturating_add(1));
+    let mut text = visible_whitespace_prefix_text(line, ascii_only);
+    if ascii_only {
+        text.push('$');
+    } else {
+        text.push('¶');
+    }
+    text
+}
+
+fn visible_whitespace_prefix_text(line: &str, ascii_only: bool) -> String {
+    let mut text = String::with_capacity(line.len());
     for ch in line.chars() {
         match ch {
             ' ' if ascii_only => text.push('.'),
@@ -1852,11 +2066,6 @@ fn visible_whitespace_text(line: &str, show_whitespace: bool, ascii_only: bool) 
             '\t' => text.push('→'),
             _ => text.push(ch),
         }
-    }
-    if ascii_only {
-        text.push('$');
-    } else {
-        text.push('¶');
     }
     text
 }
@@ -2838,6 +3047,40 @@ mod tests {
     }
 
     #[test]
+    fn frame_maps_wrapped_selection_to_visual_rows() {
+        let workspace = Workspace::new_untitled();
+        let mut buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdefghijklmnop");
+        buffer
+            .select(Position::new(0, 2), Position::new(0, 14))
+            .unwrap();
+        let buffer_view = BufferView::new(BufferId(1), &buffer).with_view_options(true, false, &[]);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 12, 6),
+            &[buffer_view],
+        );
+
+        assert_eq!(frame.windows[0].body[0].as_plain_text(), "abcdefgh");
+        assert_eq!(frame.windows[0].body[1].as_plain_text(), "ijklmnop");
+        assert_eq!(
+            frame.windows[0].selection,
+            vec![
+                UiSelectionLine {
+                    y: 1,
+                    start_x: 5,
+                    end_x: 11,
+                },
+                UiSelectionLine {
+                    y: 2,
+                    start_x: 3,
+                    end_x: 9,
+                },
+            ]
+        );
+    }
+
+    #[test]
     fn frame_maps_search_matches_to_window_body() {
         let workspace = Workspace::new_untitled();
         let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "one two one");
@@ -2864,6 +3107,40 @@ mod tests {
                     start_x: 11,
                     end_x: 14,
                     active: false,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn frame_maps_wrapped_search_matches_to_visual_rows() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdefghijklmnop");
+        let matches = buffer.find_all("efghij");
+        let buffer_view = BufferView::new(BufferId(1), &buffer)
+            .with_view_options(true, false, &[])
+            .with_search(&matches, Some(0));
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 12, 6),
+            &[buffer_view],
+        );
+
+        assert_eq!(
+            frame.windows[0].search_matches,
+            vec![
+                UiSearchMatchLine {
+                    y: 1,
+                    start_x: 7,
+                    end_x: 11,
+                    active: true,
+                },
+                UiSearchMatchLine {
+                    y: 2,
+                    start_x: 3,
+                    end_x: 5,
+                    active: true,
                 },
             ]
         );

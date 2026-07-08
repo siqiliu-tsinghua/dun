@@ -81,6 +81,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add file dialog empty/no-match diagnostics and tighter Open/Save visuals.
 - [x] Add file-dialog overlay structure tests for Microsoft Edit-like visual
   fields.
+- [x] Refine selection and search highlight geometry for soft-wrapped lines.
 
 ## `dun-config`
 
@@ -95,6 +96,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define theme selection config.
 - [x] Define terminal override config.
 - [x] Define optional mouse enablement config.
+- [x] Define opt-in OSC 52 external-copy config with a payload byte limit.
 - [x] Define configurable file-dialog modal keybindings.
 - [x] Define large-file and display limits.
 - [x] Expose built-in defaults through `--dump-config`.
@@ -178,6 +180,9 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add Run Command prompt with bounded read-only output buffer.
 - [x] Add Run Command history/output polish and read-only output pane reuse.
 - [x] Add PTY smoke coverage for shell escape suspend/resume behavior.
+- [x] Add opt-in OSC 52 external copy for active selections while preserving
+  the internal clipboard fallback.
+- [x] Add Command Output clear/copy/stderr/save commands.
 
 ## File and Display Safety
 
@@ -215,8 +220,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 
 ## Deferred
 
-- [ ] External clipboard integration and OSC 52 copy/paste support.
-- [ ] Refine selection and search highlight geometry for soft-wrapped lines.
+- [ ] OSC 52 paste/query support or platform-specific clipboard command
+  integration.
 - [x] Crash recovery and orphaned atomic-save temp-file cleanup.
 - [ ] `rum` configuration evaluation.
 - [ ] `dun-plugin-api`.

@@ -546,3 +546,14 @@ This is an append-only progress log. Keep new entries dated and factual.
   VT100, tmux, screen, escape-payload, invalid-byte fallback, shell escape, and
   Run Command checks. Real server-console/KVM ASCII coverage remains unavailable
   and is still tracked separately.
+- Added soft-wrap highlight geometry for selections and search matches. Wrapped
+  rows now map highlights through the same visual row model used by body
+  rendering, with tests covering multi-row selection and active search spans.
+- Added opt-in OSC 52 external copy. `clipboard.osc52.enabled` defaults to
+  false, `clipboard.osc52.max_bytes` bounds the payload, and
+  `edit.copy_external` keeps the selected text in the internal clipboard even
+  when terminal clipboard output is disabled or rejected by the byte limit.
+- Polished Command Output with typed clear, copy, stderr-jump, and
+  command-line save actions. The read-only output pane can now be cleared,
+  copied to the internal clipboard, navigated directly to stderr, or saved via
+  `output save PATH`.

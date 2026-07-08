@@ -112,6 +112,9 @@ Required controls:
 - captured process output is treated as untrusted display input and passes
   through the same decoding and terminal-control sanitizer path as file text;
 - command output buffers are read-only.
+- command output save/copy/clear/navigation actions operate on the bounded
+  read-only Command Output buffer and still go through typed editor commands
+  or the command prompt.
 
 ## Log Filter Threats
 
@@ -223,14 +226,20 @@ Current implementation:
   file-dialog paste is kept single-line, and confirmation prompts ignore paste.
   Pasted control bytes remain buffer content and must be neutralized at
   rendering time. Paste must not parse terminal escapes inside editor state,
-  auto-submit prompts, or use OSC 52/external clipboard commands in the
-  baseline. Right-click paste only records a status hint and waits for the
+  auto-submit prompts, query OSC 52 paste data, or invoke external clipboard
+  commands. Right-click paste only records a status hint and waits for the
   terminal to deliver bracketed paste data.
 - Cut, Copy, and command Paste use a process-local internal clipboard. Copy can
   read selected text from editable or read-only buffers; Cut and internal Paste
   still enter through editable buffer operations and reject read-only targets.
-  This internal clipboard does not grant access to the OS clipboard, OSC 52,
-  external commands, files, plugins, processes, or the network.
+  This internal clipboard does not grant access to the OS clipboard, external
+  commands, files, plugins, processes, or the network.
+- External copy is a separate user-explicit command, `edit.copy_external`, and
+  is disabled unless `clipboard.osc52.enabled = true`. When enabled, it copies
+  the selected text to the internal clipboard first, refuses payloads larger
+  than `clipboard.osc52.max_bytes`, and emits only a host-constructed OSC 52
+  clipboard-write sequence containing base64-encoded selected text. There is
+  no OSC 52 paste/query support and no platform clipboard command execution.
 - Tests cover OSC title/clipboard/hyperlink payloads, CSI/SGR/clear-screen,
   DCS, graphics escapes, bracketed paste markers, `ESC`, BEL, NUL, DEL, CR,
   backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and final

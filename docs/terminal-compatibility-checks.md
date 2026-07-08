@@ -279,6 +279,11 @@ Editing:
   operate on the process-local internal clipboard. They should copy/cut the
   active selection and paste through the normal edit path without requiring OS
   clipboard access.
+- With `clipboard.osc52.enabled = true`, command id `edit.copy_external`
+  should copy the active selection internally and emit a bounded OSC 52
+  clipboard write. Record whether the local terminal, SSH path, `tmux`, or
+  `screen` accepts or filters the OSC 52 clipboard update; failure to update
+  the host clipboard should not break the internal clipboard fallback.
 - Terminal bracketed paste inserts into editor buffers through the normal edit
   path. In prompts and Open/Save As dialogs, multiline paste is converted to a
   single-line input and does not submit automatically. Right-click paste only
@@ -308,6 +313,9 @@ Process actions:
 - `Ctrl+W,O` should open the Run Command prompt. Submitting
   `printf dun-run` should create or reuse a read-only Command Output pane with
   exit status, stdout/stderr byte counts, and truncation status.
+- Command prompt `output copy`, `output stderr`, `output clear`, and
+  `output save /tmp/dun-output.txt` should operate on the read-only Command
+  Output pane without making it editable.
 - Up/Down in the Run Command prompt should navigate only previous run-command
   inputs, not the editor command prompt history.
 
