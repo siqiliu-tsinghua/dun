@@ -9,6 +9,7 @@ use std::time::Duration;
 mod support;
 
 use support::pty::temp_path;
+use support::terminal_grid::{GridRect, assert_text_at, find_border_box, find_border_boxes};
 use support::tmux::{TmuxCapture, TmuxSession, tmux_test_guard};
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(3);
@@ -40,6 +41,17 @@ fn tmux_grid_renders_baseline_layout_80x24() -> io::Result<()> {
     assert_line_contains(&screen, 23, "[Plain Text]");
     assert_line_contains(&screen, 23, "1:1");
     assert_line_contains(&screen, 23, "[Untitled]");
+
+    let grid = session.capture_grid()?;
+    assert_eq!(
+        find_border_box(&grid),
+        Some(GridRect {
+            row: 1,
+            col: 0,
+            width: 80,
+            height: 22,
+        })
+    );
 
     Ok(())
 }
@@ -76,6 +88,17 @@ fn tmux_grid_respects_larger_fixed_pane_dimensions() -> io::Result<()> {
     assert_line_contains(&screen, 29, "[Plain Text]");
     assert_line_contains(&screen, 29, "[Untitled]");
 
+    let grid = session.capture_grid()?;
+    assert_eq!(
+        find_border_box(&grid),
+        Some(GridRect {
+            row: 1,
+            col: 0,
+            width: 100,
+            height: 28,
+        })
+    );
+
     Ok(())
 }
 
@@ -98,7 +121,7 @@ fn tmux_grid_normalizes_cursor_and_sgr_attributes() -> io::Result<()> {
         Some((3, 2)),
         "initial editor cursor should be at first body cell"
     );
-    assert_eq!(grid.text_at(0, 2, 4), "File");
+    assert_text_at(&grid, 0, 2, "File");
     assert!(grid.cell(0, 0).expect("menu padding cell").style.reverse);
     let file_hotkey = grid.cell(0, 2).expect("File hotkey cell");
     assert_eq!(file_hotkey.ch, 'F');
@@ -146,6 +169,16 @@ fn tmux_grid_command_prompt_can_split_window() -> io::Result<()> {
     assert_line_contains(&screen, 1, "Untitled-2");
     assert_line_contains(&screen, 23, "[Untitled-2]");
 
+    let grid = session.capture_grid()?;
+    let boxes = find_border_boxes(&grid);
+    assert_eq!(boxes.len(), 2, "split layout boxes: {boxes:?}");
+    assert_eq!(boxes[0].row, 1);
+    assert_eq!(boxes[0].col, 0);
+    assert_eq!(boxes[0].height, 22);
+    assert_eq!(boxes[1].row, 1);
+    assert_eq!(boxes[1].right(), 79);
+    assert_eq!(boxes[1].height, 22);
+
     Ok(())
 }
 
@@ -172,6 +205,16 @@ fn tmux_grid_ascii_16_fallback_uses_ascii_chrome_and_no_256_sgr() -> io::Result<
     assert_line_contains(&screen, 1, "+- * Untitled");
     assert_line_contains(&screen, 23, "ASCII/16");
     assert_no_unicode_box_drawing(&screen);
+    let grid = session.capture_grid()?;
+    assert_eq!(
+        find_border_box(&grid),
+        Some(GridRect {
+            row: 1,
+            col: 0,
+            width: 100,
+            height: 22,
+        })
+    );
     assert!(
         !sgr.text.contains("38;5;") && !sgr.text.contains("48;5;"),
         "16-color fallback should not emit 256-color SGR\n{}",

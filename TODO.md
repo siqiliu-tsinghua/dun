@@ -184,6 +184,8 @@ skip cleanly when `tmux` is unavailable.
   in 16-color mode.
 - [x] Add normalized-grid assertions for focused cursor and basic menu SGR
   attributes.
+- [x] Add normalized-grid assertion helpers for exact text-at-position,
+  line containment, and Unicode/ASCII border-box discovery.
 - [ ] Add normalized-grid assertions for selection attributes and richer
   semantic color output.
 - [ ] Keep mouse behavior in existing PTY/event-level tests rather than the

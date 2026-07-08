@@ -819,3 +819,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   `cargo test -p dun-cli --test terminal_grid`,
   `cargo test -p dun-cli --test tmux_grid`, and the focused PTY grid test
   passed.
+- Added normalized-grid assertion helpers:
+  `assert_text_at`, `assert_line_contains`, `find_border_box`, and
+  `find_border_boxes`. Border-box discovery recognizes both Microsoft
+  Edit-style Unicode single-line boxes and ASCII fallback boxes, including
+  tiled split panes. The tmux tests now assert single-pane and split-pane
+  rectangles through parsed cells instead of only plain captured text.
+  `cargo fmt --all`, `cargo test -p dun-cli --test terminal_grid`,
+  `cargo test -p dun-cli --test tmux_grid`, and the focused PTY grid test
+  passed.

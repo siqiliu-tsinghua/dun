@@ -37,6 +37,90 @@ impl TerminalGrid {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GridRect {
+    pub row: u16,
+    pub col: u16,
+    pub width: u16,
+    pub height: u16,
+}
+
+impl GridRect {
+    pub fn right(self) -> u16 {
+        self.col.saturating_add(self.width.saturating_sub(1))
+    }
+
+    pub fn bottom(self) -> u16 {
+        self.row.saturating_add(self.height.saturating_sub(1))
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct BorderGlyphs {
+    top_left: char,
+    top_right: char,
+    bottom_left: char,
+    bottom_right: char,
+    horizontal: char,
+    vertical: char,
+}
+
+const UNICODE_BORDER_GLYPHS: BorderGlyphs = BorderGlyphs {
+    top_left: '┌',
+    top_right: '┐',
+    bottom_left: '└',
+    bottom_right: '┘',
+    horizontal: '─',
+    vertical: '│',
+};
+
+const ASCII_BORDER_GLYPHS: BorderGlyphs = BorderGlyphs {
+    top_left: '+',
+    top_right: '+',
+    bottom_left: '+',
+    bottom_right: '+',
+    horizontal: '-',
+    vertical: '|',
+};
+
+pub fn assert_text_at(grid: &TerminalGrid, row: u16, col: u16, expected: &str) {
+    let width = expected.chars().count().min(u16::MAX as usize) as u16;
+    let actual = grid.text_at(row, col, width);
+    assert_eq!(
+        actual,
+        expected,
+        "grid text mismatch at row {row}, col {col}\nexpected: {expected:?}\nactual:   {actual:?}\nrow:      {:?}",
+        grid.line_text(row)
+    );
+}
+
+pub fn assert_line_contains(grid: &TerminalGrid, row: u16, needle: &str) {
+    let line = grid.line_text(row);
+    assert!(
+        line.contains(needle),
+        "grid row {row} did not contain {needle:?}\nrow: {line:?}"
+    );
+}
+
+pub fn find_border_box(grid: &TerminalGrid) -> Option<GridRect> {
+    find_border_boxes(grid).into_iter().next()
+}
+
+pub fn find_border_boxes(grid: &TerminalGrid) -> Vec<GridRect> {
+    let mut boxes = Vec::new();
+    for row in 0..grid.height {
+        for col in 0..grid.width {
+            let Some(glyphs) = border_glyphs_for_top_left(grid.char_at(row, col)) else {
+                continue;
+            };
+            if let Some(rect) = find_box_from_top_left(grid, row, col, glyphs) {
+                boxes.push(rect);
+            }
+        }
+    }
+    boxes
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TerminalCell {
     pub ch: char,
     pub style: TerminalStyle,
@@ -78,6 +162,86 @@ pub fn parse_terminal_grid(
     let mut parser = GridParser::new(cols, rows, cursor);
     parser.parse(input);
     parser.finish()
+}
+
+impl TerminalGrid {
+    fn char_at(&self, row: u16, col: u16) -> char {
+        self.cell(row, col).map(|cell| cell.ch).unwrap_or(' ')
+    }
+}
+
+fn border_glyphs_for_top_left(ch: char) -> Option<BorderGlyphs> {
+    match ch {
+        '┌' => Some(UNICODE_BORDER_GLYPHS),
+        '+' => Some(ASCII_BORDER_GLYPHS),
+        _ => None,
+    }
+}
+
+fn find_box_from_top_left(
+    grid: &TerminalGrid,
+    row: u16,
+    col: u16,
+    glyphs: BorderGlyphs,
+) -> Option<GridRect> {
+    let min_right = col.saturating_add(2);
+    let min_bottom = row.saturating_add(2);
+    if min_right >= grid.width || min_bottom >= grid.height {
+        return None;
+    }
+
+    for right in (min_right..grid.width).rev() {
+        if grid.char_at(row, right) != glyphs.top_right {
+            continue;
+        }
+        for bottom in (min_bottom..grid.height).rev() {
+            let rect = GridRect {
+                row,
+                col,
+                width: right - col + 1,
+                height: bottom - row + 1,
+            };
+            if border_box_matches(grid, rect, glyphs) {
+                return Some(rect);
+            }
+        }
+    }
+
+    None
+}
+
+fn border_box_matches(grid: &TerminalGrid, rect: GridRect, glyphs: BorderGlyphs) -> bool {
+    let right = rect.right();
+    let bottom = rect.bottom();
+    if grid.char_at(rect.row, rect.col) != glyphs.top_left
+        || grid.char_at(rect.row, right) != glyphs.top_right
+        || grid.char_at(bottom, rect.col) != glyphs.bottom_left
+        || grid.char_at(bottom, right) != glyphs.bottom_right
+    {
+        return false;
+    }
+
+    if rect.width < 3 || rect.height < 3 {
+        return false;
+    }
+
+    if grid.char_at(rect.row, rect.col + 1) != glyphs.horizontal {
+        return false;
+    }
+    for col in rect.col + 1..right {
+        if grid.char_at(bottom, col) != glyphs.horizontal {
+            return false;
+        }
+    }
+    for row in rect.row + 1..bottom {
+        if grid.char_at(row, rect.col) != glyphs.vertical
+            || grid.char_at(row, right) != glyphs.vertical
+        {
+            return false;
+        }
+    }
+
+    true
 }
 
 struct GridParser {

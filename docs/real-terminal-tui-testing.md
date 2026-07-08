@@ -247,8 +247,8 @@ diff test 版：起两个 `Tmux`（你的 bin 与 `msedit`），各自 `capture_
   `Grid`。
 - [x] 后续 `parse()`：抽取共享 parser，让 PTY 测试与真终端测试共用同一
   套规范化 `Grid`；当前实现覆盖基础 SGR、颜色、清屏/清行和常见光标移动。
-- [x] 基础位置/尺寸断言辅助：`assert_line_contains` 和固定宽高断言。
-- [ ] 后续位置/尺寸断言辅助：`assert_text_at` / `find_border_box`。
+- [x] 基础位置/尺寸断言辅助：`assert_line_contains`、`assert_text_at`、
+  `find_border_box` / `find_border_boxes` 和固定宽高断言。
 - [x] 初始配色/fallback 断言：16 色模式不输出 256 色 SGR，ASCII fallback 不输出 Unicode 边框。
 - [x] 初始属性断言：菜单 reverse/bold 属性和 focused cursor 坐标。
 - [ ] 后续配色/属性断言只针对**程序发出的语义色**；文档注明不测终端主题映射。
