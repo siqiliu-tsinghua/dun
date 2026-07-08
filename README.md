@@ -16,7 +16,9 @@ The top menu is grouped into Microsoft Edit-style File/Edit/View/Help menus,
 with dropdown entries backed by the same typed command model as keybindings.
 When the active keymap does not consume them, `Alt+F`, `Alt+E`, `Alt+V`, and
 `Alt+H` open those menus; arrow keys move through an open menu, `Enter`
-executes the selected item, and `Esc` closes it.
+executes the selected item, and `Esc` closes it. Long dropdowns scroll on
+short terminals so the selected entry remains visible, with overflow
+indicators and matching mouse hit testing.
 The default `msedit` theme now follows the local Microsoft Edit screenshots
 more closely: blue menu/status chrome, green active top-menu labels, gray
 dropdown/modal panels, a compact bracket-style status bar, a gutter separator,
@@ -46,11 +48,11 @@ Open and Save As now use larger modal file dialogs with a path input, directory
 match list, Up/Down and PageUp/PageDown selection, directory navigation, Tab
 path completion, a parent-directory entry, hidden-file filtering with `Ctrl+H`
 toggle, Home/End/Left/Right/Delete path editing, empty/no-match diagnostics,
-and mouse-wheel list scrolling when mouse support is enabled. File-dialog
-modal keys have their own typed config bindings. Open/Save As errors remain
-inside the dialog for correction, successful dialogs remember the last
-directory for the session, and Save As asks for a second Enter before
-overwriting an existing file.
+visible list overflow indicators, and mouse-wheel list scrolling when mouse
+support is enabled. File-dialog modal keys have their own typed config
+bindings. Open/Save As errors remain inside the dialog for correction,
+successful dialogs remember the last directory for the session, and Save As
+asks for a second Enter before overwriting an existing file.
 Lightweight modal prompts remain available for Find, Replace, and Go To Line
 entry, with Left/Right/Home/End/Delete/Backspace editing at UTF-8 character
 boundaries. Find previews matches while typing, supports next/previous
@@ -110,8 +112,9 @@ source location.
 `Ctrl+P` opens a command prompt for actions such as `help`, `config`,
 `reload-config`, `theme`, `open`, `save`, `quit`, and full command ids such as
 `window.split_horizontal`; Tab completes built-in command families, cycles
-ambiguous candidates, and completes path arguments for commands such as
-`open`, `save-as`, and `output save`.
+ambiguous candidates, shows ambiguous completion candidates in the prompt
+overlay, and completes path arguments for commands such as `open`, `save-as`,
+and `output save`.
 `Ctrl+W,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
 restores the normal terminal, runs the user's shell, then resumes and redraws
 after the shell exits. `Ctrl+W,O` opens a Run Command prompt for one-shot

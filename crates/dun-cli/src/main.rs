@@ -734,11 +734,13 @@ impl AppState {
             return false;
         }
 
-        if let Some(active_menu) = self.active_menu {
-            if let Some(command) = self
-                .shell
-                .menu_entry_command_at(active_menu, screen_x, screen_y)
-            {
+        if let Some(selection) = self.menu_selection() {
+            if let Some(command) = self.shell.menu_entry_command_at_in_area(
+                selection,
+                screen_x,
+                screen_y,
+                self.overlay_area(),
+            ) {
                 self.clear_active_menu();
                 self.pending_keys.clear();
                 self.handle_command(&command);
@@ -3918,12 +3920,16 @@ impl AppState {
                 ));
             }
         }
-        UiOverlay::message(
+        let mut overlay = UiOverlay::message(
             "Switch Buffer",
             lines,
             vec!["[Enter] Switch  [Esc] Cancel".to_string()],
         )
-        .with_list(list, selected, 48)
+        .with_list(list, selected, 48);
+        if let Some((start, end, _)) = switcher.visible_entry_range(entries.len()) {
+            overlay = overlay.with_list_overflow(start > 0, end < entries.len());
+        }
+        overlay
     }
 
     fn buffer_switcher_entries(&self) -> Vec<BufferSwitcherEntry> {
@@ -5395,11 +5401,15 @@ impl AppState {
         }
 
         let prompt = self.prompt.as_ref()?;
-        Some(UiOverlay::prompt(
+        let mut overlay = UiOverlay::prompt(
             prompt.kind.name(),
             prompt.input.as_str().to_string(),
             prompt.input.cursor_display_column(),
-        ))
+        );
+        if let Some(completion) = &prompt.completion {
+            overlay.lines.push(completion.status_text());
+        }
+        Some(overlay)
     }
 
     fn replace_confirm_overlay(&self, confirm: &ReplaceConfirmState) -> UiOverlay {
@@ -6041,7 +6051,7 @@ impl FileDialogState {
         }
 
         let (list, selected) = self.visible_entry_texts();
-        UiOverlay::file_dialog(
+        let mut overlay = UiOverlay::file_dialog(
             self.kind.name(),
             lines,
             self.input.as_str().to_string(),
@@ -6049,7 +6059,11 @@ impl FileDialogState {
             list,
             selected,
             vec![file_dialog_shortcuts_text(keymap)],
-        )
+        );
+        if let Some((start, end, _)) = self.visible_entry_range() {
+            overlay = overlay.with_list_overflow(start > 0, end < self.entries.len());
+        }
+        overlay
     }
 
     fn refresh_entries(&mut self) {
@@ -11258,6 +11272,7 @@ key.app.quit = Esc
     fn mouse_menu_click_dispatches_command_when_enabled() {
         let mut app = AppState::new();
         app.mouse_enabled = true;
+        app.sync_view_for_area(Rect::new(0, 0, 80, 20));
         assert_eq!(app.shell.menu_index_at_column(20), Some(3));
 
         handle_mouse_event(&mut app, left_click(20, 0));
@@ -11916,6 +11931,25 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn buffer_switcher_overlay_reports_scroll_overflow() {
+        let mut app = AppState::new();
+        for _ in 0..13 {
+            app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+        }
+
+        app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
+        let overlay = app.active_overlay().expect("buffer switcher overlay");
+        assert_eq!(overlay.title, "Switch Buffer");
+        assert!(overlay.list_has_more_above);
+        assert!(!overlay.list_has_more_below);
+
+        app.move_buffer_switcher_selection(-20);
+        let overlay = app.active_overlay().expect("buffer switcher overlay");
+        assert!(!overlay.list_has_more_above);
+        assert!(overlay.list_has_more_below);
+    }
+
+    #[test]
     fn window_close_reports_last_window_failure() {
         let mut app = AppState::new();
 
@@ -12414,6 +12448,27 @@ key.window.close = none
             app.prompt_status_text(),
             Some("Command: reload-config ".to_string())
         );
+    }
+
+    #[test]
+    fn command_line_prompt_overlay_shows_ambiguous_completion_candidates() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(&mut app, "re");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+
+        let overlay = app.active_overlay().expect("command prompt overlay");
+        assert_eq!(overlay.title, "Command");
+        assert!(overlay.lines.iter().any(|line| {
+            line.contains("Command completion")
+                && line.contains("reload-config")
+                && line.contains("replace")
+                && line.contains("results")
+        }));
     }
 
     #[test]
@@ -14439,6 +14494,32 @@ key.app.help = F10
         let state = app.buffer_state(BufferId(1)).unwrap();
         assert_eq!(state.buffer.to_text(), "item00");
         assert_eq!(state.path.as_ref(), Some(&path));
+
+        for index in 0..14 {
+            let _ = std::fs::remove_file(directory.join(format!("item{index:02}.txt")));
+        }
+        let _ = std::fs::remove_dir(directory);
+    }
+
+    #[test]
+    fn file_dialog_overlay_reports_scroll_overflow() {
+        let directory = temp_file_path("open-dialog-overflow");
+        std::fs::create_dir(&directory).unwrap();
+        for index in 0..14 {
+            std::fs::write(directory.join(format!("item{index:02}.txt")), "x").unwrap();
+        }
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Open));
+        send_text(&mut app, &format!("{}/", directory.display()));
+        let overlay = app.active_overlay().expect("file dialog overlay");
+        assert!(!overlay.list_has_more_above);
+        assert!(overlay.list_has_more_below);
+
+        app.scroll_file_dialog(2);
+        let overlay = app.active_overlay().expect("file dialog overlay");
+        assert!(overlay.list_has_more_above);
+        assert!(overlay.list_has_more_below);
 
         for index in 0..14 {
             let _ = std::fs::remove_file(directory.join(format!("item{index:02}.txt")));

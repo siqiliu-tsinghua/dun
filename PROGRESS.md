@@ -624,3 +624,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   the first future feature-reduction candidate, and the default tree still has
   no `rum`, async/network/TLS stack, parser/highlighter stack, or plugin
   runtime dependency.
+- Added a non-`rum`, non-manual UI polish backlog and completed the automated
+  polish items in that scope. Long menu dropdowns now keep the selected entry
+  visible on short terminals, render overflow indicators, and use the same
+  scrolled range for mouse hit testing. Scrollable modal lists such as Open,
+  Save As, and Switch Buffer expose above/below overflow state to the renderer.
+  Ambiguous command prompt completions now appear in the prompt overlay, and
+  the renderer has additional automated coverage for menu/dialog overflow,
+  ASCII fallback chrome, viewport markers, and modal list hit geometry.

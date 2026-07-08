@@ -172,9 +172,28 @@ impl UiShell {
         column: u16,
         row: u16,
     ) -> Option<EditorCommand> {
+        self.menu_entry_command_at_in_area(
+            MenuSelection::menu_only(active_menu),
+            column,
+            row,
+            Rect::new(0, 0, u16::MAX, u16::MAX),
+        )
+    }
+
+    pub fn menu_entry_command_at_in_area(
+        &self,
+        active: MenuSelection,
+        column: u16,
+        row: u16,
+        area: Rect,
+    ) -> Option<EditorCommand> {
         let menu = self.menu_bar(None);
-        let item = menu.items.get(active_menu)?;
-        let dropdown = dropdown_rect_for_menu(self, &menu, active_menu)?;
+        let item = menu.items.get(active.menu_index)?;
+        let dropdown = dropdown_rect_for_menu(self, &menu, active.menu_index)?;
+        let dropdown = clamp_menu_rect(
+            dropdown,
+            TuiRect::new(area.x, area.y, area.width, area.height),
+        )?;
         if column <= dropdown.x
             || column >= dropdown.x.saturating_add(dropdown.width).saturating_sub(1)
             || row <= dropdown.y
@@ -183,7 +202,13 @@ impl UiShell {
             return None;
         }
 
-        let entry_index = row.saturating_sub(dropdown.y + 1) as usize;
+        let max_rows = dropdown.height.saturating_sub(2) as usize;
+        let (start, end) =
+            menu_visible_entry_range(item.entries.len(), active.entry_index, max_rows)?;
+        let entry_index = start.saturating_add(row.saturating_sub(dropdown.y + 1) as usize);
+        if entry_index >= end {
+            return None;
+        }
         item.entries
             .get(entry_index)
             .map(|entry| entry.command.clone())
@@ -1576,19 +1601,12 @@ fn render_active_menu(buffer: &mut Buffer, shell: &UiShell, menu: &MenuBar, area
     let Some(item) = menu.items.get(active.menu_index) else {
         return;
     };
-    let Some(mut rect) = dropdown_rect_for_menu(shell, menu, active.menu_index) else {
+    let Some(rect) = dropdown_rect_for_menu(shell, menu, active.menu_index) else {
         return;
     };
-    if area.width == 0 || area.height <= 1 {
+    let Some(rect) = clamp_menu_rect(rect, area) else {
         return;
-    }
-    rect.x = rect.x.min(area.width.saturating_sub(1));
-    rect.y = rect.y.min(area.height.saturating_sub(1));
-    rect.width = rect.width.min(area.width.saturating_sub(rect.x));
-    rect.height = rect.height.min(area.height.saturating_sub(rect.y));
-    if rect.width < 3 || rect.height < 3 {
-        return;
-    }
+    };
 
     let background = to_ratatui_style(shell.theme.palette.menu_panel);
     for y in rect.y..rect.y.saturating_add(rect.height) {
@@ -1605,8 +1623,22 @@ fn render_active_menu(buffer: &mut Buffer, shell: &UiShell, menu: &MenuBar, area
 
     let content_width = rect.width.saturating_sub(4) as usize;
     let max_rows = rect.height.saturating_sub(2) as usize;
-    for (index, entry) in item.entries.iter().take(max_rows).enumerate() {
-        let y = rect.y + 1 + index as u16;
+    let Some((start, end)) =
+        menu_visible_entry_range(item.entries.len(), active.entry_index, max_rows)
+    else {
+        return;
+    };
+    render_vertical_overflow_indicators(
+        buffer,
+        shell,
+        rect,
+        start > 0,
+        end < item.entries.len(),
+        to_ratatui_style(shell.theme.palette.menu_panel_border),
+    );
+    for (visible_index, entry) in item.entries[start..end].iter().enumerate() {
+        let index = start + visible_index;
+        let y = rect.y + 1 + visible_index as u16;
         let text = menu_entry_text(shell, entry, content_width);
         let style = if active.entry_index == Some(index) {
             shell.theme.palette.menu_active
@@ -1745,6 +1777,14 @@ fn render_overlay(frame: &mut Frame<'_>, shell: &UiShell, overlay: &UiOverlay, a
         frame.buffer_mut().set_string(rect.x + 2, row, text, style);
         row += 1;
     }
+    render_vertical_overflow_indicators(
+        frame.buffer_mut(),
+        shell,
+        rect,
+        overlay.list_has_more_above,
+        overlay.list_has_more_below,
+        to_ratatui_style(shell.theme.palette.modal_border),
+    );
 
     for button in buttons {
         if row >= rect.y + rect.height - 1 {
@@ -2284,6 +2324,88 @@ fn dropdown_rect_for_menu(shell: &UiShell, menu: &MenuBar, index: usize) -> Opti
     Some(TuiRect::new(start, 1, width.max(3), height.max(3)))
 }
 
+fn clamp_menu_rect(rect: TuiRect, area: TuiRect) -> Option<TuiRect> {
+    if area.width == 0 || area.height <= 1 {
+        return None;
+    }
+
+    let x = rect
+        .x
+        .min(area.x.saturating_add(area.width).saturating_sub(1));
+    let y = rect
+        .y
+        .min(area.y.saturating_add(area.height).saturating_sub(1));
+    let width = rect
+        .width
+        .min(area.x.saturating_add(area.width).saturating_sub(x));
+    let height = rect
+        .height
+        .min(area.y.saturating_add(area.height).saturating_sub(y));
+
+    (width >= 3 && height >= 3).then_some(TuiRect::new(x, y, width, height))
+}
+
+fn menu_visible_entry_range(
+    total: usize,
+    selected: Option<usize>,
+    max_rows: usize,
+) -> Option<(usize, usize)> {
+    if total == 0 || max_rows == 0 {
+        return None;
+    }
+
+    let max_rows = max_rows.min(total);
+    let selected = selected.unwrap_or(0).min(total - 1);
+    let mut start = 0usize;
+    if selected >= max_rows {
+        start = selected.saturating_add(1).saturating_sub(max_rows);
+    }
+    start = start.min(total.saturating_sub(max_rows));
+    Some((start, start.saturating_add(max_rows).min(total)))
+}
+
+fn render_vertical_overflow_indicators(
+    buffer: &mut Buffer,
+    shell: &UiShell,
+    rect: TuiRect,
+    has_more_above: bool,
+    has_more_below: bool,
+    style: Style,
+) {
+    if rect.width < 4 || rect.height < 3 {
+        return;
+    }
+
+    let x = rect.x.saturating_add(rect.width).saturating_sub(2);
+    if has_more_above {
+        buffer[(x, rect.y)]
+            .set_char(vertical_overflow_up(shell))
+            .set_style(style);
+    }
+    if has_more_below {
+        let y = rect.y.saturating_add(rect.height).saturating_sub(1);
+        buffer[(x, y)]
+            .set_char(vertical_overflow_down(shell))
+            .set_style(style);
+    }
+}
+
+fn vertical_overflow_up(shell: &UiShell) -> char {
+    if shell.profile.supports_unicode_glyphs() {
+        '↑'
+    } else {
+        '^'
+    }
+}
+
+fn vertical_overflow_down(shell: &UiShell) -> char {
+    if shell.profile.supports_unicode_glyphs() {
+        '↓'
+    } else {
+        'v'
+    }
+}
+
 fn menu_entry_width(shell: &UiShell, entry: &MenuEntry) -> usize {
     let label_width = display_width(entry.label);
     let shortcut_width = shell
@@ -2677,6 +2799,8 @@ pub struct UiOverlay {
     pub cursor_column: Option<usize>,
     pub list: Vec<String>,
     pub selected_list_index: Option<usize>,
+    pub list_has_more_above: bool,
+    pub list_has_more_below: bool,
     pub buttons: Vec<String>,
     pub min_width: u16,
 }
@@ -2694,6 +2818,8 @@ impl UiOverlay {
             cursor_column: Some(cursor_column),
             list: Vec::new(),
             selected_list_index: None,
+            list_has_more_above: false,
+            list_has_more_below: false,
             buttons: Vec::new(),
             min_width: 24,
         }
@@ -2707,6 +2833,8 @@ impl UiOverlay {
             cursor_column: None,
             list: Vec::new(),
             selected_list_index: None,
+            list_has_more_above: false,
+            list_has_more_below: false,
             buttons,
             min_width: 24,
         }
@@ -2728,6 +2856,8 @@ impl UiOverlay {
             cursor_column: Some(cursor_column),
             list,
             selected_list_index,
+            list_has_more_above: false,
+            list_has_more_below: false,
             buttons,
             min_width: 60,
         }
@@ -2742,6 +2872,12 @@ impl UiOverlay {
         self.list = list;
         self.selected_list_index = selected_list_index;
         self.min_width = min_width;
+        self
+    }
+
+    pub fn with_list_overflow(mut self, has_more_above: bool, has_more_below: bool) -> Self {
+        self.list_has_more_above = has_more_above;
+        self.list_has_more_below = has_more_below;
         self
     }
 }
@@ -3698,6 +3834,55 @@ mod tests {
     }
 
     #[test]
+    fn short_dropdown_keeps_selected_menu_entry_visible() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let last_entry = shell.menu_entry_count(2).unwrap() - 1;
+        let ui_frame = shell.frame_for_workspace_with_menu_selection(
+            &workspace,
+            Rect::new(0, 0, 80, 10),
+            &[buffer_view],
+            Some(MenuSelection::with_entry(2, last_entry)),
+        );
+        let backend = TestBackend::new(80, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 80, 12);
+        assert!(snapshot.contains("Reload Config"));
+        assert!(!snapshot.contains("Split Horizontal"));
+        assert!(snapshot.contains(vertical_overflow_up(&shell)));
+    }
+
+    #[test]
+    fn scrolled_dropdown_hit_test_tracks_visible_entry_range() {
+        let shell = UiShell::default();
+        let menu = shell.menu_bar(None);
+        let last_entry = shell.menu_entry_count(2).unwrap() - 1;
+        let active = MenuSelection::with_entry(2, last_entry);
+        let area = Rect::new(0, 0, 80, 10);
+        let rect = clamp_menu_rect(
+            dropdown_rect_for_menu(&shell, &menu, 2).unwrap(),
+            TuiRect::new(area.x, area.y, area.width, area.height),
+        )
+        .unwrap();
+        let (start, _) =
+            menu_visible_entry_range(last_entry + 1, active.entry_index, rect.height as usize - 2)
+                .unwrap();
+        let row = rect.y + 1 + (last_entry - start) as u16;
+
+        assert_eq!(
+            shell.menu_entry_command_at_in_area(active, rect.x + 2, row, area),
+            Some(EditorCommand::App(AppCommand::ReloadConfig))
+        );
+    }
+
+    #[test]
     fn ratatui_renderer_draws_frame_without_panicking() {
         let workspace = Workspace::new_untitled();
         let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "hello\nworld");
@@ -3892,6 +4077,85 @@ mod tests {
         assert!(rendered.contains("/tmp/al"));
         assert!(rendered.contains("logs"));
         assert!(rendered.contains("alpha.log"));
+    }
+
+    #[test]
+    fn ratatui_renderer_draws_modal_list_overflow_indicators() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let mut ui_frame =
+            shell.frame_for_workspace(&workspace, Rect::new(0, 0, 60, 10), &[buffer_view]);
+        ui_frame.overlay = Some(
+            UiOverlay::message(
+                "Switch Buffer",
+                vec!["Showing 5-7 of 20".to_string()],
+                vec![],
+            )
+            .with_list(
+                vec![
+                    "  buffer-05".to_string(),
+                    "> buffer-06".to_string(),
+                    "  buffer-07".to_string(),
+                ],
+                Some(1),
+                32,
+            )
+            .with_list_overflow(true, true),
+        );
+        let backend = TestBackend::new(60, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 60, 12);
+        assert!(snapshot.contains(vertical_overflow_up(&shell)));
+        assert!(snapshot.contains(vertical_overflow_down(&shell)));
+        assert!(snapshot.contains("> buffer-06"));
+    }
+
+    #[test]
+    fn ascii_renderer_keeps_menu_dialog_scrollbar_and_edges_ascii() {
+        let config = Config {
+            terminal: TerminalOverrides {
+                encoding: Some(EncodingProfile::Ascii),
+                colors: Some(ColorProfile::Color16),
+            },
+            ..Config::default()
+        };
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(
+            BufferKind::Untitled,
+            "0123456789\nline2\nline3\nline4\nline5\nline6",
+        );
+        let buffer_view = BufferView::scrolled_xy(BufferId(1), &buffer, 2, 2);
+        let shell = UiShell::from_config(&config, TerminalProfile::default());
+        let mut ui_frame =
+            shell.frame_for_workspace(&workspace, Rect::new(0, 0, 24, 8), &[buffer_view]);
+        ui_frame.overlay = Some(
+            UiOverlay::message("List", vec!["Showing 2-3 of 9".to_string()], vec![])
+                .with_list(vec!["a".to_string(), "b".to_string()], Some(0), 16)
+                .with_list_overflow(true, true),
+        );
+        let backend = TestBackend::new(24, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 24, 10);
+        assert!(snapshot.is_ascii());
+        assert!(snapshot.contains('^'));
+        assert!(snapshot.contains('v'));
+        assert!(!snapshot.contains('↑'));
+        assert!(!snapshot.contains('↓'));
+        assert!(!snapshot.contains('█'));
+        assert!(!snapshot.contains('‹'));
+        assert!(!snapshot.contains('›'));
     }
 
     #[test]

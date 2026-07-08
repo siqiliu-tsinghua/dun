@@ -84,6 +84,30 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Refine selection and search highlight geometry for soft-wrapped lines.
 - [x] Add visual-row scrolling for soft-wrapped editor panes.
 
+## UI Polish Backlog
+
+Scope: these are non-`rum`, non-manual polish tasks that should be handled with
+automated tests only. Manual screenshot comparison and external terminal
+inspection stay outside this section.
+
+- [x] Add automated text-snapshot coverage for Microsoft Edit-like menu,
+  window, status, and modal chrome.
+- [x] Keep long dropdown menus usable on short terminals, including visible
+  overflow indicators and correct mouse hit testing.
+- [x] Add visible overflow indicators for scrollable modal lists such as
+  Open/Save As and Switch Buffer.
+- [x] Polish command prompt completion display so candidates are visible in
+  the prompt overlay, not only status history.
+- [x] Strengthen ASCII/16-color fallback rendering tests for menus, dialogs,
+  scrollbars, and viewport markers.
+- [x] Tighten small-terminal and narrow-pane rendering assertions beyond
+  no-panic smoke tests.
+- [x] Keep helper-window and modal text layout covered by automated rendering
+  assertions for Help, Config Diagnostics, Status History, Outline, Search
+  Results, Command Output, and file/dialog overlays.
+- [x] Keep mouse hit testing aligned with rendered menu/dialog/scrollbar
+  geometry after every UI polish change.
+
 ## `dun-config`
 
 - [x] Define typed config defaults.
