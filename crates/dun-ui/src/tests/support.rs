@@ -2,7 +2,9 @@
 
 pub(super) use crate::*;
 pub(super) use dun_config::{ColorProfile, EncodingProfile, KeySequence, TerminalOverrides};
-pub(super) use dun_core::{AppCommand, Axis, BufferKind, FileCommand, Position};
+pub(super) use dun_core::{
+    AppCommand, Axis, BufferId, BufferKind, FileCommand, Position, Rect, WindowId,
+};
 pub(super) use ratatui::Terminal;
 pub(super) use ratatui::backend::TestBackend;
 pub(super) use ratatui::buffer::Buffer;

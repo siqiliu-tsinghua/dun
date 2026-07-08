@@ -476,6 +476,13 @@ Progress note:
 - Stage 7.1 moved inline `dun-ui` unit tests out of `lib.rs` into
   `tests/{model,hit,rendering,fallback,support}.rs`. Implementation code
   remains in `lib.rs` for the next sub-step.
+- Stage 7.2 moved backend-neutral UI data types into `model.rs` and preserved
+  the existing public API through `lib.rs` re-exports.
+- Stage 7.3 moved text width, truncation, wrapping, and visible-whitespace
+  helpers into `text.rs`.
+- Stage 7.4 moved workspace, menu, and overlay hit-testing methods into
+  `hit.rs`. Shared menu/overlay layout helpers remain in `lib.rs` until the
+  render-layer extraction decides their final home.
 
 ## Stage 8: Split `dun-config`
 

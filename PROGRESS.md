@@ -734,3 +734,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   behavior modules with shared helpers in `support.rs`. `dun-ui/src/lib.rs`
   dropped to 98,060 bytes / 3,003 lines after this test-only move.
   `cargo fmt --all` and `cargo test -p dun-ui` passed.
+- Continued Stage 7 by moving backend-neutral `dun-ui` data types into
+  `model.rs`, text width/truncation/wrapping/visible-whitespace helpers into
+  `text.rs`, and workspace/menu/overlay hit-testing methods into `hit.rs`.
+  `crates/dun-ui/src/lib.rs` dropped to 79,198 bytes / 2,330 lines after this
+  batch. `cargo fmt --all`, `cargo test -p dun-ui`, `cargo test --workspace`,
+  and `git diff --check` passed.
