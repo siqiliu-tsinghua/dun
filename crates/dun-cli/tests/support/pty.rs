@@ -11,6 +11,8 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{fmt::Write as _, thread};
 
+use super::terminal_grid::{TerminalGrid, parse_terminal_grid};
+
 pub const CTRL_Q: &[u8] = b"\x11";
 const DEFAULT_PTY_ROWS: u16 = 24;
 const DEFAULT_PTY_COLS: u16 = 80;
@@ -65,6 +67,16 @@ impl TerminalCase {
 pub struct PtyRun {
     pub status: ExitStatus,
     pub output: String,
+}
+
+impl PtyRun {
+    pub fn terminal_grid(&self, cols: u16, rows: u16) -> TerminalGrid {
+        parse_terminal_grid(&self.output, cols, rows, None)
+    }
+
+    pub fn terminal_grid_for_case(&self, case: TerminalCase) -> TerminalGrid {
+        self.terminal_grid(case.cols, case.rows)
+    }
 }
 
 pub fn run_dun_in_pty(

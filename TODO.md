@@ -176,8 +176,9 @@ skip cleanly when `tmux` is unavailable.
   color and attributes.
 - [x] Add a first normalized tmux cell-grid parser for visible characters,
   basic SGR attributes, SGR colors, and tmux cursor coordinates.
-- [ ] Add a normalized cell-grid parser shared by PTY/tmux tests, introducing
-  `vt100` only if it stays Rust `1.85` compatible and lightweight enough.
+- [x] Add a normalized cell-grid parser shared by PTY/tmux tests, using an
+  in-tree Rust `1.85`-compatible ANSI/SGR subset parser and leaving `vt100` as
+  an optional later comparison point only if it stays lightweight enough.
 - [x] Add first tmux assertions for fixed pane dimensions, menu/status
   placement, tiled split borders, ASCII chrome fallback, and no 256-color SGR
   in 16-color mode.

@@ -1,10 +1,12 @@
-# 真终端 TUI 测试方案（tmux + vt100）
+# 真终端 TUI 测试方案（tmux + normalized grid）
 
 面向：负责落地测试基础设施的 agent。
 
 目标：在**真实终端**中自动化验证一个基于 ratatui 的 TUI 编辑器（macOS，Terminal.app / iTerm2）的渲染结果——UI 位置、尺寸、配色、键盘交互——并与 `msedit`（不支持 PTY、启动即渲染）做 diff test。
 
-已具备：基于 PTY 的测试（`portable-pty` + `vt100`），主要覆盖交互逻辑与鼠标 SGR 序列解析。本方案**不替代**它，而是补上"真终端 + 布局/配色/跨程序 diff"这一层。
+已具备：基于 PTY/expect 的测试，主要覆盖交互逻辑、终端 profile
+fallback 和 raw 控制流安全性。本方案**不替代**它，而是补上"真终端 +
+布局/配色/跨程序 diff"这一层。
 
 ---
 
@@ -17,17 +19,21 @@
 1. `tmux new-session` 以**固定尺寸**起 pane，在其中运行被测二进制。
 2. `tmux send-keys` 注入键盘序列。
 3. `tmux capture-pane -pe` 抓取**带颜色/属性**的屏幕快照。
-4. 把快照当成一段终端流喂给 `vt100::Parser`，读出规范化网格。
+4. 把快照当成一段终端流喂给共享的轻量 ANSI/SGR parser，读出规范化网格。
 5. 断言 / diff。
 
-关键收益：PTY 测试与真终端测试**复用同一套 `vt100` 解析与断言原语**，diff test 两端也统一。
+关键收益：PTY 测试与真终端测试**复用同一套规范化网格与断言原语**，
+diff test 两端也统一。`vt100` crate 可以作为以后对照评估的候选，但
+当前先保持 in-tree parser，避免为了测试基础设施增加不必要的体积和版本约束。
 
 ---
 
 ## 1. 依赖与前置
 
 - `tmux`（`brew install tmux`）。CI runner 同样安装即可，Linux runner 也能跑（不需要真实 GUI 终端）。
-- Rust 侧：复用现有 `vt100` crate 作为解析器；用 `std::process::Command` 调 tmux，或 `portable-pty` 起 tmux 亦可（起 tmux 本身不需要，普通 `Command` 足够）。
+- Rust 侧：使用 `tests/support/terminal_grid.rs` 内的轻量 parser，覆盖
+  当前测试需要的可见字符、基础 SGR、颜色、清屏/清行和常见光标移动；
+  用 `std::process::Command` 调 tmux。
 - 被测二进制与 `msedit` 二进制路径通过环境变量或测试常量注入。
 
 约定：**所有测试固定 pane 尺寸**（如 `100x30`），尺寸是断言的一部分，绝不依赖当前窗口大小。
@@ -56,16 +62,15 @@
 
 ## 3. 解析：capture-pane 输出 → 规范化网格
 
-把 `capture-pane -pe` 的字节流直接喂给 `vt100::Parser`（`parser.process(&bytes)`），然后遍历：
+把 `capture-pane -pe` 的字节流直接喂给共享 parser，然后遍历规范化 grid：
 
 ```
 for row in 0..rows {
   for col in 0..cols {
-    let cell = screen.cell(row, col);
-    // cell.contents(): String（字符）
-    // cell.fgcolor(): vt100::Color（Default / Idx(u8) / Rgb(r,g,b)）
-    // cell.bgcolor()
-    // cell.bold() / cell.inverse() / cell.underline() 等属性
+    let cell = grid.cell(row, col);
+    // cell.ch: char（空 cell 统一为空格）
+    // cell.style.fg/bg: Default / Ansi(u8) / Indexed(u8) / Rgb(r,g,b)
+    // cell.style.bold / reverse / underline
   }
 }
 ```
@@ -80,7 +85,9 @@ type Grid = Vec<Vec<Cell>>;
 规范化规则（**在比较前统一施加，减少无意义 diff**）：
 
 - 空 cell 的字符统一成空格。
-- 颜色只保留**语义层**：`Color::Idx` 或 `Color::Rgb` 原样保留（这是程序请求的色）；不要在这一层把 palette 索引映射成具体 RGB（那是终端主题的事，见 §6）。
+- 颜色只保留**语义层**：`TerminalColor::Indexed` 或
+  `TerminalColor::Rgb` 原样保留（这是程序请求的色）；不要在这一层把
+  palette 索引映射成具体 RGB（那是终端主题的事，见 §6）。
 - 尾随空格按需裁剪（做整行文本比较时）。
 
 ---
@@ -108,7 +115,7 @@ type Grid = Vec<Vec<Cell>>;
 - **实际像素色**（终端主题把 `Cyan` 映射成的具体 RGB）：取决于 Terminal.app / iTerm2 的配色方案，换主题就变。**这层不用本方案测**，它测的是终端配置而非程序正确性。只有截图能拿到（见 §8，仅作极少数视觉回归）。
 
 因此配色断言只针对**程序发出的色**：
-- `assert_fg(grid, row, col, Color::Idx(6))`（或对应 Rgb）
+- `assert_fg(grid, row, col, TerminalColor::Indexed(6))`（或对应 Rgb）
 - 语法高亮：断言"某 token 的所有 cell 带某一类前景色 / 某属性"，**比对分类，不比对具体 RGB**（除非你的程序本就发 truecolor）。
 
 ---
@@ -212,13 +219,10 @@ impl Drop for Tmux {
     }
 }
 
-/// 复用 PTY 测试里现成的 vt100 解析，产出规范化 Grid
-fn parse(bytes: &[u8], cols: u16, rows: u16) -> Grid {
-    let mut p = vt100::Parser::new(rows, cols, 0);
-    p.process(bytes);
-    let screen = p.screen();
-    // 遍历 screen.cell(r,c) → Grid（见 §3）
-    grid_from_screen(screen, cols, rows)
+/// 复用 tests/support/terminal_grid.rs，产出规范化 Grid
+fn parse(bytes: &[u8], cols: u16, rows: u16) -> TerminalGrid {
+    let text = String::from_utf8_lossy(bytes);
+    parse_terminal_grid(&text, cols, rows, None)
 }
 
 #[test]
@@ -227,7 +231,7 @@ fn layout_80x24() {
     let g = parse(&t.capture_stable(std::time::Duration::from_secs(2)), 80, 24);
     assert_line_contains(&g, 23, "NORMAL");        // 状态栏在最后一行
     assert_border_box(&g, /* 预期矩形 */);         // 尺寸回归
-    assert_fg(&g, /*row*/1, /*col*/2, vt100::Color::Idx(6)); // 关键字色（语义层）
+    assert_fg(&g, /*row*/1, /*col*/2, TerminalColor::Indexed(6)); // 关键字色（语义层）
 }
 ```
 
@@ -241,8 +245,8 @@ diff test 版：起两个 `Tmux`（你的 bin 与 `msedit`），各自 `capture_
 - [x] 初始 `parse()`：解析 `tmux capture-pane -ep` 输出中的可见字符、
   基本 SGR 属性、SGR 颜色和 tmux cursor 坐标，产出 tmux 侧规范化
   `Grid`。
-- [ ] 后续 `parse()`：评估 `vt100` 或抽取共享 parser，让 PTY 测试与真终端
-  测试共用同一套规范化 `Grid`。
+- [x] 后续 `parse()`：抽取共享 parser，让 PTY 测试与真终端测试共用同一
+  套规范化 `Grid`；当前实现覆盖基础 SGR、颜色、清屏/清行和常见光标移动。
 - [x] 基础位置/尺寸断言辅助：`assert_line_contains` 和固定宽高断言。
 - [ ] 后续位置/尺寸断言辅助：`assert_text_at` / `find_border_box`。
 - [x] 初始配色/fallback 断言：16 色模式不输出 256 色 SGR，ASCII fallback 不输出 Unicode 边框。
@@ -261,4 +265,4 @@ diff test 版：起两个 `Tmux`（你的 bin 与 `msedit`），各自 `capture_
 - **不要求被测程序支持 PTY**：tmux 本身是终端，`msedit` 这类"启动即渲染、不走 PTY"的程序照样跑，diff test 才成立。
 - **尺寸完全可控**：`-x/-y` 固定，布局断言才稳定可复现。
 - **带色抓屏**：`capture-pane -e` 直接拿到程序发出的 SGR，配色可断言。
-- **与现有 PTY 测试共用解析层**：都靠 `vt100`，断言原语一致，维护成本低。
+- **与现有 PTY 测试共用解析层**：都使用共享 normalized grid，断言原语一致，维护成本低。

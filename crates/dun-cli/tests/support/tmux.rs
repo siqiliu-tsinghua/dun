@@ -9,9 +9,10 @@ use std::sync::{Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use unicode_width::UnicodeWidthChar;
-
 use super::pty::command_on_path;
+use super::terminal_grid::{TerminalCursor, parse_terminal_grid};
+
+pub use super::terminal_grid::TerminalGrid as TmuxGrid;
 
 static TMUX_TEST_LOCK: Mutex<()> = Mutex::new(());
 
@@ -32,73 +33,6 @@ impl TmuxCapture {
     pub fn line(&self, row: usize) -> &str {
         self.lines.get(row).map(String::as_str).unwrap_or_default()
     }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct TmuxCursor {
-    pub x: u16,
-    pub y: u16,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TmuxGrid {
-    pub width: u16,
-    pub height: u16,
-    pub cursor: Option<TmuxCursor>,
-    cells: Vec<TmuxCell>,
-}
-
-impl TmuxGrid {
-    pub fn cell(&self, row: u16, col: u16) -> Option<&TmuxCell> {
-        if row >= self.height || col >= self.width {
-            return None;
-        }
-        self.cells
-            .get(row as usize * self.width as usize + col as usize)
-    }
-
-    pub fn text_at(&self, row: u16, col: u16, width: u16) -> String {
-        (col..col.saturating_add(width).min(self.width))
-            .filter_map(|x| self.cell(row, x).map(|cell| cell.ch))
-            .collect()
-    }
-
-    pub fn line_text(&self, row: u16) -> String {
-        self.text_at(row, 0, self.width)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TmuxCell {
-    pub ch: char,
-    pub style: TmuxStyle,
-}
-
-impl Default for TmuxCell {
-    fn default() -> Self {
-        Self {
-            ch: ' ',
-            style: TmuxStyle::default(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct TmuxStyle {
-    pub fg: TmuxColor,
-    pub bg: TmuxColor,
-    pub bold: bool,
-    pub underline: bool,
-    pub reverse: bool,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum TmuxColor {
-    #[default]
-    Default,
-    Ansi(u8),
-    Indexed(u8),
-    Rgb(u8, u8, u8),
 }
 
 #[derive(Debug)]
@@ -181,7 +115,12 @@ impl TmuxSession {
     pub fn capture_grid(&self) -> io::Result<TmuxGrid> {
         let capture = self.capture_sgr()?;
         let cursor = self.cursor_position()?;
-        Ok(parse_grid(&capture.text, self.cols, self.rows, cursor))
+        Ok(parse_terminal_grid(
+            &capture.text,
+            self.cols,
+            self.rows,
+            cursor,
+        ))
     }
 
     pub fn capture_until_contains(
@@ -237,7 +176,7 @@ impl TmuxSession {
         Ok(TmuxCapture::from_bytes(output.stdout))
     }
 
-    fn cursor_position(&self) -> io::Result<Option<TmuxCursor>> {
+    fn cursor_position(&self) -> io::Result<Option<TerminalCursor>> {
         let output = self.checked_output(&[
             "display-message",
             "-p",
@@ -252,7 +191,7 @@ impl TmuxSession {
         let (Ok(x), Ok(y)) = (x.parse::<u16>(), y.parse::<u16>()) else {
             return Ok(None);
         };
-        Ok(Some(TmuxCursor { x, y }))
+        Ok(Some(TerminalCursor { x, y }))
     }
 
     fn checked_status(&self, args: &[&str]) -> io::Result<()> {
@@ -341,134 +280,4 @@ fn output_error(args: &[&str], output: &Output) -> io::Error {
             String::from_utf8_lossy(&output.stderr)
         ),
     )
-}
-
-fn parse_grid(input: &str, cols: u16, rows: u16, cursor: Option<TmuxCursor>) -> TmuxGrid {
-    let width = cols as usize;
-    let height = rows as usize;
-    let mut cells = vec![TmuxCell::default(); width.saturating_mul(height)];
-    let mut style = TmuxStyle::default();
-    let mut row = 0usize;
-    let mut col = 0usize;
-    let mut chars = input.chars().peekable();
-
-    while let Some(ch) = chars.next() {
-        match ch {
-            '\x1b' => {
-                if chars.peek() == Some(&'[') {
-                    let _ = chars.next();
-                    let mut sequence = String::new();
-                    for next in chars.by_ref() {
-                        if ('@'..='~').contains(&next) {
-                            if next == 'm' {
-                                apply_sgr(&sequence, &mut style);
-                            }
-                            break;
-                        }
-                        sequence.push(next);
-                    }
-                }
-            }
-            '\r' => col = 0,
-            '\n' => {
-                row = row.saturating_add(1);
-                col = 0;
-                if row >= height {
-                    break;
-                }
-            }
-            _ => {
-                if row < height && col < width {
-                    let index = row * width + col;
-                    cells[index] = TmuxCell { ch, style };
-                    let display_width = UnicodeWidthChar::width(ch).unwrap_or(1).max(1);
-                    for extra in 1..display_width {
-                        if col + extra < width {
-                            cells[row * width + col + extra] = TmuxCell { ch: ' ', style };
-                        }
-                    }
-                    col = col.saturating_add(display_width);
-                }
-            }
-        }
-    }
-
-    TmuxGrid {
-        width: cols,
-        height: rows,
-        cursor,
-        cells,
-    }
-}
-
-fn apply_sgr(sequence: &str, style: &mut TmuxStyle) {
-    let codes = parse_sgr_codes(sequence);
-    if codes.is_empty() {
-        *style = TmuxStyle::default();
-        return;
-    }
-
-    let mut index = 0usize;
-    while index < codes.len() {
-        match codes[index] {
-            0 => *style = TmuxStyle::default(),
-            1 => style.bold = true,
-            4 => style.underline = true,
-            7 => style.reverse = true,
-            22 => style.bold = false,
-            24 => style.underline = false,
-            27 => style.reverse = false,
-            30..=37 => style.fg = TmuxColor::Ansi((codes[index] - 30) as u8),
-            39 => style.fg = TmuxColor::Default,
-            40..=47 => style.bg = TmuxColor::Ansi((codes[index] - 40) as u8),
-            49 => style.bg = TmuxColor::Default,
-            90..=97 => style.fg = TmuxColor::Ansi((codes[index] - 90 + 8) as u8),
-            100..=107 => style.bg = TmuxColor::Ansi((codes[index] - 100 + 8) as u8),
-            38 | 48 => {
-                let target_is_fg = codes[index] == 38;
-                if let Some((color, consumed)) = parse_extended_color(&codes[index + 1..]) {
-                    if target_is_fg {
-                        style.fg = color;
-                    } else {
-                        style.bg = color;
-                    }
-                    index = index.saturating_add(consumed);
-                }
-            }
-            _ => {}
-        }
-        index = index.saturating_add(1);
-    }
-}
-
-fn parse_sgr_codes(sequence: &str) -> Vec<u16> {
-    if sequence.is_empty() {
-        return vec![0];
-    }
-
-    sequence
-        .split(';')
-        .map(|part| {
-            if part.is_empty() {
-                0
-            } else {
-                part.parse::<u16>().unwrap_or(0)
-            }
-        })
-        .collect()
-}
-
-fn parse_extended_color(codes: &[u16]) -> Option<(TmuxColor, usize)> {
-    match codes {
-        [5, index, ..] => Some((TmuxColor::Indexed((*index).min(u8::MAX as u16) as u8), 2)),
-        [2, r, g, b, ..] => Some((
-            TmuxColor::Rgb(
-                (*r).min(u8::MAX as u16) as u8,
-                (*g).min(u8::MAX as u16) as u8,
-                (*b).min(u8::MAX as u16) as u8,
-            ),
-            4,
-        )),
-        _ => None,
-    }
 }

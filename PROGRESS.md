@@ -810,3 +810,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   now assert the initial focused editor cursor at `(3, 2)` and menu reverse/bold
   attributes through parsed cells. `cargo fmt --all` and
   `cargo test -p dun-cli --test tmux_grid` passed.
+- Extracted the normalized terminal grid parser into shared
+  `crates/dun-cli/tests/support/terminal_grid.rs`. PTY and tmux tests now use
+  the same `TerminalGrid` model; the parser covers visible cells, basic SGR
+  attributes, ANSI/indexed/RGB colors, clear-screen/clear-line, and common raw
+  CSI cursor movement. Added pure parser tests plus a PTY raw-output grid
+  assertion for opened UTF-8 files. `cargo fmt --all`,
+  `cargo test -p dun-cli --test terminal_grid`,
+  `cargo test -p dun-cli --test tmux_grid`, and the focused PTY grid test
+  passed.

@@ -12,6 +12,7 @@ use support::pty::{
     CTRL_Q, TerminalCase, assert_output_contains, assert_output_not_contains, command_on_path,
     pty_test_guard, run_dun_in_pty, run_dun_in_pty_with_env, temp_path,
 };
+use support::terminal_grid::TerminalGrid;
 
 fn terminal_profile_cases() -> [TerminalCase; 9] {
     [
@@ -142,6 +143,13 @@ fn pty_smoke_opens_utf8_file_and_renders_initial_content() -> io::Result<()> {
     assert_output_contains(&run.output, "[Plain Text]", case.name);
     assert_output_contains(&run.output, "[UTF-8]", case.name);
 
+    let grid = run.terminal_grid_for_case(case);
+    assert_eq!(grid.width, case.cols);
+    assert_eq!(grid.height, case.rows);
+    assert_grid_line_contains(&grid, 2, "alpha", case.name);
+    assert_grid_line_contains(&grid, 3, "beta", case.name);
+    assert_grid_line_contains(&grid, 23, "[UTF-8]", case.name);
+
     Ok(())
 }
 
@@ -176,6 +184,14 @@ fn assert_legacy_16_color_output(output: &str, case: &str) {
     assert_output_not_contains(output, "\x1b[48;5;", case);
     assert_output_not_contains(output, ";38;5;", case);
     assert_output_not_contains(output, ";48;5;", case);
+}
+
+fn assert_grid_line_contains(grid: &TerminalGrid, row: u16, needle: &str, case: &str) {
+    let line = grid.line_text(row);
+    assert!(
+        line.contains(needle),
+        "{case} grid row {row} did not contain {needle:?}\nrow: {line:?}"
+    );
 }
 
 #[test]
