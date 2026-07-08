@@ -796,3 +796,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   largest new implementation file is `frame/menu.rs` at 12,932 bytes / 270
   lines. `cargo fmt --all`, `cargo test -p dun-ui`, `cargo test --workspace`,
   and `git diff --check` passed.
+- Started the automated tmux real-terminal test line. Added
+  `crates/dun-cli/tests/support/tmux.rs` with fixed-size tmux session startup,
+  visible-pane capture, SGR-preserving capture, stable-screen polling, key
+  injection, and cleanup. Added `tests/tmux_grid.rs` covering 80x24 baseline
+  chrome, 100x30 fixed-pane dimensions, command-prompt-triggered tiled split
+  rendering, and ASCII/16 fallback chrome with no 256-color SGR. The tests skip
+  cleanly when tmux is unavailable or cannot create its socket. `cargo fmt --all`
+  and `cargo test -p dun-cli --test tmux_grid` passed.

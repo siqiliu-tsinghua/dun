@@ -171,13 +171,16 @@ inspection stay outside this section.
 Scope: do this after the current file-splitting line. Keep it automated and
 skip cleanly when `tmux` is unavailable.
 
-- [ ] Build a `tmux` screen-grid harness for fixed-size real-terminal runs.
-- [ ] Capture alternate-screen output with `tmux capture-pane`, preserving SGR
+- [x] Build a `tmux` screen-grid harness for fixed-size real-terminal runs.
+- [x] Capture alternate-screen output with `tmux capture-pane`, preserving SGR
   color and attributes.
 - [ ] Add a normalized cell-grid parser shared by PTY/tmux tests, introducing
   `vt100` only if it stays Rust `1.85` compatible and lightweight enough.
-- [ ] Add assertions for menu position, tiled borders, status bar placement,
-  focused cursor, selection attributes, and semantic color output.
+- [x] Add first tmux assertions for fixed pane dimensions, menu/status
+  placement, tiled split borders, ASCII chrome fallback, and no 256-color SGR
+  in 16-color mode.
+- [ ] Add normalized-grid assertions for focused cursor, selection attributes,
+  and richer semantic color output.
 - [ ] Keep mouse behavior in existing PTY/event-level tests rather than the
   `tmux` harness.
 - [ ] Add a later Microsoft Edit differential path that compares only projected

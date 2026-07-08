@@ -237,11 +237,13 @@ diff test 版：起两个 `Tmux`（你的 bin 与 `msedit`），各自 `capture_
 
 ## 10. 落地检查清单
 
-- [ ] harness：`Tmux` 封装 + `capture_stable` 轮询（禁止裸 `sleep`）。
+- [x] harness：`Tmux` 封装 + `capture_stable` 轮询（禁止裸 `sleep`）。
 - [ ] `parse()` 复用现有 `vt100`，产出规范化 `Grid`；PTY 测试与真终端测试共用。
-- [ ] 位置/尺寸断言辅助：`assert_text_at` / `assert_line_contains` / `find_border_box`。
-- [ ] 配色断言只针对**程序发出的语义色**；文档注明不测终端主题映射。
-- [ ] 多尺寸布局用例（如 `80x24` / `120x40`）。
+- [x] 基础位置/尺寸断言辅助：`assert_line_contains` 和固定宽高断言。
+- [ ] 后续位置/尺寸断言辅助：`assert_text_at` / `find_border_box`。
+- [x] 初始配色/fallback 断言：16 色模式不输出 256 色 SGR，ASCII fallback 不输出 Unicode 边框。
+- [ ] 后续配色断言只针对**程序发出的语义色**；文档注明不测终端主题映射。
+- [x] 多尺寸布局用例（`80x24` / `100x30`）。
 - [ ] diff test：对齐输入 → 双端抓屏 → **比较投影**（正文/光标/选区/token 分类）→ 子网格 diff；失败时并排 dump。
 - [ ] 鼠标用例保留在 PTY 测试，不进 tmux 这套。
 - [ ] CI 安装 tmux；确认无需 GUI 终端即可运行。
