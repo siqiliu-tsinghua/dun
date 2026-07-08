@@ -99,8 +99,8 @@ Allowed user actions:
 - Shell Escape suspends the TUI, restores the normal terminal, runs the user's
   shell, then resumes the TUI after the shell exits.
 - Run Command executes one non-interactive shell command, captures stdout and
-  stderr with bounded per-stream memory, and shows the result in a read-only
-  buffer.
+  stderr with bounded per-stream memory, and shows the result with byte counts
+  and truncation state in a read-only buffer.
 
 Required controls:
 

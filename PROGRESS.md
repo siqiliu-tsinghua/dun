@@ -534,3 +534,8 @@ This is an append-only progress log. Keep new entries dated and factual.
   stderr with a 512 KiB per-stream cap, and displays decoded output in a
   read-only Command Output window. Added command ids, File-menu entries,
   command prompt aliases, Help entries, config coverage, and CLI tests.
+- Polished host process actions: Run Command now has a dedicated bounded
+  prompt history, Command Output records stdout/stderr byte counts and explicit
+  truncation state, repeated runs reuse and refresh the read-only output pane,
+  and the PTY smoke suite covers shell escape suspend/resume with a temporary
+  non-interactive shell script.

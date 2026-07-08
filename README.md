@@ -101,7 +101,9 @@ restores the normal terminal, runs the user's shell, then resumes and redraws
 after the shell exits. `Ctrl+W,O` opens a Run Command prompt for one-shot
 non-interactive commands; stdout and stderr are captured with bounded memory,
 decoded through the same safe display path as files, and shown in a read-only
-Command Output window.
+Command Output window with per-stream byte counts and truncation status. The
+Run Command prompt keeps its own bounded history, separate from the editor
+command prompt.
 Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
 focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver

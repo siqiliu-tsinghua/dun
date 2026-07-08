@@ -73,6 +73,17 @@ pub fn run_dun_in_pty(
     ready_marker: &str,
     input: &[u8],
 ) -> io::Result<PtyRun> {
+    run_dun_in_pty_with_env(expect, case, args, ready_marker, input, &[])
+}
+
+pub fn run_dun_in_pty_with_env(
+    expect: &Path,
+    case: TerminalCase,
+    args: &[&OsStr],
+    ready_marker: &str,
+    input: &[u8],
+    extra_env: &[(&str, &OsStr)],
+) -> io::Result<PtyRun> {
     run_binary_in_pty(
         expect,
         case,
@@ -80,6 +91,7 @@ pub fn run_dun_in_pty(
         args,
         ready_marker,
         input,
+        extra_env,
     )
 }
 
@@ -90,6 +102,7 @@ pub fn run_binary_in_pty(
     args: &[&OsStr],
     ready_marker: &str,
     input: &[u8],
+    extra_env: &[(&str, &OsStr)],
 ) -> io::Result<PtyRun> {
     let script_path = temp_path("dun-pty-expect", "tcl");
     fs::write(
@@ -97,12 +110,17 @@ pub fn run_binary_in_pty(
         expect_script_for_command(case, binary, args, ready_marker, input),
     )?;
 
-    let result = run_expect_script(expect, case, &script_path);
+    let result = run_expect_script(expect, case, &script_path, extra_env);
     let _ = fs::remove_file(&script_path);
     result
 }
 
-fn run_expect_script(expect: &Path, case: TerminalCase, script_path: &Path) -> io::Result<PtyRun> {
+fn run_expect_script(
+    expect: &Path,
+    case: TerminalCase,
+    script_path: &Path,
+    extra_env: &[(&str, &OsStr)],
+) -> io::Result<PtyRun> {
     let mut command = Command::new(expect);
 
     command
@@ -120,6 +138,9 @@ fn run_expect_script(expect: &Path, case: TerminalCase, script_path: &Path) -> i
 
     if case.no_color {
         command.env("NO_COLOR", "1");
+    }
+    for (name, value) in extra_env {
+        command.env(name, value);
     }
 
     let mut child = command.spawn()?;

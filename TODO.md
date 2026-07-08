@@ -176,6 +176,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add word-wrap, visible-whitespace, and bookmark baseline commands.
 - [x] Add Turbo Pascal-style shell escape that suspends and resumes the TUI.
 - [x] Add Run Command prompt with bounded read-only output buffer.
+- [x] Add Run Command history/output polish and read-only output pane reuse.
+- [x] Add PTY smoke coverage for shell escape suspend/resume behavior.
 
 ## File and Display Safety
 

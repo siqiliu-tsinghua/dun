@@ -481,6 +481,7 @@ struct AppState {
     replace_confirm: Option<ReplaceConfirmState>,
     status_history: Vec<StatusEntry>,
     command_history: Vec<String>,
+    run_command_history: Vec<String>,
     last_find_query: Option<String>,
     pending_replace_query: Option<String>,
     kill_ring: Option<String>,
@@ -536,6 +537,7 @@ impl AppState {
             replace_confirm: None,
             status_history: Vec::new(),
             command_history: Vec::new(),
+            run_command_history: Vec::new(),
             last_find_query: None,
             pending_replace_query: None,
             kill_ring: None,
@@ -2307,6 +2309,12 @@ impl AppState {
         if let Some(window_id) = self.command_output_window_id() {
             self.workspace.focused = window_id;
             self.refresh_command_output_buffer(&text);
+            if let Ok(window) = self.workspace.window_mut(window_id) {
+                window.title = "Command Output".to_string();
+                window.kind = WindowKind::CommandOutput;
+                window.buffer_kind = BufferKind::ReadOnly;
+                window.collapsed = false;
+            }
             return;
         }
 
@@ -3225,10 +3233,10 @@ impl AppState {
                 self.submit_prompt();
             }
             CrosstermKeyCode::Up => {
-                self.recall_previous_command();
+                self.recall_previous_prompt_history();
             }
             CrosstermKeyCode::Down => {
-                self.recall_next_command();
+                self.recall_next_prompt_history();
             }
             CrosstermKeyCode::Left => {
                 if let Some(prompt) = &mut self.prompt {
@@ -3276,14 +3284,21 @@ impl AppState {
         true
     }
 
-    fn recall_previous_command(&mut self) {
-        let history_len = self.command_history.len();
+    fn recall_previous_prompt_history(&mut self) {
+        let Some(kind) = self
+            .prompt
+            .as_ref()
+            .and_then(|prompt| prompt.kind.history_kind())
+        else {
+            return;
+        };
+        let history_len = self.prompt_history_len(kind);
         if history_len == 0 {
             return;
         }
 
         let next_index = {
-            let Some(prompt) = self.command_line_prompt_mut() else {
+            let Some(prompt) = self.prompt_history_prompt_mut(kind) else {
                 return;
             };
             let next_index = match prompt.history_index {
@@ -3298,16 +3313,25 @@ impl AppState {
             next_index
         };
 
-        let input = self.command_history[next_index].clone();
-        if let Some(prompt) = self.command_line_prompt_mut() {
+        let Some(input) = self.prompt_history_entry(kind, next_index) else {
+            return;
+        };
+        if let Some(prompt) = self.prompt_history_prompt_mut(kind) {
             prompt.input.set_text(input);
         }
     }
 
-    fn recall_next_command(&mut self) {
-        let history_len = self.command_history.len();
+    fn recall_next_prompt_history(&mut self) {
+        let Some(kind) = self
+            .prompt
+            .as_ref()
+            .and_then(|prompt| prompt.kind.history_kind())
+        else {
+            return;
+        };
+        let history_len = self.prompt_history_len(kind);
         let (entry_index, draft) = {
-            let Some(prompt) = self.command_line_prompt_mut() else {
+            let Some(prompt) = self.prompt_history_prompt_mut(kind) else {
                 return;
             };
             let Some(index) = prompt.history_index else {
@@ -3324,18 +3348,40 @@ impl AppState {
         };
 
         let input = entry_index
-            .map(|index| self.command_history[index].clone())
+            .and_then(|index| self.prompt_history_entry(kind, index))
             .or(draft)
             .unwrap_or_default();
-        if let Some(prompt) = self.command_line_prompt_mut() {
+        if let Some(prompt) = self.prompt_history_prompt_mut(kind) {
             prompt.input.set_text(input);
         }
     }
 
-    fn command_line_prompt_mut(&mut self) -> Option<&mut PromptState> {
+    fn prompt_history_prompt_mut(&mut self, kind: PromptHistoryKind) -> Option<&mut PromptState> {
         self.prompt
             .as_mut()
-            .filter(|prompt| prompt.kind == PromptKind::CommandLine)
+            .filter(|prompt| prompt.kind.history_kind() == Some(kind))
+    }
+
+    fn prompt_history_len(&self, kind: PromptHistoryKind) -> usize {
+        self.prompt_history(kind).len()
+    }
+
+    fn prompt_history_entry(&self, kind: PromptHistoryKind, index: usize) -> Option<String> {
+        self.prompt_history(kind).get(index).cloned()
+    }
+
+    fn prompt_history(&self, kind: PromptHistoryKind) -> &[String] {
+        match kind {
+            PromptHistoryKind::CommandLine => &self.command_history,
+            PromptHistoryKind::RunCommand => &self.run_command_history,
+        }
+    }
+
+    fn prompt_history_mut(&mut self, kind: PromptHistoryKind) -> &mut Vec<String> {
+        match kind {
+            PromptHistoryKind::CommandLine => &mut self.command_history,
+            PromptHistoryKind::RunCommand => &mut self.run_command_history,
+        }
     }
 
     fn cancel_prompt(&mut self) {
@@ -3405,6 +3451,7 @@ impl AppState {
                     return;
                 }
 
+                self.record_prompt_history(PromptHistoryKind::RunCommand, input.clone());
                 self.run_external_command_to_buffer(&input);
             }
             PromptKind::CommandLine => {
@@ -3699,18 +3746,19 @@ impl AppState {
     }
 
     fn record_command_history(&mut self, input: String) {
-        if self
-            .command_history
-            .last()
-            .is_some_and(|previous| previous == &input)
-        {
+        self.record_prompt_history(PromptHistoryKind::CommandLine, input);
+    }
+
+    fn record_prompt_history(&mut self, kind: PromptHistoryKind, input: String) {
+        let history = self.prompt_history_mut(kind);
+        if history.last().is_some_and(|previous| previous == &input) {
             return;
         }
 
-        self.command_history.push(input);
-        if self.command_history.len() > COMMAND_HISTORY_LIMIT {
-            let overflow = self.command_history.len() - COMMAND_HISTORY_LIMIT;
-            self.command_history.drain(0..overflow);
+        history.push(input);
+        if history.len() > COMMAND_HISTORY_LIMIT {
+            let overflow = history.len() - COMMAND_HISTORY_LIMIT;
+            history.drain(0..overflow);
         }
     }
 
@@ -4524,6 +4572,14 @@ enum PromptKind {
 }
 
 impl PromptKind {
+    const fn history_kind(self) -> Option<PromptHistoryKind> {
+        match self {
+            Self::CommandLine => Some(PromptHistoryKind::CommandLine),
+            Self::RunCommand => Some(PromptHistoryKind::RunCommand),
+            Self::Find | Self::ReplaceFind | Self::ReplaceWith | Self::GoToLine => None,
+        }
+    }
+
     const fn label(self) -> &'static str {
         match self {
             Self::CommandLine => "Command: ",
@@ -4548,6 +4604,12 @@ impl PromptKind {
     const fn is_replace(self) -> bool {
         matches!(self, Self::ReplaceFind | Self::ReplaceWith)
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PromptHistoryKind {
+    CommandLine,
+    RunCommand,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -7409,15 +7471,46 @@ fn command_output_text(result: &CommandRunResult) -> String {
         "Limit: {} bytes per stream\n",
         COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES
     ));
-    if result.stdout.truncated || result.stderr.truncated {
-        out.push_str("Truncated: yes\n");
-    }
+    out.push_str(&format!(
+        "Stdout: {}\n",
+        command_stream_summary(&result.stdout)
+    ));
+    out.push_str(&format!(
+        "Stderr: {}\n",
+        command_stream_summary(&result.stderr)
+    ));
+    out.push_str(&format!(
+        "Truncated: {}\n",
+        if result.stdout.truncated || result.stderr.truncated {
+            "yes"
+        } else {
+            "no"
+        }
+    ));
 
-    out.push_str("\n--- stdout ---\n");
+    out.push_str(&format!(
+        "\n--- stdout ({}) ---\n",
+        command_stream_summary(&result.stdout)
+    ));
     push_decoded_command_stream(&mut out, &result.stdout);
-    out.push_str("\n--- stderr ---\n");
+    out.push_str(&format!(
+        "\n--- stderr ({}) ---\n",
+        command_stream_summary(&result.stderr)
+    ));
     push_decoded_command_stream(&mut out, &result.stderr);
     out
+}
+
+fn command_stream_summary(stream: &CapturedCommandStream) -> String {
+    format!(
+        "{} bytes, {}",
+        stream.bytes.len(),
+        if stream.truncated {
+            "truncated"
+        } else {
+            "complete"
+        }
+    )
 }
 
 fn push_decoded_command_stream(out: &mut String, stream: &CapturedCommandStream) {
@@ -9321,12 +9414,103 @@ key.window.close = none
         assert!(buffer.buffer.is_read_only());
         let text = buffer.buffer.to_text();
         assert!(text.contains("Command: printf dun-run"));
-        assert!(text.contains("--- stdout ---\ndun-run\n"));
+        assert!(text.contains("Stdout: 7 bytes, complete"));
+        assert!(text.contains("Truncated: no"));
+        assert!(text.contains("--- stdout (7 bytes, complete) ---\ndun-run\n"));
         assert!(
             app.status_message
                 .as_deref()
                 .is_some_and(|status| status.contains("Command returned exit 0"))
         );
+    }
+
+    #[test]
+    fn run_command_history_navigates_separately_from_command_line_history() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::RunCommand));
+        send_text(&mut app, "printf first");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        app.handle_command(&EditorCommand::App(AppCommand::RunCommand));
+        send_text(&mut app, "printf second");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        app.handle_command(&EditorCommand::App(AppCommand::RunCommand));
+        send_text(&mut app, "draft");
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Run Command: printf second".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Run Command: printf first".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Run Command: printf second".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Run Command: draft".to_string())
+        );
+        assert!(app.command_history.is_empty());
+        assert_eq!(
+            app.run_command_history,
+            vec!["printf first".to_string(), "printf second".to_string()]
+        );
+    }
+
+    #[test]
+    fn run_command_reuses_output_window_for_new_results() {
+        let mut app = AppState::new();
+
+        app.run_external_command_to_buffer("printf one");
+        let first_window = app.workspace.focused_window().unwrap().clone();
+        let window_count = app.workspace.windows.len();
+
+        app.run_external_command_to_buffer("printf two");
+
+        let second_window = app.workspace.focused_window().unwrap();
+        assert_eq!(app.workspace.windows.len(), window_count);
+        assert_eq!(second_window.id, first_window.id);
+        assert_eq!(second_window.kind, WindowKind::CommandOutput);
+        assert_eq!(second_window.buffer_kind, BufferKind::ReadOnly);
+        assert!(!second_window.collapsed);
+        let text = app
+            .buffer_state(second_window.buffer_id)
+            .unwrap()
+            .buffer
+            .to_text();
+        assert!(text.contains("Command: printf two"));
+        assert!(text.contains("two"));
+        assert!(!text.contains("one"));
     }
 
     #[test]

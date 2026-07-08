@@ -286,6 +286,17 @@ Search and navigation:
 - `F1` opens the key reference window.
 - `F2` opens the status history window.
 
+Process actions:
+
+- `Ctrl+W,S` should suspend the alternate-screen TUI, run the configured
+  `$SHELL` with normal terminal stdio, and return to a usable editor after the
+  shell exits.
+- `Ctrl+W,O` should open the Run Command prompt. Submitting
+  `printf dun-run` should create or reuse a read-only Command Output pane with
+  exit status, stdout/stderr byte counts, and truncation status.
+- Up/Down in the Run Command prompt should navigate only previous run-command
+  inputs, not the editor command prompt history.
+
 Tiling:
 
 - `Ctrl+W,H` and `Ctrl+W,V` split the workspace.

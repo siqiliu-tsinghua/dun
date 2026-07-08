@@ -4,12 +4,13 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
+use std::os::unix::fs::PermissionsExt;
 
 mod support;
 
 use support::pty::{
     CTRL_Q, TerminalCase, assert_output_contains, assert_output_not_contains, command_on_path,
-    pty_test_guard, run_dun_in_pty, temp_path,
+    pty_test_guard, run_dun_in_pty, run_dun_in_pty_with_env, temp_path,
 };
 
 fn terminal_profile_cases() -> [TerminalCase; 9] {
@@ -212,6 +213,55 @@ fn pty_smoke_quits_cleanly_with_mouse_capture_enabled() -> io::Result<()> {
         run.status,
         run.output
     );
+    assert_output_contains(&run.output, "Untitled", case.name);
+
+    Ok(())
+}
+
+#[test]
+fn pty_smoke_shell_escape_suspends_and_resumes_terminal() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    let shell_path = temp_path("dun-pty-shell-escape", "sh");
+    fs::write(
+        &shell_path,
+        "#!/bin/sh\nprintf 'dun-shell-escape-smoke\\n'\nexit 0\n",
+    )?;
+    let mut permissions = fs::metadata(&shell_path)?.permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&shell_path, permissions)?;
+
+    let case = TerminalCase::new(
+        "xterm-256color shell escape",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
+    let run = run_dun_in_pty_with_env(
+        &expect,
+        case,
+        &[],
+        "Untitled",
+        b"\x17s\x11",
+        &[("SHELL", shell_path.as_os_str())],
+    );
+    let _ = fs::remove_file(&shell_path);
+    let run = run?;
+
+    assert!(
+        run.status.success(),
+        "{} failed with status {:?}\n{}",
+        case.name,
+        run.status,
+        run.output
+    );
+    assert_output_contains(&run.output, "dun-shell-escape-smoke", case.name);
     assert_output_contains(&run.output, "Untitled", case.name);
 
     Ok(())
