@@ -503,3 +503,17 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Added a stable ratatui text snapshot helper and baseline UI layout snapshot
   coverage. `cargo test -p dun-core -p dun-config -p dun-ui -p dun-cli`
   passes.
+- Ran the external Debian VirtualBox SSH matrix subset for commit `e636460`.
+  Debian system packages provide `rustc 1.85.0` and `cargo 1.85.0`. The VM
+  passed `cargo test -p dun-cli --test pty_smoke`, `cargo test --workspace
+  --quiet`, direct SSH UTF-8, SSH mono, SSH tmux, SSH screen, escape-payload,
+  and invalid-byte fallback checks. Strict VT100/small-terminal checks exposed
+  that the current ratatui/crossterm path still emits `38;5;n`/`48;5;n` SGR
+  color sequences for 16-color styles; this is now tracked in TODO.
+- Fixed strict VT100/16-color output by routing Color16 terminal profiles
+  through a stdout wrapper that rewrites crossterm's 0-15 palette SGR
+  sequences into legacy 16-color SGR forms. Added unit coverage for split CSI
+  handling and PTY assertions that Color16 profiles do not emit
+  `38;5;n`/`48;5;n`. Re-ran the Debian VirtualBox matrix subset: PTY smoke,
+  full workspace tests, direct SSH UTF-8, mono, VT100, small VT100, tmux,
+  screen, escape-payload, and invalid-byte fallback checks all pass.

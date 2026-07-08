@@ -90,6 +90,9 @@ fn pty_smoke_quits_cleanly_for_common_terminal_profiles() -> io::Result<()> {
         assert_output_contains(&run.output, "1:1", case.name);
         if let Some(profile) = case.expected_profile {
             assert_output_contains(&run.output, profile, case.name);
+            if profile.ends_with("/16") {
+                assert_legacy_16_color_output(&run.output, case.name);
+            }
         }
     }
 
@@ -162,8 +165,16 @@ fn pty_smoke_handles_small_low_capability_terminal() -> io::Result<()> {
         run.output
     );
     assert_output_contains(&run.output, "Untitled", case.name);
+    assert_legacy_16_color_output(&run.output, case.name);
 
     Ok(())
+}
+
+fn assert_legacy_16_color_output(output: &str, case: &str) {
+    assert_output_not_contains(output, "\x1b[38;5;", case);
+    assert_output_not_contains(output, "\x1b[48;5;", case);
+    assert_output_not_contains(output, ";38;5;", case);
+    assert_output_not_contains(output, ";48;5;", case);
 }
 
 #[test]

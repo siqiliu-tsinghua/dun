@@ -170,6 +170,9 @@ Current implementation:
 - ASCII mode uses caret notation and escapes non-ASCII characters as
   `\u{...}`.
 - C1 controls are rendered as visible code point markers.
+- Color16 terminal profiles route ratatui/crossterm output through a bounded
+  SGR rewriter so ANSI 0-15 palette colors become legacy 16-color SGR controls
+  instead of 256-color-style `38;5;n` or `48;5;n` controls.
 - CLI buffers track file-text encoding metadata; Save and Save As reject
   read-only or non-save-safe fallback buffers.
 - Long-line display work is capped by byte count without splitting a UTF-8

@@ -76,9 +76,68 @@ SSH-SMALL       ssh direct            40x12 and 80x24 terminal sizes
 KVM-ASCII       server console/KVM    ASCII or C locale, no mouse assumption
 ```
 
-The current workspace does not provide an external SSH host. Current coverage is
-therefore the automated PTY baseline plus local command execution. External
-results must be gathered before a tagged release.
+The current workspace has a project-local Debian VirtualBox VM available over
+SSH for external terminal checks. Real server console/KVM results are still not
+covered and must be gathered before a tagged release that claims that path.
+
+## Latest External VM Run
+
+```text
+date: 2026-07-08
+dun revision: e636460 plus the current VT100 SGR working-tree fix
+host path: macOS host -> ssh -p 2222 -> Debian VirtualBox VM
+remote OS: Debian trixie
+rust: Debian rustc 1.85.0, cargo 1.85.0
+terminal tools: expect 5.45.4, tmux 3.5a, screen 4.09.01
+
+AUTO-PTY: pass
+  cargo test -p dun-cli --test pty_smoke
+
+VM-WORKSPACE: pass
+  cargo test --workspace --quiet
+
+SSH-UTF8: pass
+  TERM=xterm-256color LANG=C.UTF-8 LC_CTYPE=C.UTF-8
+  Opened /tmp/dun-terminal-smoke.txt through ssh -tt, rendered the editor
+  surface, accepted Ctrl+Q, and restored the terminal.
+
+SSH-MONO: pass
+  TERM=xterm-256color NO_COLOR=1 LANG=C.UTF-8 LC_CTYPE=C.UTF-8
+  Rendered without color palette dependencies, accepted Ctrl+Q, and restored
+  the terminal.
+
+SSH-VT100: pass
+  TERM=vt100 LANG=C LC_CTYPE=C
+  ASCII glyph fallback worked, the editor exited cleanly, and the 16-color
+  output used legacy SGR forms such as 37;44 and 93;44 instead of
+  256-color-style 38;5;n or 48;5;n sequences.
+
+SSH-SMALL: pass
+  TERM=vt100 LANG=C LC_CTYPE=C, stty rows 12 cols 40
+  Layout remained usable, clipped without overlap, and used legacy 16-color
+  SGR output rather than 256-color-style SGR output.
+
+SSH-TMUX: pass
+  Outer TERM=xterm-256color, tmux 3.5a, app TERM=screen-256color
+  Rendered, accepted Ctrl+Q, ended the tmux session, and restored SSH.
+
+SSH-SCREEN: pass with environment warning
+  Outer TERM=xterm-256color, screen 4.09.01, app TERM=screen
+  Rendered and exited cleanly with legacy 16-color SGR output from the app.
+  Debian's /etc/screenrc printed screen-owned warnings for unknown
+  deflogin/login commands before the app surface.
+
+SSH-ESCAPE-PAYLOAD: pass
+  /tmp/dun-terminal-escape.txt rendered ESC, OSC, BEL, and SGR payload bytes
+  as visible control notation rather than executing them.
+
+SSH-INVALID-BYTES: pass
+  /tmp/dun-terminal-invalid.bin opened as Escaped Bytes with \xFF visible and
+  the fallback state shown in the status bar.
+
+KVM-ASCII: not run
+  No real server console or KVM path was available in this run.
+```
 
 ## Result Record
 

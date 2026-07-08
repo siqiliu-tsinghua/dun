@@ -225,7 +225,9 @@ Rendering must go through an explicit terminal profile:
 - capabilities: conservative assumptions for low-end `TERM` values.
 
 The UI must not assume Nerd Fonts, truecolor, enabled mouse support, or Unicode
-line drawing.
+line drawing. For 16-color profiles, the terminal output path rewrites
+crossterm palette SGR sequences into legacy 16-color SGR forms instead of
+emitting 256-color-style `38;5;n` or `48;5;n` controls.
 
 ## Development Documents
 
