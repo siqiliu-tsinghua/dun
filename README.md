@@ -312,6 +312,11 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
   lightweight startup and RSS baselines for macOS and Debian builds.
 - [docs/dependency-audit.md](./docs/dependency-audit.md): dependency shape,
   feature policy, and repeat checklist for keeping the default build small.
+- [docs/code-organization-guidelines.md](./docs/code-organization-guidelines.md):
+  safe Rust policy, file-size thresholds, module split rules, and directory
+  organization guidance.
+- [docs/file-splitting-plan.md](./docs/file-splitting-plan.md): staged,
+  test-gated plan for splitting the current oversized Rust source files.
 - [docs/configuration.md](./docs/configuration.md): current Rust-owned config
   file loader and supported keys.
 - [docs/crate-map.md](./docs/crate-map.md): current Rust workspace crate

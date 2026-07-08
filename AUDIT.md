@@ -29,6 +29,24 @@ Untrusted or partially trusted:
 - terminal environment variables;
 - pasted input.
 
+## Safe Rust Boundary
+
+`dun`'s own Rust code is safe Rust by policy.
+
+Required controls:
+
+- crate roots and Rust test/support entry points use `#![forbid(unsafe_code)]`;
+- `unsafe` blocks, `unsafe fn`, `unsafe impl`, `unsafe trait`, and
+  `unsafe extern` are not introduced during normal development;
+- if an unsafe operation ever appears unavoidable, it requires an explicit
+  design decision before implementation;
+- third-party dependencies with unsafe internals remain part of the trusted
+  computing base and are tracked through dependency audits.
+
+Current audit status: the repository has zero real unsafe code in `dun` crates.
+The only `unsafe` word in crate source is a normal string token used by the
+Rust outline parser.
+
 ## Hard Invariants
 
 - Future `rum` execution inside `dun` is pure-only.

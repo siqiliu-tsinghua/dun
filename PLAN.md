@@ -240,6 +240,9 @@ release-facing host API.
 - [x] Add automated modified-key event coverage for the terminal matrix.
 - [x] Add release size, runtime resource, and dependency/feature lightweight
   audits for macOS and Debian baselines.
+- [x] Document safe Rust and code organization guidelines.
+- [x] Document the staged oversized-file splitting plan.
+- [x] Split `dun-cli` unit tests into behavior-family modules.
 - [ ] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
 - [x] Lightweight release binary size audit on macOS and Debian.

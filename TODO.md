@@ -108,6 +108,44 @@ inspection stay outside this section.
 - [x] Keep mouse hit testing aligned with rendered menu/dialog/scrollbar
   geometry after every UI polish change.
 
+## Code Hygiene
+
+- [x] Document the safe Rust policy and code organization rules.
+- [x] Document the staged oversized-file splitting plan.
+- [x] Split `crates/dun-cli/src/main.rs` tests by behavior family before the
+  next large CLI feature batch.
+- [ ] Split `crates/dun-cli/src/main.rs` implementation into app, input,
+  dialogs, files, terminal, command-output, and helper-text modules.
+- [ ] Split `crates/dun-ui/src/lib.rs` into model, render, hit-testing, text,
+  and test modules.
+- [ ] Split `crates/dun-config/src/lib.rs` into keys, parser, defaults, and
+  validation modules.
+- [ ] Split `crates/dun-core/src/buffer.rs` into buffer storage, cursor,
+  selection, edit, undo, search, and tests.
+- [ ] Split `crates/dun-core/src/workspace.rs` and
+  `crates/dun-term/src/theme.rs` when they are next touched for substantive
+  work.
+
+## Real Terminal Testing
+
+Scope: do this after the current file-splitting line. Keep it automated and
+skip cleanly when `tmux` is unavailable.
+
+- [ ] Build a `tmux` screen-grid harness for fixed-size real-terminal runs.
+- [ ] Capture alternate-screen output with `tmux capture-pane`, preserving SGR
+  color and attributes.
+- [ ] Add a normalized cell-grid parser shared by PTY/tmux tests, introducing
+  `vt100` only if it stays Rust `1.85` compatible and lightweight enough.
+- [ ] Add assertions for menu position, tiled borders, status bar placement,
+  focused cursor, selection attributes, and semantic color output.
+- [ ] Keep mouse behavior in existing PTY/event-level tests rather than the
+  `tmux` harness.
+- [ ] Add a later Microsoft Edit differential path that compares only projected
+  semantic regions such as editor body text, cursor, selection coverage, and
+  color classes, not whole-screen pixel or cell equality.
+- [ ] Keep GUI pixel screenshots as optional manual visual regression only,
+  outside the CI/main automated test path.
+
 ## `dun-config`
 
 - [x] Define typed config defaults.

@@ -632,3 +632,24 @@ This is an append-only progress log. Keep new entries dated and factual.
   Ambiguous command prompt completions now appear in the prompt overlay, and
   the renderer has additional automated coverage for menu/dialog overflow,
   ASCII fallback chrome, viewport markers, and modal list hit geometry.
+- Audited the current unsafe boundary and recorded the project policy:
+  `dun`'s own crates remain zero-real-unsafe and use `#![forbid(unsafe_code)]`
+  at crate/test-support entry points. Added
+  `docs/code-organization-guidelines.md`, adapted from the neighboring `rum`
+  project's file-slimming rules, with file-size thresholds, assess-on-touch
+  split policy, safe Rust requirements, current oversized-file hotspots, and
+  preferred future module boundaries for `dun-cli`, `dun-ui`, `dun-core`,
+  `dun-config`, and `dun-term`.
+- Added `docs/file-splitting-plan.md`, a staged migration plan for the current
+  oversized files. The plan starts with `dun-cli` test extraction, then moves
+  pure model/helper code before app-state method groups and process I/O
+  boundaries, followed by `dun-ui`, `dun-config`, `dun-core::buffer`,
+  workspace, and theme splits. Each stage requires `cargo fmt --all`,
+  `cargo test --workspace`, and `git diff --check`.
+- Started the file-splitting line by completing Stage 1 for `dun-cli` tests.
+  The old inline `#[cfg(test)] mod tests` in `crates/dun-cli/src/main.rs` is
+  now `mod tests;`, with 200 tests split under `crates/dun-cli/src/tests/` by
+  behavior family plus shared helpers in `tests/support.rs`. `main.rs` dropped
+  from 558,750 bytes / 16,386 lines to 362,654 bytes / 10,802 lines after the
+  move. `cargo fmt --all`, `cargo test --workspace`, and `git diff --check`
+  passed.

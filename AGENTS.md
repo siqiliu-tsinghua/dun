@@ -29,6 +29,8 @@ text transforms, or semantic plugin logic. A minimal build must not require the
 - `TODO.md`: active task list; keep it focused on near-term work.
 - `PROGRESS.md`: append-only history of completed work and decisions.
 - `AUDIT.md`: security model, threat notes, invariants, and audit checklist.
+- `docs/code-organization-guidelines.md`: safe Rust, file-size, module
+  splitting, and directory organization rules.
 
 When changing behavior or architecture, update the relevant document in the
 same change.
@@ -37,6 +39,9 @@ same change.
 
 - Target Rust `1.85`.
 - Keep dependencies compatible with Rust `1.85`.
+- Keep `dun` source code safe Rust. All crate roots and Rust test/support
+  entry points must use `#![forbid(unsafe_code)]`; do not add `unsafe` without
+  an explicit design decision.
 - Prefer small, typed internal APIs over stringly command plumbing.
 - Keep editor state owned by Rust core code.
 - Prefer Rust core implementations for simple editor features before reaching
@@ -47,6 +52,11 @@ same change.
 - Add tests with the feature being implemented. For broad editor behavior,
   prefer focused core tests before UI tests.
 - Do not introduce native dynamic plugin loading in the initial line.
+- Follow [docs/code-organization-guidelines.md](./docs/code-organization-guidelines.md).
+  Implementation files should stay under about `10k` characters when
+  practical. Files over `20k` need a split assessment when touched, and files
+  over `35k` are architecture debt unless an explicit exception is recorded.
+  Prefer real responsibility boundaries over arbitrary size cuts.
 
 ## Plugin Security Invariants
 
