@@ -38,8 +38,8 @@ As of 2026-07-08:
 | 2 | `crates/dun-ui/src/lib.rs` | 143k chars | mixed model/render/hit testing/tests |
 | 3 | `crates/dun-config/src/lib.rs` | 84k chars | key model, defaults, parser, validation in one file |
 | 4 | `crates/dun-core/src/buffer.rs` | 74k chars | core buffer behavior and tests in one file |
-| 5 | `crates/dun-core/src/workspace.rs` | 31k chars | split-plan range, lower risk after larger files |
-| 6 | `crates/dun-term/src/theme.rs` | 28k chars | split-plan range, can wait until theme work resumes |
+| 5 | `crates/dun-core/src/workspace.rs` | 31k chars | done in Stage 10; split into `workspace/` modules |
+| 6 | `crates/dun-term/src/theme.rs` | 28k chars | done in Stage 10; split into `theme/` modules |
 
 The sequence below follows that risk order. Do not start with the smallest
 files; the immediate maintenance cost is dominated by `dun-cli`.
@@ -641,6 +641,18 @@ git diff --check
 ```
 
 Expected behavior change: none.
+
+Completion note:
+
+- `dun-core::workspace` now has a facade `mod.rs`, model types, split/close
+  behavior, directional focus, split hit testing, resize/rotation behavior,
+  and tests in separate files.
+- `dun-term::theme` now has a facade `mod.rs`, color primitives, style
+  primitives, palette shape, built-in theme constructors, and tests in separate
+  files.
+- `theme/builtins.rs` intentionally keeps the current built-in palette
+  constructors together. If new theme families are added, split it by theme
+  family before extending the file further.
 
 ## Commit Strategy
 

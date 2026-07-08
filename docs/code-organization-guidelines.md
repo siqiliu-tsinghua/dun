@@ -78,13 +78,18 @@ As of 2026-07-08, these files are already beyond the desired shape:
 | `crates/dun-ui/src/lib.rs` | 143k chars | debt | model, menu, overlay, window rendering, hit testing, test modules |
 | `crates/dun-config/src/lib.rs` | 84k chars | debt | key model, keymap defaults, parser, validation, defaults text |
 | `crates/dun-core/src/buffer.rs` | 74k chars | debt | cursor/movement, edit operations, selection, search, undo transactions, tests |
-| `crates/dun-core/src/workspace.rs` | 31k chars | split-plan | layout tree, focus, resize, hit testing, tests |
-| `crates/dun-term/src/theme.rs` | 28k chars | split-plan | color/style primitives, built-in theme palettes, tests |
+| `crates/dun-core/src/workspace.rs` | 31k chars | done | split into `workspace/{model,split,focus,resize,hit,tests}.rs` |
+| `crates/dun-term/src/theme.rs` | 28k chars | done | split into `theme/{color,style,palette,builtins,tests}.rs` |
 
 These sizes do not require emergency rewrites, but they do create an
 assess-on-touch rule: new feature work in one of these files should either
 perform a focused split or explain why the split is deferred and what boundary
 will be used later.
+
+Stage 10 removed the original `workspace.rs` and `theme.rs` files. The
+remaining theme palette constructor file, `theme/builtins.rs`, is concentrated
+data-style code; when adding new theme families, split that file by theme
+family before extending it further.
 
 ## Preferred Module Shape
 
@@ -212,4 +217,3 @@ An exception should say:
 - why the file remains large;
 - what the future split boundary is;
 - what test command covered the current change.
-

@@ -160,7 +160,7 @@ inspection stay outside this section.
   logic into `search.rs`.
 - [x] Continue Stage 9 with cursor/selection movement extraction.
 - [x] Continue Stage 9 with edit, line-ops, and undo extraction.
-- [ ] Split `crates/dun-core/src/workspace.rs` and
+- [x] Split `crates/dun-core/src/workspace.rs` and
   `crates/dun-term/src/theme.rs` when they are next touched for substantive
   work.
 

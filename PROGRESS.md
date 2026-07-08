@@ -780,3 +780,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   construction, text shape accessors, validation, dirty-state fingerprinting,
   and revision tracking. `cargo fmt --all` and `cargo test -p dun-core`
   passed.
+- Completed Stage 10 for the remaining split-plan files. `dun-core::workspace`
+  now has separate model, split/close, focus, split-hit, resize, facade, and
+  test modules; `dun-term::theme` now has separate color, style, palette,
+  built-in theme constructor, facade, and test modules. The old
+  `workspace.rs` and `theme.rs` files are gone; public exports remain routed
+  through the same crate facades. `cargo fmt --all`, `cargo test -p dun-core`,
+  `cargo test -p dun-term`, `cargo test --workspace`, and `git diff --check`
+  passed during the split.
