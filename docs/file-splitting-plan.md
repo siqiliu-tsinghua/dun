@@ -590,6 +590,15 @@ git diff --check
 
 Expected behavior change: none.
 
+Progress note:
+
+- Stage 9.1 moved inline `dun-core::buffer` tests into
+  `buffer/tests/{model,cursor,selection,edit,undo,search,line_ops}.rs`.
+- Stage 9.2 moved `buffer.rs` to `buffer/mod.rs` and extracted public buffer
+  model/storage types into `buffer/model.rs`, preserving facade re-exports.
+- Stage 9.3 moved `find_all`, `replace_all`, and their search helper
+  functions into `buffer/search.rs`.
+
 ## Stage 10: Split Remaining Split-Plan Files
 
 Purpose: finish the lower-risk organization work after the largest files are

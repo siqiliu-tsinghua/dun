@@ -765,3 +765,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   `validation.rs`. `crates/dun-config/src/lib.rs` is now a 28-line facade, and
   the largest new file is `parser.rs` at 10,380 bytes / 322 lines.
   `cargo fmt --all` and `cargo test -p dun-config` passed.
+- Started Stage 9 of the `dun-core::buffer` split. The old
+  `crates/dun-core/src/buffer.rs` is now `buffer/mod.rs`; inline buffer tests
+  moved into behavior modules under `buffer/tests/`; public buffer model and
+  storage types moved into `buffer/model.rs`; search and replace-all behavior
+  moved into `buffer/search.rs`. The main buffer module dropped from 74,231
+  bytes / 2,413 lines to 44,866 bytes / 1,447 lines after this batch.
+  `cargo fmt --all` and `cargo test -p dun-core` passed after each sub-step.

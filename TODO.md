@@ -155,6 +155,11 @@ inspection stay outside this section.
 - [x] Continue Stage 8 with parser/default-config/validation extraction.
 - [ ] Split `crates/dun-core/src/buffer.rs` into buffer storage, cursor,
   selection, edit, undo, search, and tests.
+- [x] Start Stage 9 by moving `dun-core` buffer tests into behavior modules,
+  moving buffer model/storage into `model.rs`, and moving search/replace-all
+  logic into `search.rs`.
+- [ ] Continue Stage 9 with cursor/selection movement extraction.
+- [ ] Continue Stage 9 with edit, line-ops, and undo extraction.
 - [ ] Split `crates/dun-core/src/workspace.rs` and
   `crates/dun-term/src/theme.rs` when they are next touched for substantive
   work.
