@@ -122,6 +122,10 @@ inspection stay outside this section.
   dialogs, files, terminal, command-output, and helper-text modules.
 - [ ] Continue Stage 4 with AppState command dispatch, prompts/dialogs,
   helper panes/search-replace, command output, and file I/O method groups.
+- [x] Start Stage 5 by moving terminal raw/alternate-screen lifecycle and
+  16-color SGR output rewriting into `crates/dun-cli/src/terminal/`.
+- [ ] Continue Stage 5 with terminal input dispatch, shell/run-command host
+  process boundaries, and file open/save/atomic I/O modules.
 - [ ] Split `crates/dun-ui/src/lib.rs` into model, render, hit-testing, text,
   and test modules.
 - [ ] Split `crates/dun-config/src/lib.rs` into keys, parser, defaults, and

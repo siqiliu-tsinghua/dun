@@ -249,6 +249,8 @@ release-facing host API.
   file-dialog/text helper modules.
 - [x] Start `dun-cli` AppState method-group extraction with window, editing,
   and view-state modules.
+- [x] Start `dun-cli` process I/O boundary extraction with terminal lifecycle
+  and SGR output modules.
 - [ ] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
 - [x] Lightweight release binary size audit on macOS and Debian.

@@ -675,3 +675,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   view-context calculation live in `app/view_state.rs`. `main.rs` dropped to
   249,993 bytes / 7,245 lines after this batch. `cargo fmt --all` and
   `cargo test --workspace` passed after each method-group move.
+- Started Stage 5 of the `dun-cli` split by extracting terminal process I/O
+  boundaries. `terminal/lifecycle.rs` now owns raw mode, alternate-screen,
+  bracketed paste, mouse capture, suspend/resume, and drop-time terminal
+  restoration. `terminal/sgr.rs` now owns `TerminalColorRewrite`,
+  `TerminalWriter`, and 16-color SGR rewriting. `main.rs` dropped to 240,826
+  bytes / 6,919 lines after this batch. `cargo fmt --all` and
+  `cargo test --workspace` passed.

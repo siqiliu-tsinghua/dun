@@ -307,6 +307,14 @@ Rules:
 - preserve all existing path diagnostics and terminal restoration tests;
 - do not add new dependencies.
 
+Progress note:
+
+- `terminal/lifecycle.rs` owns raw mode, alternate-screen, bracketed paste,
+  mouse capture, suspend/resume, and drop-time terminal restoration;
+- `terminal/sgr.rs` owns the 16-color SGR rewriter and `TerminalWriter`;
+- remaining Stage 5 groups include terminal input dispatch, shell/run-command
+  host process boundaries, and file open/save/atomic I/O modules.
+
 Gate:
 
 ```text
