@@ -728,3 +728,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   shared small constants/helpers now live in named modules. `main.rs` dropped
   to 7,211 bytes / 180 lines after this stage. `cargo fmt --all` and
   `cargo test --workspace` passed.
+- Started Stage 7 of the `dun-ui` split by moving the inline unit tests out of
+  `crates/dun-ui/src/lib.rs`. The 50 tests now live under
+  `crates/dun-ui/src/tests/` as `model`, `hit`, `rendering`, and `fallback`
+  behavior modules with shared helpers in `support.rs`. `dun-ui/src/lib.rs`
+  dropped to 98,060 bytes / 3,003 lines after this test-only move.
+  `cargo fmt --all` and `cargo test -p dun-ui` passed.

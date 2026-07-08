@@ -138,6 +138,9 @@ inspection stay outside this section.
   process boundaries, and file open/save/snapshot/atomic I/O modules.
 - [ ] Split `crates/dun-ui/src/lib.rs` into model, render, hit-testing, text,
   and test modules.
+- [x] Start Stage 7 by moving `dun-ui` unit tests into
+  `crates/dun-ui/src/tests/` behavior modules.
+- [ ] Continue Stage 7 with `dun-ui` pure model type extraction.
 - [ ] Split `crates/dun-config/src/lib.rs` into keys, parser, defaults, and
   validation modules.
 - [ ] Split `crates/dun-core/src/buffer.rs` into buffer storage, cursor,

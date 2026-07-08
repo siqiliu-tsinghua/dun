@@ -471,6 +471,12 @@ git diff --check
 
 Expected behavior change: none.
 
+Progress note:
+
+- Stage 7.1 moved inline `dun-ui` unit tests out of `lib.rs` into
+  `tests/{model,hit,rendering,fallback,support}.rs`. Implementation code
+  remains in `lib.rs` for the next sub-step.
+
 ## Stage 8: Split `dun-config`
 
 Purpose: make key model, defaults, parser, and validation independently
