@@ -33,6 +33,10 @@ Editable file loading enforces the configured soft limit before reading large
 files into memory; the default editable limit is 16 MiB. If a file changes,
 disappears, or is replaced while being read, Open rejects the unstable snapshot
 and asks the user to retry.
+Opened file buffers retain a verified metadata snapshot. Normal Save refuses
+to overwrite when the path has changed or disappeared on disk; Reload refreshes
+the focused file buffer from disk when the user explicitly chooses to discard
+the in-memory state.
 Ignored release-mode performance baselines cover large-file open/search/scroll
 and visible-window rendering.
 Open, Save, and Save As failures include the relevant path and normalized
@@ -61,6 +65,10 @@ The editor surface includes a line-number gutter plus focused buffer name,
 dirty/read-only markers, and status fields for position, total lines,
 selection, active search count, visible scroll range, horizontal scroll offset,
 line ending, file-text encoding, terminal profile, and focused window index.
+It also includes a lightweight buffer switcher for open tiled buffers, line
+commands for copy/delete/move/indent/outdent/trim, line bookmarks shown in the
+gutter, a display-layer word-wrap toggle, and visible-whitespace markers with
+ASCII fallback.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, and `Ctrl+L` selects the
 current line, giving Cut/Copy a pure keyboard path without requiring mouse
@@ -156,7 +164,8 @@ The first product line should make the common remote editing loop fast:
 2. Navigate and edit safely over SSH.
 3. Search and replace.
 4. Split the workspace when comparing files.
-5. Save with predictable host-owned file I/O.
+5. Switch between open buffers and reload changed files deliberately.
+6. Save with predictable host-owned file I/O.
 
 The long-term plugin story is still aimed at operational filters:
 operators should be able to write concise rule-style filters for custom logs

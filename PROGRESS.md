@@ -517,3 +517,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   `38;5;n`/`48;5;n`. Re-ran the Debian VirtualBox matrix subset: PTY smoke,
   full workspace tests, direct SSH UTF-8, mono, VT100, small VT100, tmux,
   screen, escape-payload, and invalid-byte fallback checks all pass.
+- Added editor polish batch: buffer switcher overlay, focused-file reload,
+  external modification detection through validated file metadata snapshots,
+  Save refusal when a loaded file changed on disk, line commands for copy,
+  delete, move, indent, outdent, and trim, word-wrap and visible-whitespace
+  display toggles, and line bookmarks with gutter markers. Added default
+  keybindings, command ids, Help/menu entries, command-line aliases, UI
+  rendering support, and focused tests across `dun-core`, `dun-cli`, and
+  `dun-ui`. Current soft wrap is display-layer only; selection/search
+  highlight geometry is deferred for a later polish pass.

@@ -274,6 +274,10 @@ impl UiShell {
             return UiMouseTarget::Gutter;
         }
 
+        if buffer.wrap {
+            return self.hit_test_wrapped_body(buffer, window.rect, inner_x, local_y, gutter_width);
+        }
+
         let line_index = buffer
             .first_line
             .saturating_add(local_y.saturating_sub(1) as usize);
@@ -291,6 +295,39 @@ impl UiShell {
         ))
     }
 
+    fn hit_test_wrapped_body(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        inner_x: u16,
+        local_y: u16,
+        gutter_width: u16,
+    ) -> UiMouseTarget {
+        let inner_width = rect.width.saturating_sub(2) as usize;
+        let body_width = inner_width.saturating_sub(gutter_width as usize).max(1);
+        let body_x = inner_x.saturating_sub(gutter_width) as usize;
+        let target_row = local_y.saturating_sub(1) as usize;
+        let mut visual_row = 0usize;
+
+        for line_index in buffer.first_line..buffer.buffer.line_count() {
+            let line_rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
+            if target_row < visual_row.saturating_add(line_rows) {
+                let row_offset = target_row.saturating_sub(visual_row);
+                let display_column = row_offset
+                    .saturating_mul(body_width)
+                    .saturating_add(body_x.min(body_width.saturating_sub(1)));
+                let line = buffer.buffer.line(line_index).unwrap_or_default();
+                return UiMouseTarget::Body(Position::new(
+                    line_index,
+                    self.byte_column_for_display_column(line, display_column),
+                ));
+            }
+            visual_row = visual_row.saturating_add(line_rows);
+        }
+
+        UiMouseTarget::Body(buffer_end_position(buffer.buffer))
+    }
+
     fn window_model(
         &self,
         window: &WindowState,
@@ -305,7 +342,7 @@ impl UiShell {
         };
         let body = match (window.collapsed, buffer) {
             (true, _) => Vec::new(),
-            (false, Some(buffer)) => self.sanitize_buffer_body(buffer, rect),
+            (false, Some(buffer)) => self.sanitize_buffer_body(buffer, rect, gutter_width),
             (false, None) => vec![self.display_sanitizer.sanitize_line("[missing buffer]")],
         };
         let cursor = if window.id == focused && !window.collapsed {
@@ -372,10 +409,18 @@ impl UiShell {
         }
     }
 
-    fn sanitize_buffer_body(&self, buffer: &BufferView<'_>, rect: Rect) -> Vec<SanitizedLine> {
+    fn sanitize_buffer_body(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        gutter_width: u16,
+    ) -> Vec<SanitizedLine> {
         let body_height = rect.height.saturating_sub(2) as usize;
         if body_height == 0 {
             return Vec::new();
+        }
+        if buffer.wrap {
+            return self.sanitize_wrapped_buffer_body(buffer, rect, gutter_width);
         }
 
         let mut lines = Vec::new();
@@ -386,10 +431,53 @@ impl UiShell {
 
             let line = buffer.buffer.line(line_index).unwrap_or_default();
             let start = self.byte_column_for_display_column(line, buffer.first_column);
-            lines.push(self.display_sanitizer.sanitize_line(&line[start..]));
+            lines.push(self.sanitize_visible_line(&line[start..], buffer.show_whitespace));
         }
 
         lines
+    }
+
+    fn sanitize_wrapped_buffer_body(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        gutter_width: u16,
+    ) -> Vec<SanitizedLine> {
+        let body_height = rect.height.saturating_sub(2) as usize;
+        let inner_width = rect.width.saturating_sub(2) as usize;
+        let body_width = inner_width.saturating_sub(gutter_width as usize).max(1);
+        let mut lines = Vec::new();
+
+        for line_index in buffer.first_line..buffer.buffer.line_count() {
+            if lines.len() >= body_height {
+                break;
+            }
+
+            let line = buffer.buffer.line(line_index).unwrap_or_default();
+            let visible = visible_whitespace_text(
+                line,
+                buffer.show_whitespace,
+                self.display_sanitizer.ascii_only,
+            );
+            for segment in wrap_line_segments(&visible, body_width) {
+                if lines.len() >= body_height {
+                    break;
+                }
+                lines.push(self.display_sanitizer.sanitize_line(segment));
+            }
+        }
+
+        lines
+    }
+
+    fn sanitize_visible_line(&self, line: &str, show_whitespace: bool) -> SanitizedLine {
+        if !show_whitespace {
+            return self.display_sanitizer.sanitize_line(line);
+        }
+
+        let visible =
+            visible_whitespace_text(line, show_whitespace, self.display_sanitizer.ascii_only);
+        self.display_sanitizer.sanitize_line(&visible)
     }
 
     fn cursor_for_buffer(
@@ -404,6 +492,9 @@ impl UiShell {
         let body_height = rect.height.checked_sub(2)? as usize;
         if body_width == 0 || body_height == 0 {
             return None;
+        }
+        if buffer.wrap {
+            return self.wrapped_cursor_for_buffer(buffer, gutter_width, body_width, body_height);
         }
 
         let position = buffer.buffer.cursor_position();
@@ -436,12 +527,52 @@ impl UiShell {
         })
     }
 
+    fn wrapped_cursor_for_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        gutter_width: usize,
+        body_width: usize,
+        body_height: usize,
+    ) -> Option<UiCursor> {
+        let position = buffer.buffer.cursor_position();
+        if position.line < buffer.first_line {
+            return None;
+        }
+
+        let mut visual_y = 0usize;
+        for line_index in buffer.first_line..position.line {
+            visual_y = visual_y
+                .saturating_add(self.wrapped_visual_line_count(buffer, line_index, body_width));
+            if visual_y >= body_height {
+                return None;
+            }
+        }
+
+        let line = buffer.buffer.line(position.line)?;
+        let display_column = self.display_column(line, position.column)?;
+        let row_offset = display_column / body_width;
+        visual_y = visual_y.saturating_add(row_offset);
+        if visual_y >= body_height {
+            return None;
+        }
+        let display_column = display_column % body_width;
+
+        Some(UiCursor {
+            x: 1 + gutter_width as u16 + display_column as u16,
+            y: 1 + visual_y as u16,
+        })
+    }
+
     fn selection_for_buffer(
         &self,
         buffer: &BufferView<'_>,
         rect: Rect,
         gutter_width: u16,
     ) -> Vec<UiSelectionLine> {
+        if buffer.wrap {
+            return Vec::new();
+        }
+
         let Some(range) = buffer.buffer.selection_range() else {
             return Vec::new();
         };
@@ -532,6 +663,10 @@ impl UiShell {
         rect: Rect,
         gutter_width: u16,
     ) -> Vec<UiSearchMatchLine> {
+        if buffer.wrap {
+            return Vec::new();
+        }
+
         if buffer.search_matches.is_empty() {
             return Vec::new();
         }
@@ -656,12 +791,33 @@ impl UiShell {
         Some(track_y.min(max_track_y).saturating_mul(max_first_line) / max_track_y)
     }
 
+    fn wrapped_visual_line_count(
+        &self,
+        buffer: &BufferView<'_>,
+        line_index: usize,
+        body_width: usize,
+    ) -> usize {
+        let Some(line) = buffer.buffer.line(line_index) else {
+            return 1;
+        };
+        let visible = visible_whitespace_text(
+            line,
+            buffer.show_whitespace,
+            self.display_sanitizer.ascii_only,
+        );
+        wrap_line_segments(&visible, body_width.max(1)).len().max(1)
+    }
+
     fn horizontal_edges_for_buffer(
         &self,
         buffer: &BufferView<'_>,
         rect: Rect,
         gutter_width: u16,
     ) -> Vec<UiHorizontalEdgeLine> {
+        if buffer.wrap {
+            return Vec::new();
+        }
+
         let Some(inner_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
             return Vec::new();
         };
@@ -726,10 +882,32 @@ impl UiShell {
                 break;
             }
 
-            lines.push(UiGutterLine {
-                y: 1 + lines.len() as u16,
-                label: format!("{:>label_digits$} ", line_index + 1),
-            });
+            let marker = if buffer.bookmarks.contains(&line_index) {
+                '*'
+            } else {
+                ' '
+            };
+            let visual_rows = if buffer.wrap {
+                let inner_width = rect.width.saturating_sub(2) as usize;
+                let body_width = inner_width.saturating_sub(gutter_width as usize).max(1);
+                self.wrapped_visual_line_count(buffer, line_index, body_width)
+            } else {
+                1
+            };
+            for row_offset in 0..visual_rows {
+                if lines.len() >= body_height {
+                    break;
+                }
+                let label = if row_offset == 0 {
+                    format!("{:>label_digits$}{marker}", line_index + 1)
+                } else {
+                    format!("{:>label_digits$} ", "")
+                };
+                lines.push(UiGutterLine {
+                    y: 1 + lines.len() as u16,
+                    label,
+                });
+            }
         }
 
         lines
@@ -783,12 +961,20 @@ impl UiShell {
                             EditorCommand::File(dun_core::FileCommand::Open),
                         ),
                         MenuEntry::new(
+                            "Switch Buffer (B)",
+                            EditorCommand::File(dun_core::FileCommand::SwitchBuffer),
+                        ),
+                        MenuEntry::new(
                             "Save (S)",
                             EditorCommand::File(dun_core::FileCommand::Save),
                         ),
                         MenuEntry::new(
                             "Save As... (A)",
                             EditorCommand::File(dun_core::FileCommand::SaveAs),
+                        ),
+                        MenuEntry::new(
+                            "Reload (E)",
+                            EditorCommand::File(dun_core::FileCommand::Reload),
                         ),
                         MenuEntry::new(
                             "Close (C)",
@@ -826,6 +1012,26 @@ impl UiShell {
                             EditorCommand::Edit(dun_core::EditCommand::SelectLine),
                         ),
                         MenuEntry::new(
+                            "Copy Line (Y)",
+                            EditorCommand::Edit(dun_core::EditCommand::CopyLine),
+                        ),
+                        MenuEntry::new(
+                            "Delete Line (K)",
+                            EditorCommand::Edit(dun_core::EditCommand::DeleteLine),
+                        ),
+                        MenuEntry::new(
+                            "Indent Line (I)",
+                            EditorCommand::Edit(dun_core::EditCommand::IndentLine),
+                        ),
+                        MenuEntry::new(
+                            "Outdent Line (O)",
+                            EditorCommand::Edit(dun_core::EditCommand::OutdentLine),
+                        ),
+                        MenuEntry::new(
+                            "Trim Whitespace (W)",
+                            EditorCommand::Edit(dun_core::EditCommand::TrimTrailingWhitespace),
+                        ),
+                        MenuEntry::new(
                             "Find (F)",
                             EditorCommand::Edit(dun_core::EditCommand::Find),
                         ),
@@ -861,6 +1067,26 @@ impl UiShell {
                         MenuEntry::new(
                             "Toggle Collapse (C)",
                             EditorCommand::Window(dun_core::WindowCommand::ToggleCollapse),
+                        ),
+                        MenuEntry::new(
+                            "Word Wrap (Z)",
+                            EditorCommand::Edit(dun_core::EditCommand::ToggleWordWrap),
+                        ),
+                        MenuEntry::new(
+                            "Visible Whitespace (.)",
+                            EditorCommand::Edit(dun_core::EditCommand::ToggleVisibleWhitespace),
+                        ),
+                        MenuEntry::new(
+                            "Toggle Bookmark (M)",
+                            EditorCommand::Edit(dun_core::EditCommand::ToggleBookmark),
+                        ),
+                        MenuEntry::new(
+                            "Next Bookmark (N)",
+                            EditorCommand::Edit(dun_core::EditCommand::NextBookmark),
+                        ),
+                        MenuEntry::new(
+                            "Previous Bookmark (P)",
+                            EditorCommand::Edit(dun_core::EditCommand::PreviousBookmark),
                         ),
                         MenuEntry::new(
                             "Scroll Left ([)",
@@ -1604,6 +1830,52 @@ fn display_width(text: &str) -> usize {
     UnicodeWidthStr::width(text)
 }
 
+fn visible_whitespace_text(line: &str, show_whitespace: bool, ascii_only: bool) -> String {
+    if !show_whitespace {
+        return line.to_string();
+    }
+
+    let mut text = String::with_capacity(line.len().saturating_add(1));
+    for ch in line.chars() {
+        match ch {
+            ' ' if ascii_only => text.push('.'),
+            ' ' => text.push('·'),
+            '\t' if ascii_only => text.push('>'),
+            '\t' => text.push('→'),
+            _ => text.push(ch),
+        }
+    }
+    if ascii_only {
+        text.push('$');
+    } else {
+        text.push('¶');
+    }
+    text
+}
+
+fn wrap_line_segments(line: &str, width: usize) -> Vec<&str> {
+    let width = width.max(1);
+    if line.is_empty() {
+        return vec![""];
+    }
+
+    let mut segments = Vec::new();
+    let mut start = 0usize;
+    let mut column = 0usize;
+    for (index, ch) in line.char_indices() {
+        let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0).max(1);
+        if column > 0 && column.saturating_add(ch_width) > width {
+            segments.push(&line[start..index]);
+            start = index;
+            column = 0;
+        }
+        column = column.saturating_add(ch_width);
+    }
+
+    segments.push(&line[start..]);
+    segments
+}
+
 fn mnemonic_matches(label: &str, ch: char) -> bool {
     label
         .chars()
@@ -1914,6 +2186,9 @@ pub struct BufferView<'a> {
     pub first_column: usize,
     pub search_matches: &'a [SearchMatch],
     pub active_search_match: Option<usize>,
+    pub wrap: bool,
+    pub show_whitespace: bool,
+    pub bookmarks: &'a [usize],
 }
 
 impl<'a> BufferView<'a> {
@@ -1925,6 +2200,9 @@ impl<'a> BufferView<'a> {
             first_column: 0,
             search_matches: &[],
             active_search_match: None,
+            wrap: false,
+            show_whitespace: false,
+            bookmarks: &[],
         }
     }
 
@@ -1936,6 +2214,9 @@ impl<'a> BufferView<'a> {
             first_column: 0,
             search_matches: &[],
             active_search_match: None,
+            wrap: false,
+            show_whitespace: false,
+            bookmarks: &[],
         }
     }
 
@@ -1952,6 +2233,9 @@ impl<'a> BufferView<'a> {
             first_column,
             search_matches: &[],
             active_search_match: None,
+            wrap: false,
+            show_whitespace: false,
+            bookmarks: &[],
         }
     }
 
@@ -1962,6 +2246,18 @@ impl<'a> BufferView<'a> {
     ) -> Self {
         self.search_matches = search_matches;
         self.active_search_match = active_search_match;
+        self
+    }
+
+    pub fn with_view_options(
+        mut self,
+        wrap: bool,
+        show_whitespace: bool,
+        bookmarks: &'a [usize],
+    ) -> Self {
+        self.wrap = wrap;
+        self.show_whitespace = show_whitespace;
+        self.bookmarks = bookmarks;
         self
     }
 }
@@ -2057,6 +2353,18 @@ impl UiOverlay {
             buttons,
             min_width: 60,
         }
+    }
+
+    pub fn with_list(
+        mut self,
+        list: Vec<String>,
+        selected_list_index: Option<usize>,
+        min_width: u16,
+    ) -> Self {
+        self.list = list;
+        self.selected_list_index = selected_list_index;
+        self.min_width = min_width;
+        self
     }
 }
 
@@ -2265,6 +2573,21 @@ mod tests {
             }]
         );
         assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 3, y: 1 }));
+    }
+
+    #[test]
+    fn frame_renders_visible_whitespace_wrap_and_bookmarks() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcd efghij");
+        let buffer_view = BufferView::new(BufferId(1), &buffer).with_view_options(true, true, &[0]);
+        let shell = UiShell::default();
+
+        let frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 12, 6), &[buffer_view]);
+
+        assert_eq!(frame.windows[0].gutter[0].label, "1*");
+        assert_eq!(frame.windows[0].gutter[1].label, "  ");
+        assert_eq!(frame.windows[0].body[0].as_plain_text(), "abcd·efg");
+        assert_eq!(frame.windows[0].body[1].as_plain_text(), "hij¶");
     }
 
     #[test]
@@ -2887,11 +3210,11 @@ mod tests {
         let shell = UiShell::default();
         let ui_frame = shell.frame_for_workspace_with_menu(
             &workspace,
-            Rect::new(0, 0, 80, 8),
+            Rect::new(0, 0, 80, 12),
             &[buffer_view],
             Some(0),
         );
-        let backend = TestBackend::new(80, 10);
+        let backend = TestBackend::new(80, 14);
         let mut terminal = Terminal::new(backend).unwrap();
 
         terminal

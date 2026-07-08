@@ -201,6 +201,10 @@ Goal: reach a practical Microsoft Edit-like baseline.
   mode.
 - [x] Align the default `msedit` visual chrome with local Microsoft Edit
   screenshots.
+- [x] Add buffer switcher, focused-file reload, and external modification
+  save protection.
+- [x] Add practical line commands, bookmarks, visible-whitespace markers, and
+  display-layer soft wrap.
 - [x] Static Microsoft Edit reference baseline tests.
 - [x] Automated PTY smoke tests for common SSH-style terminal profiles.
 - [x] Manual terminal checklist and current-environment checks.

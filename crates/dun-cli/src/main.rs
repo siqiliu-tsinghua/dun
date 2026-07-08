@@ -44,8 +44,10 @@ const EXIT_RUNTIME_ERROR: u8 = 1;
 const EXIT_USAGE_ERROR: u8 = 2;
 const DUN_CONFIG_ENV: &str = "DUN_CONFIG";
 const FILE_DIALOG_VISIBLE_ENTRIES: usize = 12;
+const BUFFER_SWITCHER_VISIBLE_ENTRIES: usize = 12;
 const EDITOR_MOUSE_WHEEL_LINES: usize = 3;
 const MIN_BODY_COLUMNS_WITH_GUTTER: u16 = 4;
+const EDITOR_INDENT: &str = "    ";
 
 fn main() -> ExitCode {
     match run_cli(env::args_os().skip(1)) {
@@ -473,6 +475,7 @@ struct AppState {
     status_message: Option<String>,
     prompt: Option<PromptState>,
     file_dialog: Option<FileDialogState>,
+    buffer_switcher: Option<BufferSwitcherState>,
     confirm: Option<ConfirmState>,
     replace_confirm: Option<ReplaceConfirmState>,
     status_history: Vec<StatusEntry>,
@@ -526,6 +529,7 @@ impl AppState {
             status_message: None,
             prompt: None,
             file_dialog: None,
+            buffer_switcher: None,
             confirm: None,
             replace_confirm: None,
             status_history: Vec::new(),
@@ -587,6 +591,11 @@ impl AppState {
                     buffer.first_column,
                 )
                 .with_search(search_matches, active_search_match)
+                .with_view_options(
+                    buffer.word_wrap,
+                    buffer.visible_whitespace,
+                    &buffer.bookmarks,
+                )
             })
             .collect()
     }
@@ -1158,6 +1167,9 @@ impl AppState {
                 }
                 self.start_file_dialog(FileDialogKind::Open, self.default_open_dialog_input());
             }
+            FileCommand::SwitchBuffer => {
+                self.start_buffer_switcher();
+            }
             FileCommand::SaveAs => {
                 let focused_path = self.focused_path_text();
                 let input = if focused_path.is_empty() {
@@ -1166,6 +1178,14 @@ impl AppState {
                     focused_path
                 };
                 self.start_file_dialog(FileDialogKind::SaveAs, input);
+            }
+            FileCommand::Reload => {
+                if self.confirm_focused_dirty(PendingAction::ReloadBuffer) {
+                    return;
+                }
+                if let Err(error) = self.reload_focused_buffer() {
+                    self.set_status(format!("Reload failed: {error}"));
+                }
             }
             FileCommand::Close => {
                 self.handle_window_command(&WindowCommand::Close);
@@ -1209,8 +1229,56 @@ impl AppState {
                 self.copy_selection();
                 return;
             }
+            EditCommand::CopyLine => {
+                self.copy_current_line();
+                return;
+            }
             EditCommand::Paste => {
                 self.paste_internal_clipboard();
+                return;
+            }
+            EditCommand::DeleteLine => {
+                self.delete_current_line();
+                return;
+            }
+            EditCommand::MoveLineUp => {
+                self.move_current_line(-1);
+                return;
+            }
+            EditCommand::MoveLineDown => {
+                self.move_current_line(1);
+                return;
+            }
+            EditCommand::IndentLine => {
+                self.indent_selected_lines();
+                return;
+            }
+            EditCommand::OutdentLine => {
+                self.outdent_selected_lines();
+                return;
+            }
+            EditCommand::TrimTrailingWhitespace => {
+                self.trim_trailing_whitespace();
+                return;
+            }
+            EditCommand::ToggleWordWrap => {
+                self.toggle_word_wrap();
+                return;
+            }
+            EditCommand::ToggleVisibleWhitespace => {
+                self.toggle_visible_whitespace();
+                return;
+            }
+            EditCommand::ToggleBookmark => {
+                self.toggle_bookmark();
+                return;
+            }
+            EditCommand::NextBookmark => {
+                self.goto_bookmark(SearchDirection::Forward);
+                return;
+            }
+            EditCommand::PreviousBookmark => {
+                self.goto_bookmark(SearchDirection::Backward);
                 return;
             }
             EditCommand::Undo => {
@@ -1307,7 +1375,19 @@ impl AppState {
             }
             EditCommand::Cut
             | EditCommand::Copy
+            | EditCommand::CopyLine
             | EditCommand::Paste
+            | EditCommand::DeleteLine
+            | EditCommand::MoveLineUp
+            | EditCommand::MoveLineDown
+            | EditCommand::IndentLine
+            | EditCommand::OutdentLine
+            | EditCommand::TrimTrailingWhitespace
+            | EditCommand::ToggleWordWrap
+            | EditCommand::ToggleVisibleWhitespace
+            | EditCommand::ToggleBookmark
+            | EditCommand::NextBookmark
+            | EditCommand::PreviousBookmark
             | EditCommand::Undo
             | EditCommand::Redo
             | EditCommand::Find
@@ -1322,6 +1402,203 @@ impl AppState {
             | EditCommand::ExtendSelectionPageUp
             | EditCommand::ExtendSelectionPageDown => {}
         }
+    }
+
+    fn copy_current_line(&mut self) {
+        let Some(buffer_id) = self.focused_buffer_id() else {
+            self.set_status("Copy line failed: focused buffer is missing");
+            return;
+        };
+
+        let text = self.buffer_state(buffer_id).and_then(|buffer| {
+            let range = buffer.buffer.current_line_range();
+            buffer.buffer.text_in_range(range).ok()
+        });
+        match text {
+            Some(text) => {
+                self.kill_ring = Some(text);
+                self.set_status("Copied line");
+            }
+            None => self.set_status("Copy line failed: focused buffer is missing"),
+        }
+    }
+
+    fn delete_current_line(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Delete line failed: focused buffer is missing");
+            return;
+        };
+
+        let status = match buffer.buffer.delete_current_line() {
+            Ok(true) => {
+                buffer.normalize_bookmarks();
+                "Deleted line".to_string()
+            }
+            Ok(false) => "Delete line: nothing deleted".to_string(),
+            Err(error) => format!("Delete line failed: {}", buffer_error_text(error)),
+        };
+        self.set_status(status);
+    }
+
+    fn move_current_line(&mut self, direction: isize) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Move line failed: focused buffer is missing");
+            return;
+        };
+
+        let moved = if direction < 0 {
+            buffer.buffer.move_current_line_up()
+        } else {
+            buffer.buffer.move_current_line_down()
+        };
+        let status = match moved {
+            Ok(true) => {
+                buffer.remap_bookmarks_after_line_move(direction);
+                if direction < 0 {
+                    "Moved line up".to_string()
+                } else {
+                    "Moved line down".to_string()
+                }
+            }
+            Ok(false) if direction < 0 => "Move line: already at top".to_string(),
+            Ok(false) => "Move line: already at bottom".to_string(),
+            Err(error) => format!("Move line failed: {}", buffer_error_text(error)),
+        };
+        self.set_status(status);
+    }
+
+    fn indent_selected_lines(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Indent failed: focused buffer is missing");
+            return;
+        };
+
+        let status = match buffer.buffer.indent_selected_lines(EDITOR_INDENT) {
+            Ok(0) => "Indent: nothing changed".to_string(),
+            Ok(count) => format!("Indented {count} line(s)"),
+            Err(error) => format!("Indent failed: {}", buffer_error_text(error)),
+        };
+        self.set_status(status);
+    }
+
+    fn outdent_selected_lines(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Outdent failed: focused buffer is missing");
+            return;
+        };
+
+        let status = match buffer.buffer.outdent_selected_lines(EDITOR_INDENT.len()) {
+            Ok(0) => "Outdent: nothing changed".to_string(),
+            Ok(count) => format!("Outdented {count} line(s)"),
+            Err(error) => format!("Outdent failed: {}", buffer_error_text(error)),
+        };
+        self.set_status(status);
+    }
+
+    fn trim_trailing_whitespace(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Trim failed: focused buffer is missing");
+            return;
+        };
+
+        let status = match buffer.buffer.trim_trailing_whitespace() {
+            Ok(0) => "Trim: no trailing whitespace".to_string(),
+            Ok(count) => format!("Trimmed trailing whitespace on {count} line(s)"),
+            Err(error) => format!("Trim failed: {}", buffer_error_text(error)),
+        };
+        self.set_status(status);
+    }
+
+    fn toggle_word_wrap(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Wrap failed: focused buffer is missing");
+            return;
+        };
+
+        buffer.word_wrap = !buffer.word_wrap;
+        if buffer.word_wrap {
+            buffer.first_column = 0;
+            self.set_status("Word wrap on");
+        } else {
+            self.set_status("Word wrap off");
+        }
+    }
+
+    fn toggle_visible_whitespace(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Whitespace failed: focused buffer is missing");
+            return;
+        };
+
+        buffer.visible_whitespace = !buffer.visible_whitespace;
+        if buffer.visible_whitespace {
+            self.set_status("Visible whitespace on");
+        } else {
+            self.set_status("Visible whitespace off");
+        }
+    }
+
+    fn toggle_bookmark(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Bookmark failed: focused buffer is missing");
+            return;
+        };
+
+        let line = buffer.buffer.cursor_position().line;
+        if let Some(index) = buffer
+            .bookmarks
+            .iter()
+            .position(|bookmark| *bookmark == line)
+        {
+            buffer.bookmarks.remove(index);
+            self.set_status(format!("Removed bookmark at line {}", line + 1));
+        } else {
+            buffer.bookmarks.push(line);
+            buffer.bookmarks.sort_unstable();
+            self.set_status(format!("Bookmarked line {}", line + 1));
+        }
+    }
+
+    fn goto_bookmark(&mut self, direction: SearchDirection) {
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id: BufferId(0),
+                body_height: 1,
+                body_width: 1,
+            });
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status("Bookmark failed: focused buffer is missing");
+            return;
+        };
+
+        buffer.normalize_bookmarks();
+        if buffer.bookmarks.is_empty() {
+            self.set_status("Bookmark: none set");
+            return;
+        }
+
+        let cursor_line = buffer.buffer.cursor_position().line;
+        let target_line = match direction {
+            SearchDirection::Forward => buffer
+                .bookmarks
+                .iter()
+                .copied()
+                .find(|line| *line > cursor_line)
+                .unwrap_or(buffer.bookmarks[0]),
+            SearchDirection::Backward => buffer
+                .bookmarks
+                .iter()
+                .rev()
+                .copied()
+                .find(|line| *line < cursor_line)
+                .unwrap_or_else(|| *buffer.bookmarks.last().expect("non-empty bookmarks")),
+        };
+        let column =
+            buffer.clamp_column_to_line(target_line, buffer.buffer.cursor_position().column);
+        let _ = buffer.buffer.set_cursor(Position::new(target_line, column));
+        buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        self.set_status(format!("Bookmark: line {}", target_line + 1));
     }
 
     fn undo_focused_buffer(&mut self) {
@@ -1685,6 +1962,7 @@ impl AppState {
                     "focused buffer has no file path",
                 )
             })?;
+            validate_save_snapshot(buffer, &path)?;
             (path, buffer.buffer.to_text())
         };
 
@@ -1693,6 +1971,7 @@ impl AppState {
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             buffer.buffer.mark_saved();
+            buffer.file_snapshot = current_file_snapshot(&path).ok();
         }
         self.set_status(status_with_atomic_temp_report(
             format!("Saved {}", path.display()),
@@ -1733,6 +2012,7 @@ impl AppState {
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             buffer.path = Some(path.clone());
             buffer.encoding = FileTextEncoding::Utf8;
+            buffer.file_snapshot = current_file_snapshot(&path).ok();
             buffer.buffer.set_kind(dun_core::BufferKind::File);
             buffer.buffer.mark_saved();
         }
@@ -1746,6 +2026,69 @@ impl AppState {
             format!("Saved {}", path.display()),
             &report.temp_reconcile,
         ));
+        Ok(())
+    }
+
+    fn reload_focused_buffer(&mut self) -> io::Result<()> {
+        let window = self
+            .workspace
+            .focused_window()
+            .map_err(|_| io::Error::other("focused window is missing"))?;
+        let window_id = window.id;
+        let buffer_id = window.buffer_id;
+        let (path, cursor, first_line, first_column, word_wrap, visible_whitespace, bookmarks) = {
+            let buffer = self
+                .buffer_state(buffer_id)
+                .ok_or_else(|| io::Error::other("focused buffer is missing"))?;
+            let path = buffer.path.clone().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "focused buffer has no file path",
+                )
+            })?;
+            (
+                path,
+                buffer.buffer.cursor_position(),
+                buffer.first_line,
+                buffer.first_column,
+                buffer.word_wrap,
+                buffer.visible_whitespace,
+                buffer.bookmarks.clone(),
+            )
+        };
+
+        let loaded =
+            load_text_buffer(&path, self.limits).map_err(|error| path_io_error(&path, error))?;
+        let temp_report = reconcile_atomic_save_temp_files(&path);
+        let title = title_for_path(&path);
+        let kind = loaded.buffer.kind();
+        let encoding = loaded.encoding;
+        let mut reloaded = BufferState::from_file(buffer_id, path.clone(), loaded);
+        reloaded.word_wrap = word_wrap;
+        reloaded.visible_whitespace = visible_whitespace;
+        reloaded.bookmarks = bookmarks;
+        reloaded.normalize_bookmarks();
+        let line = cursor
+            .line
+            .min(reloaded.buffer.line_count().saturating_sub(1));
+        let column = reloaded.clamp_column_to_line(line, cursor.column);
+        let _ = reloaded.buffer.set_cursor(Position::new(line, column));
+        reloaded.first_line = first_line.min(reloaded.buffer.line_count().saturating_sub(1));
+        reloaded.first_column = if reloaded.word_wrap { 0 } else { first_column };
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = reloaded;
+        } else {
+            self.buffers.push(reloaded);
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = title;
+            window.buffer_kind = kind;
+        }
+
+        let status = reloaded_file_status(&path, encoding);
+        self.set_status(status_with_atomic_temp_report(status, &temp_report));
         Ok(())
     }
 
@@ -2393,6 +2736,11 @@ impl AppState {
             PendingAction::OpenPrompt => {
                 self.start_file_dialog(FileDialogKind::Open, self.default_open_dialog_input())
             }
+            PendingAction::ReloadBuffer => {
+                if let Err(error) = self.reload_focused_buffer() {
+                    self.set_status(format!("Reload failed: {error}"));
+                }
+            }
             PendingAction::CloseWindow => self.close_focused_window_unchecked(),
         }
     }
@@ -2569,6 +2917,161 @@ impl AppState {
         self.recent_file_dialog_input = Some(file_dialog_recent_input_for_path(path));
     }
 
+    fn start_buffer_switcher(&mut self) {
+        if self.buffers.len() <= 1 {
+            self.set_status("Buffer switcher: only one buffer");
+            return;
+        }
+
+        let selected = self
+            .focused_buffer_id()
+            .and_then(|id| self.buffers.iter().position(|buffer| buffer.id == id))
+            .unwrap_or(0);
+        self.clear_active_menu();
+        self.pending_keys.clear();
+        self.buffer_switcher = Some(BufferSwitcherState::new(selected, self.buffers.len()));
+        self.set_status("Switch buffer");
+    }
+
+    fn handle_buffer_switcher_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+        if self.buffer_switcher.is_none() {
+            return false;
+        }
+
+        match event.code {
+            CrosstermKeyCode::Esc => self.cancel_buffer_switcher(),
+            CrosstermKeyCode::Enter => self.submit_buffer_switcher(),
+            CrosstermKeyCode::Up => self.move_buffer_switcher_selection(-1),
+            CrosstermKeyCode::Down => self.move_buffer_switcher_selection(1),
+            CrosstermKeyCode::PageUp => self.page_buffer_switcher_selection(-1),
+            CrosstermKeyCode::PageDown => self.page_buffer_switcher_selection(1),
+            _ => {}
+        }
+
+        true
+    }
+
+    fn cancel_buffer_switcher(&mut self) {
+        self.buffer_switcher = None;
+        self.set_status("Switch buffer cancelled");
+    }
+
+    fn move_buffer_switcher_selection(&mut self, delta: isize) {
+        if let Some(switcher) = &mut self.buffer_switcher {
+            switcher.move_selection(delta, self.buffers.len());
+        }
+    }
+
+    fn page_buffer_switcher_selection(&mut self, delta: isize) {
+        if let Some(switcher) = &mut self.buffer_switcher {
+            switcher.page_selection(delta, self.buffers.len());
+        }
+    }
+
+    fn scroll_buffer_switcher(&mut self, delta: isize) {
+        self.move_buffer_switcher_selection(delta);
+    }
+
+    fn submit_buffer_switcher(&mut self) {
+        let Some(switcher) = self.buffer_switcher.take() else {
+            return;
+        };
+        let Some(index) = switcher.selected_index(self.buffers.len()) else {
+            self.set_status("Switch buffer failed: no buffers");
+            return;
+        };
+        self.switch_to_buffer_index(index);
+    }
+
+    fn click_buffer_switcher_visible_index(&mut self, visible_index: usize) {
+        let Some(mut switcher) = self.buffer_switcher.take() else {
+            return;
+        };
+        let Some(index) = switcher.select_visible_index(visible_index, self.buffers.len()) else {
+            self.buffer_switcher = Some(switcher);
+            return;
+        };
+        self.switch_to_buffer_index(index);
+    }
+
+    fn switch_to_buffer_index(&mut self, index: usize) {
+        let Some(buffer) = self.buffers.get(index) else {
+            self.set_status("Switch buffer failed: buffer is missing");
+            return;
+        };
+        let buffer_id = buffer.id;
+        let display_name = self.buffer_display_name(buffer_id);
+        if self.focus_window_for_buffer(buffer_id) {
+            self.set_status(format!("Switched to {display_name}"));
+        } else {
+            self.set_status(format!(
+                "Switch buffer failed: {display_name} has no window"
+            ));
+        }
+    }
+
+    fn handle_buffer_switcher_mouse_down(&mut self, screen_x: u16, screen_y: u16) -> bool {
+        let Some(overlay) = self.active_overlay() else {
+            return false;
+        };
+        let Some(visible_index) =
+            self.shell
+                .hit_test_overlay_list(&overlay, self.overlay_area(), screen_x, screen_y)
+        else {
+            return false;
+        };
+
+        self.pending_keys.clear();
+        self.click_buffer_switcher_visible_index(visible_index);
+        true
+    }
+
+    fn buffer_switcher_overlay(&self, switcher: &BufferSwitcherState) -> UiOverlay {
+        let entries = self.buffer_switcher_entries();
+        let (list, selected) = switcher.visible_entry_texts(&entries);
+        let mut lines = vec![format!("Open buffers: {}", entries.len())];
+        if entries.len() > BUFFER_SWITCHER_VISIBLE_ENTRIES {
+            if let Some((start, end, _)) = switcher.visible_entry_range(entries.len()) {
+                lines.push(format!(
+                    "Showing {}-{} of {} buffers",
+                    start + 1,
+                    end,
+                    entries.len()
+                ));
+            }
+        }
+        UiOverlay::message(
+            "Switch Buffer",
+            lines,
+            vec!["[Enter] Switch  [Esc] Cancel".to_string()],
+        )
+        .with_list(list, selected, 48)
+    }
+
+    fn buffer_switcher_entries(&self) -> Vec<BufferSwitcherEntry> {
+        let focused = self.focused_buffer_id();
+        self.buffers
+            .iter()
+            .map(|buffer| {
+                let active = if Some(buffer.id) == focused { ">" } else { " " };
+                let dirty = if buffer.buffer.is_dirty() { "*" } else { " " };
+                let disk = buffer_disk_state(buffer)
+                    .map(|state| format!(" {state}"))
+                    .unwrap_or_default();
+                let name = self.buffer_display_name(buffer.id);
+                let path = buffer
+                    .path
+                    .as_ref()
+                    .map(|path| path.display().to_string())
+                    .unwrap_or_else(|| "(no path)".to_string());
+                BufferSwitcherEntry {
+                    buffer_id: buffer.id,
+                    text: format!("{active} {dirty} {name}{disk}  {path}"),
+                }
+            })
+            .collect()
+    }
+
     fn handle_paste(&mut self, text: &str) {
         if text.is_empty() {
             return;
@@ -2582,6 +3085,10 @@ impl AppState {
         }
         if self.replace_confirm.is_some() {
             self.set_status("Paste ignored during replace confirmation");
+            return;
+        }
+        if self.buffer_switcher.is_some() {
+            self.set_status("Paste ignored during buffer switcher");
             return;
         }
 
@@ -3130,10 +3637,24 @@ impl AppState {
             "theme" => self.run_theme_command(args),
             "quit" | "q" => self.handle_app_command(&AppCommand::Quit),
             "open" | "o" => self.run_open_command(args),
+            "buffers" | "switch" | "switchbuffer" => {
+                self.run_no_arg_command(args, EditorCommand::File(FileCommand::SwitchBuffer))
+            }
             "save" | "write" | "w" => self.run_save_command(args),
             "saveas" | "writeas" => self.run_save_as_command(args),
             "new" => self.run_no_arg_command(args, EditorCommand::File(FileCommand::New)),
+            "reloadfile" => self.run_no_arg_command(args, EditorCommand::File(FileCommand::Reload)),
             "close" => self.run_no_arg_command(args, EditorCommand::File(FileCommand::Close)),
+            "wrap" => {
+                self.run_no_arg_command(args, EditorCommand::Edit(EditCommand::ToggleWordWrap))
+            }
+            "whitespace" => self.run_no_arg_command(
+                args,
+                EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace),
+            ),
+            "mark" | "bookmark" => {
+                self.run_no_arg_command(args, EditorCommand::Edit(EditCommand::ToggleBookmark))
+            }
             "find" => self.run_find_command(args),
             "replace" => self.run_replace_command(args),
             "goto" | "gotoline" | "line" => self.run_go_to_line_command(args),
@@ -3494,9 +4015,10 @@ impl AppState {
         if let Some(confirm) = &self.confirm {
             let action = match confirm.action {
                 PendingAction::Quit => "Save(s) Quit without saving(d) Cancel(c)",
-                PendingAction::New | PendingAction::OpenPrompt | PendingAction::CloseWindow => {
-                    "Save(s) Discard(d) Cancel(c)"
-                }
+                PendingAction::New
+                | PendingAction::OpenPrompt
+                | PendingAction::ReloadBuffer
+                | PendingAction::CloseWindow => "Save(s) Discard(d) Cancel(c)",
             };
             return Some(format!(
                 "Unsaved changes in {}: {action}",
@@ -3513,9 +4035,10 @@ impl AppState {
         if let Some(confirm) = &self.confirm {
             let action = match confirm.action {
                 PendingAction::Quit => "[Save(s)] [Discard(d)] [Cancel(c)]",
-                PendingAction::New | PendingAction::OpenPrompt | PendingAction::CloseWindow => {
-                    "[Save(s)] [Discard(d)] [Cancel(c)]"
-                }
+                PendingAction::New
+                | PendingAction::OpenPrompt
+                | PendingAction::ReloadBuffer
+                | PendingAction::CloseWindow => "[Save(s)] [Discard(d)] [Cancel(c)]",
             };
             return Some(UiOverlay::message(
                 "Unsaved Changes",
@@ -3529,6 +4052,10 @@ impl AppState {
 
         if let Some(confirm) = &self.replace_confirm {
             return Some(self.replace_confirm_overlay(confirm));
+        }
+
+        if let Some(switcher) = &self.buffer_switcher {
+            return Some(self.buffer_switcher_overlay(switcher));
         }
 
         if let Some(dialog) = &self.file_dialog {
@@ -3673,6 +4200,18 @@ impl AppState {
             bracket(&profile),
             bracket(&window),
         ];
+        if let Some(state) = buffer_disk_state(buffer) {
+            parts.insert(4, bracket(state));
+        }
+        if buffer.word_wrap {
+            parts.insert(4, bracket("Wrap"));
+        }
+        if buffer.visible_whitespace {
+            parts.insert(4, bracket("Whitespace"));
+        }
+        if buffer.bookmarks.contains(&position.line) {
+            parts.insert(4, bracket("Mark"));
+        }
         if let Some(selection) = selection_status(&buffer.buffer) {
             parts.insert(4, bracket(&selection));
         }
@@ -3907,6 +4446,116 @@ struct FileDialogState {
     message: Option<String>,
     after_success: Option<PendingAction>,
     overwrite_path: Option<PathBuf>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BufferSwitcherState {
+    selected_index: usize,
+    scroll_offset: usize,
+}
+
+impl BufferSwitcherState {
+    fn new(selected_index: usize, total: usize) -> Self {
+        let mut state = Self {
+            selected_index: selected_index.min(total.saturating_sub(1)),
+            scroll_offset: 0,
+        };
+        state.ensure_selected_visible(total);
+        state
+    }
+
+    fn selected_index(&self, total: usize) -> Option<usize> {
+        (total > 0).then_some(self.selected_index.min(total - 1))
+    }
+
+    fn move_selection(&mut self, delta: isize, total: usize) {
+        if total == 0 {
+            self.selected_index = 0;
+            self.scroll_offset = 0;
+            return;
+        }
+
+        self.selected_index = if delta < 0 {
+            self.selected_index.saturating_sub(delta.unsigned_abs())
+        } else {
+            self.selected_index
+                .saturating_add(delta as usize)
+                .min(total - 1)
+        };
+        self.ensure_selected_visible(total);
+    }
+
+    fn page_selection(&mut self, delta: isize, total: usize) {
+        let step = BUFFER_SWITCHER_VISIBLE_ENTRIES.saturating_sub(1).max(1) as isize;
+        self.move_selection(delta.saturating_mul(step), total);
+    }
+
+    fn select_visible_index(&mut self, visible_index: usize, total: usize) -> Option<usize> {
+        let index = self.scroll_offset.saturating_add(visible_index);
+        if index < total {
+            self.selected_index = index;
+            self.ensure_selected_visible(total);
+            Some(index)
+        } else {
+            None
+        }
+    }
+
+    fn visible_entry_texts(&self, entries: &[BufferSwitcherEntry]) -> (Vec<String>, Option<usize>) {
+        let Some((start, end, selected)) = self.visible_entry_range(entries.len()) else {
+            return (vec!["(no buffers)".to_string()], None);
+        };
+        let list = entries[start..end]
+            .iter()
+            .map(|entry| entry.text.clone())
+            .collect::<Vec<_>>();
+        let selected = if (start..end).contains(&selected) {
+            Some(selected - start)
+        } else {
+            None
+        };
+        (list, selected)
+    }
+
+    fn visible_entry_range(&self, total: usize) -> Option<(usize, usize, usize)> {
+        if total == 0 {
+            return None;
+        }
+
+        let selected = self.selected_index.min(total - 1);
+        let start = self.scroll_offset.min(total - 1);
+        let end = start
+            .saturating_add(BUFFER_SWITCHER_VISIBLE_ENTRIES)
+            .min(total);
+        Some((start, end, selected))
+    }
+
+    fn ensure_selected_visible(&mut self, total: usize) {
+        if total == 0 {
+            self.selected_index = 0;
+            self.scroll_offset = 0;
+            return;
+        }
+
+        self.selected_index = self.selected_index.min(total - 1);
+        if self.selected_index < self.scroll_offset {
+            self.scroll_offset = self.selected_index;
+        } else if self.selected_index
+            >= self
+                .scroll_offset
+                .saturating_add(BUFFER_SWITCHER_VISIBLE_ENTRIES)
+        {
+            self.scroll_offset = self
+                .selected_index
+                .saturating_sub(BUFFER_SWITCHER_VISIBLE_ENTRIES.saturating_sub(1));
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BufferSwitcherEntry {
+    buffer_id: BufferId,
+    text: String,
 }
 
 impl FileDialogState {
@@ -4423,6 +5072,7 @@ enum PendingAction {
     Quit,
     New,
     OpenPrompt,
+    ReloadBuffer,
     CloseWindow,
 }
 
@@ -4639,6 +5289,12 @@ fn scroll_status(buffer: &BufferState, context: Option<BufferViewContext>) -> St
         body_height: 1,
         body_width: 1,
     });
+    if buffer.word_wrap {
+        let start = buffer.first_line.min(total.saturating_sub(1));
+        let end = start.saturating_add(context.body_height.max(1)).min(total);
+        return format!("View {}-{end}/{total} wrap", start + 1);
+    }
+
     let height = context.body_height.max(1);
     let start = buffer.first_line.min(total.saturating_sub(1));
     let end = start.saturating_add(height).min(total);
@@ -4659,6 +5315,17 @@ fn scroll_status(buffer: &BufferState, context: Option<BufferViewContext>) -> St
             column_end,
             max_column.max(1)
         )
+    }
+}
+
+fn buffer_disk_state(buffer: &BufferState) -> Option<&'static str> {
+    let path = buffer.path.as_ref()?;
+    let snapshot = buffer.file_snapshot?;
+    match current_file_snapshot(path) {
+        Ok(current) if current == snapshot => None,
+        Ok(_) => Some("Disk Changed"),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Some("Disk Missing"),
+        Err(_) => Some("Disk ?"),
     }
 }
 
@@ -4782,9 +5449,13 @@ struct BufferState {
     buffer: TextBuffer,
     path: Option<PathBuf>,
     encoding: FileTextEncoding,
+    file_snapshot: Option<FileReadSnapshot>,
     first_line: usize,
     first_column: usize,
     search: Option<BufferSearchState>,
+    word_wrap: bool,
+    visible_whitespace: bool,
+    bookmarks: Vec<usize>,
 }
 
 impl BufferState {
@@ -4794,9 +5465,13 @@ impl BufferState {
             buffer,
             path: None,
             encoding: FileTextEncoding::Utf8,
+            file_snapshot: None,
             first_line: 0,
             first_column: 0,
             search: None,
+            word_wrap: false,
+            visible_whitespace: false,
+            bookmarks: Vec::new(),
         }
     }
 
@@ -4806,9 +5481,13 @@ impl BufferState {
             buffer: loaded.buffer,
             path: Some(path),
             encoding: loaded.encoding,
+            file_snapshot: loaded.snapshot,
             first_line: 0,
             first_column: 0,
             search: None,
+            word_wrap: false,
+            visible_whitespace: false,
+            bookmarks: Vec::new(),
         }
     }
 
@@ -4901,6 +5580,11 @@ impl BufferState {
     }
 
     fn scroll_view_columns(&mut self, delta: isize, body_width: usize) -> bool {
+        if self.word_wrap {
+            self.first_column = 0;
+            return false;
+        }
+
         if body_width == 0 {
             return false;
         }
@@ -4936,6 +5620,11 @@ impl BufferState {
     }
 
     fn ensure_cursor_column_visible(&mut self, body_width: usize) {
+        if self.word_wrap {
+            self.first_column = 0;
+            return;
+        }
+
         let cursor_column = self.cursor_display_column();
         if body_width == 0 {
             self.first_column = cursor_column;
@@ -4965,6 +5654,32 @@ impl BufferState {
             .map(|line| UnicodeWidthStr::width(line.as_str()))
             .max()
             .unwrap_or(0)
+    }
+
+    fn normalize_bookmarks(&mut self) {
+        let max_line = self.buffer.line_count().saturating_sub(1);
+        for bookmark in &mut self.bookmarks {
+            *bookmark = (*bookmark).min(max_line);
+        }
+        self.bookmarks.sort_unstable();
+        self.bookmarks.dedup();
+    }
+
+    fn remap_bookmarks_after_line_move(&mut self, direction: isize) {
+        let moved_to = self.buffer.cursor_position().line;
+        let moved_from = if direction < 0 {
+            moved_to.saturating_add(1)
+        } else {
+            moved_to.saturating_sub(1)
+        };
+        for bookmark in &mut self.bookmarks {
+            if *bookmark == moved_from {
+                *bookmark = moved_to;
+            } else if *bookmark == moved_to {
+                *bookmark = moved_from;
+            }
+        }
+        self.normalize_bookmarks();
     }
 
     fn keep_cursor_inside_visible_lines(&mut self, body_height: usize) {
@@ -5427,6 +6142,7 @@ fn run_event_loop(
             }
             if app.prompt.is_none()
                 && app.file_dialog.is_none()
+                && app.buffer_switcher.is_none()
                 && app.confirm.is_none()
                 && app.replace_confirm.is_none()
             {
@@ -5462,6 +6178,29 @@ fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
         || app.replace_confirm.is_some()
     {
         app.handle_mouse_up();
+        return;
+    }
+
+    if app.buffer_switcher.is_some() {
+        match event.kind {
+            CrosstermMouseEventKind::Down(CrosstermMouseButton::Left) => {
+                app.handle_buffer_switcher_mouse_down(event.column, event.row);
+            }
+            CrosstermMouseEventKind::Down(CrosstermMouseButton::Right) => {
+                app.note_right_click_paste();
+            }
+            CrosstermMouseEventKind::ScrollUp => {
+                app.scroll_buffer_switcher(-1);
+            }
+            CrosstermMouseEventKind::ScrollDown => {
+                app.scroll_buffer_switcher(1);
+            }
+            CrosstermMouseEventKind::ScrollLeft | CrosstermMouseEventKind::ScrollRight => {}
+            CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
+                app.handle_mouse_up();
+            }
+            _ => {}
+        }
         return;
     }
 
@@ -5536,6 +6275,10 @@ fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
     }
 
     if app.handle_replace_confirm_key_event(event) {
+        return;
+    }
+
+    if app.handle_buffer_switcher_key_event(event) {
         return;
     }
 
@@ -6142,12 +6885,20 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Open file",
             },
             HelpCommand {
+                command: EditorCommand::File(FileCommand::SwitchBuffer),
+                description: "Switch open buffer",
+            },
+            HelpCommand {
                 command: EditorCommand::File(FileCommand::Save),
                 description: "Save",
             },
             HelpCommand {
                 command: EditorCommand::File(FileCommand::SaveAs),
                 description: "Save as",
+            },
+            HelpCommand {
+                command: EditorCommand::File(FileCommand::Reload),
+                description: "Reload from disk",
             },
             HelpCommand {
                 command: EditorCommand::File(FileCommand::Close),
@@ -6269,6 +7020,54 @@ const HELP_SECTIONS: &[HelpSection] = &[
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::SelectLine),
                 description: "Select current line",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::CopyLine),
+                description: "Copy current line",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::DeleteLine),
+                description: "Delete current line",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveLineUp),
+                description: "Move current line up",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveLineDown),
+                description: "Move current line down",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::IndentLine),
+                description: "Indent selected/current lines",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::OutdentLine),
+                description: "Outdent selected/current lines",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::TrimTrailingWhitespace),
+                description: "Trim trailing whitespace",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ToggleWordWrap),
+                description: "Toggle word wrap",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace),
+                description: "Toggle visible whitespace",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ToggleBookmark),
+                description: "Toggle bookmark on current line",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::NextBookmark),
+                description: "Go to next bookmark",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::PreviousBookmark),
+                description: "Go to previous bookmark",
             },
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::Find),
@@ -6393,14 +7192,16 @@ fn clamp_to_display_column(line: &str, target: usize) -> usize {
 struct LoadedTextBuffer {
     buffer: TextBuffer,
     encoding: FileTextEncoding,
+    snapshot: Option<FileReadSnapshot>,
 }
 
 fn load_text_buffer(path: &Path, limits: Limits) -> io::Result<LoadedTextBuffer> {
-    let bytes = read_editable_file(path, limits.editable_file_soft_limit_bytes)?;
-    let decoded = decode_file_text(bytes);
+    let read = read_editable_file_with_snapshot(path, limits.editable_file_soft_limit_bytes)?;
+    let decoded = decode_file_text(read.bytes);
     Ok(LoadedTextBuffer {
         buffer: TextBuffer::from_text_with_kind(decoded.encoding.buffer_kind(), &decoded.text),
         encoding: decoded.encoding,
+        snapshot: Some(read.snapshot),
     })
 }
 
@@ -6686,6 +7487,25 @@ fn status_with_atomic_temp_report(
     status
 }
 
+fn validate_save_snapshot(buffer: &BufferState, path: &Path) -> io::Result<()> {
+    let Some(snapshot) = buffer.file_snapshot else {
+        return Ok(());
+    };
+
+    match current_file_snapshot(path) {
+        Ok(current) if current == snapshot => Ok(()),
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "file changed on disk; reload before saving or use Save As",
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "file no longer exists; use Save As",
+        )),
+        Err(error) => Err(error),
+    }
+}
+
 fn path_io_error(path: &Path, error: io::Error) -> io::Error {
     let kind = error.kind();
     io::Error::new(
@@ -6728,7 +7548,13 @@ fn validate_save_parent_directory(directory: &Path) -> io::Result<()> {
     }
 }
 
-fn read_editable_file(path: &Path, soft_limit: u64) -> io::Result<Vec<u8>> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct EditableFileRead {
+    bytes: Vec<u8>,
+    snapshot: FileReadSnapshot,
+}
+
+fn read_editable_file_with_snapshot(path: &Path, soft_limit: u64) -> io::Result<EditableFileRead> {
     let metadata = fs::metadata(path)?;
     if metadata.is_dir() {
         return Err(io::Error::new(
@@ -6757,7 +7583,7 @@ fn read_editable_file(path: &Path, soft_limit: u64) -> io::Result<Vec<u8>> {
     }
     validate_stable_file_read(path, snapshot, bytes_read)?;
 
-    Ok(bytes)
+    Ok(EditableFileRead { bytes, snapshot })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -6784,6 +7610,18 @@ impl FileReadSnapshot {
             inode: metadata.ino(),
         }
     }
+}
+
+fn current_file_snapshot(path: &Path) -> io::Result<FileReadSnapshot> {
+    let metadata = fs::metadata(path)?;
+    if !metadata.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "path is not a regular file",
+        ));
+    }
+
+    Ok(FileReadSnapshot::from_metadata(&metadata))
 }
 
 fn validate_stable_file_read(
@@ -6830,6 +7668,16 @@ fn opened_file_status(path: &Path, encoding: FileTextEncoding) -> String {
         FileTextEncoding::Utf8 => format!("Opened {}", path.display()),
         FileTextEncoding::EscapedBytes => format!(
             "Opened {} read-only: non-UTF-8 bytes shown as escapes",
+            path.display()
+        ),
+    }
+}
+
+fn reloaded_file_status(path: &Path, encoding: FileTextEncoding) -> String {
+    match encoding {
+        FileTextEncoding::Utf8 => format!("Reloaded {}", path.display()),
+        FileTextEncoding::EscapedBytes => format!(
+            "Reloaded {} read-only: non-UTF-8 bytes shown as escapes",
             path.display()
         ),
     }
@@ -7482,6 +8330,60 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn line_edit_commands_apply_to_focused_buffer() {
+        let mut app = app_with_text("one  \ntwo\nthree   ");
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveDown));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::CopyLine));
+        assert_eq!(app.kill_ring.as_deref(), Some("two\n"));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineUp));
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "two\none  \nthree   "
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::IndentLine));
+        app.handle_command(&EditorCommand::Edit(EditCommand::OutdentLine));
+        app.handle_command(&EditorCommand::Edit(EditCommand::TrimTrailingWhitespace));
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "two\none\nthree"
+        );
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::DeleteLine));
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "one\nthree"
+        );
+    }
+
+    #[test]
+    fn view_toggles_and_bookmarks_update_buffer_state() {
+        let mut app = app_with_text("one\ntwo");
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::ToggleWordWrap));
+        app.handle_command(&EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace));
+        app.handle_command(&EditorCommand::Edit(EditCommand::ToggleBookmark));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert!(state.word_wrap);
+        assert!(state.visible_whitespace);
+        assert_eq!(state.bookmarks, vec![0]);
+        assert!(app.focused_detail_status().contains("[Mark]"));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveDown));
+        app.handle_command(&EditorCommand::Edit(EditCommand::PreviousBookmark));
+        assert_eq!(
+            app.buffer_state(BufferId(1))
+                .unwrap()
+                .buffer
+                .cursor_position(),
+            Position::new(0, 0)
+        );
+    }
+
+    #[test]
     fn editor_page_commands_move_cursor_by_visible_page() {
         let text = (0..20)
             .map(|index| format!("line{index}"))
@@ -7739,6 +8641,37 @@ key.app.quit = Esc
         assert_eq!(app.buffers.len(), 1);
         assert!(app.buffer_state(closed_buffer_id).is_none());
         assert_eq!(app.status_message, Some("Closed window".to_string()));
+    }
+
+    #[test]
+    fn buffer_switcher_focuses_selected_buffer() {
+        let mut app = AppState::new();
+        let first_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+        app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+        let second_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+        assert_ne!(first_buffer_id, second_buffer_id);
+
+        app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
+        assert!(
+            app.active_overlay()
+                .unwrap()
+                .title
+                .contains("Switch Buffer")
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        assert_eq!(
+            app.workspace.focused_window().unwrap().buffer_id,
+            first_buffer_id
+        );
+        assert_eq!(app.status_message, Some("Switched to Untitled".to_string()));
     }
 
     #[test]
@@ -9523,6 +10456,48 @@ key.app.help = F10
     }
 
     #[test]
+    fn save_refuses_external_file_change() {
+        let path = temp_file_path("save-external-change.txt");
+        std::fs::write(&path, "old").unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
+        std::fs::write(&path, "external change").unwrap();
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
+        app.handle_text_input('!');
+        app.handle_command(&EditorCommand::File(FileCommand::Save));
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "external change");
+        assert!(
+            app.status_message
+                .as_deref()
+                .is_some_and(|status| status.contains("file changed on disk"))
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn reload_command_refreshes_focused_file_buffer() {
+        let path = temp_file_path("reload-file.txt");
+        std::fs::write(&path, "old").unwrap();
+        let mut app = AppState::from_path(Some(path.clone())).unwrap();
+        std::fs::write(&path, "new").unwrap();
+
+        app.handle_command(&EditorCommand::File(FileCommand::Reload));
+
+        assert_eq!(
+            app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+            "new"
+        );
+        assert_eq!(
+            app.status_message,
+            Some(format!("Reloaded {}", path.display()))
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn save_command_cleans_atomic_temp_file() {
         let path = temp_file_path("atomic-save.txt");
         std::fs::write(&path, "old").unwrap();
@@ -9592,7 +10567,9 @@ key.app.help = F10
         std::fs::write(&path, "old").unwrap();
         let mut app = AppState::from_path(Some(path.clone())).unwrap();
         let stale_temp = write_atomic_temp_file_for(&path, 0, "stale");
-        std::fs::write(&path, "external change").unwrap();
+        make_destination_at_least_as_new_as(&path, &stale_temp, "old");
+        app.buffer_state_mut(BufferId(1)).unwrap().file_snapshot =
+            current_file_snapshot(&path).ok();
 
         app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
         app.handle_text_input('!');
@@ -11106,6 +12083,18 @@ key.app.help = F10
         }
 
         panic!("could not create atomic temp file newer than destination");
+    }
+
+    fn make_destination_at_least_as_new_as(path: &Path, other: &Path, contents: &str) {
+        for _ in 0..100 {
+            std::thread::sleep(Duration::from_millis(10));
+            std::fs::write(path, contents).unwrap();
+            if file_modified(path) >= file_modified(other) {
+                return;
+            }
+        }
+
+        panic!("could not make destination at least as new as comparison file");
     }
 
     fn file_modified(path: &Path) -> std::time::SystemTime {

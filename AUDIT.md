@@ -138,6 +138,11 @@ Opening a file must not create an editable buffer from an unstable path. Dun
 checks file metadata before and after reading, rejects size or modification
 changes, and on Unix rejects device/inode changes so a path replacement during
 Open does not become an apparently normal buffer.
+After a successful Open or Save, editable file buffers keep that verified
+metadata snapshot. Normal Save compares the current path with the stored
+snapshot and refuses to overwrite if the file changed, disappeared, or stopped
+being the same regular file. Reload is the explicit user action for replacing
+the in-memory buffer with the current disk contents.
 
 Non-UTF-8 files must not be decoded through locale guesses or lossy conversion.
 Dun's current strategy is UTF-8 first: valid UTF-8 becomes editable text, while
@@ -175,6 +180,8 @@ Current implementation:
   instead of 256-color-style `38;5;n` or `48;5;n` controls.
 - CLI buffers track file-text encoding metadata; Save and Save As reject
   read-only or non-save-safe fallback buffers.
+- CLI file buffers track read/save metadata snapshots; Save rejects stale
+  snapshots instead of silently overwriting external changes.
 - Long-line display work is capped by byte count without splitting a UTF-8
   character.
 - Mouse capture is disabled by default, enabled only through typed config, and

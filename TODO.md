@@ -169,6 +169,11 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add file-dialog overwrite confirmation, inline error retention, and
   session recent-directory reuse.
 - [x] Add stable ratatui text snapshot coverage for baseline UI layout.
+- [x] Add buffer switcher overlay for already-open buffers.
+- [x] Detect external file changes and reject unsafe Save overwrites.
+- [x] Add explicit Reload from disk for focused file buffers.
+- [x] Add line commands for copy/delete/move/indent/outdent/trim.
+- [x] Add word-wrap, visible-whitespace, and bookmark baseline commands.
 
 ## File and Display Safety
 
@@ -179,6 +184,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Reject unstable/corrupt reads when file metadata changes during Open.
 - [x] Prevent save from silently corrupting lossy/fallback buffers.
 - [x] Save files through same-directory temporary files and atomic rename.
+- [x] Refuse normal Save when the loaded file's metadata snapshot no longer
+  matches the current path.
 - [x] Add readable path diagnostics for common open/save failures.
 - [x] Define large-file soft limit behavior.
 - [x] Add large-file performance baselines.
@@ -204,6 +211,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 ## Deferred
 
 - [ ] External clipboard integration and OSC 52 copy/paste support.
+- [ ] Refine selection and search highlight geometry for soft-wrapped lines.
 - [x] Crash recovery and orphaned atomic-save temp-file cleanup.
 - [ ] `rum` configuration evaluation.
 - [ ] `dun-plugin-api`.
