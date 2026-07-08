@@ -720,3 +720,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   `app/status_view.rs`. `crates/dun-cli/src/main.rs` no longer contains an
   `impl AppState` block and dropped to 61,522 bytes / 1,835 lines after this
   batch. `cargo fmt --all` and `cargo test --workspace` passed.
+- Completed Stage 6 of the `dun-cli` split by reducing `main.rs` to process
+  entry, top-level CLI dispatch, and TUI startup orchestration. CLI argument
+  parsing, startup config loading, command-line prompt parsing/completion,
+  help content, read-only helper buffers, command-output formatting, terminal
+  profile detection, the runtime event loop, OSC52 clipboard formatting, and
+  shared small constants/helpers now live in named modules. `main.rs` dropped
+  to 7,211 bytes / 180 lines after this stage. `cargo fmt --all` and
+  `cargo test --workspace` passed.

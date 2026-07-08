@@ -279,6 +279,49 @@ pub(crate) fn clipped_result_line(line: &str) -> String {
     out
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ConfigDiagnosticsSection {
+    Summary,
+    Paths,
+    Source,
+    Terminal,
+    Input,
+    Clipboard,
+    Limits,
+    Keymap,
+    FileDialogKeymap,
+}
+
+impl ConfigDiagnosticsSection {
+    pub(crate) const fn heading(self) -> &'static str {
+        match self {
+            Self::Summary => "Summary",
+            Self::Paths => "Paths",
+            Self::Source => "Source",
+            Self::Terminal => "Terminal",
+            Self::Input => "Input",
+            Self::Clipboard => "Clipboard",
+            Self::Limits => "Limits",
+            Self::Keymap => "Keymap",
+            Self::FileDialogKeymap => "File Dialog Keymap",
+        }
+    }
+
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Summary => "summary",
+            Self::Paths => "paths",
+            Self::Source => "source",
+            Self::Terminal => "terminal",
+            Self::Input => "input",
+            Self::Clipboard => "clipboard",
+            Self::Limits => "limits",
+            Self::Keymap => "keymap",
+            Self::FileDialogKeymap => "file dialog keymap",
+        }
+    }
+}
+
 pub(crate) fn parse_config_diagnostics_section(input: &str) -> Option<ConfigDiagnosticsSection> {
     match normalize_command_line_token(input).as_str() {
         "summary" => Some(ConfigDiagnosticsSection::Summary),

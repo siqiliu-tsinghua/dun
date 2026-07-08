@@ -78,6 +78,65 @@ pub(crate) struct SearchSelection {
     pub(crate) wrapped: bool,
 }
 
+pub(crate) fn choose_search_match(
+    matches: &[SearchMatch],
+    origin: Position,
+    direction: SearchDirection,
+) -> SearchSelection {
+    match direction {
+        SearchDirection::Forward => matches
+            .iter()
+            .position(|item| item.range.start >= origin)
+            .map(|index| SearchSelection {
+                index,
+                wrapped: false,
+            })
+            .unwrap_or(SearchSelection {
+                index: 0,
+                wrapped: true,
+            }),
+        SearchDirection::Backward => matches
+            .iter()
+            .rposition(|item| item.range.start < origin)
+            .map(|index| SearchSelection {
+                index,
+                wrapped: false,
+            })
+            .unwrap_or(SearchSelection {
+                index: matches.len().saturating_sub(1),
+                wrapped: true,
+            }),
+    }
+}
+
+pub(crate) fn current_match_selection(
+    buffer: &TextBuffer,
+    matches: &[SearchMatch],
+) -> Option<SearchSelection> {
+    let range = buffer.selection_range()?;
+    matches
+        .iter()
+        .position(|item| item.range == range)
+        .map(|index| SearchSelection {
+            index,
+            wrapped: false,
+        })
+}
+
+pub(crate) fn preview_selection_match(
+    selection: Option<Selection>,
+    matches: &[SearchMatch],
+) -> Option<SearchSelection> {
+    let range = selection?.range();
+    matches
+        .iter()
+        .position(|item| item.range == range)
+        .map(|index| SearchSelection {
+            index,
+            wrapped: false,
+        })
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BufferSearchState {
     pub(crate) spec: SearchSpec,

@@ -403,6 +403,23 @@ Expected result:
 - `main.rs` below `10k` to `20k` chars;
 - app behavior lives in named modules.
 
+Completion note:
+
+- CLI argument parsing and startup config discovery/loading now live in
+  `crates/dun-cli/src/{cli,config_loading}.rs`;
+- command-line prompt parsing/completion now lives in
+  `crates/dun-cli/src/command_line.rs`;
+- help content, read-only helper buffers, and config-diagnostics section types
+  now live under `crates/dun-cli/src/help/`;
+- command-output formatting now lives in
+  `crates/dun-cli/src/command_output/format.rs`;
+- terminal profile detection, event loop, and OSC52 clipboard sequence
+  formatting now live under `crates/dun-cli/src/terminal/`;
+- small shared editor constants and wrapping index math live in
+  `crates/dun-cli/src/util.rs`;
+- `crates/dun-cli/src/main.rs` is now process entry plus CLI/TUI startup
+  orchestration only and remains below the target size.
+
 ## Stage 7: Split `dun-ui`
 
 Purpose: separate backend-neutral UI model, rendering, hit testing, and text

@@ -120,14 +120,14 @@ inspection stay outside this section.
   method groups.
 - [x] Extract `dun-cli` AppState mouse interaction and command-dispatch method
   groups.
-- [ ] Split `crates/dun-cli/src/main.rs` implementation into app, input,
+- [x] Split `crates/dun-cli/src/main.rs` implementation into app, input,
   dialogs, files, terminal, command-output, and helper-text modules.
 - [x] Continue Stage 4 with AppState prompts/dialogs, helper
   panes/search-replace, command output, and file I/O method groups.
 - [x] Complete Stage 4 by moving remaining AppState construction, frame/view
   sync, menu state, command-line runner, and status/path display methods out
   of `crates/dun-cli/src/main.rs`.
-- [ ] Continue the CLI split with remaining `main.rs` responsibilities:
+- [x] Continue the CLI split with remaining `main.rs` responsibilities:
   process entry/runtime loop, CLI argument parsing, startup config loading,
   pure command-line parsing/completion helpers, help text assembly, command
   output text formatting, terminal profile detection, and residual text

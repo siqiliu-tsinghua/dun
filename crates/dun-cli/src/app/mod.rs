@@ -22,6 +22,9 @@ mod windows;
 
 pub(crate) use buffer_state::{BufferState, BufferViewContext, editor_body_width};
 pub(crate) use mouse::MouseDragState;
-pub(crate) use search::{BufferSearchState, SearchDirection, SearchSelection, SearchSpec};
+pub(crate) use search::{
+    BufferSearchState, SearchDirection, SearchSpec, choose_search_match, current_match_selection,
+    preview_selection_match,
+};
 pub(crate) use state::AppState;
 pub(crate) use status::{StatusEntry, StatusLevel};
