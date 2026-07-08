@@ -171,6 +171,15 @@ inspection stay outside this section.
 Scope: do this after the current file-splitting line. Keep it automated and
 skip cleanly when `tmux` is unavailable.
 
+Completion boundary for this phase: this section is not complete until there is
+an automated Microsoft Edit differential baseline. The tmux/grid work below is
+infrastructure for that baseline, not the end state by itself. The baseline
+should compare projected semantic regions rather than full-screen cells or GUI
+pixels.
+
+Current status: the baseline exists in `tests/msedit_diff.rs`. It runs when
+`edit` is on `PATH` and skips cleanly otherwise.
+
 - [x] Build a `tmux` screen-grid harness for fixed-size real-terminal runs.
 - [x] Capture alternate-screen output with `tmux capture-pane`, preserving SGR
   color and attributes.
@@ -186,15 +195,25 @@ skip cleanly when `tmux` is unavailable.
   attributes.
 - [x] Add normalized-grid assertion helpers for exact text-at-position,
   line containment, and Unicode/ASCII border-box discovery.
-- [ ] Add normalized-grid assertions for selection attributes and richer
-  semantic color output.
-- [ ] Keep mouse behavior in existing PTY/event-level tests rather than the
-  `tmux` harness.
-- [ ] Add a later Microsoft Edit differential path that compares only projected
-  semantic regions such as editor body text, cursor, selection coverage, and
-  color classes, not whole-screen pixel or cell equality.
-- [ ] Keep GUI pixel screenshots as optional manual visual regression only,
+- [x] Generalize the tmux harness to start either `dun` or `edit` with the
+  same fixed dimensions, environment, input file, and key sequence.
+- [x] Add a Microsoft Edit differential projection model for editor-body text
+  and relative cursor position, with side-by-side failure dumps.
+- [x] Add the first automated Microsoft Edit differential cases: open the same
+  plain UTF-8 text file in `dun` and `edit`, then compare projected body text
+  and cursor position before and after a small shared cursor-movement sequence.
+- [x] Skip the Microsoft Edit differential tests cleanly when `edit` is not on
+  `PATH`; run them automatically when it is available.
+- [x] Keep mouse behavior in existing PTY/event-level tests rather than the
+  `tmux` harness; this is a boundary decision, not a missing tmux feature.
+- [x] Keep GUI pixel screenshots as optional manual visual regression only,
   outside the CI/main automated test path.
+
+Post-baseline extensions:
+
+- [ ] Add normalized-grid assertions for selection attributes and richer
+  semantic color output only when a concrete diff case or regression risk needs
+  those projections.
 
 ## `dun-config`
 

@@ -828,3 +828,14 @@ This is an append-only progress log. Keep new entries dated and factual.
   `cargo fmt --all`, `cargo test -p dun-cli --test terminal_grid`,
   `cargo test -p dun-cli --test tmux_grid`, and the focused PTY grid test
   passed.
+- Added the first Microsoft Edit differential baseline. The tmux harness can
+  now start an arbitrary executable with the same fixed dimensions and terminal
+  environment used for `dun`. `tests/msedit_diff.rs` starts `dun` and `edit`
+  against the same plain UTF-8 file, projects each normalized grid to
+  editor-body text plus body-relative cursor position, compares the initial
+  open state and a shared `Down`/`Right` cursor movement, and skips cleanly when
+  `edit` is not on `PATH`. Failure output includes side-by-side projected text
+  and cursor differences. The test-plan docs now state that mouse remains
+  PTY/event-level coverage, pixel screenshots are optional manual visual
+  regression only, and selection/color projections are post-baseline extensions
+  added only for concrete diff cases or regression risks.

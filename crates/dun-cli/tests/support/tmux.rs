@@ -50,6 +50,22 @@ impl TmuxSession {
         rows: u16,
         args: &[&OsStr],
     ) -> io::Result<Option<Self>> {
+        Self::start_executable(
+            label,
+            cols,
+            rows,
+            OsStr::new(env!("CARGO_BIN_EXE_dun")),
+            args,
+        )
+    }
+
+    pub fn start_executable(
+        label: &str,
+        cols: u16,
+        rows: u16,
+        executable: &OsStr,
+        args: &[&OsStr],
+    ) -> io::Result<Option<Self>> {
         let Some(tmux) = command_on_path("tmux") else {
             eprintln!("skipping tmux grid test: tmux(1) is not on PATH");
             return Ok(None);
@@ -60,7 +76,7 @@ impl TmuxSession {
         }
 
         let name = unique_session_name(label);
-        let command = dun_shell_command(args);
+        let command = shell_command_for_executable(executable, args);
         let output = Command::new(&tmux)
             .args([
                 "new-session",
@@ -227,11 +243,11 @@ pub fn tmux_test_guard() -> MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn dun_shell_command(args: &[&OsStr]) -> String {
+fn shell_command_for_executable(executable: &OsStr, args: &[&OsStr]) -> String {
     let mut command =
         String::from("env TERM='xterm-256color' LANG='en_US.UTF-8' LC_CTYPE='en_US.UTF-8'");
     command.push(' ');
-    command.push_str(&shell_quote(OsStr::new(env!("CARGO_BIN_EXE_dun"))));
+    command.push_str(&shell_quote(executable));
     for arg in args {
         command.push(' ');
         command.push_str(&shell_quote(arg));

@@ -26,6 +26,34 @@ fallback 和 raw 控制流安全性。本方案**不替代**它，而是补上"�
 diff test 两端也统一。`vt100` crate 可以作为以后对照评估的候选，但
 当前先保持 in-tree parser，避免为了测试基础设施增加不必要的体积和版本约束。
 
+### 当前阶段边界
+
+本阶段的完成目标是：建立 `dun` 与 Microsoft Edit 的自动化真终端
+differential baseline。tmux harness、normalized grid、断言 helper 都只是
+支撑设施；如果还不能自动跑一个 `dun` vs `edit` 的投影 diff case，本阶段
+就不能视为完成。
+
+当前实现：`crates/dun-cli/tests/msedit_diff.rs` 已提供第一组 baseline。
+它在 `edit` 位于 `PATH` 时自动运行；缺少 `edit` 时 clean skip。
+
+本阶段的完成门槛：
+
+1. 能用同一套 tmux harness 以固定尺寸分别启动 `dun` 和 `edit`。
+2. 能给两边提供同一份输入文件和同一组键盘序列。
+3. 能把两边抓屏解析成同一个 `TerminalGrid` 模型。
+4. 能定义比较投影，至少覆盖 editor-body 文本和正文区内的相对光标位置。
+5. 至少有一个自动化 diff case：打开同一个纯 UTF-8 文本文件，并在一组很小
+   的共享光标移动后比较投影结果。
+6. `edit` 不在 `PATH` 时 clean skip；存在时自动执行。
+7. 失败输出必须能定位差异，至少包括两边投影文本的并排 dump 和光标差异。
+
+非门槛范围：GUI 像素截图、tmux 鼠标注入、整屏逐 cell 完全一致、语法高亮
+token 分类矩阵、selection 覆盖矩阵。这些可以在具体风险出现时扩展，但不能
+替代上面的 Microsoft Edit baseline。鼠标不是不测；它继续由 PTY/event-level
+测试覆盖，因为 tmux 会引入 pane/copy-mode/mouse-pass-through 等额外变量。
+像素截图也不是禁止；它只适合作为人工视觉回归，因为字体、DPI、终端主题和
+抗锯齿都会改变结果。
+
 ---
 
 ## 1. 依赖与前置
@@ -251,12 +279,15 @@ diff test 版：起两个 `Tmux`（你的 bin 与 `msedit`），各自 `capture_
   `find_border_box` / `find_border_boxes` 和固定宽高断言。
 - [x] 初始配色/fallback 断言：16 色模式不输出 256 色 SGR，ASCII fallback 不输出 Unicode 边框。
 - [x] 初始属性断言：菜单 reverse/bold 属性和 focused cursor 坐标。
-- [ ] 后续配色/属性断言只针对**程序发出的语义色**；文档注明不测终端主题映射。
+- [ ] 后续配色/属性断言只针对**程序发出的语义色**，并只在具体 diff case
+  或回归风险需要时加入；当前 baseline 不要求 selection/color 矩阵。
 - [x] 多尺寸布局用例（`80x24` / `100x30`）。
-- [ ] diff test：对齐输入 → 双端抓屏 → **比较投影**（正文/光标/选区/token 分类）→ 子网格 diff；失败时并排 dump。
-- [ ] 鼠标用例保留在 PTY 测试，不进 tmux 这套。
+- [x] diff test：对齐输入 → 双端抓屏 → **比较投影**（第一阶段必须覆盖
+  正文和光标；选区/token 分类按具体 case 后续扩展）→ 子网格 diff；失败时
+  并排 dump。
+- [x] 鼠标用例保留在 PTY 测试，不进 tmux 这套。
 - [ ] CI 安装 tmux；确认无需 GUI 终端即可运行。
-- [ ] （可选）像素视觉回归独立、手动触发、不进 CI。
+- [x] （可选）像素视觉回归独立、手动触发、不进 CI。
 
 ---
 
