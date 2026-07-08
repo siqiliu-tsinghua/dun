@@ -839,3 +839,13 @@ This is an append-only progress log. Keep new entries dated and factual.
   PTY/event-level coverage, pixel screenshots are optional manual visual
   regression only, and selection/color projections are post-baseline extensions
   added only for concrete diff cases or regression risks.
+- Closed out the tmux-backed real-terminal baseline as a completed phase in
+  `TODO.md`, leaving only post-baseline terminal test extensions active. The
+  Microsoft Edit differential test now runs independent fixed-size sessions for
+  `Right Right`, `End`, `Down Up`, and `Down Right` cursor-motion cases, each
+  comparing initial and post-key projected body text plus relative cursor
+  position. The `TerminalGrid` parser tests now cover wide characters, tabs,
+  CRLF, selective SGR reset, and save/restore cursor sequences. The terminal
+  testing docs now record CI/VM availability: `expect` and `tmux` are
+  recommended automated-test dependencies, `edit` is an optional differential
+  dependency, missing tools clean-skip, and no GUI terminal is required.

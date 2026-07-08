@@ -53,6 +53,55 @@ fn terminal_grid_applies_raw_csi_cursor_moves_and_erases() -> io::Result<()> {
 }
 
 #[test]
+fn terminal_grid_handles_wide_chars_tabs_and_crlf() -> io::Result<()> {
+    let grid = parse_terminal_grid("中\tX\r\nY", 12, 2, None);
+
+    assert_text_at(&grid, 0, 0, "中");
+    assert_eq!(
+        grid.cell(0, 1).expect("wide char continuation").ch,
+        ' ',
+        "wide character continuation cell should remain blank"
+    );
+    assert_text_at(&grid, 0, 8, "X");
+    assert_text_at(&grid, 1, 0, "Y");
+    assert_eq!(grid.cursor.map(|cursor| (cursor.x, cursor.y)), Some((1, 1)));
+
+    Ok(())
+}
+
+#[test]
+fn terminal_grid_resets_sgr_attributes_selectively() -> io::Result<()> {
+    let grid = parse_terminal_grid("\x1b[1;4;7;31;48;5;18mA\x1b[22;24;27;39;49mB", 4, 1, None);
+
+    let styled = grid.cell(0, 0).expect("styled cell").style;
+    assert!(styled.bold);
+    assert!(styled.underline);
+    assert!(styled.reverse);
+    assert_eq!(styled.fg, TerminalColor::Ansi(1));
+    assert_eq!(styled.bg, TerminalColor::Indexed(18));
+
+    let reset = grid.cell(0, 1).expect("reset cell").style;
+    assert!(!reset.bold);
+    assert!(!reset.underline);
+    assert!(!reset.reverse);
+    assert_eq!(reset.fg, TerminalColor::Default);
+    assert_eq!(reset.bg, TerminalColor::Default);
+
+    Ok(())
+}
+
+#[test]
+fn terminal_grid_restores_saved_cursor_positions() -> io::Result<()> {
+    let grid = parse_terminal_grid("A\x1b7\x1b[3;5HB\x1b8C", 8, 4, None);
+
+    assert_text_at(&grid, 0, 0, "AC");
+    assert_text_at(&grid, 2, 4, "B");
+    assert_eq!(grid.cursor.map(|cursor| (cursor.x, cursor.y)), Some((2, 0)));
+
+    Ok(())
+}
+
+#[test]
 fn terminal_grid_finds_unicode_and_ascii_border_boxes() -> io::Result<()> {
     let unicode = parse_terminal_grid(
         "menu\n┌─ Title ┐\n│ body   │\n│        │\n└────────┘\n",

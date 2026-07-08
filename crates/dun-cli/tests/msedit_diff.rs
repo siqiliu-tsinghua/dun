@@ -17,6 +17,12 @@ const DIFF_ROWS: u16 = 24;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(3);
 const STABLE_TIMEOUT: Duration = Duration::from_millis(600);
 
+#[derive(Clone, Copy, Debug)]
+struct DiffCase<'a> {
+    name: &'a str,
+    keys: &'a [&'a str],
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct EditorProjection {
     body: Vec<String>,
@@ -31,21 +37,46 @@ fn microsoft_edit_diff_open_file_and_basic_cursor_motion_when_available() -> io:
         return Ok(());
     };
 
+    for case in [
+        DiffCase {
+            name: "Right Right",
+            keys: &["Right", "Right"],
+        },
+        DiffCase {
+            name: "End",
+            keys: &["End"],
+        },
+        DiffCase {
+            name: "Down Up",
+            keys: &["Down", "Up"],
+        },
+        DiffCase {
+            name: "Down Right",
+            keys: &["Down", "Right"],
+        },
+    ] {
+        run_diff_case(edit.as_os_str(), case)?;
+    }
+
+    Ok(())
+}
+
+fn run_diff_case(edit: &OsStr, case: DiffCase<'_>) -> io::Result<()> {
     let file_path = temp_path("dun-msedit-diff", "txt");
     fs::write(&file_path, "alpha\nbeta\ngamma\n")?;
     let expected = ["alpha", "beta", "gamma"];
 
     let dun = TmuxSession::start_dun(
-        "msedit-diff-dun",
+        &format!("msedit-diff-dun-{}", sanitize_label(case.name)),
         DIFF_COLS,
         DIFF_ROWS,
         &[OsStr::new("--no-config"), file_path.as_os_str()],
     );
     let edit = TmuxSession::start_executable(
-        "msedit-diff-edit",
+        &format!("msedit-diff-edit-{}", sanitize_label(case.name)),
         DIFF_COLS,
         DIFF_ROWS,
-        edit.as_os_str(),
+        edit,
         &[file_path.as_os_str()],
     );
 
@@ -60,15 +91,33 @@ fn microsoft_edit_diff_open_file_and_basic_cursor_motion_when_available() -> io:
 
     wait_for_editor_text(&dun)?;
     wait_for_editor_text(&edit)?;
-    assert_projected_editors_match("initial open", &dun, &edit, &expected)?;
+    assert_projected_editors_match(
+        &format!("{} initial open", case.name),
+        &dun,
+        &edit,
+        &expected,
+    )?;
 
-    dun.send_keys(&["Down", "Right"])?;
-    edit.send_keys(&["Down", "Right"])?;
-    assert_projected_editors_match("after Down Right", &dun, &edit, &expected)?;
+    dun.send_keys(case.keys)?;
+    edit.send_keys(case.keys)?;
+    assert_projected_editors_match(&format!("after {}", case.name), &dun, &edit, &expected)?;
 
     let _ = fs::remove_file(&file_path);
 
     Ok(())
+}
+
+fn sanitize_label(label: &str) -> String {
+    label
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect()
 }
 
 fn wait_for_editor_text(session: &TmuxSession) -> io::Result<()> {

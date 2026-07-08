@@ -33,8 +33,10 @@ differential baseline。tmux harness、normalized grid、断言 helper 都只是
 支撑设施；如果还不能自动跑一个 `dun` vs `edit` 的投影 diff case，本阶段
 就不能视为完成。
 
-当前实现：`crates/dun-cli/tests/msedit_diff.rs` 已提供第一组 baseline。
-它在 `edit` 位于 `PATH` 时自动运行；缺少 `edit` 时 clean skip。
+当前实现：`crates/dun-cli/tests/msedit_diff.rs` 已提供 baseline。它在
+`edit` 位于 `PATH` 时自动运行；缺少 `edit` 时 clean skip。当前 baseline
+覆盖打开同一个纯 UTF-8 文本文件，以及 `Right Right`、`End`、`Down Up`、
+`Down Right` 这些共享键盘序列后的正文和相对光标投影。
 
 本阶段的完成门槛：
 
@@ -65,6 +67,34 @@ token 分类矩阵、selection 覆盖矩阵。这些可以在具体风险出现�
 - 被测二进制与 `msedit` 二进制路径通过环境变量或测试常量注入。
 
 约定：**所有测试固定 pane 尺寸**（如 `100x30`），尺寸是断言的一部分，绝不依赖当前窗口大小。
+
+### CI/VM 可用性
+
+推荐 CI/VM 命令：
+
+```text
+cargo test --workspace
+```
+
+自动化依赖和 skip 语义：
+
+- `pty_smoke` 需要 `expect(1)`；缺少时打印 skip 信息并成功返回。
+- `tmux_grid` 和 `msedit_diff` 需要 `tmux(1)`；缺少时打印 skip 信息并成功
+  返回。
+- `msedit_diff` 额外需要 `edit` 在 `PATH` 上；缺少时打印 skip 信息并成功
+  返回。
+- Linux CI/VM 不需要 GUI 终端，`tmux` 固定 pane 尺寸即可完成抓屏。
+- macOS 本机若安装了 Homebrew 版 Microsoft Edit，`cargo test --workspace`
+  会自动运行 `msedit_diff`；没有安装时仍保留 `dun` 自身的 tmux/PTY baseline。
+
+建议 CI package 集合：
+
+```text
+tmux expect
+```
+
+`edit` 是可选增强依赖。没有 `edit` 的 CI 仍能验证 `dun` 的真实终端 grid
+baseline；有 `edit` 的环境才验证 Microsoft Edit differential baseline。
 
 ---
 
@@ -275,6 +305,8 @@ diff test 版：起两个 `Tmux`（你的 bin 与 `msedit`），各自 `capture_
   `Grid`。
 - [x] 后续 `parse()`：抽取共享 parser，让 PTY 测试与真终端测试共用同一
   套规范化 `Grid`；当前实现覆盖基础 SGR、颜色、清屏/清行和常见光标移动。
+- [x] Parser 边界测试：wide char、tab、CRLF、SGR selective reset、cursor
+  save/restore。
 - [x] 基础位置/尺寸断言辅助：`assert_line_contains`、`assert_text_at`、
   `find_border_box` / `find_border_boxes` 和固定宽高断言。
 - [x] 初始配色/fallback 断言：16 色模式不输出 256 色 SGR，ASCII fallback 不输出 Unicode 边框。
@@ -285,8 +317,10 @@ diff test 版：起两个 `Tmux`（你的 bin 与 `msedit`），各自 `capture_
 - [x] diff test：对齐输入 → 双端抓屏 → **比较投影**（第一阶段必须覆盖
   正文和光标；选区/token 分类按具体 case 后续扩展）→ 子网格 diff；失败时
   并排 dump。
+- [x] diff case 扩展：`Right Right`、`End`、`Down Up`、`Down Right`。
 - [x] 鼠标用例保留在 PTY 测试，不进 tmux 这套。
-- [ ] CI 安装 tmux；确认无需 GUI 终端即可运行。
+- [x] CI/VM 可用性记录：`tmux`/`expect` 为推荐自动化依赖，`edit` 为可选
+  differential 依赖；缺失依赖 clean skip，无需 GUI 终端。
 - [x] （可选）像素视觉回归独立、手动触发、不进 CI。
 
 ---

@@ -25,6 +25,12 @@ KVM devices can disagree about the same key names and glyph capabilities.
 The default regression gate is:
 
 ```text
+cargo test --workspace
+```
+
+The focused PTY smoke subset is:
+
+```text
 cargo test -p dun-cli --test pty_smoke
 ```
 
@@ -59,8 +65,20 @@ keys such as `Ctrl+Home`, `Ctrl+End`, `Shift+F3`, and
 terminal emulator, tmux/screen, or KVM path delivers those sequences remains a
 manual matrix item.
 
-If `expect(1)` is not installed, the test exits successfully after printing a
-skip message. Full workspace tests still run normally.
+Real-terminal automated coverage also includes:
+
+- `cargo test -p dun-cli --test tmux_grid`, which uses `tmux(1)` to run `dun`
+  at fixed pane sizes and assert normalized screen-grid layout, fallback, and
+  SGR properties;
+- `cargo test -p dun-cli --test msedit_diff`, which uses the same tmux grid
+  layer to compare `dun` against Microsoft Edit on projected editor-body text
+  and relative cursor position.
+
+If `expect(1)`, `tmux(1)`, or `edit` is not installed, the affected tests exit
+successfully after printing a skip message. `edit` is optional: without it the
+workspace still verifies `dun`'s PTY and tmux baselines; with it the Microsoft
+Edit differential baseline runs automatically. No GUI terminal is required for
+the tmux tests.
 
 ## Release Matrix
 
