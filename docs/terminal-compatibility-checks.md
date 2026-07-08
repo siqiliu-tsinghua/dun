@@ -254,8 +254,9 @@ Editing:
   `Shift+Home`/`Shift+End` extends to the current line edge when those strokes
   are not remapped by the active keymap.
 - `Ctrl+L` selects the current line.
-- PageUp/PageDown move by the visible editor pane height, and
-  Shift+PageUp/PageDown extends selection by the same amount when delivered.
+- PageUp/PageDown move by the visible editor pane height, using wrapped visual
+  rows when word-wrap is active, and Shift+PageUp/PageDown extends selection
+  by the same page model when delivered.
 - `Ctrl+Left/Right` move by word, `Ctrl+Backspace/Delete` delete by word, and
   `Ctrl+Shift+Left/Right` extends selection by word when the terminal delivers
   those modifiers.
@@ -313,8 +314,9 @@ Process actions:
 - `Ctrl+W,O` should open the Run Command prompt. Submitting
   `printf dun-run` should create or reuse a read-only Command Output pane with
   exit status, stdout/stderr byte counts, and truncation status.
-- Command prompt `output summary`, `output stdout`, `output stderr`,
-  `output find dun-run`, `output copy`, `output clear`,
+- Command prompt `output summary`, `output status`, `output stdout`,
+  `output stderr`, `output truncated`, `output find dun-run`, `output copy`,
+  `output clear`,
   `output save /tmp/dun-output.txt`, and pathless `output save` should operate
   on the read-only Command Output pane without making it editable. Pathless
   save should open the Save Command Output file dialog.

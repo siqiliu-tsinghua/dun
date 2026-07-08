@@ -108,7 +108,8 @@ Unbound `Shift+Arrow` and `Shift+Home/End` strokes extend the editor selection
 as a fallback after the active keymap is checked. Binding one of those strokes
 to a command gives the configured command priority.
 Default editor movement also includes PageUp/PageDown for visible-page
-movement, `Shift+PageUp/PageDown` for visible-page selection,
+movement, using wrapped visual rows when word-wrap is active.
+`Shift+PageUp/PageDown` uses the same page model for selection,
 `Ctrl+W,[`/`Ctrl+W,]` for explicit horizontal viewport scrolling,
 `Ctrl+Left/Right` for word movement, `Ctrl+Shift+Left/Right` for word
 selection, `Ctrl+Backspace/Delete` for word deletion, and `Ctrl+L` for
@@ -118,8 +119,9 @@ remapped or disabled like other `key.edit.*` entries.
 Find and Replace prompts accept search prefixes before the query: `/i query`
 for ignore-case, `/w query` for whole-word, and `/iw query` for both.
 The command prompt also accepts Command Output helpers:
-`output summary`, `output stdout`, `output stderr`, `output find QUERY`,
-`output clear`, `output copy`, `output save`, and `output save PATH`.
+`output summary`, `output status`, `output stdout`, `output stderr`,
+`output truncated`, `output find QUERY`, `output clear`, `output copy`,
+`output save`, and `output save PATH`.
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window

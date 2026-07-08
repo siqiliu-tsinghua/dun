@@ -569,3 +569,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   remains available.
 - Polished Config Diagnostics with default-config guidance, binding counts,
   important-unbound command summaries, and explicit OSC 52/limit details.
+- Completed a follow-up editor/output polish batch. Soft-wrap PageUp/PageDown
+  now moves and extends selection by wrapped visual rows, including exact-width
+  wrap-boundary cursor positions. Command Output gained status and truncation
+  quick jumps through app commands, command prompt helpers, Help, and the View
+  menu; Save Output dialog tests now cover overwrite confirmation and write
+  errors. Config Diagnostics now starts with readable Summary and Paths groups
+  before detailed source, terminal, clipboard, limits, and keymap sections.

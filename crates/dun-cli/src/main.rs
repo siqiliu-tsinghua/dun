@@ -1137,9 +1137,11 @@ impl AppState {
             AppCommand::CommandOutputClear => self.clear_command_output(),
             AppCommand::CommandOutputCopy => self.copy_command_output(),
             AppCommand::CommandOutputStderr => self.jump_command_output_stderr(),
+            AppCommand::CommandOutputStatus => self.jump_command_output_status(),
             AppCommand::CommandOutputStdout => self.jump_command_output_stdout(),
             AppCommand::CommandOutputSummary => self.jump_command_output_summary(),
             AppCommand::CommandOutputSave => self.start_command_output_save_dialog(),
+            AppCommand::CommandOutputTruncated => self.jump_command_output_truncated(),
             AppCommand::ConfigDiagnostics => self.open_config_diagnostics_screen(),
             AppCommand::Help => self.open_help_screen(),
             AppCommand::ReloadConfig => self.reload_config(),
@@ -1699,7 +1701,9 @@ impl AppState {
             return false;
         };
 
-        let moved = if direction < 0 {
+        let moved = if buffer.word_wrap {
+            buffer.move_wrapped_page(direction, page_lines, context.body_width)
+        } else if direction < 0 {
             buffer.move_page_up(page_lines)
         } else {
             buffer.move_page_down(page_lines)
@@ -1752,7 +1756,9 @@ impl AppState {
             return false;
         };
 
-        let moved = if direction < 0 {
+        let moved = if buffer.word_wrap {
+            buffer.extend_wrapped_page(direction, page_lines, context.body_width)
+        } else if direction < 0 {
             buffer.extend_page_up(page_lines)
         } else {
             buffer.extend_page_down(page_lines)
@@ -2510,6 +2516,14 @@ impl AppState {
         self.jump_command_output_line(command_output_stderr_line, "stderr");
     }
 
+    fn jump_command_output_status(&mut self) {
+        self.jump_command_output_line(command_output_status_line, "status");
+    }
+
+    fn jump_command_output_truncated(&mut self) {
+        self.jump_command_output_line(command_output_truncated_line, "truncated");
+    }
+
     fn jump_command_output_line(
         &mut self,
         line_finder: fn(&TextBuffer) -> Option<usize>,
@@ -2630,8 +2644,64 @@ impl AppState {
 
     fn config_diagnostics_text(&self) -> String {
         let mut out = String::from("Dun Config Diagnostics\n\n");
+        let important_unbound = important_config_diagnostic_commands()
+            .iter()
+            .filter(|command| self.shell.keymap.sequence_for_command(command).is_none())
+            .map(command_id)
+            .collect::<Vec<_>>();
+        let important_unbound_text = if important_unbound.is_empty() {
+            "none".to_string()
+        } else {
+            important_unbound.join(", ")
+        };
 
-        out.push_str("Source\n");
+        out.push_str("Summary\n");
+        out.push_str(&format!(
+            "  config: {}\n",
+            self.config_source.diagnostics_text()
+        ));
+        out.push_str(&format!(
+            "  request: {}\n",
+            self.config_request.diagnostics_text()
+        ));
+        out.push_str(&format!(
+            "  terminal: {}\n",
+            terminal_profile_status(self.shell.profile)
+        ));
+        out.push_str(&format!(
+            "  theme: {} ({})\n",
+            self.shell.theme.name,
+            color_status(self.shell.theme.colors)
+        ));
+        out.push_str(&format!(
+            "  mouse: {}\n",
+            if self.mouse_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        ));
+        out.push_str(&format!(
+            "  osc52: {} (max {} bytes)\n",
+            if self.clipboard.osc52.enabled {
+                "enabled"
+            } else {
+                "disabled"
+            },
+            self.clipboard.osc52.max_bytes
+        ));
+        out.push_str(&format!(
+            "  keymap: {} bindings, important_unbound: {}\n",
+            self.shell.keymap.bindings.len(),
+            important_unbound_text
+        ));
+
+        out.push_str("\nPaths\n");
+        out.push_str(&format!("  {DUN_CONFIG_ENV}: {}\n", env_config_path_text()));
+        out.push_str(&format!("  default path: {}\n", default_config_path_text()));
+        out.push_str("  defaults: dun --dump-config\n");
+
+        out.push_str("\nSource\n");
         out.push_str(&format!(
             "  active: {}\n",
             self.config_source.diagnostics_text()
@@ -2640,9 +2710,6 @@ impl AppState {
             "  request: {}\n",
             self.config_request.diagnostics_text()
         ));
-        out.push_str(&format!("  {DUN_CONFIG_ENV}: {}\n", env_config_path_text()));
-        out.push_str(&format!("  default path: {}\n", default_config_path_text()));
-        out.push_str("  defaults: dun --dump-config\n");
 
         out.push_str("\nTerminal\n");
         out.push_str(&format!(
@@ -2706,19 +2773,7 @@ impl AppState {
             "  bindings: {}\n",
             self.shell.keymap.bindings.len()
         ));
-        let important_unbound = important_config_diagnostic_commands()
-            .iter()
-            .filter(|command| self.shell.keymap.sequence_for_command(command).is_none())
-            .map(command_id)
-            .collect::<Vec<_>>();
-        if important_unbound.is_empty() {
-            out.push_str("  important_unbound: none\n");
-        } else {
-            out.push_str(&format!(
-                "  important_unbound: {}\n",
-                important_unbound.join(", ")
-            ));
-        }
+        out.push_str(&format!("  important_unbound: {important_unbound_text}\n"));
         let mut bindings = self
             .shell
             .keymap
@@ -4141,11 +4196,22 @@ impl AppState {
             [action] if normalize_command_line_token(action) == "summary" => {
                 self.handle_app_command(&AppCommand::CommandOutputSummary)
             }
+            [action] if normalize_command_line_token(action) == "status" => {
+                self.handle_app_command(&AppCommand::CommandOutputStatus)
+            }
             [action] if normalize_command_line_token(action) == "stdout" => {
                 self.handle_app_command(&AppCommand::CommandOutputStdout)
             }
             [action] if normalize_command_line_token(action) == "stderr" => {
                 self.handle_app_command(&AppCommand::CommandOutputStderr)
+            }
+            [action]
+                if matches!(
+                    normalize_command_line_token(action).as_str(),
+                    "truncated" | "truncate" | "trunc"
+                ) =>
+            {
+                self.handle_app_command(&AppCommand::CommandOutputTruncated)
             }
             [action, query] if normalize_command_line_token(action) == "find" => {
                 self.find_in_command_output(SearchSpec::parse(query))
@@ -4157,7 +4223,7 @@ impl AppState {
                 self.save_command_output_path(PathBuf::from(path))
             }
             _ => self.set_status(
-                "Command failed: output expects summary, stdout, stderr, find QUERY, clear, copy, or save PATH",
+                "Command failed: output expects summary, status, stdout, stderr, truncated, find QUERY, clear, copy, or save PATH",
             ),
         }
     }
@@ -6101,6 +6167,24 @@ impl BufferState {
         moved
     }
 
+    fn move_wrapped_page(&mut self, direction: isize, rows: usize, body_width: usize) -> bool {
+        let body_width = body_width.max(1);
+        let current = self.buffer.cursor_position();
+        let current_row = self.wrapped_visual_row_for_position(current, body_width);
+        let current_column = self.wrapped_visual_column_for_position(current, body_width);
+        let max_row = self.wrapped_total_visual_rows(body_width).saturating_sub(1);
+        let target_row = if direction < 0 {
+            current_row.saturating_sub(rows.max(1))
+        } else {
+            current_row.saturating_add(rows.max(1)).min(max_row)
+        };
+        let target =
+            self.position_for_wrapped_visual_row_column(target_row, current_column, body_width);
+        let moved = target != current;
+        let _ = self.buffer.set_cursor(target);
+        moved
+    }
+
     fn scroll_view_lines(&mut self, delta: isize, body_height: usize, body_width: usize) -> bool {
         if body_height == 0 || self.buffer.line_count() == 0 {
             return false;
@@ -6189,6 +6273,29 @@ impl BufferState {
         for _ in 0..lines.max(1) {
             moved |= self.buffer.extend_selection_down();
         }
+        moved
+    }
+
+    fn extend_wrapped_page(&mut self, direction: isize, rows: usize, body_width: usize) -> bool {
+        let body_width = body_width.max(1);
+        let current = self.buffer.cursor_position();
+        let current_row = self.wrapped_visual_row_for_position(current, body_width);
+        let current_column = self.wrapped_visual_column_for_position(current, body_width);
+        let max_row = self.wrapped_total_visual_rows(body_width).saturating_sub(1);
+        let target_row = if direction < 0 {
+            current_row.saturating_sub(rows.max(1))
+        } else {
+            current_row.saturating_add(rows.max(1)).min(max_row)
+        };
+        let target =
+            self.position_for_wrapped_visual_row_column(target_row, current_column, body_width);
+        let anchor = self
+            .buffer
+            .selection()
+            .map(|selection| selection.anchor)
+            .unwrap_or(current);
+        let moved = target != current;
+        let _ = self.buffer.select(anchor, target);
         moved
     }
 
@@ -6311,9 +6418,21 @@ impl BufferState {
     }
 
     fn wrapped_row_offset_for_position(&self, position: Position, body_width: usize) -> usize {
+        self.wrapped_row_column_for_position(position, body_width).0
+    }
+
+    fn wrapped_visual_column_for_position(&self, position: Position, body_width: usize) -> usize {
+        self.wrapped_row_column_for_position(position, body_width).1
+    }
+
+    fn wrapped_row_column_for_position(
+        &self,
+        position: Position,
+        body_width: usize,
+    ) -> (usize, usize) {
         let body_width = body_width.max(1);
         let Some(line) = self.buffer.line(position.line) else {
-            return 0;
+            return (0, 0);
         };
         let prefix = line.get(..position.column).unwrap_or(line);
         let mut row = 0usize;
@@ -6326,7 +6445,11 @@ impl BufferState {
                 body_width,
             );
         }
-        row
+        if column >= body_width && position.column < line.len() {
+            row = row.saturating_add(1);
+            column = 0;
+        }
+        (row, column)
     }
 
     fn wrapped_line_visual_rows(&self, line_index: usize, body_width: usize) -> usize {
@@ -6363,6 +6486,28 @@ impl BufferState {
                 return Position::new(
                     line_index,
                     byte_column_for_wrapped_row_start(line, remaining, body_width),
+                );
+            }
+            remaining = remaining.saturating_sub(rows);
+        }
+        buffer_end_position(&self.buffer)
+    }
+
+    fn position_for_wrapped_visual_row_column(
+        &self,
+        target_row: usize,
+        target_column: usize,
+        body_width: usize,
+    ) -> Position {
+        let body_width = body_width.max(1);
+        let mut remaining = target_row;
+        for line_index in 0..self.buffer.line_count() {
+            let rows = self.wrapped_line_visual_rows(line_index, body_width);
+            if remaining < rows {
+                let line = self.buffer.line(line_index).unwrap_or_default();
+                return Position::new(
+                    line_index,
+                    byte_column_for_wrapped_row_column(line, remaining, target_column, body_width),
                 );
             }
             remaining = remaining.saturating_sub(rows);
@@ -7733,12 +7878,20 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Jump Command Output to summary",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputStatus),
+                description: "Jump Command Output to status",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputStdout),
                 description: "Jump Command Output to stdout",
             },
             HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputStderr),
                 description: "Jump Command Output to stderr",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputTruncated),
+                description: "Jump Command Output to truncation flag",
             },
             HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputCopy),
@@ -8168,6 +8321,14 @@ fn command_output_summary_line(buffer: &TextBuffer) -> Option<usize> {
     })
 }
 
+fn command_output_status_line(buffer: &TextBuffer) -> Option<usize> {
+    command_output_section_line(buffer, "Status: ")
+}
+
+fn command_output_truncated_line(buffer: &TextBuffer) -> Option<usize> {
+    command_output_section_line(buffer, "Truncated: ")
+}
+
 fn command_output_stdout_line(buffer: &TextBuffer) -> Option<usize> {
     command_output_section_line(buffer, "--- stdout")
 }
@@ -8241,6 +8402,34 @@ fn byte_column_for_wrapped_row_start(line: &str, target_row: usize, body_width: 
             }
         }
         column = column.saturating_add(width);
+    }
+
+    line.len()
+}
+
+fn byte_column_for_wrapped_row_column(
+    line: &str,
+    target_row: usize,
+    target_column: usize,
+    body_width: usize,
+) -> usize {
+    let body_width = body_width.max(1);
+    let row_start = byte_column_for_wrapped_row_start(line, target_row, body_width);
+    if target_column == 0 {
+        return row_start;
+    }
+
+    let mut visual_column = 0usize;
+    for (offset, ch) in line[row_start..].char_indices() {
+        let index = row_start.saturating_add(offset);
+        let width = display_width_for_editor_char(ch);
+        if visual_column > 0 && visual_column.saturating_add(width) > body_width {
+            return index;
+        }
+        if visual_column.saturating_add(width) > target_column {
+            return index;
+        }
+        visual_column = visual_column.saturating_add(width);
     }
 
     line.len()
@@ -9653,6 +9842,51 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn wrapped_page_commands_move_cursor_by_visual_rows() {
+        let mut app = app_with_text("abcdefghijklmnop");
+        app.buffer_state_mut(BufferId(1)).unwrap().word_wrap = true;
+        app.sync_view_for_area(Rect::new(0, 0, 12, 3));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MovePageDown));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.cursor_position(), Position::new(0, 8));
+        assert_eq!(state.first_line, 0);
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MovePageUp));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.cursor_position(), Position::zero());
+        assert_eq!(state.first_visual_row, 0);
+    }
+
+    #[test]
+    fn wrapped_shift_page_commands_extend_selection_by_visual_rows() {
+        let mut app = app_with_text("abcdefghijklmnop");
+        app.buffer_state_mut(BufferId(1)).unwrap().word_wrap = true;
+        app.sync_view_for_area(Rect::new(0, 0, 12, 3));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::ExtendSelectionPageDown));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.buffer.cursor_position(), Position::new(0, 8));
+        assert_eq!(
+            state.buffer.selection(),
+            Some(dun_core::Selection::new(
+                Position::zero(),
+                Position::new(0, 8)
+            ))
+        );
+        assert_eq!(
+            state
+                .buffer
+                .text_in_range(state.buffer.selection_range().unwrap())
+                .unwrap(),
+            "abcdefgh"
+        );
+    }
+
+    #[test]
     fn horizontal_scroll_keeps_cursor_visible_and_reports_offset() {
         let mut app = app_with_text("0123456789abcdef");
         app.sync_view_for_area(Rect::new(0, 0, 10, 4));
@@ -10011,6 +10245,10 @@ key.window.close = none
         assert!(text.contains("Help [app.help]"));
         assert!(text.contains("F9"));
         assert!(text.contains("Go to line [edit.go_to_line]"));
+        assert!(text.contains("Jump Command Output to status [app.command_output_status]"));
+        assert!(
+            text.contains("Jump Command Output to truncation flag [app.command_output_truncated]")
+        );
         assert!(text.contains("(unbound)"));
         assert!(text.contains("Close focused window [window.close]"));
         assert!(text.contains("Toggle hidden files [file_dialog.toggle_hidden]"));
@@ -10035,6 +10273,9 @@ key.window.close = none
         let text = config_buffer.buffer.to_text();
         assert!(config_buffer.buffer.is_read_only());
         assert!(text.contains("Dun Config Diagnostics"));
+        assert!(text.contains("Summary\n"));
+        assert!(text.contains("Paths\n"));
+        assert!(text.contains("keymap:"));
         assert!(text.contains("active: disabled (--no-config)"));
         assert!(text.contains("theme:"));
         assert!(text.contains("mouse: disabled"));
@@ -10277,6 +10518,26 @@ key.window.close = none
                 .is_some_and(|status| status == "Find 1/3")
         );
 
+        app.handle_command(&EditorCommand::App(AppCommand::CommandOutputStatus));
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert!(
+            buffer
+                .buffer
+                .line(buffer.buffer.cursor_position().line)
+                .is_some_and(|line| line.starts_with("Status: "))
+        );
+
+        submit_command_line(&mut app, "output truncated");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("Truncated: no")
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Command Output: truncated".to_string())
+        );
+
         let path = temp_file_path("command-output-save.txt");
         submit_command_line(&mut app, &format!("output save {}", path.to_string_lossy()));
         let saved = std::fs::read_to_string(&path).unwrap();
@@ -10319,6 +10580,72 @@ key.window.close = none
             app.status_message
                 .as_deref()
                 .is_some_and(|status| status.contains("Saved Command Output"))
+        );
+    }
+
+    #[test]
+    fn command_output_save_dialog_requires_second_enter_before_overwrite() {
+        let mut app = AppState::new();
+        app.run_external_command_to_buffer("printf replacement-output");
+        let path = temp_file_path("command-output-overwrite.txt");
+        std::fs::write(&path, "old output").unwrap();
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandOutputSave));
+        app.file_dialog
+            .as_mut()
+            .unwrap()
+            .input
+            .set_text(path.to_string_lossy().to_string());
+        app.submit_file_dialog();
+
+        assert!(app.file_dialog.is_some());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old output");
+        assert!(
+            app.file_dialog
+                .as_ref()
+                .and_then(|dialog| dialog.message.as_deref())
+                .is_some_and(|message| message.contains("Replace existing file"))
+        );
+
+        app.submit_file_dialog();
+
+        let saved = std::fs::read_to_string(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert!(saved.contains("replacement-output"));
+        assert!(app.file_dialog.is_none());
+        assert!(
+            app.status_message
+                .as_deref()
+                .is_some_and(|status| status.contains("Saved Command Output"))
+        );
+    }
+
+    #[test]
+    fn command_output_save_dialog_keeps_dialog_on_write_error() {
+        let mut app = AppState::new();
+        app.run_external_command_to_buffer("printf cannot-save");
+        let path = temp_file_path("missing-command-output-parent").join("output.txt");
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandOutputSave));
+        app.file_dialog
+            .as_mut()
+            .unwrap()
+            .input
+            .set_text(path.to_string_lossy().to_string());
+        app.submit_file_dialog();
+
+        assert!(app.file_dialog.is_some());
+        assert!(!path.exists());
+        assert!(
+            app.status_message
+                .as_deref()
+                .is_some_and(|status| status.contains("Command Output save failed"))
+        );
+        assert!(
+            app.file_dialog
+                .as_ref()
+                .and_then(|dialog| dialog.message.as_deref())
+                .is_some_and(|message| message.contains("Command Output save failed"))
         );
     }
 

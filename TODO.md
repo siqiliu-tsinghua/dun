@@ -186,8 +186,12 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add Command Output clear/copy/stderr/save commands.
 - [x] Add Command Output summary/stdout/stderr navigation and output find.
 - [x] Add Command Output Save dialog integration.
+- [x] Add Command Output status/truncated quick jumps and View-menu coverage.
+- [x] Strengthen Command Output Save dialog overwrite/error coverage.
 - [x] Polish Config Diagnostics summaries for source, clipboard, limits, and
   keymap coverage.
+- [x] Improve Config Diagnostics grouping with top-level Summary and Paths.
+- [x] Make soft-wrap PageUp/PageDown movement and selection use visual rows.
 
 ## File and Display Safety
 

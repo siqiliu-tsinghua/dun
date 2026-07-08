@@ -74,7 +74,8 @@ wrapped visual rows instead of only whole logical lines.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, and `Ctrl+L` selects the
 current line, giving Cut/Copy a pure keyboard path without requiring mouse
-support. PageUp/PageDown move by the visible pane height, `Ctrl+Left/Right`
+support. PageUp/PageDown move by the visible pane height, using wrapped visual
+rows when word-wrap is active. `Ctrl+Left/Right`
 move by UTF-8-safe word boundaries, `Ctrl+Backspace/Delete` delete by word, and
 `Ctrl+Shift+Left/Right` extends selection by word when the terminal delivers
 those modifiers. `Shift+PageUp` and `Shift+PageDown` extend selection by the
@@ -108,8 +109,8 @@ decoded through the same safe display path as files, and shown in a read-only
 Command Output window with per-stream byte counts and truncation status. The
 Run Command prompt keeps its own bounded history, separate from the editor
 command prompt. Command Output can be copied internally, cleared, searched,
-saved directly or through the file dialog, and jumped to summary, stdout, or
-stderr through typed commands.
+saved directly or through the file dialog, and jumped to summary, status,
+stdout, stderr, or truncation state through typed commands.
 Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
 focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver

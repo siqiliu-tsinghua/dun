@@ -1348,9 +1348,11 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::App(AppCommand::CommandOutputClear) => "app.command_output_clear",
         EditorCommand::App(AppCommand::CommandOutputCopy) => "app.command_output_copy",
         EditorCommand::App(AppCommand::CommandOutputStderr) => "app.command_output_stderr",
+        EditorCommand::App(AppCommand::CommandOutputStatus) => "app.command_output_status",
         EditorCommand::App(AppCommand::CommandOutputStdout) => "app.command_output_stdout",
         EditorCommand::App(AppCommand::CommandOutputSummary) => "app.command_output_summary",
         EditorCommand::App(AppCommand::CommandOutputSave) => "app.command_output_save",
+        EditorCommand::App(AppCommand::CommandOutputTruncated) => "app.command_output_truncated",
         EditorCommand::App(AppCommand::ShellEscape) => "app.shell_escape",
         EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
         EditorCommand::App(AppCommand::Quit) => "app.quit",
@@ -1502,9 +1504,13 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "app.command_output_clear" => Ok(EditorCommand::App(AppCommand::CommandOutputClear)),
         "app.command_output_copy" => Ok(EditorCommand::App(AppCommand::CommandOutputCopy)),
         "app.command_output_stderr" => Ok(EditorCommand::App(AppCommand::CommandOutputStderr)),
+        "app.command_output_status" => Ok(EditorCommand::App(AppCommand::CommandOutputStatus)),
         "app.command_output_stdout" => Ok(EditorCommand::App(AppCommand::CommandOutputStdout)),
         "app.command_output_summary" => Ok(EditorCommand::App(AppCommand::CommandOutputSummary)),
         "app.command_output_save" => Ok(EditorCommand::App(AppCommand::CommandOutputSave)),
+        "app.command_output_truncated" => {
+            Ok(EditorCommand::App(AppCommand::CommandOutputTruncated))
+        }
         "app.shell_escape" => Ok(EditorCommand::App(AppCommand::ShellEscape)),
         "app.status_history" => Ok(EditorCommand::App(AppCommand::StatusHistory)),
         "app.quit" => Ok(EditorCommand::App(AppCommand::Quit)),
@@ -1870,12 +1876,20 @@ mod tests {
             Ok(EditorCommand::App(AppCommand::CommandOutputStdout))
         );
         assert_eq!(
+            command_from_id("app.command_output_status"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputStatus))
+        );
+        assert_eq!(
             command_from_id("app.command_output_summary"),
             Ok(EditorCommand::App(AppCommand::CommandOutputSummary))
         );
         assert_eq!(
             command_from_id("app.command_output_save"),
             Ok(EditorCommand::App(AppCommand::CommandOutputSave))
+        );
+        assert_eq!(
+            command_from_id("app.command_output_truncated"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputTruncated))
         );
         assert_eq!(
             command_from_id("app.nope"),

@@ -1397,12 +1397,20 @@ impl UiShell {
                             EditorCommand::App(dun_core::AppCommand::CommandOutputSummary),
                         ),
                         MenuEntry::new(
+                            "Output Status (T)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputStatus),
+                        ),
+                        MenuEntry::new(
                             "Output Stdout (U)",
                             EditorCommand::App(dun_core::AppCommand::CommandOutputStdout),
                         ),
                         MenuEntry::new(
                             "Output Stderr (O)",
                             EditorCommand::App(dun_core::AppCommand::CommandOutputStderr),
+                        ),
+                        MenuEntry::new(
+                            "Output Truncated (G)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputTruncated),
                         ),
                         MenuEntry::new(
                             "Output Copy (Y)",
@@ -3664,6 +3672,36 @@ mod tests {
         assert!(rendered.contains("File"));
         assert!(rendered.contains("Save As"));
         assert!(rendered.contains("Quit"));
+    }
+
+    #[test]
+    fn ratatui_renderer_draws_view_output_commands_in_submenu() {
+        let workspace = Workspace::new_untitled();
+        let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+        let buffer_view = BufferView::new(BufferId(1), &buffer);
+        let shell = UiShell::default();
+        let ui_frame = shell.frame_for_workspace_with_menu_selection(
+            &workspace,
+            Rect::new(0, 0, 90, 28),
+            &[buffer_view],
+            Some(MenuSelection::menu_only(2)),
+        );
+        let backend = TestBackend::new(90, 30);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| shell.render(frame, &ui_frame))
+            .unwrap();
+
+        let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 90, 30);
+        assert!(snapshot.contains("View"));
+        assert!(snapshot.contains("Output Summary"));
+        assert!(snapshot.contains("Output Status"));
+        assert!(snapshot.contains("Output Stdout"));
+        assert!(snapshot.contains("Output Stderr"));
+        assert!(snapshot.contains("Output Truncated"));
+        assert!(snapshot.contains("Output Save"));
+        assert!(snapshot.contains("Output Clear"));
     }
 
     #[test]
