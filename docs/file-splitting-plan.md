@@ -256,8 +256,13 @@ Progress note:
   redo, paging, and horizontal scrolling;
 - `app/view_state.rs` owns focused buffer accessors, buffer lookup, status
   recording, and buffer view-context calculation;
-- remaining Stage 4 groups include command dispatch, prompts/dialogs, helper
-  panes/search-replace, command output, and file I/O methods.
+- `app/mouse.rs` owns mouse interaction state and mouse-driven workspace,
+  selection, split, scrollbar, menu, and file-dialog hit behavior;
+- `app/commands.rs` owns editor/app/file command dispatch, configured key
+  sequence dispatch, auxiliary-window key dispatch, runtime-action requests,
+  and config reload application;
+- remaining Stage 4 groups include prompts/dialogs, helper panes/search-
+  replace, command output, and file I/O methods.
 
 Gate after each method-group move, not only after the whole stage:
 

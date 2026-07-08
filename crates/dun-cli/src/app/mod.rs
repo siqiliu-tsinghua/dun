@@ -1,4 +1,5 @@
 mod buffer_state;
+mod commands;
 mod editing;
 mod mouse;
 mod search;

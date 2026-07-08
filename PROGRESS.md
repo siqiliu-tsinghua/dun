@@ -691,3 +691,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   atomic-temp cleanup live under `files/{snapshot,open,save,atomic}.rs`.
   `main.rs` dropped to 213,794 bytes / 6,030 lines after this batch.
   `cargo fmt --all` and `cargo test --workspace` passed.
+- Continued Stage 4 by moving AppState mouse interaction behavior into
+  `app/mouse.rs` and central command dispatch into `app/commands.rs`.
+  `app/mouse.rs` now owns mouse-driven workspace focus, selection, split
+  dragging, scrollbar dragging, menu clicks, and file-dialog hit behavior.
+  `app/commands.rs` now owns editor/app/file command dispatch, configured key
+  sequence dispatch, auxiliary-window key dispatch, runtime-action requests,
+  and config reload application. `main.rs` dropped to 190,121 bytes / 5,386
+  lines after this batch. `cargo fmt --all` and `cargo test --workspace`
+  passed.
