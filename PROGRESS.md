@@ -682,3 +682,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   `TerminalWriter`, and 16-color SGR rewriting. `main.rs` dropped to 240,826
   bytes / 6,919 lines after this batch. `cargo fmt --all` and
   `cargo test --workspace` passed.
+- Completed the planned Stage 5 process I/O boundary extraction. Terminal input
+  dispatch and crossterm key/text conversion now live in
+  `terminal/input.rs`; shell escape, one-shot command execution, bounded
+  stdout/stderr capture, and command-run status formatting live in
+  `terminal/shell.rs`; stable file snapshots, UTF-8/fallback loading, save
+  snapshot checks, path diagnostics, same-directory atomic writes, and
+  atomic-temp cleanup live under `files/{snapshot,open,save,atomic}.rs`.
+  `main.rs` dropped to 213,794 bytes / 6,030 lines after this batch.
+  `cargo fmt --all` and `cargo test --workspace` passed.

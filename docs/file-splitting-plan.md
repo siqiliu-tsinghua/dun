@@ -312,8 +312,18 @@ Progress note:
 - `terminal/lifecycle.rs` owns raw mode, alternate-screen, bracketed paste,
   mouse capture, suspend/resume, and drop-time terminal restoration;
 - `terminal/sgr.rs` owns the 16-color SGR rewriter and `TerminalWriter`;
-- remaining Stage 5 groups include terminal input dispatch, shell/run-command
-  host process boundaries, and file open/save/atomic I/O modules.
+- `terminal/input.rs` owns key/mouse event dispatch and crossterm-to-config
+  key/text conversion;
+- `terminal/shell.rs` owns shell escape, one-shot command execution, bounded
+  stdout/stderr capture, and command-run status formatting;
+- `files/snapshot.rs`, `files/open.rs`, `files/save.rs`, and
+  `files/atomic.rs` own stable-read validation, UTF-8/fallback loading, save
+  snapshot checks, path diagnostics, same-directory atomic writes, and stale
+  atomic-temp cleanup.
+
+Stage 5 is complete for the planned process I/O boundaries. AppState file
+command flow and dialog methods remain in `main.rs` until the later AppState
+method-group and entry-point reduction stages.
 
 Gate:
 

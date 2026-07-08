@@ -1,4 +1,6 @@
-use crate::*;
+use std::ffi::OsString;
+use std::process::ExitStatus;
+use std::time::Duration;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CommandOutputSection {
