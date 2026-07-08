@@ -42,6 +42,28 @@ impl BufferSwitcherState {
         self.move_selection(delta.saturating_mul(step), total);
     }
 
+    pub(crate) fn select_first(&mut self, total: usize) {
+        if total == 0 {
+            self.selected_index = 0;
+            self.scroll_offset = 0;
+            return;
+        }
+
+        self.selected_index = 0;
+        self.ensure_selected_visible(total);
+    }
+
+    pub(crate) fn select_last(&mut self, total: usize) {
+        if total == 0 {
+            self.selected_index = 0;
+            self.scroll_offset = 0;
+            return;
+        }
+
+        self.selected_index = total - 1;
+        self.ensure_selected_visible(total);
+    }
+
     pub(crate) fn select_visible_index(
         &mut self,
         visible_index: usize,

@@ -27,6 +27,8 @@ impl AppState {
             CrosstermKeyCode::Enter => self.submit_buffer_switcher(),
             CrosstermKeyCode::Up => self.move_buffer_switcher_selection(-1),
             CrosstermKeyCode::Down => self.move_buffer_switcher_selection(1),
+            CrosstermKeyCode::Home => self.select_buffer_switcher_first(),
+            CrosstermKeyCode::End => self.select_buffer_switcher_last(),
             CrosstermKeyCode::PageUp => self.page_buffer_switcher_selection(-1),
             CrosstermKeyCode::PageDown => self.page_buffer_switcher_selection(1),
             _ => {}
@@ -49,6 +51,18 @@ impl AppState {
     fn page_buffer_switcher_selection(&mut self, delta: isize) {
         if let Some(switcher) = &mut self.buffer_switcher {
             switcher.page_selection(delta, self.buffers.len());
+        }
+    }
+
+    pub(crate) fn select_buffer_switcher_first(&mut self) {
+        if let Some(switcher) = &mut self.buffer_switcher {
+            switcher.select_first(self.buffers.len());
+        }
+    }
+
+    pub(crate) fn select_buffer_switcher_last(&mut self) {
+        if let Some(switcher) = &mut self.buffer_switcher {
+            switcher.select_last(self.buffers.len());
         }
     }
 
@@ -131,7 +145,10 @@ impl AppState {
         let mut overlay = UiOverlay::message(
             "Switch Buffer",
             lines,
-            vec!["[Enter] Switch  [Esc] Cancel".to_string()],
+            vec![
+                "[Up/Down PgUp/PgDn] Move".to_string(),
+                "[Home/End] First/Last  [Enter] Switch  [Esc] Cancel".to_string(),
+            ],
         )
         .with_list(list, selected, 48);
         if let Some((start, end, _)) = switcher.visible_entry_range(entries.len()) {

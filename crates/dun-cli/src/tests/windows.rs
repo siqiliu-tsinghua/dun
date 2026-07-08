@@ -144,6 +144,54 @@ fn buffer_switcher_overlay_reports_scroll_overflow() {
 }
 
 #[test]
+fn buffer_switcher_home_end_jump_to_first_and_last_buffer() {
+    let mut app = AppState::new();
+    let first_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    for _ in 0..13 {
+        app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    }
+    let last_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    assert_ne!(first_buffer_id, last_buffer_id);
+
+    app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
+    let overlay = app.active_overlay().expect("buffer switcher overlay");
+    assert!(
+        overlay
+            .buttons
+            .iter()
+            .any(|button| button.contains("Home/End"))
+    );
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+    );
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+    );
+
+    assert_eq!(
+        app.workspace.focused_window().unwrap().buffer_id,
+        first_buffer_id
+    );
+
+    app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+    );
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+    );
+
+    assert_eq!(
+        app.workspace.focused_window().unwrap().buffer_id,
+        last_buffer_id
+    );
+}
+
+#[test]
 fn window_close_reports_last_window_failure() {
     let mut app = AppState::new();
 

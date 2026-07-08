@@ -849,3 +849,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   testing docs now record CI/VM availability: `expect` and `tmux` are
   recommended automated-test dependencies, `edit` is an optional differential
   dependency, missing tools clean-skip, and no GUI terminal is required.
+- Polished the buffer switcher interaction. The switcher now handles `Home` and
+  `End` to jump to the first and last open buffers, and its overlay footer
+  advertises the new shortcuts alongside the existing Up/Down and PageUp/PageDown
+  movement keys. Added regression coverage that creates many buffers, uses
+  Home/End in the switcher, and verifies focus moves to the first and last
+  buffers.
