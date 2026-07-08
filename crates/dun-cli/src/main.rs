@@ -5,12 +5,12 @@ use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, Read, Stdout, Write};
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use std::process::{Command, ExitCode, ExitStatus, Stdio};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossterm::event::{
     self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
@@ -48,6 +48,7 @@ const BUFFER_SWITCHER_VISIBLE_ENTRIES: usize = 12;
 const EDITOR_MOUSE_WHEEL_LINES: usize = 3;
 const MIN_BODY_COLUMNS_WITH_GUTTER: u16 = 4;
 const EDITOR_INDENT: &str = "    ";
+const COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES: usize = 512 * 1024;
 
 fn main() -> ExitCode {
     match run_cli(env::args_os().skip(1)) {
@@ -484,6 +485,7 @@ struct AppState {
     pending_replace_query: Option<String>,
     kill_ring: Option<String>,
     recent_file_dialog_input: Option<String>,
+    runtime_action: Option<RuntimeAction>,
 }
 
 impl AppState {
@@ -538,6 +540,7 @@ impl AppState {
             pending_replace_query: None,
             kill_ring: None,
             recent_file_dialog_input: None,
+            runtime_action: None,
         }
     }
 
@@ -1111,6 +1114,8 @@ impl AppState {
             AppCommand::ConfigDiagnostics => self.open_config_diagnostics_screen(),
             AppCommand::Help => self.open_help_screen(),
             AppCommand::ReloadConfig => self.reload_config(),
+            AppCommand::RunCommand => self.start_prompt(PromptKind::RunCommand, String::new()),
+            AppCommand::ShellEscape => self.request_runtime_action(RuntimeAction::ShellEscape),
             AppCommand::StatusHistory => self.open_status_history_screen(),
             AppCommand::Quit => {
                 if self.confirm_any_dirty(PendingAction::Quit) {
@@ -1122,6 +1127,20 @@ impl AppState {
                 self.start_prompt(PromptKind::CommandLine, String::new());
             }
         }
+    }
+
+    fn request_runtime_action(&mut self, action: RuntimeAction) {
+        self.clear_active_menu();
+        self.pending_keys.clear();
+        self.prompt = None;
+        self.file_dialog = None;
+        self.buffer_switcher = None;
+        self.runtime_action = Some(action);
+        self.set_status("Shell escape");
+    }
+
+    fn take_runtime_action(&mut self) -> Option<RuntimeAction> {
+        self.runtime_action.take()
     }
 
     fn reload_config(&mut self) {
@@ -2282,6 +2301,79 @@ impl AppState {
         }
     }
 
+    fn open_command_output_screen(&mut self, result: &CommandRunResult) {
+        let text = command_output_text(result);
+
+        if let Some(window_id) = self.command_output_window_id() {
+            self.workspace.focused = window_id;
+            self.refresh_command_output_buffer(&text);
+            return;
+        }
+
+        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+            self.set_status("Run command failed: focused window is missing");
+            return;
+        };
+        let Ok(window) = self.workspace.window(window_id) else {
+            self.set_status("Run command failed: output window is missing");
+            return;
+        };
+        let buffer_id = window.buffer_id;
+        let output = BufferState::new(buffer_id, command_output_buffer(&text));
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = output;
+        } else {
+            self.buffers.push(output);
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = "Command Output".to_string();
+            window.kind = WindowKind::CommandOutput;
+            window.buffer_kind = BufferKind::ReadOnly;
+            window.collapsed = false;
+        }
+    }
+
+    fn command_output_window_id(&self) -> Option<WindowId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::CommandOutput)
+            .map(|window| window.id)
+    }
+
+    fn command_output_buffer_id(&self) -> Option<BufferId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::CommandOutput)
+            .map(|window| window.buffer_id)
+    }
+
+    fn refresh_command_output_buffer(&mut self, text: &str) {
+        let Some(buffer_id) = self.command_output_buffer_id() else {
+            return;
+        };
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = BufferState::new(buffer_id, command_output_buffer(text));
+        }
+    }
+
+    fn run_external_command_to_buffer(&mut self, input: &str) {
+        self.set_status(format!("Running command: {input}"));
+        match run_command_capture(input, COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES) {
+            Ok(result) => {
+                let status = command_run_status(&result);
+                self.open_command_output_screen(&result);
+                self.set_status(status);
+            }
+            Err(error) => {
+                self.set_status(format!("Run command failed: {error}"));
+            }
+        }
+    }
+
     fn status_history_window_id(&self) -> Option<WindowId> {
         self.workspace
             .windows
@@ -3306,6 +3398,15 @@ impl AppState {
 
                 self.go_to_line(input);
             }
+            PromptKind::RunCommand => {
+                let input = prompt.input.as_str().trim().to_string();
+                if input.is_empty() {
+                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    return;
+                }
+
+                self.run_external_command_to_buffer(&input);
+            }
             PromptKind::CommandLine => {
                 let input = prompt.input.as_str().trim().to_string();
                 if input.is_empty() {
@@ -3636,6 +3737,10 @@ impl AppState {
             "status" | "statushistory" => self.open_status_history_screen(),
             "theme" => self.run_theme_command(args),
             "quit" | "q" => self.handle_app_command(&AppCommand::Quit),
+            "shell" | "sh" => {
+                self.run_no_arg_command(args, EditorCommand::App(AppCommand::ShellEscape))
+            }
+            "run" | "command" => self.run_external_command_line(args),
             "open" | "o" => self.run_open_command(args),
             "buffers" | "switch" | "switchbuffer" => {
                 self.run_no_arg_command(args, EditorCommand::File(FileCommand::SwitchBuffer))
@@ -3685,6 +3790,14 @@ impl AppState {
                 )),
             },
             _ => self.set_status("Command failed: theme expects zero or one theme name"),
+        }
+    }
+
+    fn run_external_command_line(&mut self, args: &[String]) {
+        match args {
+            [] => self.handle_app_command(&AppCommand::RunCommand),
+            [command] => self.run_external_command_to_buffer(command),
+            _ => self.set_status("Command failed: run expects zero args or one quoted command"),
         }
     }
 
@@ -4407,6 +4520,7 @@ enum PromptKind {
     ReplaceFind,
     ReplaceWith,
     GoToLine,
+    RunCommand,
 }
 
 impl PromptKind {
@@ -4417,6 +4531,7 @@ impl PromptKind {
             Self::ReplaceFind => "Replace Find: ",
             Self::ReplaceWith => "Replace With: ",
             Self::GoToLine => "Go To Line: ",
+            Self::RunCommand => "Run Command: ",
         }
     }
 
@@ -4426,6 +4541,7 @@ impl PromptKind {
             Self::Find => "Find",
             Self::ReplaceFind | Self::ReplaceWith => "Replace",
             Self::GoToLine => "Go To Line",
+            Self::RunCommand => "Run Command",
         }
     }
 
@@ -5076,6 +5192,11 @@ enum PendingAction {
     CloseWindow,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuntimeAction {
+    ShellEscape,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum MouseDragState {
     Selection {
@@ -5090,7 +5211,7 @@ enum MouseDragState {
     },
 }
 
-const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
+const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, shell, run [\"command\"], theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CommandLineParseError {
@@ -5860,6 +5981,7 @@ const COMMAND_HISTORY_LIMIT: usize = 128;
 struct TerminalGuard {
     mouse_enabled: bool,
     bracketed_paste_enabled: bool,
+    active: bool,
 }
 
 impl TerminalGuard {
@@ -5886,11 +6008,16 @@ impl TerminalGuard {
         Ok(Self {
             mouse_enabled,
             bracketed_paste_enabled: true,
+            active: true,
         })
     }
 
     fn set_mouse_enabled(&mut self, enabled: bool) -> io::Result<()> {
         if self.mouse_enabled == enabled {
+            return Ok(());
+        }
+        if !self.active {
+            self.mouse_enabled = enabled;
             return Ok(());
         }
 
@@ -5903,10 +6030,64 @@ impl TerminalGuard {
         self.mouse_enabled = enabled;
         Ok(())
     }
+
+    fn suspend(&mut self) -> io::Result<()> {
+        if !self.active {
+            return Ok(());
+        }
+
+        let mut stdout = io::stdout();
+        if self.mouse_enabled {
+            execute!(stdout, DisableMouseCapture)?;
+        }
+        if self.bracketed_paste_enabled {
+            execute!(stdout, DisableBracketedPaste)?;
+        }
+        execute!(stdout, LeaveAlternateScreen)?;
+        stdout.flush()?;
+        disable_raw_mode()?;
+        self.active = false;
+        Ok(())
+    }
+
+    fn resume(&mut self, mouse_enabled: bool) -> io::Result<()> {
+        if self.active {
+            self.set_mouse_enabled(mouse_enabled)?;
+            return Ok(());
+        }
+
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        if let Err(error) = execute!(stdout, EnterAlternateScreen) {
+            let _ = disable_raw_mode();
+            return Err(error);
+        }
+        if let Err(error) = execute!(stdout, EnableBracketedPaste) {
+            let _ = execute!(stdout, LeaveAlternateScreen);
+            let _ = disable_raw_mode();
+            return Err(error);
+        }
+        if mouse_enabled {
+            if let Err(error) = execute!(stdout, EnableMouseCapture) {
+                let _ = execute!(stdout, DisableBracketedPaste);
+                let _ = execute!(stdout, LeaveAlternateScreen);
+                let _ = disable_raw_mode();
+                return Err(error);
+            }
+        }
+        self.mouse_enabled = mouse_enabled;
+        self.bracketed_paste_enabled = true;
+        self.active = true;
+        Ok(())
+    }
 }
 
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+
         let mut stdout = io::stdout();
         if self.mouse_enabled {
             let _ = execute!(stdout, DisableMouseCapture);
@@ -6166,9 +6347,50 @@ fn run_event_loop(
                 _ => {}
             }
         }
+
+        if let Some(action) = app.take_runtime_action() {
+            handle_runtime_action(action, terminal, app, guard)?;
+        }
     }
 
     Ok(())
+}
+
+fn handle_runtime_action(
+    action: RuntimeAction,
+    terminal: &mut Terminal<CrosstermBackend<TerminalWriter>>,
+    app: &mut AppState,
+    guard: &mut TerminalGuard,
+) -> io::Result<()> {
+    match action {
+        RuntimeAction::ShellEscape => run_shell_escape(terminal, app, guard),
+    }
+}
+
+fn run_shell_escape(
+    terminal: &mut Terminal<CrosstermBackend<TerminalWriter>>,
+    app: &mut AppState,
+    guard: &mut TerminalGuard,
+) -> io::Result<()> {
+    terminal.show_cursor()?;
+    guard.suspend()?;
+    let status = run_interactive_shell();
+    let resume_result = guard.resume(app.mouse_enabled());
+    if resume_result.is_ok() {
+        terminal.clear()?;
+    }
+
+    match (status, resume_result) {
+        (Ok(status), Ok(())) => {
+            app.set_status(format!("Shell returned {}", exit_status_text(status)));
+            Ok(())
+        }
+        (Err(error), Ok(())) => {
+            app.set_status(format!("Shell failed: {error}"));
+            Ok(())
+        }
+        (_, Err(error)) => Err(error),
+    }
 }
 
 fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
@@ -6868,6 +7090,14 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Reload config",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::RunCommand),
+                description: "Run command to read-only output",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::ShellEscape),
+                description: "Open interactive shell and return",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::Quit),
                 description: "Quit",
             },
@@ -7158,8 +7388,51 @@ fn status_history_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
 }
 
+fn command_output_buffer(text: &str) -> TextBuffer {
+    TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
+}
+
 fn config_diagnostics_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
+}
+
+fn command_output_text(result: &CommandRunResult) -> String {
+    let mut out = String::from("Dun Command Output\n\n");
+    out.push_str(&format!("Command: {}\n", result.command));
+    out.push_str(&format!("Shell: {}\n", result.shell.to_string_lossy()));
+    out.push_str(&format!("Status: {}\n", exit_status_text(result.status)));
+    out.push_str(&format!(
+        "Elapsed: {}\n",
+        duration_status_text(result.elapsed)
+    ));
+    out.push_str(&format!(
+        "Limit: {} bytes per stream\n",
+        COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES
+    ));
+    if result.stdout.truncated || result.stderr.truncated {
+        out.push_str("Truncated: yes\n");
+    }
+
+    out.push_str("\n--- stdout ---\n");
+    push_decoded_command_stream(&mut out, &result.stdout);
+    out.push_str("\n--- stderr ---\n");
+    push_decoded_command_stream(&mut out, &result.stderr);
+    out
+}
+
+fn push_decoded_command_stream(out: &mut String, stream: &CapturedCommandStream) {
+    if stream.bytes.is_empty() {
+        out.push_str("(empty)\n");
+    } else {
+        let decoded = decode_file_text(stream.bytes.clone());
+        out.push_str(&decoded.text);
+        if !decoded.text.ends_with('\n') {
+            out.push('\n');
+        }
+    }
+    if stream.truncated {
+        out.push_str("[truncated]\n");
+    }
 }
 
 fn buffer_end_position(buffer: &TextBuffer) -> Position {
@@ -7680,6 +7953,128 @@ fn reloaded_file_status(path: &Path, encoding: FileTextEncoding) -> String {
             "Reloaded {} read-only: non-UTF-8 bytes shown as escapes",
             path.display()
         ),
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CommandRunResult {
+    command: String,
+    shell: OsString,
+    status: ExitStatus,
+    elapsed: Duration,
+    stdout: CapturedCommandStream,
+    stderr: CapturedCommandStream,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CapturedCommandStream {
+    bytes: Vec<u8>,
+    truncated: bool,
+}
+
+fn run_interactive_shell() -> io::Result<ExitStatus> {
+    Command::new(shell_program()).status()
+}
+
+fn run_command_capture(command: &str, stream_limit: usize) -> io::Result<CommandRunResult> {
+    let shell = shell_program();
+    let started = Instant::now();
+    let mut child = Command::new(&shell)
+        .arg("-c")
+        .arg(command)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| io::Error::other("failed to capture command stdout"))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| io::Error::other("failed to capture command stderr"))?;
+    let stdout_reader = std::thread::spawn(move || read_capped_stream(stdout, stream_limit));
+    let stderr_reader = std::thread::spawn(move || read_capped_stream(stderr, stream_limit));
+    let status = child.wait()?;
+    let elapsed = started.elapsed();
+    let stdout = join_captured_stream(stdout_reader)?;
+    let stderr = join_captured_stream(stderr_reader)?;
+
+    Ok(CommandRunResult {
+        command: command.to_string(),
+        shell,
+        status,
+        elapsed,
+        stdout,
+        stderr,
+    })
+}
+
+fn shell_program() -> OsString {
+    env::var_os("SHELL")
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| OsString::from("/bin/sh"))
+}
+
+fn read_capped_stream<R: Read>(mut reader: R, limit: usize) -> io::Result<CapturedCommandStream> {
+    let mut bytes = Vec::new();
+    let mut truncated = false;
+    let mut chunk = [0u8; 8192];
+    loop {
+        let read = reader.read(&mut chunk)?;
+        if read == 0 {
+            break;
+        }
+
+        let remaining = limit.saturating_sub(bytes.len());
+        if remaining >= read {
+            bytes.extend_from_slice(&chunk[..read]);
+        } else {
+            bytes.extend_from_slice(&chunk[..remaining]);
+            truncated = true;
+        }
+        if remaining == 0 {
+            truncated = true;
+        }
+    }
+
+    Ok(CapturedCommandStream { bytes, truncated })
+}
+
+fn join_captured_stream(
+    handle: std::thread::JoinHandle<io::Result<CapturedCommandStream>>,
+) -> io::Result<CapturedCommandStream> {
+    handle
+        .join()
+        .map_err(|_| io::Error::other("command output reader panicked"))?
+}
+
+fn command_run_status(result: &CommandRunResult) -> String {
+    let mut status = format!(
+        "Command returned {} in {}",
+        exit_status_text(result.status),
+        duration_status_text(result.elapsed)
+    );
+    if result.stdout.truncated || result.stderr.truncated {
+        status.push_str("; output truncated");
+    }
+    status
+}
+
+fn exit_status_text(status: ExitStatus) -> String {
+    status
+        .code()
+        .map(|code| format!("exit {code}"))
+        .unwrap_or_else(|| "terminated".to_string())
+}
+
+fn duration_status_text(duration: Duration) -> String {
+    if duration.as_secs() >= 1 {
+        format!("{:.2}s", duration.as_secs_f64())
+    } else {
+        format!("{}ms", duration.as_millis())
     }
 }
 
@@ -8895,6 +9290,59 @@ key.window.close = none
         assert_eq!(
             app.workspace.focused_window().unwrap().kind,
             WindowKind::ConfigDiagnostics
+        );
+    }
+
+    #[test]
+    fn shell_escape_command_requests_runtime_action() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::ShellEscape));
+
+        assert_eq!(app.take_runtime_action(), Some(RuntimeAction::ShellEscape));
+        assert_eq!(app.status_message, Some("Shell escape".to_string()));
+    }
+
+    #[test]
+    fn run_command_prompt_opens_read_only_output_window() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::RunCommand));
+        assert_eq!(app.prompt_status_text(), Some("Run Command: ".to_string()));
+        send_text(&mut app, "printf dun-run");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let window = app.workspace.focused_window().unwrap();
+        assert_eq!(window.kind, WindowKind::CommandOutput);
+        let buffer = app.buffer_state(window.buffer_id).unwrap();
+        assert!(buffer.buffer.is_read_only());
+        let text = buffer.buffer.to_text();
+        assert!(text.contains("Command: printf dun-run"));
+        assert!(text.contains("--- stdout ---\ndun-run\n"));
+        assert!(
+            app.status_message
+                .as_deref()
+                .is_some_and(|status| status.contains("Command returned exit 0"))
+        );
+    }
+
+    #[test]
+    fn command_line_run_executes_quoted_command() {
+        let mut app = AppState::new();
+
+        submit_command_line(&mut app, "run \"printf quoted-run\"");
+
+        let window = app.workspace.focused_window().unwrap();
+        assert_eq!(window.kind, WindowKind::CommandOutput);
+        assert!(
+            app.buffer_state(window.buffer_id)
+                .unwrap()
+                .buffer
+                .to_text()
+                .contains("quoted-run")
         );
     }
 

@@ -89,6 +89,30 @@ Forbidden pattern:
 2. Plugin reads or writes paths by itself.
 3. Plugin returns unvalidated side effects.
 
+## Process Boundary
+
+`dun` supports user-explicit process actions, but they are trusted user
+operations, not plugin capabilities.
+
+Allowed user actions:
+
+- Shell Escape suspends the TUI, restores the normal terminal, runs the user's
+  shell, then resumes the TUI after the shell exits.
+- Run Command executes one non-interactive shell command, captures stdout and
+  stderr with bounded per-stream memory, and shows the result in a read-only
+  buffer.
+
+Required controls:
+
+- these actions are reachable only through typed `AppCommand` dispatch or the
+  command prompt, not through untrusted file content;
+- future untrusted plugins must not receive direct process-spawn authority;
+- plugin command intents must be validated and, for process execution, require
+  explicit user confirmation if that capability is ever added;
+- captured process output is treated as untrusted display input and passes
+  through the same decoding and terminal-control sanitizer path as file text;
+- command output buffers are read-only.
+
 ## Log Filter Threats
 
 Custom logs may contain hostile content. Treat log lines as untrusted input.

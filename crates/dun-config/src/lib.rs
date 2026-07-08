@@ -587,6 +587,8 @@ impl Keymap {
                 KeyBinding::new("F6", EditorCommand::App(AppCommand::ConfigDiagnostics)),
                 KeyBinding::new("Ctrl+Q", EditorCommand::App(AppCommand::Quit)),
                 KeyBinding::new("Ctrl+P", EditorCommand::App(AppCommand::CommandLine)),
+                KeyBinding::new("Ctrl+W,O", EditorCommand::App(AppCommand::RunCommand)),
+                KeyBinding::new("Ctrl+W,S", EditorCommand::App(AppCommand::ShellEscape)),
                 KeyBinding::new("Ctrl+N", EditorCommand::File(FileCommand::New)),
                 KeyBinding::new("Ctrl+O", EditorCommand::File(FileCommand::Open)),
                 KeyBinding::new("Ctrl+W,B", EditorCommand::File(FileCommand::SwitchBuffer)),
@@ -1289,6 +1291,8 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::App(AppCommand::ConfigDiagnostics) => "app.config_diagnostics",
         EditorCommand::App(AppCommand::Help) => "app.help",
         EditorCommand::App(AppCommand::ReloadConfig) => "app.reload_config",
+        EditorCommand::App(AppCommand::RunCommand) => "app.run_command",
+        EditorCommand::App(AppCommand::ShellEscape) => "app.shell_escape",
         EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
         EditorCommand::App(AppCommand::Quit) => "app.quit",
     }
@@ -1434,6 +1438,8 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "app.config_diagnostics" => Ok(EditorCommand::App(AppCommand::ConfigDiagnostics)),
         "app.help" => Ok(EditorCommand::App(AppCommand::Help)),
         "app.reload_config" => Ok(EditorCommand::App(AppCommand::ReloadConfig)),
+        "app.run_command" => Ok(EditorCommand::App(AppCommand::RunCommand)),
+        "app.shell_escape" => Ok(EditorCommand::App(AppCommand::ShellEscape)),
         "app.status_history" => Ok(EditorCommand::App(AppCommand::StatusHistory)),
         "app.quit" => Ok(EditorCommand::App(AppCommand::Quit)),
         _ => Err(CommandParseError::UnknownCommand(input.to_string())),
@@ -1632,6 +1638,14 @@ mod tests {
         assert_eq!(
             keymap.command_for_sequence(&KeySequence::from_str("F6").unwrap()),
             Some(&EditorCommand::App(AppCommand::ConfigDiagnostics))
+        );
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,O").unwrap()),
+            Some(&EditorCommand::App(AppCommand::RunCommand))
+        );
+        assert_eq!(
+            keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,S").unwrap()),
+            Some(&EditorCommand::App(AppCommand::ShellEscape))
         );
         assert_eq!(
             keymap.sequence_for_command(&EditorCommand::File(FileCommand::Save)),

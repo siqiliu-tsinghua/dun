@@ -93,6 +93,8 @@ pub enum AppCommand {
     ConfigDiagnostics,
     Help,
     ReloadConfig,
+    RunCommand,
+    ShellEscape,
     StatusHistory,
     Quit,
 }

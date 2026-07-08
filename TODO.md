@@ -174,6 +174,8 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add explicit Reload from disk for focused file buffers.
 - [x] Add line commands for copy/delete/move/indent/outdent/trim.
 - [x] Add word-wrap, visible-whitespace, and bookmark baseline commands.
+- [x] Add Turbo Pascal-style shell escape that suspends and resumes the TUI.
+- [x] Add Run Command prompt with bounded read-only output buffer.
 
 ## File and Display Safety
 

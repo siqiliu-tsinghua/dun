@@ -980,6 +980,14 @@ impl UiShell {
                             "Close (C)",
                             EditorCommand::File(dun_core::FileCommand::Close),
                         ),
+                        MenuEntry::new(
+                            "Run Command (R)",
+                            EditorCommand::App(dun_core::AppCommand::RunCommand),
+                        ),
+                        MenuEntry::new(
+                            "Shell Escape (H)",
+                            EditorCommand::App(dun_core::AppCommand::ShellEscape),
+                        ),
                         MenuEntry::new("Quit (Q)", EditorCommand::App(dun_core::AppCommand::Quit)),
                     ],
                 ),

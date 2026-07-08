@@ -526,3 +526,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   rendering support, and focused tests across `dun-core`, `dun-cli`, and
   `dun-ui`. Current soft wrap is display-layer only; selection/search
   highlight geometry is deferred for a later polish pass.
+- Added lightweight host process actions without embedding a terminal
+  emulator. `app.shell_escape` (`Ctrl+W,S`) suspends raw/alternate-screen TUI
+  state, runs the user's shell with inherited stdio, resumes terminal state,
+  and redraws. `app.run_command` (`Ctrl+W,O`) opens a Run Command prompt,
+  executes a non-interactive shell command with null stdin, captures stdout and
+  stderr with a 512 KiB per-stream cap, and displays decoded output in a
+  read-only Command Output window. Added command ids, File-menu entries,
+  command prompt aliases, Help entries, config coverage, and CLI tests.

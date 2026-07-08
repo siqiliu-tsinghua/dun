@@ -96,6 +96,12 @@ and error messages. `F5` reloads the active configuration without restarting
 the editor, `F6` opens Config Diagnostics, and `Ctrl+P` opens a command prompt
 for actions such as `help`, `config`, `reload-config`, `theme`, `open`,
 `save`, `quit`, and full command ids such as `window.split_horizontal`.
+`Ctrl+W,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
+restores the normal terminal, runs the user's shell, then resumes and redraws
+after the shell exits. `Ctrl+W,O` opens a Run Command prompt for one-shot
+non-interactive commands; stdout and stderr are captured with bounded memory,
+decoded through the same safe display path as files, and shown in a read-only
+Command Output window.
 Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
 focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver
@@ -165,7 +171,8 @@ The first product line should make the common remote editing loop fast:
 3. Search and replace.
 4. Split the workspace when comparing files.
 5. Switch between open buffers and reload changed files deliberately.
-6. Save with predictable host-owned file I/O.
+6. Temporarily drop to a shell or capture one-shot command output.
+7. Save with predictable host-owned file I/O.
 
 The long-term plugin story is still aimed at operational filters:
 operators should be able to write concise rule-style filters for custom logs
@@ -179,7 +186,7 @@ For the initial line, `dun` is not:
 - a full IDE;
 - a native dynamic-library plugin host;
 - a shell automation environment;
-- a terminal emulator;
+- an embedded terminal emulator;
 - a replacement for `less`, `vim`, or `emacs` in every workflow.
 - a log-analysis engine in the first usable version.
 

@@ -136,6 +136,7 @@ impl LayoutNode {
 pub enum WindowKind {
     Edit,
     ReadOnly,
+    CommandOutput,
     ConfigDiagnostics,
     Help,
     StatusHistory,
