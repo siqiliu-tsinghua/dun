@@ -753,3 +753,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   moved into `config.rs`, and file/line display limits moved into `limits.rs`.
   `crates/dun-config/src/lib.rs` dropped to 61,590 bytes / 1,524 lines after
   this batch. `cargo fmt --all` and `cargo test -p dun-config` passed.
+- Continued Stage 8 by moving `dun-config` key parsing, key sequence display,
+  editor keymap defaults, and file-dialog modal keymap/action mapping into
+  `crates/dun-config/src/keys/`. `lib.rs` remains the facade plus parser,
+  command id mapping, default config text, and validation error text, and
+  dropped to 34,597 bytes / 768 lines after this batch. `cargo fmt --all` and
+  `cargo test -p dun-config` passed.

@@ -151,7 +151,8 @@ inspection stay outside this section.
   `crates/dun-config/src/tests/` behavior modules.
 - [x] Move `dun-config` config model and limits model into `config.rs` and
   `limits.rs`.
-- [ ] Continue Stage 8 with key/keymap/file-dialog-keymap extraction.
+- [x] Continue Stage 8 with key/keymap/file-dialog-keymap extraction.
+- [ ] Continue Stage 8 with parser/default-config/validation extraction.
 - [ ] Split `crates/dun-core/src/buffer.rs` into buffer storage, cursor,
   selection, edit, undo, search, and tests.
 - [ ] Split `crates/dun-core/src/workspace.rs` and

@@ -537,6 +537,11 @@ Progress note:
   `tests/{config,keys,parser,validation,support}.rs`.
 - Stage 8.2 moved the typed config model into `config.rs` and the limits model
   into `limits.rs`, preserving public exports from `lib.rs`.
+- Stage 8.3 moved key parsing, key sequence display, editor keymap defaults,
+  and file-dialog modal keymap/action mapping into
+  `keys/{key,sequence,keymap,file_dialog}.rs`. `lib.rs` keeps the command id
+  mapping, parser, default config text, validation error text, and facade
+  exports until the next parser/defaults split.
 
 ## Stage 9: Split `dun-core::buffer`
 
