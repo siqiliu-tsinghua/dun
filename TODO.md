@@ -124,9 +124,14 @@ inspection stay outside this section.
   dialogs, files, terminal, command-output, and helper-text modules.
 - [x] Continue Stage 4 with AppState prompts/dialogs, helper
   panes/search-replace, command output, and file I/O method groups.
+- [x] Complete Stage 4 by moving remaining AppState construction, frame/view
+  sync, menu state, command-line runner, and status/path display methods out
+  of `crates/dun-cli/src/main.rs`.
 - [ ] Continue the CLI split with remaining `main.rs` responsibilities:
-  AppState construction/view helpers, menu state helpers, command-line
-  parsing/completion/runners, help text assembly, and residual text formatters.
+  process entry/runtime loop, CLI argument parsing, startup config loading,
+  pure command-line parsing/completion helpers, help text assembly, command
+  output text formatting, terminal profile detection, and residual text
+  formatters.
 - [x] Start Stage 5 by moving terminal raw/alternate-screen lifecycle and
   16-color SGR output rewriting into `crates/dun-cli/src/terminal/`.
 - [x] Continue Stage 5 with terminal input dispatch, shell/run-command host

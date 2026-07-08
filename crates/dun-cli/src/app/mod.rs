@@ -1,17 +1,22 @@
+mod bootstrap;
 mod buffer_state;
 mod buffer_switcher;
+mod command_line;
 mod command_output;
 mod commands;
 mod editing;
 mod file_dialogs;
 mod file_io;
+mod frame;
 mod helper_panes;
+mod menus;
 mod mouse;
 mod prompt_dialogs;
 mod search;
 mod search_replace;
 mod state;
 mod status;
+mod status_view;
 mod view_state;
 mod windows;
 

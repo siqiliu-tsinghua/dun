@@ -712,3 +712,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   lines after this batch, and the new files stay below the file-size debt
   threshold. `cargo fmt --all` and `cargo test --workspace` passed after the
   large moves.
+- Completed Stage 4 by moving the final AppState method groups out of
+  `main.rs`. AppState construction now lives in `app/bootstrap.rs`; buffer view
+  assembly and workspace-area synchronization live in `app/frame.rs`; menu
+  state and menu dispatch live in `app/menus.rs`; command-line command runners
+  live in `app/command_line.rs`; focused path/status display helpers live in
+  `app/status_view.rs`. `crates/dun-cli/src/main.rs` no longer contains an
+  `impl AppState` block and dropped to 61,522 bytes / 1,835 lines after this
+  batch. `cargo fmt --all` and `cargo test --workspace` passed.

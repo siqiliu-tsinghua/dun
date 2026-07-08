@@ -226,6 +226,9 @@ app/mod.rs
 app/commands.rs
 app/editing.rs
 app/windows.rs
+app/bootstrap.rs
+app/frame.rs
+app/menus.rs
 app/search_replace.rs
 app/helper_panes.rs
 app/command_output.rs
@@ -233,6 +236,7 @@ app/file_io.rs
 app/file_dialogs.rs
 app/buffer_switcher.rs
 app/prompt_dialogs.rs
+app/status_view.rs
 app/view_state.rs
 ```
 
@@ -280,9 +284,20 @@ Progress note:
   confirmation flows because confirmation can chain into Save As;
 - `app/buffer_switcher.rs` owns buffer-switcher keyboard/mouse navigation and
   overlay text;
-- remaining AppState-heavy code in `main.rs` is now narrower: construction,
-  buffer view assembly, search-cache refresh, menu state helpers,
-  command-line command runners, and focused status/path display helpers.
+- `app/bootstrap.rs` owns AppState construction from loaded config and optional
+  startup file paths;
+- `app/frame.rs` owns buffer-view assembly, search-cache refresh, mouse-enabled
+  access, and workspace-area view synchronization;
+- `app/menus.rs` owns active menu state, keyboard/mouse menu opening, menu
+  movement, and selected-menu dispatch;
+- `app/command_line.rs` owns command-line command runners over the typed editor
+  command surface;
+- `app/status_view.rs` owns focused path/name/status/detail display helpers;
+- Stage 4 is complete: `crates/dun-cli/src/main.rs` no longer contains an
+  `impl AppState` block. Remaining `main.rs` code is process entry, startup
+  config loading, pure command-line parsing/completion, help text assembly,
+  command-output text formatting, terminal profile detection, and the runtime
+  event loop for Stage 6.
 
 Gate after each method-group move, not only after the whole stage:
 
