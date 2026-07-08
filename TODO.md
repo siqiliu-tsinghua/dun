@@ -116,9 +116,12 @@ inspection stay outside this section.
   next large CLI feature batch.
 - [x] Split `dun-cli` pure status/help/file-dialog/text-width helpers out of
   `crates/dun-cli/src/main.rs`.
+- [x] Extract `dun-cli` AppState window, editing/clipboard, and view-state
+  method groups.
 - [ ] Split `crates/dun-cli/src/main.rs` implementation into app, input,
   dialogs, files, terminal, command-output, and helper-text modules.
-- [ ] Continue the `dun-cli` split with Stage 4 app-state method groups.
+- [ ] Continue Stage 4 with AppState command dispatch, prompts/dialogs,
+  helper panes/search-replace, command output, and file I/O method groups.
 - [ ] Split `crates/dun-ui/src/lib.rs` into model, render, hit-testing, text,
   and test modules.
 - [ ] Split `crates/dun-config/src/lib.rs` into keys, parser, defaults, and

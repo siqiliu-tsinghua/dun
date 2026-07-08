@@ -1,8 +1,11 @@
 mod buffer_state;
+mod editing;
 mod mouse;
 mod search;
 mod state;
 mod status;
+mod view_state;
+mod windows;
 
 pub(crate) use buffer_state::{BufferState, BufferViewContext, editor_body_width};
 pub(crate) use mouse::MouseDragState;

@@ -247,6 +247,18 @@ Rules:
 - use `impl AppState` blocks per module;
 - keep behavior tests from Stage 1 green after each module group move.
 
+Progress note:
+
+- `app/windows.rs` owns window command application, split/focus/resize/close,
+  focused-buffer window lookup, and unreferenced buffer cleanup;
+- `app/editing.rs` owns edit command application, text input, internal
+  clipboard, OSC52 copy request preparation, line commands, bookmarks, undo,
+  redo, paging, and horizontal scrolling;
+- `app/view_state.rs` owns focused buffer accessors, buffer lookup, status
+  recording, and buffer view-context calculation;
+- remaining Stage 4 groups include command dispatch, prompts/dialogs, helper
+  panes/search-replace, command output, and file I/O methods.
+
 Gate after each method-group move, not only after the whole stage:
 
 ```text

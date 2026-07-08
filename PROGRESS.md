@@ -668,3 +668,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   AppState-mutating behavior remains in `main.rs` for the next method-group
   stage. `main.rs` dropped to 283,680 bytes / 8,188 lines after this stage.
   `cargo fmt --all`, `cargo test --workspace`, and `git diff --check` passed.
+- Started Stage 4 of the `dun-cli` split by extracting AppState method groups.
+  Window behavior now lives in `app/windows.rs`; editing, selection,
+  clipboard, bookmarks, paging, and text-input behavior lives in
+  `app/editing.rs`; focused-buffer accessors, status recording, and buffer
+  view-context calculation live in `app/view_state.rs`. `main.rs` dropped to
+  249,993 bytes / 7,245 lines after this batch. `cargo fmt --all` and
+  `cargo test --workspace` passed after each method-group move.
