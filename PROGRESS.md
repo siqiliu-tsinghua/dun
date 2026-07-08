@@ -612,3 +612,15 @@ This is an append-only progress log. Keep new entries dated and factual.
   ordinary editor features should stay in Rust core code, and future `rum`
   integration should be optional or late-loaded for high-leverage plugin logic
   such as custom log filters and advanced text transforms.
+- Added lightweight runtime-resource baselines for the size-oriented binaries.
+  The audited empty TUI startup was 27 ms / 1,328 KiB RSS on macOS x86_64 and
+  15 ms / 2,872 KiB RSS on the Debian x86_64 VM; opening a 1.1 MiB UTF-8 file
+  measured 47 ms / 5,016 KiB on macOS and 32 ms / 6,500 KiB on Debian.
+  Over-limit 17 MiB files were rejected before becoming editor buffers.
+- Added dependency and feature audit documentation. `dun-cli` currently has
+  direct runtime dependencies on `crossterm`, `ratatui`, `unicode-width`, and
+  internal crates; the normal dependency tree has 67 unique package lines.
+  `ratatui` default features remain disabled, `crossterm` default features are
+  the first future feature-reduction candidate, and the default tree still has
+  no `rum`, async/network/TLS stack, parser/highlighter stack, or plugin
+  runtime dependency.

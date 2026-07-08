@@ -238,6 +238,8 @@ release-facing host API.
 - [x] Define external SSH and low-capability terminal test matrix.
 - [x] Add broad local PTY terminal compatibility harness.
 - [x] Add automated modified-key event coverage for the terminal matrix.
+- [x] Add release size, runtime resource, and dependency/feature lightweight
+  audits for macOS and Debian baselines.
 - [ ] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
 - [x] Lightweight release binary size audit on macOS and Debian.

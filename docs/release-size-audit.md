@@ -83,6 +83,31 @@ The resulting architecture rule is:
   for startup, file editing, basic search, window management, or configuration
   diagnostics.
 
+## Repeat Checklist
+
+Use this checklist when refreshing the release-size baseline:
+
+1. Record the source commit, local modifications, toolchain, host OS, and CPU
+   architecture.
+2. Build the default release binary with `cargo build --release --locked -p
+   dun-cli`.
+3. Build the size-oriented release binary with the profile environment
+   variables shown above.
+4. Record byte size with `stat`, executable type with `file`, and dynamic
+   dependencies with `otool -L` on macOS or `ldd` on Linux.
+5. Run the binary with `--version` to verify the measured executable starts.
+6. Run the runtime resource audit in
+   [runtime-resource-audit.md](./runtime-resource-audit.md) when changing
+   profile settings, dependency features, terminal backend behavior, or file
+   loading paths.
+7. Update the dependency audit in
+   [dependency-audit.md](./dependency-audit.md) when adding or removing
+   runtime dependencies.
+
+Do not make the size-oriented profile the default release policy solely from a
+smaller binary measurement. Re-check startup time, memory, terminal behavior,
+and panic/error diagnostics first.
+
 ## Notes
 
 - The current workspace has no checked-in custom `[profile.release]`.

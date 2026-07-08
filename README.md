@@ -243,11 +243,13 @@ stable release-facing host API:
 
 The default editor line should stay small and pure Rust. Current size audit
 results put size-oriented `dun` binaries around 0.8-1.0 MiB on macOS/Debian,
-while `rum` is currently treated as an approximately 6 MiB runtime dependency.
-That makes `rum` valuable but too large for basic editor features. Common
-editing, search, file, window, outline, and status workflows should remain in
-Rust core code; future `rum` support should be optional or late-loaded and used
-only when its language power is worth the extra runtime footprint.
+with empty-startup RSS in the low-megabyte range on the audited macOS and
+Debian hosts, while `rum` is currently treated as an approximately 6 MiB
+runtime dependency. That makes `rum` valuable but too large for basic editor
+features. Common editing, search, file, window, outline, and status workflows
+should remain in Rust core code; future `rum` support should be optional or
+late-loaded and used only when its language power is worth the extra runtime
+footprint.
 
 ## Plugin Boundary
 
@@ -303,6 +305,10 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
   large-file performance baseline tests and current local sample output.
 - [docs/release-size-audit.md](./docs/release-size-audit.md): lightweight
   release binary size baseline for macOS and Debian builds.
+- [docs/runtime-resource-audit.md](./docs/runtime-resource-audit.md):
+  lightweight startup and RSS baselines for macOS and Debian builds.
+- [docs/dependency-audit.md](./docs/dependency-audit.md): dependency shape,
+  feature policy, and repeat checklist for keeping the default build small.
 - [docs/configuration.md](./docs/configuration.md): current Rust-owned config
   file loader and supported keys.
 - [docs/crate-map.md](./docs/crate-map.md): current Rust workspace crate

@@ -226,6 +226,10 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define large-file soft limit behavior.
 - [x] Add large-file performance baselines.
 - [x] Add lightweight release binary size audit for macOS and Debian builds.
+- [x] Add lightweight runtime memory and startup baseline for macOS and Debian
+  builds.
+- [x] Add release size repeat checklist.
+- [x] Add dependency/feature audit and minimal default-build feature policy.
 - [x] Implement display sanitizer for C0/C1 controls.
 - [x] Render `ESC`, OSC, BEL, NUL, DEL, CR, and backspace visibly.
 - [x] Add tests for terminal-injection payloads.
