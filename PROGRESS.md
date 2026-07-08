@@ -539,3 +539,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   truncation state, repeated runs reuse and refresh the read-only output pane,
   and the PTY smoke suite covers shell escape suspend/resume with a temporary
   non-interactive shell script.
+- Ran the external Debian VirtualBox terminal matrix for `d2c832f` from a
+  local git archive snapshot without touching the VM's dirty `/home/fft/dun`
+  worktree. The VM passed `cargo test -p dun-cli --test pty_smoke`,
+  `cargo test --workspace --quiet`, direct SSH UTF-8, mono, VT100, 40x12
+  VT100, tmux, screen, escape-payload, invalid-byte fallback, shell escape, and
+  Run Command checks. Real server-console/KVM ASCII coverage remains unavailable
+  and is still tracked separately.

@@ -207,8 +207,9 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define the external SSH and low-capability terminal release matrix.
 - [x] Fix strict VT100/16-color output so low-capability profiles do not emit
   256-color-style `38;5;n` or `48;5;n` SGR sequences.
-- [ ] Run the external SSH and low-capability terminal release matrix before
-  a tagged release.
+- [x] Run the external SSH and low-capability Debian VM matrix for `d2c832f`.
+- [ ] Run a real server-console/KVM ASCII path before a tagged release that
+  claims KVM coverage.
 - [x] Add static Microsoft Edit reference tests for source-visible menu,
   status, color, and terminal setup markers.
 

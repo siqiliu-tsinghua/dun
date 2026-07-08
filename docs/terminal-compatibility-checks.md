@@ -84,17 +84,21 @@ covered and must be gathered before a tagged release that claims that path.
 
 ```text
 date: 2026-07-08
-dun revision: e636460 plus the current VT100 SGR working-tree fix
+dun revision: d2c832f
 host path: macOS host -> ssh -p 2222 -> Debian VirtualBox VM
 remote OS: Debian trixie
 rust: Debian rustc 1.85.0, cargo 1.85.0
 terminal tools: expect 5.45.4, tmux 3.5a, screen 4.09.01
+source: local git archive of d2c832f unpacked at /tmp/dun-matrix-d2c832f-DVaLv0
 
 AUTO-PTY: pass
   cargo test -p dun-cli --test pty_smoke
+  7 tests passed, including shell escape suspend/resume coverage.
 
 VM-WORKSPACE: pass
   cargo test --workspace --quiet
+  170 passed, 2 ignored in dun-cli unit coverage; all other workspace crates
+  passed.
 
 SSH-UTF8: pass
   TERM=xterm-256color LANG=C.UTF-8 LC_CTYPE=C.UTF-8
@@ -119,11 +123,11 @@ SSH-SMALL: pass
 
 SSH-TMUX: pass
   Outer TERM=xterm-256color, tmux 3.5a, app TERM=screen-256color
-  Rendered, accepted Ctrl+Q, ended the tmux session, and restored SSH.
+  Rendered in tmux, accepted Ctrl+Q, ended the tmux session, and restored SSH.
 
 SSH-SCREEN: pass with environment warning
   Outer TERM=xterm-256color, screen 4.09.01, app TERM=screen
-  Rendered and exited cleanly with legacy 16-color SGR output from the app.
+  Rendered and exited cleanly through screen.
   Debian's /etc/screenrc printed screen-owned warnings for unknown
   deflogin/login commands before the app surface.
 
@@ -134,6 +138,16 @@ SSH-ESCAPE-PAYLOAD: pass
 SSH-INVALID-BYTES: pass
   /tmp/dun-terminal-invalid.bin opened as Escaped Bytes with \xFF visible and
   the fallback state shown in the status bar.
+
+SSH-SHELL-ESCAPE: pass
+  Ctrl+W,S suspended the alternate-screen TUI, ran
+  /tmp/dun-shell-escape-d2c832f.sh through SHELL, printed
+  dun-shell-escape-ssh on the normal terminal, then resumed and redrew the TUI.
+
+SSH-RUN-COMMAND: pass
+  Ctrl+W,O opened the Run Command prompt. Submitting "printf ssh-run" opened a
+  read-only Command Output pane showing stdout, "Stdout: 7 bytes, complete",
+  "Stderr: 0 bytes, complete", and "Truncated: no".
 
 KVM-ASCII: not run
   No real server console or KVM path was available in this run.
