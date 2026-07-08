@@ -660,3 +660,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   runtime terminal actions. `main.rs` dropped to 309,368 bytes / 9,075 lines
   after this stage. `cargo fmt --all`, `cargo test --workspace`, and
   `git diff --check` passed.
+- Completed Stage 3 of the `dun-cli` split by moving pure helper functions
+  out of `main.rs`. Status, environment, buffer metadata, outline/search
+  results, config-diagnostics, and command-output section helpers now live
+  under `crates/dun-cli/src/help/`; file-dialog path/listing helpers and
+  display-width wrapping helpers now live under `crates/dun-cli/src/files/`.
+  AppState-mutating behavior remains in `main.rs` for the next method-group
+  stage. `main.rs` dropped to 283,680 bytes / 8,188 lines after this stage.
+  `cargo fmt --all`, `cargo test --workspace`, and `git diff --check` passed.

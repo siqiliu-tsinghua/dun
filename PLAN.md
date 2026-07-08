@@ -245,6 +245,8 @@ release-facing host API.
 - [x] Split `dun-cli` unit tests into behavior-family modules.
 - [x] Extract `dun-cli` pure model/state types into app, dialog,
   command-output, and terminal modules.
+- [x] Extract `dun-cli` pure helper functions into help/status/text and
+  file-dialog/text helper modules.
 - [ ] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
 - [x] Lightweight release binary size audit on macOS and Debian.

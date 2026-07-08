@@ -1,3 +1,7 @@
+use crate::files::{
+    common_entry_prefix, ensure_trailing_separator, expand_user_path, file_dialog_context,
+    file_dialog_list_message, is_completable_file_dialog_entry, list_file_dialog_entries,
+};
 use crate::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

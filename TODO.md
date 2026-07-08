@@ -114,8 +114,11 @@ inspection stay outside this section.
 - [x] Document the staged oversized-file splitting plan.
 - [x] Split `crates/dun-cli/src/main.rs` tests by behavior family before the
   next large CLI feature batch.
+- [x] Split `dun-cli` pure status/help/file-dialog/text-width helpers out of
+  `crates/dun-cli/src/main.rs`.
 - [ ] Split `crates/dun-cli/src/main.rs` implementation into app, input,
   dialogs, files, terminal, command-output, and helper-text modules.
+- [ ] Continue the `dun-cli` split with Stage 4 app-state method groups.
 - [ ] Split `crates/dun-ui/src/lib.rs` into model, render, hit-testing, text,
   and test modules.
 - [ ] Split `crates/dun-config/src/lib.rs` into keys, parser, defaults, and

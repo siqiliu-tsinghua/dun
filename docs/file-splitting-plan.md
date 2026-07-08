@@ -205,6 +205,15 @@ git diff --check
 
 Expected behavior change: none.
 
+Completion note:
+
+- status/help text helpers now live under `crates/dun-cli/src/help/`;
+- file-dialog path/listing helpers and text wrapping/width helpers now live
+  under `crates/dun-cli/src/files/`;
+- command-output section lookup helpers moved with other read-only text helper
+  functions;
+- AppState-mutating behavior remains in `main.rs` for Stage 4.
+
 ## Stage 4: Extract `dun-cli` App State Method Groups
 
 Purpose: turn `AppState` into an `app` module with method groups rather than a

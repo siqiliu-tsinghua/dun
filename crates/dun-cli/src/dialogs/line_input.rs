@@ -1,3 +1,4 @@
+use crate::files::{next_char_boundary, previous_char_boundary};
 use crate::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
