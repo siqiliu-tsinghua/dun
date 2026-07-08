@@ -759,3 +759,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   command id mapping, default config text, and validation error text, and
   dropped to 34,597 bytes / 768 lines after this batch. `cargo fmt --all` and
   `cargo test -p dun-config` passed.
+- Completed the remaining Stage 8 `dun-config` split. Command id mapping now
+  lives in `commands.rs`, default config text in `defaults.rs`, line-based
+  config parsing in `parser.rs`, and validation/error text conversion in
+  `validation.rs`. `crates/dun-config/src/lib.rs` is now a 28-line facade, and
+  the largest new file is `parser.rs` at 10,380 bytes / 322 lines.
+  `cargo fmt --all` and `cargo test -p dun-config` passed.

@@ -497,6 +497,7 @@ Target shape:
 ```text
 crates/dun-config/src/
   lib.rs
+  commands.rs
   config.rs
   limits.rs
   keys/
@@ -542,6 +543,10 @@ Progress note:
   `keys/{key,sequence,keymap,file_dialog}.rs`. `lib.rs` keeps the command id
   mapping, parser, default config text, validation error text, and facade
   exports until the next parser/defaults split.
+- Stage 8.4 moved command id mapping into `commands.rs`, default config text
+  into `defaults.rs`, line-based config parsing into `parser.rs`, and error
+  text conversion into `validation.rs`. `lib.rs` is now only the crate-level
+  facade plus test module hook.
 
 ## Stage 9: Split `dun-core::buffer`
 
