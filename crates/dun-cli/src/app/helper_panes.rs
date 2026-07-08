@@ -1,0 +1,537 @@
+use crate::*;
+
+impl AppState {
+    pub(crate) fn open_read_only_aux_window(
+        &mut self,
+        kind: WindowKind,
+        title: &str,
+        buffer: TextBuffer,
+    ) {
+        if let Some(window_id) = self
+            .workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == kind)
+            .map(|window| window.id)
+        {
+            self.workspace.focused = window_id;
+            let Ok(window) = self.workspace.window(window_id) else {
+                return;
+            };
+            let buffer_id = window.buffer_id;
+            if let Some(state) = self.buffer_state_mut(buffer_id) {
+                *state = BufferState::new(buffer_id, buffer);
+            }
+            if let Ok(window) = self.workspace.window_mut(window_id) {
+                window.title = title.to_string();
+                window.kind = kind;
+                window.buffer_kind = BufferKind::ReadOnly;
+                window.collapsed = false;
+            }
+            return;
+        }
+
+        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+            self.set_status(format!("{title} failed: focused window is missing"));
+            return;
+        };
+        let Ok(window) = self.workspace.window(window_id) else {
+            self.set_status(format!("{title} failed: window is missing"));
+            return;
+        };
+        let buffer_id = window.buffer_id;
+        let state = BufferState::new(buffer_id, buffer);
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = state;
+        } else {
+            self.buffers.push(state);
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = title.to_string();
+            window.kind = kind;
+            window.buffer_kind = BufferKind::ReadOnly;
+            window.collapsed = false;
+        }
+    }
+
+    pub(crate) fn open_help_screen(&mut self) {
+        if let Some(window_id) = self.help_window_id() {
+            self.workspace.focused = window_id;
+            self.set_status("Help");
+            return;
+        }
+
+        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+            self.set_status("Help failed: focused window is missing");
+            return;
+        };
+        let Ok(window) = self.workspace.window(window_id) else {
+            self.set_status("Help failed: help window is missing");
+            return;
+        };
+        let buffer_id = window.buffer_id;
+        let help = BufferState::new(
+            buffer_id,
+            help_buffer(&self.shell.keymap, &self.file_dialog_keys),
+        );
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = help;
+        } else {
+            self.buffers.push(help);
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = "Help".to_string();
+            window.kind = WindowKind::Help;
+            window.buffer_kind = BufferKind::ReadOnly;
+            window.collapsed = false;
+        }
+
+        self.set_status("Help");
+    }
+
+    fn help_window_id(&self) -> Option<WindowId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::Help)
+            .map(|window| window.id)
+    }
+
+    fn help_buffer_id(&self) -> Option<BufferId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::Help)
+            .map(|window| window.buffer_id)
+    }
+
+    pub(crate) fn refresh_help_buffer(&mut self) {
+        let Some(buffer_id) = self.help_buffer_id() else {
+            return;
+        };
+        let help = BufferState::new(
+            buffer_id,
+            help_buffer(&self.shell.keymap, &self.file_dialog_keys),
+        );
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = help;
+        }
+    }
+
+    pub(crate) fn open_outline_screen(&mut self) {
+        let Some(source_buffer_id) = self.outline_source_for_command() else {
+            self.set_status("Outline failed: focused buffer is missing");
+            return;
+        };
+        let source_title = self.buffer_display_name(source_buffer_id);
+        let Some(source) = self.buffer_state(source_buffer_id) else {
+            self.set_status("Outline failed: source buffer is missing");
+            return;
+        };
+        let entries = outline_entries_for_buffer(&source.buffer);
+        if entries.is_empty() {
+            self.set_status("Outline: no sections");
+            return;
+        }
+
+        self.outline_source = Some(source_buffer_id);
+        let text = outline_text(&source_title, &entries);
+        self.open_read_only_aux_window(WindowKind::Outline, "Outline", outline_buffer(&text));
+        self.set_status(format!("Outline: {} section(s)", entries.len()));
+    }
+
+    fn outline_source_for_command(&self) -> Option<BufferId> {
+        let focused = self.workspace.focused_window().ok()?;
+        if focused.kind == WindowKind::Outline {
+            return self.outline_source;
+        }
+        Some(focused.buffer_id)
+    }
+
+    pub(crate) fn jump_focused_outline_target(&mut self, target: &str) {
+        let Some(source_buffer_id) = self.outline_source_for_command().or(self.outline_source)
+        else {
+            self.set_status("Outline failed: source buffer is missing");
+            return;
+        };
+        let Some(source) = self.buffer_state(source_buffer_id) else {
+            self.set_status("Outline failed: source buffer is missing");
+            return;
+        };
+        let entries = outline_entries_for_buffer(&source.buffer);
+        if entries.is_empty() {
+            self.set_status("Outline: no sections");
+            return;
+        }
+
+        let target_index = parse_outline_target(target, &entries);
+        let Some(index) = target_index else {
+            self.set_status(format!("Outline: no section {target}"));
+            return;
+        };
+        let entry = entries[index].clone();
+        if !self.focus_window_for_buffer(source_buffer_id) {
+            self.set_status("Outline failed: source window is missing");
+            return;
+        }
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id: source_buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        if let Some(buffer) = self.buffer_state_mut(source_buffer_id) {
+            let _ = buffer.buffer.set_cursor(Position::new(entry.line, 0));
+            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        }
+        self.set_status(format!("Outline: {}", entry.label));
+    }
+
+    pub(crate) fn jump_current_outline_target(&mut self) {
+        let Some(index) = self.current_or_next_numbered_aux_index("Outline") else {
+            return;
+        };
+        self.jump_focused_outline_target(&(index + 1).to_string());
+    }
+
+    pub(crate) fn open_config_diagnostics_screen(&mut self) {
+        self.set_status("Config diagnostics");
+
+        if let Some(window_id) = self.config_diagnostics_window_id() {
+            self.workspace.focused = window_id;
+            self.refresh_config_diagnostics_buffer();
+            return;
+        }
+
+        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+            self.set_status("Config diagnostics failed: focused window is missing");
+            return;
+        };
+        let Ok(window) = self.workspace.window(window_id) else {
+            self.set_status("Config diagnostics failed: diagnostics window is missing");
+            return;
+        };
+        let buffer_id = window.buffer_id;
+        let text = self.config_diagnostics_text();
+        let diagnostics = BufferState::new(buffer_id, config_diagnostics_buffer(&text));
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = diagnostics;
+        } else {
+            self.buffers.push(diagnostics);
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = "Config Diagnostics".to_string();
+            window.kind = WindowKind::ConfigDiagnostics;
+            window.buffer_kind = BufferKind::ReadOnly;
+            window.collapsed = false;
+        }
+    }
+
+    fn config_diagnostics_window_id(&self) -> Option<WindowId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::ConfigDiagnostics)
+            .map(|window| window.id)
+    }
+
+    fn config_diagnostics_buffer_id(&self) -> Option<BufferId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::ConfigDiagnostics)
+            .map(|window| window.buffer_id)
+    }
+
+    pub(crate) fn refresh_config_diagnostics_buffer(&mut self) {
+        let Some(buffer_id) = self.config_diagnostics_buffer_id() else {
+            return;
+        };
+        let text = self.config_diagnostics_text();
+        let diagnostics = BufferState::new(buffer_id, config_diagnostics_buffer(&text));
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = diagnostics;
+        }
+    }
+
+    pub(crate) fn jump_config_diagnostics_section(&mut self, section: ConfigDiagnosticsSection) {
+        self.open_config_diagnostics_screen();
+        let Some(window_id) = self.config_diagnostics_window_id() else {
+            self.set_status("Config diagnostics failed: diagnostics window is missing");
+            return;
+        };
+        let Some(buffer_id) = self.config_diagnostics_buffer_id() else {
+            self.set_status("Config diagnostics failed: diagnostics buffer is missing");
+            return;
+        };
+        let Some(line_index) = self
+            .buffer_state(buffer_id)
+            .and_then(|buffer| line_with_exact_text(&buffer.buffer, section.heading()))
+        else {
+            self.set_status(format!(
+                "Config diagnostics: {} section not found",
+                section.label()
+            ));
+            return;
+        };
+
+        self.workspace.focused = window_id;
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            let _ = buffer.buffer.set_cursor(Position::new(line_index, 0));
+            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        }
+        self.set_status(format!("Config diagnostics: {}", section.label()));
+    }
+
+    pub(crate) fn open_status_history_screen(&mut self) {
+        self.set_status("Status history");
+
+        if let Some(window_id) = self.status_history_window_id() {
+            self.workspace.focused = window_id;
+            return;
+        }
+
+        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+            self.set_status("Status history failed: focused window is missing");
+            return;
+        };
+        let Ok(window) = self.workspace.window(window_id) else {
+            self.set_status("Status history failed: status window is missing");
+            return;
+        };
+        let buffer_id = window.buffer_id;
+        let text = self.status_history_text();
+
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = BufferState::new(buffer_id, status_history_buffer(&text));
+        } else {
+            self.buffers
+                .push(BufferState::new(buffer_id, status_history_buffer(&text)));
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = "Status History".to_string();
+            window.kind = WindowKind::StatusHistory;
+            window.buffer_kind = BufferKind::ReadOnly;
+            window.collapsed = false;
+        }
+    }
+
+    fn status_history_window_id(&self) -> Option<WindowId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::StatusHistory)
+            .map(|window| window.id)
+    }
+
+    pub(crate) fn status_history_buffer_id(&self) -> Option<BufferId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == WindowKind::StatusHistory)
+            .map(|window| window.buffer_id)
+    }
+
+    pub(crate) fn status_history_text(&self) -> String {
+        let mut out = String::from("Dun Status History\n\n");
+        if self.status_history.is_empty() {
+            out.push_str("No status messages yet.\n");
+            return out;
+        }
+
+        for (index, entry) in self.status_history.iter().enumerate() {
+            out.push_str(&format!(
+                "{:>3}. [{}] {}\n",
+                index + 1,
+                entry.level.label(),
+                entry.message
+            ));
+        }
+
+        out
+    }
+
+    fn config_diagnostics_text(&self) -> String {
+        let mut out = String::from("Dun Config Diagnostics\n\n");
+        let important_unbound = important_config_diagnostic_commands()
+            .iter()
+            .filter(|command| self.shell.keymap.sequence_for_command(command).is_none())
+            .map(command_id)
+            .collect::<Vec<_>>();
+        let important_unbound_text = if important_unbound.is_empty() {
+            "none".to_string()
+        } else {
+            important_unbound.join(", ")
+        };
+
+        out.push_str("Summary\n");
+        out.push_str(&format!(
+            "  config: {}\n",
+            self.config_source.diagnostics_text()
+        ));
+        out.push_str(&format!(
+            "  request: {}\n",
+            self.config_request.diagnostics_text()
+        ));
+        out.push_str(&format!(
+            "  terminal: {}\n",
+            terminal_profile_status(self.shell.profile)
+        ));
+        out.push_str(&format!(
+            "  theme: {} ({})\n",
+            self.shell.theme.name,
+            color_status(self.shell.theme.colors)
+        ));
+        out.push_str(&format!(
+            "  mouse: {}\n",
+            if self.mouse_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        ));
+        out.push_str(&format!(
+            "  osc52: {} (max {} bytes)\n",
+            if self.clipboard.osc52.enabled {
+                "enabled"
+            } else {
+                "disabled"
+            },
+            self.clipboard.osc52.max_bytes
+        ));
+        out.push_str(&format!(
+            "  keymap: {} bindings, important_unbound: {}\n",
+            self.shell.keymap.bindings.len(),
+            important_unbound_text
+        ));
+
+        out.push_str("\nPaths\n");
+        out.push_str(&format!("  {DUN_CONFIG_ENV}: {}\n", env_config_path_text()));
+        out.push_str(&format!("  default path: {}\n", default_config_path_text()));
+        out.push_str("  defaults: dun --dump-config\n");
+
+        out.push_str("\nSource\n");
+        out.push_str(&format!(
+            "  active: {}\n",
+            self.config_source.diagnostics_text()
+        ));
+        out.push_str(&format!(
+            "  request: {}\n",
+            self.config_request.diagnostics_text()
+        ));
+
+        out.push_str("\nTerminal\n");
+        out.push_str(&format!(
+            "  detected: {}\n",
+            terminal_profile_status(self.detected_profile)
+        ));
+        out.push_str(&format!(
+            "  effective: {}\n",
+            terminal_profile_status(self.shell.profile)
+        ));
+        out.push_str(&format!(
+            "  theme: {} ({})\n",
+            self.shell.theme.name,
+            color_status(self.shell.theme.colors)
+        ));
+        out.push_str(&format!(
+            "  glyphs: {}\n",
+            if self.shell.profile.supports_unicode_glyphs() {
+                "unicode"
+            } else {
+                "ascii"
+            }
+        ));
+
+        out.push_str("\nInput\n");
+        out.push_str(&format!(
+            "  mouse: {}\n",
+            if self.mouse_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        ));
+
+        out.push_str("\nClipboard\n");
+        out.push_str(&format!(
+            "  osc52: {}\n",
+            if self.clipboard.osc52.enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        ));
+        out.push_str(&format!(
+            "  osc52_max_bytes: {}\n",
+            self.clipboard.osc52.max_bytes
+        ));
+
+        out.push_str("\nLimits\n");
+        out.push_str(&format!(
+            "  editable_file_soft_limit_bytes: {}\n",
+            self.limits.editable_file_soft_limit_bytes
+        ));
+        out.push_str(&format!(
+            "  line_display_soft_limit_bytes: {}\n",
+            self.limits.line_display_soft_limit_bytes
+        ));
+
+        out.push_str("\nKeymap\n");
+        out.push_str(&format!(
+            "  bindings: {}\n",
+            self.shell.keymap.bindings.len()
+        ));
+        out.push_str(&format!("  important_unbound: {important_unbound_text}\n"));
+        let mut bindings = self
+            .shell
+            .keymap
+            .bindings
+            .iter()
+            .map(|binding| (command_id(&binding.command), binding.sequence.to_string()))
+            .collect::<Vec<_>>();
+        bindings.sort_by(|left, right| left.0.cmp(right.0));
+        for (command, sequence) in bindings {
+            out.push_str(&format!("  {command:<28} {sequence}\n"));
+        }
+
+        out.push_str("\nFile Dialog Keymap\n");
+        out.push_str(&format!(
+            "  bindings: {}\n",
+            self.file_dialog_keys.bindings.len()
+        ));
+        let mut bindings = self
+            .file_dialog_keys
+            .bindings
+            .iter()
+            .map(|binding| {
+                (
+                    file_dialog_action_id(binding.action),
+                    binding.stroke.to_string(),
+                )
+            })
+            .collect::<Vec<_>>();
+        bindings.sort_by(|left, right| left.0.cmp(right.0));
+        for (action, stroke) in bindings {
+            out.push_str(&format!("  {action:<28} {stroke}\n"));
+        }
+
+        out
+    }
+}

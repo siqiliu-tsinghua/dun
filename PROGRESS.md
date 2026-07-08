@@ -700,3 +700,15 @@ This is an append-only progress log. Keep new entries dated and factual.
   and config reload application. `main.rs` dropped to 190,121 bytes / 5,386
   lines after this batch. `cargo fmt --all` and `cargo test --workspace`
   passed.
+- Continued Stage 4 by extracting the remaining large AppState method groups.
+  `app/file_io.rs` owns file open/save/save-as/reload/new-buffer mutation
+  paths; `app/helper_panes.rs` owns Help, Config Diagnostics, Status History,
+  Outline, and read-only helper-pane refresh/jump behavior; `app/command_output.rs`
+  owns command-output pane behavior and save-dialog integration;
+  `app/search_replace.rs` owns find/replace/search-results/go-to-line behavior;
+  `app/prompt_dialogs.rs`, `app/file_dialogs.rs`, and
+  `app/buffer_switcher.rs` own modal prompt, file-dialog/confirmation, and
+  buffer-switcher state machines. `main.rs` dropped to 86,816 bytes / 2,520
+  lines after this batch, and the new files stay below the file-size debt
+  threshold. `cargo fmt --all` and `cargo test --workspace` passed after the
+  large moves.

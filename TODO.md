@@ -122,8 +122,11 @@ inspection stay outside this section.
   groups.
 - [ ] Split `crates/dun-cli/src/main.rs` implementation into app, input,
   dialogs, files, terminal, command-output, and helper-text modules.
-- [ ] Continue Stage 4 with AppState prompts/dialogs, helper
+- [x] Continue Stage 4 with AppState prompts/dialogs, helper
   panes/search-replace, command output, and file I/O method groups.
+- [ ] Continue the CLI split with remaining `main.rs` responsibilities:
+  AppState construction/view helpers, menu state helpers, command-line
+  parsing/completion/runners, help text assembly, and residual text formatters.
 - [x] Start Stage 5 by moving terminal raw/alternate-screen lifecycle and
   16-color SGR output rewriting into `crates/dun-cli/src/terminal/`.
 - [x] Continue Stage 5 with terminal input dispatch, shell/run-command host

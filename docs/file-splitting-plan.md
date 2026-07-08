@@ -228,7 +228,11 @@ app/editing.rs
 app/windows.rs
 app/search_replace.rs
 app/helper_panes.rs
-app/clipboard.rs
+app/command_output.rs
+app/file_io.rs
+app/file_dialogs.rs
+app/buffer_switcher.rs
+app/prompt_dialogs.rs
 app/view_state.rs
 ```
 
@@ -261,8 +265,24 @@ Progress note:
 - `app/commands.rs` owns editor/app/file command dispatch, configured key
   sequence dispatch, auxiliary-window key dispatch, runtime-action requests,
   and config reload application;
-- remaining Stage 4 groups include prompts/dialogs, helper panes/search-
-  replace, command output, and file I/O methods.
+- `app/file_io.rs` owns focused buffer open/save/save-as/reload/new-file
+  mutation paths on top of the `files/` I/O helpers;
+- `app/helper_panes.rs` owns Help, Config Diagnostics, Status History, Outline,
+  and read-only helper-pane refresh/jump behavior;
+- `app/command_output.rs` owns command-output AppState behavior: output pane
+  open/refresh/clear/copy/navigation/search/section views/save dialog;
+- `app/search_replace.rs` owns find preview commit, replace confirmation,
+  search-results pane jumps, replace/replace-all, numbered helper-row
+  navigation, and go-to-line;
+- `app/prompt_dialogs.rs` owns prompt lifecycle, paste routing into prompts,
+  prompt history/completion/submission, and active modal overlay assembly;
+- `app/file_dialogs.rs` owns file-dialog event handling plus unsaved-change
+  confirmation flows because confirmation can chain into Save As;
+- `app/buffer_switcher.rs` owns buffer-switcher keyboard/mouse navigation and
+  overlay text;
+- remaining AppState-heavy code in `main.rs` is now narrower: construction,
+  buffer view assembly, search-cache refresh, menu state helpers,
+  command-line command runners, and focused status/path display helpers.
 
 Gate after each method-group move, not only after the whole stage:
 
