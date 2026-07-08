@@ -114,7 +114,12 @@ Required controls:
 - command output buffers are read-only.
 - command output save/copy/clear/navigation actions operate on the bounded
   read-only Command Output buffer and still go through typed editor commands
-  or the command prompt.
+  or the command prompt;
+- Command Output search reuses the normal read-only Find path and only changes
+  cursor, selection, and search-highlight state;
+- Command Output Save through the file dialog uses the same host-owned path
+  listing, overwrite confirmation, path diagnostics, and atomic write path as
+  other editor saves, but it does not make the output buffer editable.
 
 ## Log Filter Threats
 

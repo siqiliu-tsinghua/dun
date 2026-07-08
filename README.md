@@ -68,8 +68,9 @@ line ending, file-text encoding, terminal profile, and focused window index.
 It also includes a lightweight buffer switcher for open tiled buffers, line
 commands for copy/delete/move/indent/outdent/trim, line bookmarks shown in the
 gutter, a display-layer word-wrap toggle, and visible-whitespace markers with
-ASCII fallback. Selection and search-match highlights now follow wrapped
-visual rows when word wrap is enabled.
+ASCII fallback. In word-wrap mode, scrolling, cursor visibility, selection
+highlights, search-match highlights, gutters, and scrollbars operate on
+wrapped visual rows instead of only whole logical lines.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, and `Ctrl+L` selects the
 current line, giving Cut/Copy a pure keyboard path without requiring mouse
@@ -94,9 +95,11 @@ file content and file names cannot emit terminal control sequences.
 By default, `F1` opens a read-only Help window with the active configured key
 reference, and `F2` opens a read-only Status History window with recent status
 and error messages. `F5` reloads the active configuration without restarting
-the editor, `F6` opens Config Diagnostics, and `Ctrl+P` opens a command prompt
-for actions such as `help`, `config`, `reload-config`, `theme`, `open`,
-`save`, `quit`, and full command ids such as `window.split_horizontal`.
+the editor, `F6` opens Config Diagnostics with source, terminal, clipboard,
+limit, keymap, and important-unbound-command summaries, and `Ctrl+P` opens a
+command prompt for actions such as `help`, `config`, `reload-config`, `theme`,
+`open`, `save`, `quit`, and full command ids such as
+`window.split_horizontal`.
 `Ctrl+W,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
 restores the normal terminal, runs the user's shell, then resumes and redraws
 after the shell exits. `Ctrl+W,O` opens a Run Command prompt for one-shot
@@ -104,8 +107,9 @@ non-interactive commands; stdout and stderr are captured with bounded memory,
 decoded through the same safe display path as files, and shown in a read-only
 Command Output window with per-stream byte counts and truncation status. The
 Run Command prompt keeps its own bounded history, separate from the editor
-command prompt. Command Output can be copied internally, cleared, saved to a
-path, or jumped directly to stderr through typed commands.
+command prompt. Command Output can be copied internally, cleared, searched,
+saved directly or through the file dialog, and jumped to summary, stdout, or
+stderr through typed commands.
 Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
 focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver

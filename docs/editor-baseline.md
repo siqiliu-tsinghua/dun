@@ -248,6 +248,12 @@ supports:
 - current-line selection through `edit.select_line`;
 - horizontal scrolling for long lines, keeping the focused cursor visible, plus
   explicit `edit.scroll_left` and `edit.scroll_right` viewport commands;
+- soft-wrapped panes scroll by wrapped visual rows, including cursor
+  visibility, selection/search highlight mapping, gutters, scrollbar targets,
+  mouse wheel input, and status fields;
+- Command Output panes stay read-only while supporting summary/stdout/stderr
+  jumps, normal Find highlighting, internal copy, clear, direct save, and
+  Save Output file dialog paths;
 - visible Undo/Redo status feedback for successful actions and empty stacks;
 - `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
 

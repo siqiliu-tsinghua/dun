@@ -313,9 +313,11 @@ Process actions:
 - `Ctrl+W,O` should open the Run Command prompt. Submitting
   `printf dun-run` should create or reuse a read-only Command Output pane with
   exit status, stdout/stderr byte counts, and truncation status.
-- Command prompt `output copy`, `output stderr`, `output clear`, and
-  `output save /tmp/dun-output.txt` should operate on the read-only Command
-  Output pane without making it editable.
+- Command prompt `output summary`, `output stdout`, `output stderr`,
+  `output find dun-run`, `output copy`, `output clear`,
+  `output save /tmp/dun-output.txt`, and pathless `output save` should operate
+  on the read-only Command Output pane without making it editable. Pathless
+  save should open the Save Command Output file dialog.
 - Up/Down in the Run Command prompt should navigate only previous run-command
   inputs, not the editor command prompt history.
 

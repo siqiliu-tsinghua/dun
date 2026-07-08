@@ -598,6 +598,7 @@ impl AppState {
                     buffer.first_line,
                     buffer.first_column,
                 )
+                .with_first_visual_row(buffer.first_visual_row)
                 .with_search(search_matches, active_search_match)
                 .with_view_options(
                     buffer.word_wrap,
@@ -777,8 +778,11 @@ impl AppState {
                 });
                 self.sync_view_for_area(self.workspace_area);
             }
-            UiMouseTarget::Scrollbar { first_line } => {
-                self.scroll_buffer_to_line(hit.buffer_id, first_line);
+            UiMouseTarget::Scrollbar {
+                first_line,
+                first_visual_row,
+            } => {
+                self.scroll_buffer_to_line(hit.buffer_id, first_line, first_visual_row);
                 self.mouse_drag = Some(MouseDragState::Scrollbar {
                     buffer_id: hit.buffer_id,
                 });
@@ -925,10 +929,10 @@ impl AppState {
         let target_line = {
             let buffer = self.buffer_state_mut(buffer_id)?;
             if workspace_y <= top {
-                buffer.scroll_view_lines(-1, body_height);
+                buffer.scroll_view_lines(-1, body_height, body_width);
                 buffer.first_line
             } else if workspace_y >= bottom {
-                buffer.scroll_view_lines(1, body_height);
+                buffer.scroll_view_lines(1, body_height, body_width);
                 buffer
                     .first_line
                     .saturating_add(body_height.saturating_sub(1))
@@ -988,7 +992,7 @@ impl AppState {
 
         self.pending_keys.clear();
         self.buffer_state_mut(buffer_id).is_some_and(|buffer| {
-            let moved = buffer.scroll_view_lines(delta, context.body_height);
+            let moved = buffer.scroll_view_lines(delta, context.body_height, context.body_width);
             buffer.ensure_cursor_column_visible(context.body_width);
             moved
         })
@@ -1009,14 +1013,23 @@ impl AppState {
         if hit.buffer_id != buffer_id {
             return false;
         }
-        let UiMouseTarget::Scrollbar { first_line } = hit.target else {
+        let UiMouseTarget::Scrollbar {
+            first_line,
+            first_visual_row,
+        } = hit.target
+        else {
             return false;
         };
 
-        self.scroll_buffer_to_line(buffer_id, first_line)
+        self.scroll_buffer_to_line(buffer_id, first_line, first_visual_row)
     }
 
-    fn scroll_buffer_to_line(&mut self, buffer_id: BufferId, first_line: usize) -> bool {
+    fn scroll_buffer_to_line(
+        &mut self,
+        buffer_id: BufferId,
+        first_line: usize,
+        first_visual_row: usize,
+    ) -> bool {
         let context = self
             .buffer_view_context(buffer_id, self.workspace_area)
             .unwrap_or(BufferViewContext {
@@ -1026,7 +1039,12 @@ impl AppState {
             });
         self.pending_keys.clear();
         self.buffer_state_mut(buffer_id).is_some_and(|buffer| {
-            let moved = buffer.scroll_view_to_line(first_line, context.body_height);
+            let moved = buffer.scroll_view_to_line(
+                first_line,
+                first_visual_row,
+                context.body_height,
+                context.body_width,
+            );
             buffer.ensure_cursor_column_visible(context.body_width);
             moved
         })
@@ -1119,6 +1137,9 @@ impl AppState {
             AppCommand::CommandOutputClear => self.clear_command_output(),
             AppCommand::CommandOutputCopy => self.copy_command_output(),
             AppCommand::CommandOutputStderr => self.jump_command_output_stderr(),
+            AppCommand::CommandOutputStdout => self.jump_command_output_stdout(),
+            AppCommand::CommandOutputSummary => self.jump_command_output_summary(),
+            AppCommand::CommandOutputSave => self.start_command_output_save_dialog(),
             AppCommand::ConfigDiagnostics => self.open_config_diagnostics_screen(),
             AppCommand::Help => self.open_help_screen(),
             AppCommand::ReloadConfig => self.reload_config(),
@@ -1551,8 +1572,10 @@ impl AppState {
         buffer.word_wrap = !buffer.word_wrap;
         if buffer.word_wrap {
             buffer.first_column = 0;
+            buffer.first_visual_row = 0;
             self.set_status("Word wrap on");
         } else {
+            buffer.first_visual_row = 0;
             self.set_status("Word wrap off");
         }
     }
@@ -2112,7 +2135,16 @@ impl AppState {
             .map_err(|_| io::Error::other("focused window is missing"))?;
         let window_id = window.id;
         let buffer_id = window.buffer_id;
-        let (path, cursor, first_line, first_column, word_wrap, visible_whitespace, bookmarks) = {
+        let (
+            path,
+            cursor,
+            first_line,
+            first_visual_row,
+            first_column,
+            word_wrap,
+            visible_whitespace,
+            bookmarks,
+        ) = {
             let buffer = self
                 .buffer_state(buffer_id)
                 .ok_or_else(|| io::Error::other("focused buffer is missing"))?;
@@ -2126,6 +2158,7 @@ impl AppState {
                 path,
                 buffer.buffer.cursor_position(),
                 buffer.first_line,
+                buffer.first_visual_row,
                 buffer.first_column,
                 buffer.word_wrap,
                 buffer.visible_whitespace,
@@ -2151,6 +2184,11 @@ impl AppState {
         let _ = reloaded.buffer.set_cursor(Position::new(line, column));
         reloaded.first_line = first_line.min(reloaded.buffer.line_count().saturating_sub(1));
         reloaded.first_column = if reloaded.word_wrap { 0 } else { first_column };
+        reloaded.first_visual_row = if reloaded.word_wrap {
+            first_visual_row
+        } else {
+            0
+        };
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             *buffer = reloaded;
@@ -2460,7 +2498,23 @@ impl AppState {
         self.set_status("Copied Command Output");
     }
 
+    fn jump_command_output_summary(&mut self) {
+        self.jump_command_output_line(command_output_summary_line, "summary");
+    }
+
+    fn jump_command_output_stdout(&mut self) {
+        self.jump_command_output_line(command_output_stdout_line, "stdout");
+    }
+
     fn jump_command_output_stderr(&mut self) {
+        self.jump_command_output_line(command_output_stderr_line, "stderr");
+    }
+
+    fn jump_command_output_line(
+        &mut self,
+        line_finder: fn(&TextBuffer) -> Option<usize>,
+        label: &'static str,
+    ) {
         let Some(window_id) = self.command_output_window_id() else {
             self.set_status("Command Output: no output window");
             return;
@@ -2471,9 +2525,9 @@ impl AppState {
         };
         let Some(line_index) = self
             .buffer_state(buffer_id)
-            .and_then(|buffer| command_output_stderr_line(&buffer.buffer))
+            .and_then(|buffer| line_finder(&buffer.buffer))
         else {
-            self.set_status("Command Output: stderr section not found");
+            self.set_status(format!("Command Output: {label} section not found"));
             return;
         };
 
@@ -2489,7 +2543,33 @@ impl AppState {
             let _ = buffer.buffer.set_cursor(Position::new(line_index, 0));
             buffer.ensure_cursor_visible(context.body_height, context.body_width);
         }
-        self.set_status("Command Output: stderr");
+        self.set_status(format!("Command Output: {label}"));
+    }
+
+    fn find_in_command_output(&mut self, spec: SearchSpec) {
+        if spec.is_empty() {
+            self.set_status("Command Output find: no query");
+            return;
+        }
+        let Some(window_id) = self.command_output_window_id() else {
+            self.set_status("Command Output: no output window");
+            return;
+        };
+        self.workspace.focused = window_id;
+        self.last_find_query = Some(spec.input.clone());
+        self.find_in_focused_buffer(spec, SearchDirection::Forward);
+    }
+
+    fn start_command_output_save_dialog(&mut self) {
+        if self.command_output_buffer_id().is_none() {
+            self.set_status("Command Output: no output window");
+            return;
+        }
+        let input = self
+            .recent_file_dialog_input
+            .clone()
+            .unwrap_or_else(|| "command-output.txt".to_string());
+        self.start_file_dialog(FileDialogKind::CommandOutputSave, input);
     }
 
     fn save_command_output_path(&mut self, path: PathBuf) {
@@ -2562,6 +2642,7 @@ impl AppState {
         ));
         out.push_str(&format!("  {DUN_CONFIG_ENV}: {}\n", env_config_path_text()));
         out.push_str(&format!("  default path: {}\n", default_config_path_text()));
+        out.push_str("  defaults: dun --dump-config\n");
 
         out.push_str("\nTerminal\n");
         out.push_str(&format!(
@@ -2621,6 +2702,23 @@ impl AppState {
         ));
 
         out.push_str("\nKeymap\n");
+        out.push_str(&format!(
+            "  bindings: {}\n",
+            self.shell.keymap.bindings.len()
+        ));
+        let important_unbound = important_config_diagnostic_commands()
+            .iter()
+            .filter(|command| self.shell.keymap.sequence_for_command(command).is_none())
+            .map(command_id)
+            .collect::<Vec<_>>();
+        if important_unbound.is_empty() {
+            out.push_str("  important_unbound: none\n");
+        } else {
+            out.push_str(&format!(
+                "  important_unbound: {}\n",
+                important_unbound.join(", ")
+            ));
+        }
         let mut bindings = self
             .shell
             .keymap
@@ -2634,6 +2732,10 @@ impl AppState {
         }
 
         out.push_str("\nFile Dialog Keymap\n");
+        out.push_str(&format!(
+            "  bindings: {}\n",
+            self.file_dialog_keys.bindings.len()
+        ));
         let mut bindings = self
             .file_dialog_keys
             .bindings
@@ -3157,6 +3259,34 @@ impl AppState {
                         self.continue_pending_action(action);
                     } else {
                         self.note_recent_file_dialog_path(&path);
+                    }
+                }
+                FileDialogKind::CommandOutputSave => {
+                    let Some(text) = self.command_output_text_current() else {
+                        let status = "Command Output: no output window".to_string();
+                        let mut dialog = dialog;
+                        dialog.message = Some(status.clone());
+                        self.file_dialog = Some(dialog);
+                        self.set_status(status);
+                        return;
+                    };
+                    match atomic_write_text_file(&path, &text)
+                        .map_err(|error| path_io_error(&path, error))
+                    {
+                        Ok(report) => {
+                            self.note_recent_file_dialog_path(&path);
+                            self.set_status(status_with_atomic_temp_report(
+                                format!("Saved Command Output {}", path.display()),
+                                &report.temp_reconcile,
+                            ));
+                        }
+                        Err(error) => {
+                            let status = format!("Command Output save failed: {error}");
+                            let mut dialog = dialog;
+                            dialog.message = Some(status.clone());
+                            self.file_dialog = Some(dialog);
+                            self.set_status(status);
+                        }
                     }
                 }
             },
@@ -4008,15 +4138,27 @@ impl AppState {
             [action] if normalize_command_line_token(action) == "copy" => {
                 self.handle_app_command(&AppCommand::CommandOutputCopy)
             }
+            [action] if normalize_command_line_token(action) == "summary" => {
+                self.handle_app_command(&AppCommand::CommandOutputSummary)
+            }
+            [action] if normalize_command_line_token(action) == "stdout" => {
+                self.handle_app_command(&AppCommand::CommandOutputStdout)
+            }
             [action] if normalize_command_line_token(action) == "stderr" => {
                 self.handle_app_command(&AppCommand::CommandOutputStderr)
+            }
+            [action, query] if normalize_command_line_token(action) == "find" => {
+                self.find_in_command_output(SearchSpec::parse(query))
+            }
+            [action] if normalize_command_line_token(action) == "save" => {
+                self.handle_app_command(&AppCommand::CommandOutputSave)
             }
             [action, path] if normalize_command_line_token(action) == "save" => {
                 self.save_command_output_path(PathBuf::from(path))
             }
-            _ => {
-                self.set_status("Command failed: output expects clear, copy, stderr, or save PATH")
-            }
+            _ => self.set_status(
+                "Command failed: output expects summary, stdout, stderr, find QUERY, clear, copy, or save PATH",
+            ),
         }
     }
 
@@ -4930,6 +5072,7 @@ impl FileDialogState {
         let label = match self.kind {
             FileDialogKind::Open => "Open: ",
             FileDialogKind::SaveAs => "Save As: ",
+            FileDialogKind::CommandOutputSave => "Save Output: ",
         };
         format!("{label}{}", self.input.as_str())
     }
@@ -5277,7 +5420,7 @@ impl FileDialogState {
         }
 
         let path = expand_user_path(&input);
-        if self.kind == FileDialogKind::SaveAs
+        if self.kind.confirms_overwrite()
             && path.exists()
             && !path.is_dir()
             && self.overwrite_path.as_ref() != Some(&path)
@@ -5312,7 +5455,7 @@ impl FileDialogState {
                     FileDialogSubmit::Path(entry.path)
                 }
             }
-            FileDialogKind::SaveAs => {
+            FileDialogKind::SaveAs | FileDialogKind::CommandOutputSave => {
                 self.apply_entry(index);
                 FileDialogSubmit::ContinueEditing
             }
@@ -5333,6 +5476,7 @@ impl FileDialogState {
 enum FileDialogKind {
     Open,
     SaveAs,
+    CommandOutputSave,
 }
 
 impl FileDialogKind {
@@ -5340,6 +5484,7 @@ impl FileDialogKind {
         match self {
             Self::Open => "Open",
             Self::SaveAs => "Save As",
+            Self::CommandOutputSave => "Save Command Output",
         }
     }
 
@@ -5347,7 +5492,12 @@ impl FileDialogKind {
         match self {
             Self::Open => "File name",
             Self::SaveAs => "Save as",
+            Self::CommandOutputSave => "Save output as",
         }
+    }
+
+    const fn confirms_overwrite(self) -> bool {
+        matches!(self, Self::SaveAs | Self::CommandOutputSave)
     }
 
     fn help_text(self, entry_count: usize) -> String {
@@ -5355,6 +5505,9 @@ impl FileDialogKind {
         match self {
             Self::Open => format!("Select a file or type a path. {entry_count} {noun}."),
             Self::SaveAs => format!("Type the destination path. {entry_count} {noun}."),
+            Self::CommandOutputSave => {
+                format!("Type the output destination path. {entry_count} {noun}.")
+            }
         }
     }
 }
@@ -5452,7 +5605,7 @@ enum MouseDragState {
     },
 }
 
-const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, shell, run [\"command\"], output clear|copy|stderr|save PATH, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
+const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, shell, run [\"command\"], output summary|stdout|stderr|find QUERY|clear|copy|save PATH, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CommandLineParseError {
@@ -5652,9 +5805,18 @@ fn scroll_status(buffer: &BufferState, context: Option<BufferViewContext>) -> St
         body_width: 1,
     });
     if buffer.word_wrap {
-        let start = buffer.first_line.min(total.saturating_sub(1));
-        let end = start.saturating_add(context.body_height.max(1)).min(total);
-        return format!("View {}-{end}/{total} wrap", start + 1);
+        let total_rows = buffer.wrapped_total_visual_rows(context.body_width.max(1));
+        let start_row = buffer
+            .wrapped_top_visual_row(context.body_width.max(1))
+            .min(total_rows.saturating_sub(1));
+        let end_row = start_row
+            .saturating_add(context.body_height.max(1))
+            .min(total_rows);
+        let line = buffer.first_line.min(total.saturating_sub(1)) + 1;
+        return format!(
+            "View V{}-{end_row}/{total_rows} L{line} wrap",
+            start_row + 1
+        );
     }
 
     let height = context.body_height.max(1);
@@ -5813,6 +5975,7 @@ struct BufferState {
     encoding: FileTextEncoding,
     file_snapshot: Option<FileReadSnapshot>,
     first_line: usize,
+    first_visual_row: usize,
     first_column: usize,
     search: Option<BufferSearchState>,
     word_wrap: bool,
@@ -5829,6 +5992,7 @@ impl BufferState {
             encoding: FileTextEncoding::Utf8,
             file_snapshot: None,
             first_line: 0,
+            first_visual_row: 0,
             first_column: 0,
             search: None,
             word_wrap: false,
@@ -5845,6 +6009,7 @@ impl BufferState {
             encoding: loaded.encoding,
             file_snapshot: loaded.snapshot,
             first_line: 0,
+            first_visual_row: 0,
             first_column: 0,
             search: None,
             word_wrap: false,
@@ -5880,6 +6045,11 @@ impl BufferState {
     }
 
     fn ensure_cursor_visible(&mut self, body_height: usize, body_width: usize) {
+        if self.word_wrap {
+            self.ensure_cursor_visible_wrapped(body_height, body_width);
+            return;
+        }
+        self.first_visual_row = 0;
         if body_height == 0 {
             self.first_line = self.buffer.cursor_position().line;
         } else {
@@ -5892,6 +6062,27 @@ impl BufferState {
         }
 
         self.ensure_cursor_column_visible(body_width);
+    }
+
+    fn ensure_cursor_visible_wrapped(&mut self, body_height: usize, body_width: usize) {
+        self.first_column = 0;
+        let body_width = body_width.max(1);
+        let cursor_row =
+            self.wrapped_visual_row_for_position(self.buffer.cursor_position(), body_width);
+        if body_height == 0 {
+            self.set_wrapped_top_visual_row(cursor_row, body_width);
+            return;
+        }
+
+        let top = self.wrapped_top_visual_row(body_width);
+        let height = body_height.max(1);
+        if cursor_row < top {
+            self.set_wrapped_top_visual_row(cursor_row, body_width);
+        } else if cursor_row >= top.saturating_add(height) {
+            self.set_wrapped_top_visual_row(cursor_row.saturating_sub(height - 1), body_width);
+        } else {
+            self.normalize_wrapped_top(body_width);
+        }
     }
 
     fn move_page_up(&mut self, lines: usize) -> bool {
@@ -5910,12 +6101,16 @@ impl BufferState {
         moved
     }
 
-    fn scroll_view_lines(&mut self, delta: isize, body_height: usize) -> bool {
+    fn scroll_view_lines(&mut self, delta: isize, body_height: usize, body_width: usize) -> bool {
         if body_height == 0 || self.buffer.line_count() == 0 {
             return false;
         }
+        if self.word_wrap {
+            return self.scroll_wrapped_visual_rows(delta, body_height, body_width);
+        }
 
         let old_first_line = self.first_line;
+        self.first_visual_row = 0;
         let max_first_line = self.buffer.line_count().saturating_sub(body_height.max(1));
         self.first_line = if delta < 0 {
             self.first_line.saturating_sub(delta.unsigned_abs())
@@ -5929,14 +6124,30 @@ impl BufferState {
         self.first_line != old_first_line
     }
 
-    fn scroll_view_to_line(&mut self, first_line: usize, body_height: usize) -> bool {
+    fn scroll_view_to_line(
+        &mut self,
+        first_line: usize,
+        first_visual_row: usize,
+        body_height: usize,
+        body_width: usize,
+    ) -> bool {
         if body_height == 0 || self.buffer.line_count() == 0 {
             return false;
+        }
+        if self.word_wrap {
+            let old = (self.first_line, self.first_visual_row);
+            let target = self
+                .wrapped_visual_row_for_line(first_line, body_width.max(1))
+                .saturating_add(first_visual_row);
+            self.set_wrapped_top_visual_row(target, body_width.max(1));
+            self.keep_cursor_inside_visible_wrapped_rows(body_height, body_width.max(1));
+            return old != (self.first_line, self.first_visual_row);
         }
 
         let old_first_line = self.first_line;
         let max_first_line = self.buffer.line_count().saturating_sub(body_height.max(1));
         self.first_line = first_line.min(max_first_line);
+        self.first_visual_row = 0;
         self.keep_cursor_inside_visible_lines(body_height);
         self.first_line != old_first_line
     }
@@ -5984,6 +6195,7 @@ impl BufferState {
     fn ensure_cursor_column_visible(&mut self, body_width: usize) {
         if self.word_wrap {
             self.first_column = 0;
+            self.normalize_wrapped_top(body_width.max(1));
             return;
         }
 
@@ -6016,6 +6228,146 @@ impl BufferState {
             .map(|line| UnicodeWidthStr::width(line.as_str()))
             .max()
             .unwrap_or(0)
+    }
+
+    fn scroll_wrapped_visual_rows(
+        &mut self,
+        delta: isize,
+        body_height: usize,
+        body_width: usize,
+    ) -> bool {
+        let body_width = body_width.max(1);
+        let old = (self.first_line, self.first_visual_row);
+        let top = self.wrapped_top_visual_row(body_width);
+        let max_top = self
+            .wrapped_total_visual_rows(body_width)
+            .saturating_sub(body_height.max(1));
+        let next = if delta < 0 {
+            top.saturating_sub(delta.unsigned_abs())
+        } else {
+            top.saturating_add(delta as usize).min(max_top)
+        };
+        self.set_wrapped_top_visual_row(next, body_width);
+        self.keep_cursor_inside_visible_wrapped_rows(body_height, body_width);
+        old != (self.first_line, self.first_visual_row)
+    }
+
+    fn normalize_wrapped_top(&mut self, body_width: usize) {
+        if !self.word_wrap {
+            self.first_visual_row = 0;
+            return;
+        }
+        let body_width = body_width.max(1);
+        let top = self.wrapped_top_visual_row(body_width);
+        self.set_wrapped_top_visual_row(top, body_width);
+    }
+
+    fn wrapped_total_visual_rows(&self, body_width: usize) -> usize {
+        (0..self.buffer.line_count())
+            .map(|line_index| self.wrapped_line_visual_rows(line_index, body_width))
+            .sum::<usize>()
+            .max(1)
+    }
+
+    fn wrapped_top_visual_row(&self, body_width: usize) -> usize {
+        self.wrapped_visual_row_for_line(self.first_line, body_width)
+            .saturating_add(
+                self.first_visual_row.min(
+                    self.wrapped_line_visual_rows(self.first_line, body_width)
+                        .saturating_sub(1),
+                ),
+            )
+    }
+
+    fn wrapped_visual_row_for_line(&self, line_index: usize, body_width: usize) -> usize {
+        (0..line_index.min(self.buffer.line_count()))
+            .map(|line| self.wrapped_line_visual_rows(line, body_width))
+            .sum()
+    }
+
+    fn set_wrapped_top_visual_row(&mut self, target_row: usize, body_width: usize) {
+        let body_width = body_width.max(1);
+        let max_row = self.wrapped_total_visual_rows(body_width).saturating_sub(1);
+        let mut remaining = target_row.min(max_row);
+        for line_index in 0..self.buffer.line_count() {
+            let rows = self.wrapped_line_visual_rows(line_index, body_width);
+            if remaining < rows {
+                self.first_line = line_index;
+                self.first_visual_row = remaining;
+                self.first_column = 0;
+                return;
+            }
+            remaining = remaining.saturating_sub(rows);
+        }
+
+        self.first_line = self.buffer.line_count().saturating_sub(1);
+        self.first_visual_row = 0;
+        self.first_column = 0;
+    }
+
+    fn wrapped_visual_row_for_position(&self, position: Position, body_width: usize) -> usize {
+        self.wrapped_visual_row_for_line(position.line, body_width)
+            .saturating_add(self.wrapped_row_offset_for_position(position, body_width))
+    }
+
+    fn wrapped_row_offset_for_position(&self, position: Position, body_width: usize) -> usize {
+        let body_width = body_width.max(1);
+        let Some(line) = self.buffer.line(position.line) else {
+            return 0;
+        };
+        let prefix = line.get(..position.column).unwrap_or(line);
+        let mut row = 0usize;
+        let mut column = 0usize;
+        for ch in prefix.chars() {
+            advance_wrapped_column(
+                &mut row,
+                &mut column,
+                display_width_for_editor_char(ch),
+                body_width,
+            );
+        }
+        row
+    }
+
+    fn wrapped_line_visual_rows(&self, line_index: usize, body_width: usize) -> usize {
+        let body_width = body_width.max(1);
+        let Some(line) = self.buffer.line(line_index) else {
+            return 1;
+        };
+        let mut row = 0usize;
+        let mut column = 0usize;
+        if line.is_empty() {
+            return 1;
+        }
+        for ch in line.chars() {
+            advance_wrapped_column(
+                &mut row,
+                &mut column,
+                display_width_for_editor_char(ch),
+                body_width,
+            );
+        }
+        if self.visible_whitespace {
+            advance_wrapped_column(&mut row, &mut column, 1, body_width);
+        }
+        row.saturating_add(1)
+    }
+
+    fn position_for_wrapped_visual_row(&self, target_row: usize, body_width: usize) -> Position {
+        let body_width = body_width.max(1);
+        let mut remaining = target_row;
+        for line_index in 0..self.buffer.line_count() {
+            let rows = self.wrapped_line_visual_rows(line_index, body_width);
+            if remaining < rows {
+                let line = self.buffer.line(line_index).unwrap_or_default();
+                return Position::new(
+                    line_index,
+                    byte_column_for_wrapped_row_start(line, remaining, body_width),
+                );
+            }
+            remaining = remaining.saturating_sub(rows);
+        }
+        buffer_end_position(&self.buffer)
     }
 
     fn normalize_bookmarks(&mut self) {
@@ -6063,6 +6415,26 @@ impl BufferState {
         let _ = self
             .buffer
             .set_cursor(Position::new(target_line, target_column));
+    }
+
+    fn keep_cursor_inside_visible_wrapped_rows(&mut self, body_height: usize, body_width: usize) {
+        if body_height == 0 {
+            return;
+        }
+
+        let body_width = body_width.max(1);
+        let top = self.wrapped_top_visual_row(body_width);
+        let bottom = top.saturating_add(body_height.saturating_sub(1));
+        let cursor_row =
+            self.wrapped_visual_row_for_position(self.buffer.cursor_position(), body_width);
+        let target_row = cursor_row.clamp(top, bottom);
+        if target_row == cursor_row {
+            return;
+        }
+
+        let _ = self
+            .buffer
+            .set_cursor(self.position_for_wrapped_visual_row(target_row, body_width));
     }
 
     fn clamp_column_to_line(&self, line_index: usize, target_column: usize) -> usize {
@@ -7302,6 +7674,22 @@ fn file_dialog_shortcuts_text(keymap: &FileDialogKeymap) -> String {
     )
 }
 
+fn important_config_diagnostic_commands() -> &'static [EditorCommand] {
+    &[
+        EditorCommand::App(AppCommand::CommandLine),
+        EditorCommand::App(AppCommand::Help),
+        EditorCommand::App(AppCommand::ReloadConfig),
+        EditorCommand::App(AppCommand::ConfigDiagnostics),
+        EditorCommand::App(AppCommand::RunCommand),
+        EditorCommand::File(FileCommand::Open),
+        EditorCommand::File(FileCommand::Save),
+        EditorCommand::Edit(EditCommand::Find),
+        EditorCommand::Edit(EditCommand::CopyExternal),
+        EditorCommand::Window(WindowCommand::SplitHorizontal),
+        EditorCommand::Window(WindowCommand::FocusLeft),
+    ]
+}
+
 struct HelpSection {
     title: &'static str,
     commands: &'static [HelpCommand],
@@ -7341,12 +7729,24 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Run command to read-only output",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputSummary),
+                description: "Jump Command Output to summary",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputStdout),
+                description: "Jump Command Output to stdout",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputStderr),
                 description: "Jump Command Output to stderr",
             },
             HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputCopy),
                 description: "Copy Command Output internally",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputSave),
+                description: "Save Command Output with dialog",
             },
             HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputClear),
@@ -7760,11 +8160,27 @@ fn push_decoded_command_stream(out: &mut String, stream: &CapturedCommandStream)
     }
 }
 
-fn command_output_stderr_line(buffer: &TextBuffer) -> Option<usize> {
+fn command_output_summary_line(buffer: &TextBuffer) -> Option<usize> {
     (0..buffer.line_count()).find(|line_index| {
         buffer
             .line(*line_index)
-            .is_some_and(|line| line.starts_with("--- stderr"))
+            .is_some_and(|line| line.starts_with("Command: "))
+    })
+}
+
+fn command_output_stdout_line(buffer: &TextBuffer) -> Option<usize> {
+    command_output_section_line(buffer, "--- stdout")
+}
+
+fn command_output_stderr_line(buffer: &TextBuffer) -> Option<usize> {
+    command_output_section_line(buffer, "--- stderr")
+}
+
+fn command_output_section_line(buffer: &TextBuffer, prefix: &str) -> Option<usize> {
+    (0..buffer.line_count()).find(|line_index| {
+        buffer
+            .line(*line_index)
+            .is_some_and(|line| line.starts_with(prefix))
     })
 }
 
@@ -7791,6 +8207,42 @@ fn clamp_to_display_column(line: &str, target: usize) -> usize {
         }
         display = display.saturating_add(width);
     }
+    line.len()
+}
+
+fn display_width_for_editor_char(ch: char) -> usize {
+    ch.width().unwrap_or(0).max(1)
+}
+
+fn advance_wrapped_column(row: &mut usize, column: &mut usize, width: usize, body_width: usize) {
+    let width = width.max(1);
+    let body_width = body_width.max(1);
+    if *column > 0 && (*column).saturating_add(width) > body_width {
+        *row = (*row).saturating_add(1);
+        *column = 0;
+    }
+    *column = (*column).saturating_add(width);
+}
+
+fn byte_column_for_wrapped_row_start(line: &str, target_row: usize, body_width: usize) -> usize {
+    if target_row == 0 {
+        return 0;
+    }
+
+    let mut row = 0usize;
+    let mut column = 0usize;
+    for (index, ch) in line.char_indices() {
+        let width = display_width_for_editor_char(ch);
+        if column > 0 && column.saturating_add(width) > body_width.max(1) {
+            row = row.saturating_add(1);
+            column = 0;
+            if row == target_row {
+                return index;
+            }
+        }
+        column = column.saturating_add(width);
+    }
+
     line.len()
 }
 
@@ -8822,6 +9274,27 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn mouse_wheel_scrolls_wrapped_visual_rows() {
+        let mut app = AppState::new();
+        app.mouse_enabled = true;
+        let state = app.buffer_state_mut(BufferId(1)).unwrap();
+        state.buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdefghijklmnop");
+        state.word_wrap = true;
+        app.sync_view_for_area(Rect::new(0, 0, 12, 3));
+
+        handle_mouse_event(&mut app, scroll_down(5, 2));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(state.first_line, 0);
+        assert_eq!(state.first_visual_row, 1);
+        assert_eq!(state.buffer.cursor_position(), Position::new(0, 8));
+        assert!(
+            scroll_status(state, app.focused_buffer_view_context(app.workspace_area))
+                .contains("View V2-2/2 L1 wrap")
+        );
+    }
+
+    #[test]
     fn mouse_scrollbar_click_and_drag_scrolls_editor_body_when_enabled() {
         let text = (0..20)
             .map(|index| format!("line{index}"))
@@ -9565,6 +10038,10 @@ key.window.close = none
         assert!(text.contains("active: disabled (--no-config)"));
         assert!(text.contains("theme:"));
         assert!(text.contains("mouse: disabled"));
+        assert!(text.contains("defaults: dun --dump-config"));
+        assert!(text.contains("osc52_max_bytes: 16384"));
+        assert!(text.contains("bindings:"));
+        assert!(text.contains("important_unbound: none"));
         assert!(text.contains("app.config_diagnostics"));
         assert!(text.contains("F6"));
         assert!(text.contains("File Dialog Keymap"));
@@ -9771,10 +10248,33 @@ key.window.close = none
 
         app.handle_command(&EditorCommand::App(AppCommand::CommandOutputStderr));
         let window = app.workspace.focused_window().unwrap();
-        let buffer = app.buffer_state(window.buffer_id).unwrap();
+        let output_buffer_id = window.buffer_id;
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
         assert_eq!(
             buffer.buffer.line(buffer.buffer.cursor_position().line),
             Some("--- stderr (6 bytes, complete) ---")
+        );
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandOutputStdout));
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("--- stdout (6 bytes, complete) ---")
+        );
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandOutputSummary));
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("Command: printf stdout; printf stderr >&2")
+        );
+
+        submit_command_line(&mut app, "output find stderr");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert!(
+            buffer
+                .search_status()
+                .is_some_and(|status| status == "Find 1/3")
         );
 
         let path = temp_file_path("command-output-save.txt");
@@ -9790,6 +10290,36 @@ key.window.close = none
             .buffer_state(app.workspace.focused_window().unwrap().buffer_id)
             .unwrap();
         assert_eq!(buffer.buffer.to_text(), "Dun Command Output\n\n(empty)\n");
+    }
+
+    #[test]
+    fn command_output_save_dialog_writes_output() {
+        let mut app = AppState::new();
+        app.run_external_command_to_buffer("printf dialog-save");
+        let path = temp_file_path("command-output-dialog-save.txt");
+        let _ = std::fs::remove_file(&path);
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandOutputSave));
+        assert_eq!(
+            app.file_dialog.as_ref().map(FileDialogState::status_text),
+            Some("Save Output: command-output.txt".to_string())
+        );
+        app.file_dialog
+            .as_mut()
+            .unwrap()
+            .input
+            .set_text(path.to_string_lossy().to_string());
+        app.submit_file_dialog();
+
+        let saved = std::fs::read_to_string(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert!(saved.contains("dialog-save"));
+        assert!(app.file_dialog.is_none());
+        assert!(
+            app.status_message
+                .as_deref()
+                .is_some_and(|status| status.contains("Saved Command Output"))
+        );
     }
 
     #[test]

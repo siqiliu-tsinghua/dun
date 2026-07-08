@@ -248,10 +248,13 @@ impl UiShell {
             && local_y < window.rect.height.saturating_sub(1)
         {
             if let Some(buffer) = buffers.iter().find(|buffer| buffer.id == window.buffer_id) {
-                if let Some(first_line) =
+                if let Some((first_line, first_visual_row)) =
                     self.scrollbar_target_line_for_buffer(buffer, window.rect, local_y)
                 {
-                    return UiMouseTarget::Scrollbar { first_line };
+                    return UiMouseTarget::Scrollbar {
+                        first_line,
+                        first_visual_row,
+                    };
                 }
             }
         }
@@ -311,8 +314,14 @@ impl UiShell {
 
         for line_index in buffer.first_line..buffer.buffer.line_count() {
             let line_rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
-            if target_row < visual_row.saturating_add(line_rows) {
-                let row_offset = target_row.saturating_sub(visual_row);
+            let start_offset = if line_index == buffer.first_line {
+                buffer.first_visual_row.min(line_rows.saturating_sub(1))
+            } else {
+                0
+            };
+            let visible_rows = line_rows.saturating_sub(start_offset);
+            if target_row < visual_row.saturating_add(visible_rows) {
+                let row_offset = start_offset.saturating_add(target_row.saturating_sub(visual_row));
                 let display_column = row_offset
                     .saturating_mul(body_width)
                     .saturating_add(body_x.min(body_width.saturating_sub(1)));
@@ -322,7 +331,7 @@ impl UiShell {
                     self.byte_column_for_display_column(line, display_column),
                 ));
             }
-            visual_row = visual_row.saturating_add(line_rows);
+            visual_row = visual_row.saturating_add(visible_rows);
         }
 
         UiMouseTarget::Body(buffer_end_position(buffer.buffer))
@@ -459,7 +468,18 @@ impl UiShell {
                 buffer.show_whitespace,
                 self.display_sanitizer.ascii_only,
             );
-            for segment in wrap_line_segments(&visible, body_width) {
+            let start_offset = if line_index == buffer.first_line {
+                buffer.first_visual_row.min(
+                    self.wrapped_visual_line_count(buffer, line_index, body_width)
+                        .saturating_sub(1),
+                )
+            } else {
+                0
+            };
+            for segment in wrap_line_segments(&visible, body_width)
+                .iter()
+                .skip(start_offset)
+            {
                 if lines.len() >= body_height {
                     break;
                 }
@@ -539,20 +559,21 @@ impl UiShell {
             return None;
         }
 
-        let mut visual_y = 0usize;
+        let mut visual_y = -(buffer.first_visual_row as isize);
         for line_index in buffer.first_line..position.line {
-            visual_y = visual_y
-                .saturating_add(self.wrapped_visual_line_count(buffer, line_index, body_width));
-            if visual_y >= body_height {
+            visual_y = visual_y.saturating_add(
+                self.wrapped_visual_line_count(buffer, line_index, body_width) as isize,
+            );
+            if visual_y >= body_height as isize {
                 return None;
             }
         }
 
         let line = buffer.buffer.line(position.line)?;
-        let display_column = self.display_column(line, position.column)?;
+        let display_column = self.line_display_column_for_buffer(buffer, line, position.column)?;
         let row_offset = display_column / body_width;
-        visual_y = visual_y.saturating_add(row_offset);
-        if visual_y >= body_height {
+        visual_y = visual_y.saturating_add(row_offset as isize);
+        if visual_y < 0 || visual_y >= body_height as isize {
             return None;
         }
         let display_column = display_column % body_width;
@@ -671,15 +692,15 @@ impl UiShell {
         gutter_width: usize,
     ) -> Vec<UiSelectionLine> {
         let mut lines = Vec::new();
-        let mut visual_y = 0usize;
+        let mut visual_y = -(buffer.first_visual_row as isize);
         for line_index in buffer.first_line..buffer.buffer.line_count() {
-            if visual_y >= body_height {
+            if visual_y >= body_height as isize {
                 break;
             }
             let visual_rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
             if line_index >= range.start.line && line_index <= range.end.line {
                 let Some(line) = buffer.buffer.line(line_index) else {
-                    visual_y = visual_y.saturating_add(visual_rows);
+                    visual_y = visual_y.saturating_add(visual_rows as isize);
                     continue;
                 };
                 let start_column = if line_index == range.start.line {
@@ -705,7 +726,7 @@ impl UiShell {
                     lines.push(UiSelectionLine { y, start_x, end_x });
                 }
             }
-            visual_y = visual_y.saturating_add(visual_rows);
+            visual_y = visual_y.saturating_add(visual_rows as isize);
         }
 
         lines
@@ -805,14 +826,15 @@ impl UiShell {
         gutter_width: usize,
     ) -> Vec<UiSearchMatchLine> {
         let mut first_visible_row_by_line = Vec::new();
-        let mut visual_y = 0usize;
+        let mut visual_y = -(buffer.first_visual_row as isize);
         for line_index in buffer.first_line..buffer.buffer.line_count() {
-            if visual_y >= body_height {
+            if visual_y >= body_height as isize {
                 break;
             }
             first_visible_row_by_line.push((line_index, visual_y));
-            visual_y = visual_y
-                .saturating_add(self.wrapped_visual_line_count(buffer, line_index, body_width));
+            visual_y = visual_y.saturating_add(
+                self.wrapped_visual_line_count(buffer, line_index, body_width) as isize,
+            );
         }
 
         let mut lines = Vec::new();
@@ -859,7 +881,7 @@ impl UiShell {
         line: &str,
         start_column: usize,
         end_column: usize,
-        visual_y: usize,
+        visual_y: isize,
         body_width: usize,
         body_height: usize,
         gutter_width: usize,
@@ -887,12 +909,16 @@ impl UiShell {
         let mut spans = Vec::new();
         let mut segment_start = 0usize;
         for (row_offset, segment) in wrap_line_segments(&visible, body_width).iter().enumerate() {
-            let row = visual_y.saturating_add(row_offset);
-            if row >= body_height {
-                break;
-            }
+            let row = visual_y.saturating_add(row_offset as isize);
             let segment_width = display_width(segment);
             let segment_end = segment_start.saturating_add(segment_width);
+            if row < 0 {
+                segment_start = segment_end;
+                continue;
+            }
+            if row >= body_height as isize {
+                break;
+            }
             let start = start_display.max(segment_start);
             let end = end_display.min(segment_end);
             if start < end {
@@ -910,8 +936,21 @@ impl UiShell {
 
     fn scrollbar_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> Option<UiScrollbar> {
         let body_height = rect.height.checked_sub(2)? as usize;
-        let total = buffer.buffer.line_count();
-        if body_height == 0 || total <= body_height {
+        if body_height == 0 {
+            return None;
+        }
+        let (total, top) = if buffer.wrap {
+            let inner_width = rect.width.saturating_sub(2) as usize;
+            let gutter_width = self.gutter_width_for_buffer(buffer, rect) as usize;
+            let body_width = inner_width.saturating_sub(gutter_width).max(1);
+            (
+                self.wrapped_total_visual_rows(buffer, body_width),
+                self.wrapped_top_visual_row(buffer, body_width),
+            )
+        } else {
+            (buffer.buffer.line_count(), buffer.first_line)
+        };
+        if total <= body_height {
             return None;
         }
 
@@ -921,15 +960,11 @@ impl UiShell {
             / total;
         let thumb_height = thumb_height.max(1).min(body_height);
         let max_thumb_top = body_height.saturating_sub(thumb_height);
-        let max_first_line = total.saturating_sub(body_height);
-        let thumb_top = if max_first_line == 0 {
+        let max_first_row = total.saturating_sub(body_height);
+        let thumb_top = if max_first_row == 0 {
             0
         } else {
-            buffer
-                .first_line
-                .min(max_first_line)
-                .saturating_mul(max_thumb_top)
-                / max_first_line
+            top.min(max_first_row).saturating_mul(max_thumb_top) / max_first_row
         };
 
         Some(UiScrollbar {
@@ -943,21 +978,36 @@ impl UiShell {
         buffer: &BufferView<'_>,
         rect: Rect,
         local_y: u16,
-    ) -> Option<usize> {
+    ) -> Option<(usize, usize)> {
         let body_height = rect.height.checked_sub(2)? as usize;
-        let total = buffer.buffer.line_count();
-        if body_height == 0 || total <= body_height {
+        if body_height == 0 {
+            return None;
+        }
+        let inner_width = rect.width.saturating_sub(2) as usize;
+        let gutter_width = self.gutter_width_for_buffer(buffer, rect) as usize;
+        let body_width = inner_width.saturating_sub(gutter_width).max(1);
+        let total = if buffer.wrap {
+            self.wrapped_total_visual_rows(buffer, body_width)
+        } else {
+            buffer.buffer.line_count()
+        };
+        if total <= body_height {
             return None;
         }
 
         let track_y = local_y.saturating_sub(1) as usize;
         let max_track_y = body_height.saturating_sub(1);
-        let max_first_line = total.saturating_sub(body_height);
+        let max_first_row = total.saturating_sub(body_height);
         if max_track_y == 0 {
-            return Some(0);
+            return Some((0, 0));
         }
 
-        Some(track_y.min(max_track_y).saturating_mul(max_first_line) / max_track_y)
+        let target_row = track_y.min(max_track_y).saturating_mul(max_first_row) / max_track_y;
+        if buffer.wrap {
+            Some(self.wrapped_position_for_top_row(buffer, body_width, target_row))
+        } else {
+            Some((target_row, 0))
+        }
     }
 
     fn wrapped_visual_line_count(
@@ -975,6 +1025,39 @@ impl UiShell {
             self.display_sanitizer.ascii_only,
         );
         wrap_line_segments(&visible, body_width.max(1)).len().max(1)
+    }
+
+    fn wrapped_total_visual_rows(&self, buffer: &BufferView<'_>, body_width: usize) -> usize {
+        (0..buffer.buffer.line_count())
+            .map(|line_index| self.wrapped_visual_line_count(buffer, line_index, body_width))
+            .sum::<usize>()
+            .max(1)
+    }
+
+    fn wrapped_top_visual_row(&self, buffer: &BufferView<'_>, body_width: usize) -> usize {
+        let previous_rows = (0..buffer.first_line.min(buffer.buffer.line_count()))
+            .map(|line_index| self.wrapped_visual_line_count(buffer, line_index, body_width))
+            .sum::<usize>();
+        let current_rows = self.wrapped_visual_line_count(buffer, buffer.first_line, body_width);
+        previous_rows.saturating_add(buffer.first_visual_row.min(current_rows.saturating_sub(1)))
+    }
+
+    fn wrapped_position_for_top_row(
+        &self,
+        buffer: &BufferView<'_>,
+        body_width: usize,
+        target_row: usize,
+    ) -> (usize, usize) {
+        let mut remaining = target_row;
+        for line_index in 0..buffer.buffer.line_count() {
+            let rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
+            if remaining < rows {
+                return (line_index, remaining);
+            }
+            remaining = remaining.saturating_sub(rows);
+        }
+
+        (buffer.buffer.line_count().saturating_sub(1), 0)
     }
 
     fn horizontal_edges_for_buffer(
@@ -1063,7 +1146,12 @@ impl UiShell {
             } else {
                 1
             };
-            for row_offset in 0..visual_rows {
+            let start_offset = if buffer.wrap && line_index == buffer.first_line {
+                buffer.first_visual_row.min(visual_rows.saturating_sub(1))
+            } else {
+                0
+            };
+            for row_offset in start_offset..visual_rows {
                 if lines.len() >= body_height {
                     break;
                 }
@@ -1305,12 +1393,24 @@ impl UiShell {
                             EditorCommand::App(dun_core::AppCommand::StatusHistory),
                         ),
                         MenuEntry::new(
+                            "Output Summary (M)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputSummary),
+                        ),
+                        MenuEntry::new(
+                            "Output Stdout (U)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputStdout),
+                        ),
+                        MenuEntry::new(
                             "Output Stderr (O)",
                             EditorCommand::App(dun_core::AppCommand::CommandOutputStderr),
                         ),
                         MenuEntry::new(
                             "Output Copy (Y)",
                             EditorCommand::App(dun_core::AppCommand::CommandOutputCopy),
+                        ),
+                        MenuEntry::new(
+                            "Output Save... (A)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputSave),
                         ),
                         MenuEntry::new(
                             "Output Clear (K)",
@@ -2400,6 +2500,7 @@ pub struct BufferView<'a> {
     pub id: BufferId,
     pub buffer: &'a TextBuffer,
     pub first_line: usize,
+    pub first_visual_row: usize,
     pub first_column: usize,
     pub search_matches: &'a [SearchMatch],
     pub active_search_match: Option<usize>,
@@ -2414,6 +2515,7 @@ impl<'a> BufferView<'a> {
             id,
             buffer,
             first_line: 0,
+            first_visual_row: 0,
             first_column: 0,
             search_matches: &[],
             active_search_match: None,
@@ -2428,6 +2530,7 @@ impl<'a> BufferView<'a> {
             id,
             buffer,
             first_line,
+            first_visual_row: 0,
             first_column: 0,
             search_matches: &[],
             active_search_match: None,
@@ -2447,6 +2550,7 @@ impl<'a> BufferView<'a> {
             id,
             buffer,
             first_line,
+            first_visual_row: 0,
             first_column,
             search_matches: &[],
             active_search_match: None,
@@ -2454,6 +2558,11 @@ impl<'a> BufferView<'a> {
             show_whitespace: false,
             bookmarks: &[],
         }
+    }
+
+    pub const fn with_first_visual_row(mut self, first_visual_row: usize) -> Self {
+        self.first_visual_row = first_visual_row;
+        self
     }
 
     pub const fn with_search(
@@ -2596,7 +2705,10 @@ pub struct UiMouseHit {
 pub enum UiMouseTarget {
     Chrome,
     Gutter,
-    Scrollbar { first_line: usize },
+    Scrollbar {
+        first_line: usize,
+        first_visual_row: usize,
+    },
     Body(Position),
 }
 
@@ -3081,6 +3193,36 @@ mod tests {
     }
 
     #[test]
+    fn frame_starts_wrapped_body_at_visual_row_offset() {
+        let workspace = Workspace::new_untitled();
+        let mut buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdefghijklmnop");
+        buffer.set_cursor(Position::new(0, 10)).unwrap();
+        buffer
+            .select(Position::new(0, 2), Position::new(0, 14))
+            .unwrap();
+        let buffer_view = BufferView::new(BufferId(1), &buffer)
+            .with_first_visual_row(1)
+            .with_view_options(true, false, &[]);
+
+        let frame = UiShell::default().frame_for_workspace(
+            &workspace,
+            Rect::new(0, 0, 12, 6),
+            &[buffer_view],
+        );
+
+        assert_eq!(frame.windows[0].body[0].as_plain_text(), "ijklmnop");
+        assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 9, y: 1 }));
+        assert_eq!(
+            frame.windows[0].selection,
+            vec![UiSelectionLine {
+                y: 1,
+                start_x: 3,
+                end_x: 9,
+            }]
+        );
+    }
+
+    #[test]
     fn frame_maps_search_matches_to_window_body() {
         let workspace = Workspace::new_untitled();
         let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "one two one");
@@ -3232,7 +3374,13 @@ mod tests {
             .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 6), &[buffer_view], 79, 3)
             .unwrap();
 
-        assert_eq!(hit.target, UiMouseTarget::Scrollbar { first_line: 4 });
+        assert_eq!(
+            hit.target,
+            UiMouseTarget::Scrollbar {
+                first_line: 4,
+                first_visual_row: 0,
+            }
+        );
     }
 
     #[test]

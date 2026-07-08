@@ -47,6 +47,10 @@ Keybindings use command ids:
 key.app.quit = Ctrl+Q
 key.app.reload_config = F5
 key.app.config_diagnostics = F6
+key.app.command_output_summary = none
+key.app.command_output_stdout = none
+key.app.command_output_stderr = none
+key.app.command_output_save = none
 key.edit.find = Ctrl+F
 key.edit.copy_external = Ctrl+W,Ctrl+C
 key.window.split_horizontal = Ctrl+W,H
@@ -113,6 +117,9 @@ remapped or disabled like other `key.edit.*` entries.
 
 Find and Replace prompts accept search prefixes before the query: `/i query`
 for ignore-case, `/w query` for whole-word, and `/iw query` for both.
+The command prompt also accepts Command Output helpers:
+`output summary`, `output stdout`, `output stderr`, `output find QUERY`,
+`output clear`, `output copy`, `output save`, and `output save PATH`.
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window
@@ -141,6 +148,10 @@ limits.editable_file_soft_limit_bytes = 8 MiB
 key.app.quit = Ctrl+Q
 key.app.reload_config = F5
 key.app.config_diagnostics = F6
+key.app.command_output_summary = none
+key.app.command_output_stdout = none
+key.app.command_output_stderr = none
+key.app.command_output_save = none
 key.edit.find = Ctrl+F
 key.edit.copy_external = Ctrl+W,Ctrl+C
 key.edit.scroll_left = Ctrl+W,[

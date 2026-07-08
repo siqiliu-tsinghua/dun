@@ -82,6 +82,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add file-dialog overlay structure tests for Microsoft Edit-like visual
   fields.
 - [x] Refine selection and search highlight geometry for soft-wrapped lines.
+- [x] Add visual-row scrolling for soft-wrapped editor panes.
 
 ## `dun-config`
 
@@ -183,6 +184,10 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add opt-in OSC 52 external copy for active selections while preserving
   the internal clipboard fallback.
 - [x] Add Command Output clear/copy/stderr/save commands.
+- [x] Add Command Output summary/stdout/stderr navigation and output find.
+- [x] Add Command Output Save dialog integration.
+- [x] Polish Config Diagnostics summaries for source, clipboard, limits, and
+  keymap coverage.
 
 ## File and Display Safety
 

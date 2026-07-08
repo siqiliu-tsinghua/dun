@@ -557,3 +557,15 @@ This is an append-only progress log. Keep new entries dated and factual.
   command-line save actions. The read-only output pane can now be cleared,
   copied to the internal clipboard, navigated directly to stderr, or saved via
   `output save PATH`.
+- Strengthened soft-wrap viewport behavior from line-level scrolling to
+  visual-row scrolling. Wrapped panes now preserve an intra-line visual row
+  offset, and UI rendering, cursor placement, selection/search highlights,
+  gutters, scrollbars, hit testing, mouse wheel scrolling, and status fields
+  use that offset.
+- Expanded Command Output navigation and search. Typed commands can jump to
+  summary, stdout, or stderr; command prompt `output find QUERY` focuses the
+  read-only output buffer and reuses the normal Find cache/highlight path; and
+  `output save` without a path opens the file dialog while `output save PATH`
+  remains available.
+- Polished Config Diagnostics with default-config guidance, binding counts,
+  important-unbound command summaries, and explicit OSC 52/limit details.
