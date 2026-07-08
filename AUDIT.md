@@ -265,6 +265,10 @@ Current implementation:
 Before adding a `rum` adapter:
 
 - `rum` must have a release-facing host API stable enough to target.
+- A minimal `dun` build must remain usable without the `rum` runtime.
+- Simple editor behavior should stay in Rust core code; `rum` should be
+  reserved for high-leverage plugin workflows such as complex log filtering,
+  structured extraction, advanced text transforms, and semantic plugin logic.
 - `dun` must already have plugin role and policy tests.
 - The adapter must use pure-only evaluation for untrusted plugins.
 - The adapter must map `rum` values into `dun` output types before validation.

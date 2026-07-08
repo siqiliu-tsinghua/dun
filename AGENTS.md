@@ -13,6 +13,13 @@ exists.
 Do not add a `rum` dependency until the `rum` release-facing host API is stable
 enough for this repository to target deliberately.
 
+Keep the default editor small and Rust-owned. Implement simple and common
+editor features in `dun` itself; reserve future `rum` integration for
+high-leverage plugin work that needs the language runtime's Wolfram-like
+expressiveness, such as complex log filters, structured extraction, advanced
+text transforms, or semantic plugin logic. A minimal build must not require the
+`rum` runtime.
+
 ## Document Responsibilities
 
 - `README.md`: user-facing overview, goals, status, and high-level architecture.
@@ -32,6 +39,8 @@ same change.
 - Keep dependencies compatible with Rust `1.85`.
 - Prefer small, typed internal APIs over stringly command plumbing.
 - Keep editor state owned by Rust core code.
+- Prefer Rust core implementations for simple editor features before reaching
+  for a plugin/runtime boundary.
 - Keep terminal rendering behind profile/theme/glyph abstractions.
 - Keep log processing streaming-friendly; avoid whole-file assumptions for
   large logs.

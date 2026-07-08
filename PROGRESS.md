@@ -600,3 +600,15 @@ This is an append-only progress log. Keep new entries dated and factual.
   Command prompt completion now lists ambiguous candidates, cycles them with
   Tab/BackTab, and completes file-path arguments for open/save/output-save
   commands.
+- Added a lightweight release binary size audit. On commit `4d89d07`, default
+  release builds measured 1,627,136 bytes on macOS x86_64 and 1,881,392 bytes
+  on Debian x86_64. A size-oriented release profile using `opt-level=z`, fat
+  LTO, one codegen unit, stripped symbols, and `panic=abort` measured 859,544
+  bytes on macOS and 1,034,840 bytes on Debian. Results and exact commands are
+  recorded in `docs/release-size-audit.md`.
+- Recorded the footprint conclusion from the size audit: the small Rust
+  editor core is roughly 0.8-1.0 MiB in the audited size-oriented builds,
+  while `rum` is currently treated as an approximately 6 MiB runtime. Therefore
+  ordinary editor features should stay in Rust core code, and future `rum`
+  integration should be optional or late-loaded for high-leverage plugin logic
+  such as custom log filters and advanced text transforms.

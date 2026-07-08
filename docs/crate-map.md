@@ -127,3 +127,7 @@ Do not create these yet:
 
 They become useful only after the editor baseline is working and `rum` has a
 stable release-facing host API.
+
+The default workspace must not depend on `rum`. Keep common editor behavior in
+the Rust crates above; add `dun-plugin-rum` only as an optional adapter for
+workflows that justify carrying the runtime footprint.

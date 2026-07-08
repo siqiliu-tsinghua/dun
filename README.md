@@ -241,6 +241,14 @@ stable release-facing host API:
 - `dun-plugin-api`: plugin roles, policies, input snapshots, and output intents.
 - `dun-plugin-rum`: pure `rum` runtime adapter.
 
+The default editor line should stay small and pure Rust. Current size audit
+results put size-oriented `dun` binaries around 0.8-1.0 MiB on macOS/Debian,
+while `rum` is currently treated as an approximately 6 MiB runtime dependency.
+That makes `rum` valuable but too large for basic editor features. Common
+editing, search, file, window, outline, and status workflows should remain in
+Rust core code; future `rum` support should be optional or late-loaded and used
+only when its language power is worth the extra runtime footprint.
+
 ## Plugin Boundary
 
 The safety boundary is intentionally host-owned.
@@ -293,6 +301,8 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
   PTY smoke coverage and manual SSH terminal compatibility checklist.
 - [docs/performance-baselines.md](./docs/performance-baselines.md): ignored
   large-file performance baseline tests and current local sample output.
+- [docs/release-size-audit.md](./docs/release-size-audit.md): lightweight
+  release binary size baseline for macOS and Debian builds.
 - [docs/configuration.md](./docs/configuration.md): current Rust-owned config
   file loader and supported keys.
 - [docs/crate-map.md](./docs/crate-map.md): current Rust workspace crate

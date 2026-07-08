@@ -240,5 +240,6 @@ release-facing host API.
 - [x] Add automated modified-key event coverage for the terminal matrix.
 - [ ] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
+- [x] Lightweight release binary size audit on macOS and Debian.
 - [x] Security audit suite for control-byte rendering.
 - [ ] Security audit suite for plugin policy after plugin APIs exist.
