@@ -117,7 +117,8 @@ Required controls:
   or the command prompt;
 - stdout-only and stderr-only Command Output views are derived read-only
   buffers generated from the bounded captured output; they do not expose a
-  process, filesystem, terminal, or plugin capability;
+  process, filesystem, terminal, or plugin capability. When focused, current
+  Command Output find/copy/save actions operate on that bounded derived buffer;
 - Command Output search reuses the normal read-only Find path and only changes
   cursor, selection, and search-highlight state;
 - Command Output Save through the file dialog uses the same host-owned path

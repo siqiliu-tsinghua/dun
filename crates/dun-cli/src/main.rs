@@ -31,8 +31,8 @@ use dun_config::{
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
     FileCommand, FileTextEncoding, LineEnding, Position, Rect, SearchMatch, SearchOptions,
-    Selection, SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind, Workspace,
-    WorkspaceError, decode_file_text,
+    Selection, SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind, WindowState,
+    Workspace, WorkspaceError, decode_file_text,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
 use dun_ui::{BufferView, MenuSelection, UiMouseTarget, UiOverlay, UiShell};
@@ -1132,6 +1132,72 @@ impl AppState {
             Key::Down => buffer.buffer.extend_selection_down(),
             Key::Home => buffer.buffer.extend_selection_to_line_start(),
             Key::End => buffer.buffer.extend_selection_to_line_end(),
+            _ => false,
+        }
+    }
+
+    fn handle_auxiliary_window_key_stroke(&mut self, stroke: KeyStroke) -> bool {
+        if stroke.modifiers != KeyModifiers::NONE && stroke.modifiers != KeyModifiers::SHIFT {
+            return false;
+        }
+
+        let Ok(window) = self.workspace.focused_window() else {
+            return false;
+        };
+
+        match window.kind {
+            WindowKind::Outline => match stroke.key {
+                Key::Enter => {
+                    self.jump_current_outline_target();
+                    true
+                }
+                Key::Char('n') | Key::Char('N') => {
+                    self.move_focused_numbered_aux_row(1, "Outline");
+                    true
+                }
+                Key::Char('p') | Key::Char('P') => {
+                    self.move_focused_numbered_aux_row(-1, "Outline");
+                    true
+                }
+                _ => false,
+            },
+            WindowKind::SearchResults => match stroke.key {
+                Key::Enter => {
+                    self.jump_current_search_result();
+                    true
+                }
+                Key::Char('n') | Key::Char('N') => {
+                    self.move_focused_numbered_aux_row(1, "Search Results");
+                    true
+                }
+                Key::Char('p') | Key::Char('P') => {
+                    self.move_focused_numbered_aux_row(-1, "Search Results");
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    fn handle_auxiliary_enter_key_stroke(&mut self, stroke: KeyStroke) -> bool {
+        if stroke.modifiers != KeyModifiers::NONE || stroke.key != Key::Enter {
+            return false;
+        }
+
+        let Ok(window) = self.workspace.focused_window() else {
+            return false;
+        };
+
+        match window.kind {
+            WindowKind::Outline => {
+                self.jump_current_outline_target();
+                true
+            }
+            WindowKind::SearchResults => {
+                self.jump_current_search_result();
+                true
+            }
             _ => false,
         }
     }
@@ -2512,6 +2578,13 @@ impl AppState {
         self.set_status(format!("Outline: {}", entry.label));
     }
 
+    fn jump_current_outline_target(&mut self) {
+        let Some(index) = self.current_or_next_numbered_aux_index("Outline") else {
+            return;
+        };
+        self.jump_focused_outline_target(&(index + 1).to_string());
+    }
+
     fn open_config_diagnostics_screen(&mut self) {
         self.set_status("Config diagnostics");
 
@@ -2875,12 +2948,8 @@ impl AppState {
     }
 
     fn repeat_find_in_command_output(&mut self, direction: SearchDirection) {
-        let Some(window_id) = self.command_output_window_id() else {
+        let Some((window_id, buffer_id)) = self.command_output_search_target() else {
             self.set_status("Command Output: no output window");
-            return;
-        };
-        let Some(buffer_id) = self.command_output_buffer_id() else {
-            self.set_status("Command Output: no output buffer");
             return;
         };
         let spec = self
@@ -2906,7 +2975,7 @@ impl AppState {
             self.set_status("Command Output find: no query");
             return;
         }
-        let Some(window_id) = self.command_output_window_id() else {
+        let Some((window_id, _)) = self.command_output_search_target() else {
             self.set_status("Command Output: no output window");
             return;
         };
@@ -2944,8 +3013,29 @@ impl AppState {
     }
 
     fn command_output_text_current(&self) -> Option<String> {
+        if let Ok(window) = self.workspace.focused_window() {
+            if window.kind == WindowKind::CommandOutputView {
+                return Some(self.buffer_state(window.buffer_id)?.buffer.to_text());
+            }
+        }
+
         let buffer_id = self.command_output_buffer_id()?;
         Some(self.buffer_state(buffer_id)?.buffer.to_text())
+    }
+
+    fn command_output_search_target(&self) -> Option<(WindowId, BufferId)> {
+        if let Ok(window) = self.workspace.focused_window() {
+            if matches!(
+                window.kind,
+                WindowKind::CommandOutput | WindowKind::CommandOutputView
+            ) {
+                return Some((window.id, window.buffer_id));
+            }
+        }
+
+        let window_id = self.command_output_window_id()?;
+        let buffer_id = self.command_output_buffer_id()?;
+        Some((window_id, buffer_id))
     }
 
     fn status_history_window_id(&self) -> Option<WindowId> {
@@ -3152,21 +3242,33 @@ impl AppState {
     }
 
     fn close_focused_window_unchecked(&mut self) {
-        let closing_buffer_id = self
-            .workspace
-            .focused_window()
-            .ok()
-            .map(|window| window.buffer_id);
+        let focused = self.workspace.focused_window().ok().cloned();
+        let closing_buffer_id = focused.as_ref().map(|window| window.buffer_id);
+        let return_buffer_id = focused
+            .as_ref()
+            .and_then(|window| self.auxiliary_return_buffer_id(window));
         match self.workspace.close_focused() {
             Ok(_) => {
                 if let Some(buffer_id) = closing_buffer_id {
                     self.drop_buffer_if_unreferenced(buffer_id);
+                }
+                if let Some(buffer_id) = return_buffer_id {
+                    self.focus_window_for_buffer(buffer_id);
                 }
                 self.set_status("Closed window");
             }
             Err(error) => {
                 self.set_status(format!("Close failed: {}", workspace_error_text(error)));
             }
+        }
+    }
+
+    fn auxiliary_return_buffer_id(&self, window: &WindowState) -> Option<BufferId> {
+        match window.kind {
+            WindowKind::Outline => self.outline_source,
+            WindowKind::SearchResults => self.search_results_source,
+            WindowKind::CommandOutputView => self.command_output_buffer_id(),
+            _ => None,
         }
     }
 
@@ -3915,40 +4017,46 @@ impl AppState {
                 self.recall_next_prompt_history();
             }
             CrosstermKeyCode::Tab => {
-                self.complete_command_line_prompt();
+                self.complete_command_line_prompt(true);
             }
             CrosstermKeyCode::BackTab => {
-                self.complete_command_line_prompt();
+                self.complete_command_line_prompt(false);
             }
             CrosstermKeyCode::Left => {
                 if let Some(prompt) = &mut self.prompt {
+                    prompt.clear_completion();
                     prompt.input.move_left();
                 }
             }
             CrosstermKeyCode::Right => {
                 if let Some(prompt) = &mut self.prompt {
+                    prompt.clear_completion();
                     prompt.input.move_right();
                 }
             }
             CrosstermKeyCode::Home => {
                 if let Some(prompt) = &mut self.prompt {
+                    prompt.clear_completion();
                     prompt.input.move_start();
                 }
             }
             CrosstermKeyCode::End => {
                 if let Some(prompt) = &mut self.prompt {
+                    prompt.clear_completion();
                     prompt.input.move_end();
                 }
             }
             CrosstermKeyCode::Delete => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.detach_history();
+                    prompt.clear_completion();
                     prompt.input.delete_forward();
                 }
             }
             CrosstermKeyCode::Backspace => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.detach_history();
+                    prompt.clear_completion();
                     prompt.input.delete_backward();
                 }
             }
@@ -3956,6 +4064,7 @@ impl AppState {
                 if let Some(ch) = text_input_from_crossterm(event) {
                     if let Some(prompt) = &mut self.prompt {
                         prompt.detach_history();
+                        prompt.clear_completion();
                         prompt.input.insert_char(ch);
                     }
                 }
@@ -3966,7 +4075,7 @@ impl AppState {
         true
     }
 
-    fn complete_command_line_prompt(&mut self) {
+    fn complete_command_line_prompt(&mut self, forward: bool) {
         let Some(prompt) = &mut self.prompt else {
             return;
         };
@@ -3975,26 +4084,46 @@ impl AppState {
         }
         let input = prompt.input.as_str().to_string();
         if prompt.input.cursor_index != input.len() {
+            prompt.clear_completion();
             self.status_message = Some("Command completion: move cursor to end".to_string());
             return;
         }
+
+        if let Some(replacement) = prompt.next_completion_replacement(&input, forward) {
+            prompt.detach_history();
+            prompt.input.set_text(replacement);
+            self.status_message = prompt
+                .completion
+                .as_ref()
+                .map(PromptCompletionState::status_text)
+                .or_else(|| Some("Command completion".to_string()));
+            return;
+        }
+
         let completion = command_line_completion(&input);
         match completion {
             CommandCompletion::None => {
+                prompt.clear_completion();
                 self.status_message = Some("Command completion: no matches".to_string());
             }
             CommandCompletion::Unique(text) => {
                 prompt.detach_history();
+                prompt.clear_completion();
                 prompt.input.set_text(text);
                 self.status_message = Some("Command completion".to_string());
             }
             CommandCompletion::CommonPrefix(text, count) => {
                 prompt.detach_history();
+                prompt.clear_completion();
                 prompt.input.set_text(text);
                 self.status_message = Some(format!("Command completion: {count} matches"));
             }
-            CommandCompletion::Ambiguous(candidates) => {
-                self.status_message = Some(format!("Command completion: {}", candidates.join(" ")));
+            CommandCompletion::Candidates(candidates) => {
+                prompt.completion = Some(PromptCompletionState::new(input, candidates));
+                self.status_message = prompt
+                    .completion
+                    .as_ref()
+                    .map(PromptCompletionState::status_text);
             }
         }
     }
@@ -4025,6 +4154,7 @@ impl AppState {
                 }
             };
             prompt.history_index = Some(next_index);
+            prompt.clear_completion();
             next_index
         };
 
@@ -4055,9 +4185,11 @@ impl AppState {
             if index + 1 < history_len {
                 let next_index = index + 1;
                 prompt.history_index = Some(next_index);
+                prompt.clear_completion();
                 (Some(next_index), None)
             } else {
                 prompt.history_index = None;
+                prompt.clear_completion();
                 (None, Some(std::mem::take(&mut prompt.history_draft)))
             }
         };
@@ -4926,6 +5058,13 @@ impl AppState {
         ));
     }
 
+    fn jump_current_search_result(&mut self) {
+        let Some(index) = self.current_or_next_numbered_aux_index("Search Results") else {
+            return;
+        };
+        self.jump_search_result(&(index + 1).to_string());
+    }
+
     fn find_in_focused_buffer(&mut self, spec: SearchSpec, direction: SearchDirection) {
         let Some(buffer) = self.focused_buffer_mut() else {
             self.set_status("Find: focused buffer is missing");
@@ -4967,6 +5106,70 @@ impl AppState {
             match_count,
             spec.display()
         ));
+    }
+
+    fn current_or_next_numbered_aux_index(&mut self, label: &'static str) -> Option<usize> {
+        let buffer_id = self.workspace.focused_window().ok()?.buffer_id;
+        let current_line = self.buffer_state(buffer_id)?.buffer.cursor_position().line;
+        if let Some(index) = self
+            .buffer_state(buffer_id)
+            .and_then(|buffer| buffer.buffer.line(current_line))
+            .and_then(numbered_list_index_for_line)
+        {
+            return Some(index);
+        }
+
+        self.move_focused_numbered_aux_row(1, label)
+    }
+
+    fn move_focused_numbered_aux_row(
+        &mut self,
+        delta: isize,
+        label: &'static str,
+    ) -> Option<usize> {
+        let buffer_id = self.workspace.focused_window().ok()?.buffer_id;
+        let rows = self
+            .buffer_state(buffer_id)
+            .map(|buffer| numbered_list_rows(&buffer.buffer))
+            .unwrap_or_default();
+        if rows.is_empty() {
+            self.set_status(format!("{label}: no entries"));
+            return None;
+        }
+
+        let current_line = self.buffer_state(buffer_id)?.buffer.cursor_position().line;
+        let current_row = rows.iter().position(|row| row.line == current_line);
+        let next_row = if let Some(current_row) = current_row {
+            wrapping_index(current_row, rows.len(), delta)
+        } else {
+            if delta < 0 {
+                rows.iter()
+                    .rposition(|row| row.line < current_line)
+                    .unwrap_or(rows.len() - 1)
+            } else {
+                rows.iter()
+                    .position(|row| row.line > current_line)
+                    .unwrap_or(0)
+            }
+        };
+        let row = rows[next_row];
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            let _ = buffer.buffer.set_cursor(Position::new(row.line, 0));
+            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        }
+        self.set_status(format!(
+            "{label}: selected {}/{}",
+            row.index + 1,
+            rows.len()
+        ));
+        Some(row.index)
     }
 
     fn replace_in_focused_buffer(&mut self, spec: SearchSpec, replacement: &str) {
@@ -5495,6 +5698,7 @@ struct PromptState {
     preview: Option<PromptPreviewState>,
     history_index: Option<usize>,
     history_draft: String,
+    completion: Option<PromptCompletionState>,
 }
 
 impl PromptState {
@@ -5505,6 +5709,7 @@ impl PromptState {
             preview,
             history_index: None,
             history_draft: String::new(),
+            completion: None,
         }
     }
 
@@ -5517,6 +5722,79 @@ impl PromptState {
         if self.kind == PromptKind::CommandLine {
             self.history_index = None;
             self.history_draft.clear();
+        }
+    }
+
+    fn clear_completion(&mut self) {
+        self.completion = None;
+    }
+
+    fn next_completion_replacement(&mut self, input: &str, forward: bool) -> Option<String> {
+        let completion = self.completion.as_mut()?;
+        let next_index = if completion.active_index.is_none() && input == completion.base_input {
+            if forward {
+                0
+            } else {
+                completion.candidates.len().saturating_sub(1)
+            }
+        } else {
+            let current_index = completion
+                .active_index
+                .or_else(|| {
+                    completion
+                        .candidates
+                        .iter()
+                        .position(|candidate| candidate.replacement == input)
+                })
+                .filter(|_| {
+                    completion
+                        .candidates
+                        .iter()
+                        .any(|candidate| candidate.replacement == input)
+                })?;
+            wrapping_index(
+                current_index,
+                completion.candidates.len(),
+                if forward { 1 } else { -1 },
+            )
+        };
+        completion.active_index = Some(next_index);
+        Some(completion.candidates[next_index].replacement.clone())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PromptCompletionState {
+    base_input: String,
+    candidates: Vec<CommandCompletionCandidate>,
+    active_index: Option<usize>,
+}
+
+impl PromptCompletionState {
+    fn new(base_input: String, candidates: Vec<CommandCompletionCandidate>) -> Self {
+        Self {
+            base_input,
+            candidates,
+            active_index: None,
+        }
+    }
+
+    fn status_text(&self) -> String {
+        let list = self
+            .candidates
+            .iter()
+            .map(|candidate| candidate.display.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if let Some(index) = self.active_index {
+            format!(
+                "Command completion: {}/{} {}",
+                index + 1,
+                self.candidates.len(),
+                list
+            )
+        } else {
+            format!("Command completion: {list}")
         }
     }
 }
@@ -6273,7 +6551,13 @@ enum CommandCompletion {
     None,
     Unique(String),
     CommonPrefix(String, usize),
-    Ambiguous(Vec<String>),
+    Candidates(Vec<CommandCompletionCandidate>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CommandCompletionCandidate {
+    display: String,
+    replacement: String,
 }
 
 fn command_line_completion(input: &str) -> CommandCompletion {
@@ -6290,6 +6574,9 @@ fn command_line_completion(input: &str) -> CommandCompletion {
     match tokens.as_slice() {
         [] => complete_last_token(input, "", command_line_top_level_candidates(), true),
         [partial] => complete_last_token("", partial, command_line_top_level_candidates(), true),
+        [command, partial] if command_accepts_path_argument(command) => {
+            complete_path_token(&format!("{command} "), partial)
+        }
         [command, partial] => {
             let candidates = match normalize_command_line_token(command).as_str() {
                 "config" | "diagnostics" | "configdiagnostics" => {
@@ -6301,6 +6588,12 @@ fn command_line_completion(input: &str) -> CommandCompletion {
             };
             let prefix = format!("{command} ");
             complete_last_token(&prefix, partial, candidates, false)
+        }
+        [command, subcommand, partial]
+            if normalize_command_line_token(command) == "output"
+                && normalize_command_line_token(subcommand) == "save" =>
+        {
+            complete_path_token(&format!("{command} {subcommand} "), partial)
         }
         [command, subcommand, partial]
             if normalize_command_line_token(command) == "output"
@@ -6341,15 +6634,99 @@ fn complete_last_token(
             if common.len() > partial.len() {
                 CommandCompletion::CommonPrefix(format!("{prefix}{common}"), matches.len())
             } else {
-                CommandCompletion::Ambiguous(
+                CommandCompletion::Candidates(
                     matches
                         .iter()
-                        .map(|candidate| candidate.to_string())
+                        .map(|candidate| {
+                            let mut replacement = format!("{prefix}{candidate}");
+                            if add_space_after_unique {
+                                replacement.push(' ');
+                            }
+                            CommandCompletionCandidate {
+                                display: candidate.to_string(),
+                                replacement,
+                            }
+                        })
                         .collect(),
                 )
             }
         }
     }
+}
+
+fn command_accepts_path_argument(command: &str) -> bool {
+    matches!(
+        normalize_command_line_token(command).as_str(),
+        "open" | "save" | "saveas" | "reloadfile"
+    )
+}
+
+fn complete_path_token(prefix: &str, partial: &str) -> CommandCompletion {
+    let context = file_dialog_context(partial);
+    let Ok(listing) = list_file_dialog_entries(&context, false) else {
+        return CommandCompletion::None;
+    };
+    let entries = listing
+        .entries
+        .into_iter()
+        .filter(|entry| is_completable_file_dialog_entry(entry, &context.prefix))
+        .collect::<Vec<_>>();
+    match entries.as_slice() {
+        [] => CommandCompletion::None,
+        [entry] => CommandCompletion::Unique(format!(
+            "{prefix}{}",
+            quote_command_line_token(&entry.input)
+        )),
+        _ => {
+            if let Some(common) = common_entry_prefix(&entries, &context.prefix) {
+                if common.len() > context.prefix.len() {
+                    return CommandCompletion::CommonPrefix(
+                        format!(
+                            "{prefix}{}",
+                            quote_command_line_token(&format!("{}{}", context.base_input, common))
+                        ),
+                        entries.len(),
+                    );
+                }
+            }
+
+            CommandCompletion::Candidates(
+                entries
+                    .iter()
+                    .map(|entry| CommandCompletionCandidate {
+                        display: if entry.is_dir {
+                            format!("{}/", entry.name)
+                        } else {
+                            entry.name.clone()
+                        },
+                        replacement: format!("{prefix}{}", quote_command_line_token(&entry.input)),
+                    })
+                    .collect(),
+            )
+        }
+    }
+}
+
+fn quote_command_line_token(token: &str) -> String {
+    if token.is_empty() {
+        return "\"\"".to_string();
+    }
+    if !token
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\\'))
+    {
+        return token.to_string();
+    }
+
+    let mut quoted = String::from("\"");
+    for ch in token.chars() {
+        if matches!(ch, '"' | '\\') {
+            quoted.push('\\');
+        }
+        quoted.push(ch);
+    }
+    quoted.push('"');
+    quoted
 }
 
 fn common_candidate_prefix(candidates: &[&str]) -> String {
@@ -6622,19 +6999,52 @@ struct OutlineEntry {
     line: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct NumberedListRow {
+    line: usize,
+    index: usize,
+}
+
+fn numbered_list_rows(buffer: &TextBuffer) -> Vec<NumberedListRow> {
+    (0..buffer.line_count())
+        .filter_map(|line| {
+            let index = numbered_list_index_for_line(buffer.line(line)?)?;
+            Some(NumberedListRow { line, index })
+        })
+        .collect()
+}
+
+fn numbered_list_index_for_line(line: &str) -> Option<usize> {
+    let trimmed = line.trim_start();
+    let digit_len = trimmed
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit())
+        .map(char::len_utf8)
+        .sum::<usize>();
+    if digit_len == 0 || trimmed.get(digit_len..)?.chars().next()? != '.' {
+        return None;
+    }
+
+    trimmed
+        .get(..digit_len)?
+        .parse::<usize>()
+        .ok()?
+        .checked_sub(1)
+}
+
 fn outline_entries_for_buffer(buffer: &TextBuffer) -> Vec<OutlineEntry> {
     (0..buffer.line_count())
         .filter_map(|line_index| {
             let line = buffer.line(line_index)?.trim();
             outline_label_for_line(line).map(|label| OutlineEntry {
-                label: label.to_string(),
+                label,
                 line: line_index,
             })
         })
         .collect()
 }
 
-fn outline_label_for_line(line: &str) -> Option<&str> {
+fn outline_label_for_line(line: &str) -> Option<String> {
     const HEADINGS: &[&str] = &[
         "App",
         "File",
@@ -6659,10 +7069,146 @@ fn outline_label_for_line(line: &str) -> Option<&str> {
     ];
     if HEADINGS.contains(&line) || line.starts_with("--- stdout") || line.starts_with("--- stderr")
     {
-        Some(line)
+        return Some(line.to_string());
+    }
+
+    markdown_outline_label(line)
+        .or_else(|| bracket_section_outline_label(line))
+        .or_else(|| rust_outline_label(line))
+        .or_else(|| shell_outline_label(line))
+}
+
+fn markdown_outline_label(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    let level = trimmed.chars().take_while(|ch| *ch == '#').count();
+    if !(1..=6).contains(&level) {
+        return None;
+    }
+    let rest = trimmed.get(level..)?;
+    if !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let title = rest.trim();
+    if title.is_empty() {
+        None
+    } else {
+        Some(format!("{} {title}", "#".repeat(level)))
+    }
+}
+
+fn bracket_section_outline_label(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    let inner = trimmed
+        .strip_prefix("[[")
+        .and_then(|rest| rest.strip_suffix("]]"))
+        .or_else(|| {
+            trimmed
+                .strip_prefix('[')
+                .and_then(|rest| rest.strip_suffix(']'))
+        })?
+        .trim();
+    if inner.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn rust_outline_label(line: &str) -> Option<String> {
+    let mut tokens = line.split_whitespace().peekable();
+    while matches!(
+        tokens.peek().copied(),
+        Some("pub")
+            | Some("async")
+            | Some("unsafe")
+            | Some("const")
+            | Some("extern")
+            | Some("default")
+    ) || tokens.peek().is_some_and(|token| token.starts_with("pub("))
+    {
+        tokens.next();
+    }
+
+    match tokens.next()? {
+        "fn" => {
+            let name = outline_identifier(tokens.next()?)?;
+            Some(format!("fn {name}"))
+        }
+        "struct" => {
+            let name = outline_identifier(tokens.next()?)?;
+            Some(format!("struct {name}"))
+        }
+        "enum" => {
+            let name = outline_identifier(tokens.next()?)?;
+            Some(format!("enum {name}"))
+        }
+        "trait" => {
+            let name = outline_identifier(tokens.next()?)?;
+            Some(format!("trait {name}"))
+        }
+        "mod" => {
+            let name = outline_identifier(tokens.next()?)?;
+            Some(format!("mod {name}"))
+        }
+        "impl" => {
+            let rest = tokens.collect::<Vec<_>>().join(" ");
+            let label = rest
+                .split('{')
+                .next()
+                .unwrap_or_default()
+                .split(" where ")
+                .next()
+                .unwrap_or_default()
+                .trim();
+            if label.is_empty() {
+                Some("impl".to_string())
+            } else {
+                Some(format!("impl {label}"))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn shell_outline_label(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    if let Some(rest) = trimmed.strip_prefix("function ") {
+        let name = outline_identifier(rest.split_whitespace().next()?)?;
+        return Some(format!("function {name}"));
+    }
+
+    let Some(name) = trimmed.split("()").next() else {
+        return None;
+    };
+    let name = name.trim();
+    if name.is_empty()
+        || !trimmed[name.len()..].trim_start().starts_with("()")
+        || !name.chars().all(is_shell_identifier_char)
+    {
+        return None;
+    }
+    let after = trimmed[name.len() + 2..].trim_start();
+    if after.is_empty() || after.starts_with('{') {
+        Some(format!("{name}()"))
     } else {
         None
     }
+}
+
+fn outline_identifier(token: &str) -> Option<String> {
+    let end = token
+        .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '-'))
+        .unwrap_or(token.len());
+    let ident = token.get(..end)?.trim();
+    if ident.is_empty() {
+        None
+    } else {
+        Some(ident.to_string())
+    }
+}
+
+fn is_shell_identifier_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_' || ch == '-'
 }
 
 fn outline_text(source: &str, entries: &[OutlineEntry]) -> String {
@@ -8248,11 +8794,19 @@ fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
         return;
     };
 
+    if app.handle_auxiliary_enter_key_stroke(stroke) {
+        return;
+    }
+
     if app.handle_key_stroke(stroke) {
         return;
     }
 
     if app.handle_selection_key_stroke(stroke) {
+        return;
+    }
+
+    if app.handle_auxiliary_window_key_stroke(stroke) {
         return;
     }
 
@@ -9276,6 +9830,7 @@ fn command_output_text(result: &CommandRunResult) -> String {
         "Stderr Lines: {}\n",
         command_stream_line_count(&result.stderr)
     ));
+    out.push_str("Sections: 4\n");
     out.push_str(&format!(
         "Truncated: {}\n",
         if result.stdout.truncated || result.stderr.truncated {
@@ -9418,7 +9973,17 @@ fn command_output_section_view_text(
         CommandOutputSection::Stdout => command_output_stdout_line(buffer)?,
         CommandOutputSection::Stderr => command_output_stderr_line(buffer)?,
     };
+    let end = ((header + 1)..buffer.line_count())
+        .find(|line_index| {
+            buffer
+                .line(*line_index)
+                .is_some_and(|line| line.starts_with("--- "))
+        })
+        .unwrap_or(buffer.line_count());
+    let body_line_count = end.saturating_sub(header + 1);
     let mut out = format!("Dun Command Output {}\n\n", section.label());
+    out.push_str(&format!("Section: {}\n", section.label()));
+    out.push_str(&format!("Lines: {body_line_count}\n\n"));
     for line_index in header..buffer.line_count() {
         let line = buffer.line(line_index).unwrap_or_default();
         if line_index > header && line.starts_with("--- ") {
@@ -11461,6 +12026,88 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn outline_recognizes_common_text_config_and_source_sections() {
+        let buffer = TextBuffer::from_text_with_kind(
+            BufferKind::Untitled,
+            "\
+# Markdown Title
+body
+## Nested Heading
+[service]
+[[servers]]
+pub struct Worker {
+impl Worker {
+pub async fn run_task() {
+function deploy {
+cleanup() {
+",
+        );
+
+        let labels = outline_entries_for_buffer(&buffer)
+            .into_iter()
+            .map(|entry| entry.label)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            labels,
+            vec![
+                "# Markdown Title",
+                "## Nested Heading",
+                "[service]",
+                "[[servers]]",
+                "struct Worker",
+                "impl Worker",
+                "fn run_task",
+                "function deploy",
+                "cleanup()",
+            ]
+        );
+    }
+
+    #[test]
+    fn outline_window_keyboard_selection_enters_section_and_close_returns_source() {
+        let mut app = app_with_text("# First\nbody\n# Second\n");
+
+        submit_command_line(&mut app, "outline");
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Outline
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('n'), CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('n'), CrosstermKeyModifiers::NONE),
+        );
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let source = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(
+            app.workspace.focused_window().unwrap().buffer_id,
+            BufferId(1)
+        );
+        assert_eq!(source.buffer.cursor_position(), Position::new(2, 0));
+
+        submit_command_line(&mut app, "outline");
+        assert_eq!(
+            app.workspace.focused_window().unwrap().kind,
+            WindowKind::Outline
+        );
+        app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+
+        assert_eq!(
+            app.workspace.focused_window().unwrap().buffer_id,
+            BufferId(1)
+        );
+    }
+
+    #[test]
     fn document_edge_commands_work_in_read_only_windows() {
         let mut app = AppState::new();
         app.sync_view_for_area(Rect::new(0, 0, 80, 6));
@@ -11722,6 +12369,89 @@ key.window.close = none
             app.prompt_status_text(),
             Some("Command: theme msedit".to_string())
         );
+    }
+
+    #[test]
+    fn command_line_prompt_lists_and_cycles_ambiguous_completions() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(&mut app, "re");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(app.prompt_status_text(), Some("Command: re".to_string()));
+        assert!(app.status_message.as_deref().is_some_and(
+            |status| status.contains("reload-config")
+                && status.contains("replace")
+                && status.contains("results")
+        ));
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: reload-config ".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: reloadfile ".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::BackTab, CrosstermKeyModifiers::SHIFT),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: reload-config ".to_string())
+        );
+    }
+
+    #[test]
+    fn command_line_prompt_completes_path_arguments() {
+        let directory = temp_file_path("command-line-complete");
+        let nested = directory.join("nested");
+        let file = nested.join("alpha file.txt");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::create_dir(&nested).unwrap();
+        std::fs::write(&file, "alpha").unwrap();
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(&mut app, &format!("open {}/n", directory.display()));
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!("Command: open {}/nested/", directory.display()))
+        );
+        send_text(&mut app, "a");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some(format!(
+                "Command: open \"{}/nested/alpha file.txt\"",
+                directory.display()
+            ))
+        );
+
+        let _ = std::fs::remove_file(file);
+        let _ = std::fs::remove_dir(nested);
+        let _ = std::fs::remove_dir(directory);
     }
 
     #[test]
@@ -11987,14 +12717,34 @@ key.window.close = none
         submit_command_line(&mut app, "output only stderr");
         let view_window = app.workspace.focused_window().unwrap();
         assert_eq!(view_window.kind, WindowKind::CommandOutputView);
-        let view_text = app
-            .buffer_state(view_window.buffer_id)
-            .unwrap()
-            .buffer
-            .to_text();
+        let view_buffer_id = view_window.buffer_id;
+        let view_text = app.buffer_state(view_buffer_id).unwrap().buffer.to_text();
         assert!(view_text.contains("Dun Command Output stderr"));
+        assert!(view_text.contains("Section: stderr"));
+        assert!(view_text.contains("Lines: "));
         assert!(view_text.contains("stderr"));
         assert!(!view_text.contains("stdout"));
+
+        submit_command_line(&mut app, "output find stderr");
+        let view_buffer = app.buffer_state(view_buffer_id).unwrap();
+        assert!(view_buffer.search_status().is_some());
+
+        let only_path = temp_file_path("command-output-only-save.txt");
+        submit_command_line(
+            &mut app,
+            &format!("output save {}", only_path.to_string_lossy()),
+        );
+        let saved_only = std::fs::read_to_string(&only_path).unwrap();
+        let _ = std::fs::remove_file(&only_path);
+        assert!(saved_only.contains("Dun Command Output stderr"));
+        assert!(saved_only.contains("stderr"));
+        assert!(!saved_only.contains("stdout"));
+
+        app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+        assert_eq!(
+            app.workspace.focused_window().unwrap().buffer_id,
+            output_buffer_id
+        );
 
         let path = temp_file_path("command-output-save.txt");
         submit_command_line(&mut app, &format!("output save {}", path.to_string_lossy()));
@@ -12197,6 +12947,46 @@ key.window.close = none
             source
                 .search_status()
                 .is_some_and(|status| status == "Find 2/2")
+        );
+    }
+
+    #[test]
+    fn search_results_window_keyboard_selection_enters_match() {
+        let mut app = app_with_text("alpha\nbeta alpha\ngamma\n");
+
+        submit_command_line(&mut app, "find alpha");
+        submit_command_line(&mut app, "results");
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('n'), CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Search Results: selected 1/2".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Char('n'), CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Search Results: selected 2/2".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        );
+
+        let window = app.workspace.focused_window().unwrap();
+        assert_eq!(window.buffer_id, BufferId(1));
+        let source = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(source.buffer.cursor_position(), Position::new(1, 10));
+        assert_eq!(
+            source.buffer.selection_range(),
+            Some(TextRange::new(Position::new(1, 5), Position::new(1, 10)))
         );
     }
 

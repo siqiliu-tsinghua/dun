@@ -591,3 +591,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   stdout/stderr-only derived read-only panes. The command prompt now completes
   built-in command families with Tab, and automated coverage includes common
   modified-key events after crossterm parsing.
+- Polished helper navigation and command completion. Outline detection now
+  recognizes common Markdown headings, INI/TOML sections, Rust items, and shell
+  functions. Outline and Search Results panes support `n`/`p` row selection and
+  `Enter` source jumps, and closing helper panes returns focus to the source
+  buffer or full Command Output pane where applicable. Command Output
+  stdout/stderr-only views can be searched and saved as the current output.
+  Command prompt completion now lists ambiguous candidates, cycles them with
+  Tab/BackTab, and completes file-path arguments for open/save/output-save
+  commands.

@@ -211,6 +211,8 @@ Goal: reach a practical Microsoft Edit-like baseline.
   for common command families.
 - [x] Polish Command Output for large results with section navigation and
   stdout/stderr-only derived views.
+- [x] Add helper-pane row selection/jump behavior and command prompt
+  candidate/path completion polish.
 - [x] Static Microsoft Edit reference baseline tests.
 - [x] Automated PTY smoke tests for common SSH-style terminal profiles.
 - [x] Manual terminal checklist and current-environment checks.

@@ -101,12 +101,17 @@ the editor, `F6` opens Config Diagnostics with source, terminal, clipboard,
 limit, keymap, and important-unbound-command summaries. The command prompt can
 jump directly to diagnostics sections such as `config keymap` or
 `diagnostics limits`. `outline` opens a read-only section list for the focused
-buffer and can jump back to a numbered or named section. After a Find, `results`
-opens a read-only match list and `results N` jumps back to that match.
+buffer and can jump back to a numbered or named section; the current heuristic
+recognizes built-in helper headings plus common Markdown, INI/TOML, Rust, and
+shell function section lines. After a Find, `results` opens a read-only match
+list and `results N` jumps back to that match. In Outline and Search Results,
+`n`/`p` move between listed entries and `Enter` jumps back to the selected
+source location.
 `Ctrl+P` opens a command prompt for actions such as `help`, `config`,
 `reload-config`, `theme`, `open`, `save`, `quit`, and full command ids such as
-`window.split_horizontal`; Tab completes built-in command families at the end
-of the prompt.
+`window.split_horizontal`; Tab completes built-in command families, cycles
+ambiguous candidates, and completes path arguments for commands such as
+`open`, `save-as`, and `output save`.
 `Ctrl+W,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
 restores the normal terminal, runs the user's shell, then resumes and redraws
 after the shell exits. `Ctrl+W,O` opens a Run Command prompt for one-shot
@@ -120,7 +125,9 @@ stdout, stderr, body lines, index, or truncation state through typed commands.
 `output next` and `output previous` repeat the active Command Output search;
 `output next-section` and `output previous-section` move between output
 sections, and `output only stdout` or `output only stderr` opens a derived
-read-only pane for one stream.
+read-only pane for one stream. When focused, that derived pane is the target
+for Command Output find/copy/save, so saving an only-view writes only that
+stream; closing it returns focus to the full Command Output pane.
 Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
 focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver

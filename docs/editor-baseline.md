@@ -253,12 +253,14 @@ supports:
   visibility, selection/search highlight mapping, gutters, scrollbar targets,
   mouse wheel input, and status fields;
 - read-only helper panes for Help, Status History, Config Diagnostics, buffer
-  outline/section lists, and search result lists;
+  outline/section lists, and search result lists. Outline/Search Results lists
+  support `n`/`p` selection, `Enter` source jumps, and close-to-source focus
+  restoration;
 - Command Output panes stay read-only while supporting
   index/summary/status/stdout/stderr/body/truncated jumps, normal Find
   highlighting with next/previous repeat, section-by-section navigation,
-  stdout-only/stderr-only derived views, internal copy, clear, direct save, and
-  Save Output file dialog paths;
+  stdout-only/stderr-only derived views, current-view find/copy/save, internal
+  copy, clear, direct save, and Save Output file dialog paths;
 - visible Undo/Redo status feedback for successful actions and empty stacks;
 - `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
 
@@ -268,7 +270,9 @@ match as `[Find n/m]`, previews prompt queries while typing, and supports
 next/previous wraparound. Find and Replace query input accepts `/i`, `/w`, and
 `/iw` prefixes for ignore-case and whole-word matching. The command prompt can
 open a read-only Search Results pane for the current Find query and jump back
-to a numbered match. Interactive Replace
+to a numbered match. Command prompt Tab completion covers built-in command
+families, ambiguous candidate cycling, and path arguments for file-oriented
+commands. Interactive Replace
 previews the query, then opens a confirmation modal with Replace, Skip, All,
 and Cancel actions. Command-line `replace QUERY TEXT` replaces the current or
 next match directly, and `replace all QUERY TEXT` replaces all literal matches

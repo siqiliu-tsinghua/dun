@@ -254,7 +254,9 @@ Editing:
   second Enter before overwriting an existing file. Modal keys can be remapped
   in config for terminals or KVM paths that do not deliver the defaults.
 - `Ctrl+P` opens the command prompt, Tab completes built-in command families
-  when the cursor is at the end, and Up/Down recall command history.
+  and path arguments when the cursor is at the end, Tab/BackTab cycle
+  ambiguous candidates after the status line lists them, and Up/Down recall
+  command history.
 - Prompt inputs support Left/Right/Home/End/Delete/Backspace at UTF-8 character
   boundaries.
 - `Shift+Arrow` extends the editor selection by character or line, and
@@ -308,7 +310,8 @@ Search and navigation:
 - `F3` and `Shift+F3` move between matches; all visible matches are
   highlighted and the status fields show the active match count.
 - Command prompt `results` opens a read-only match list for the active Find
-  query, and `results N` jumps back to a numbered match.
+  query, `n`/`p` select result rows, and `Enter` or `results N` jumps back to a
+  numbered match.
 - `Ctrl+R` performs the replace prompt flow, previews the query, and then uses
   a confirmation modal for Replace, Skip, All, or Cancel. It accepts the same
   search prefixes as Find. Command prompt `replace all QUERY TEXT` replaces all
@@ -317,7 +320,8 @@ Search and navigation:
 - `F1` opens the key reference window.
 - `F2` opens the status history window.
 - Command prompt `outline` opens a read-only section list for the focused
-  buffer, and `outline TARGET` jumps to a numbered or named section.
+  buffer, `n`/`p` select outline rows, and `Enter` or `outline TARGET` jumps to
+  a numbered or named section.
 
 Process actions:
 
@@ -335,7 +339,9 @@ Process actions:
   `output copy`, `output clear`, `output save /tmp/dun-output.txt`, and
   pathless `output save` should operate on the read-only Command Output pane
   without making it editable. Pathless save should open the Save Command
-  Output file dialog.
+  Output file dialog. When a stdout/stderr-only derived pane is focused,
+  `output find`, copy, and save should target that current derived pane, and
+  closing it should return focus to the full Command Output pane.
 - `config keymap`, `config limits`, and `diagnostics file-dialog-keymap`
   should open Config Diagnostics and jump to the named section.
 - Up/Down in the Run Command prompt should navigate only previous run-command

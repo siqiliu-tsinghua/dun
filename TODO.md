@@ -203,6 +203,13 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add read-only search result list and numbered result jumps.
 - [x] Add Command Output section navigation and stdout/stderr-only views.
 - [x] Add command-line Tab completion for built-in command families.
+- [x] Expand Outline detection for common Markdown, INI/TOML, Rust, and shell
+  section lines.
+- [x] Add `n`/`p` and `Enter` row navigation for Outline and Search Results.
+- [x] Add command-line completion candidate cycling and path completion.
+- [x] Make Command Output only-views searchable/saveable as the current output.
+- [x] Restore focus from closable read-only helper panes to their source where
+  a source exists.
 
 ## File and Display Safety
 

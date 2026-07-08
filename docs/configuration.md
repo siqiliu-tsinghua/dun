@@ -130,9 +130,13 @@ Config Diagnostics can also be opened at a section with commands such as
 `config keymap`, `config limits`, or `diagnostics file-dialog-keymap`.
 `outline` opens the focused buffer's section list, `outline TARGET` jumps to a
 numbered or named section, `results` opens the current Find result list, and
-`results N` jumps to a listed match. Tab completion is available for built-in
-command families such as `output`, `config`, and `theme` when the cursor is at
-the end of the command prompt.
+`results N` jumps to a listed match. When the Outline or Search Results pane is
+focused, `n`/`p` select listed entries and `Enter` jumps to the selected source
+location. Tab completion is available for built-in command families such as
+`output`, `config`, and `theme` when the cursor is at the end of the command
+prompt. Ambiguous completions are shown in the status line and can be cycled
+with Tab/BackTab. Path arguments complete for `open`, `save`, `save-as`,
+`reloadfile`, and `output save`.
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window
