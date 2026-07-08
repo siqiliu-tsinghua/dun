@@ -10,10 +10,17 @@ pub fn default_config_text() -> String {
 ",
     );
 
+    out.push_str("# Appearance\n");
     out.push_str(&format!("theme = {}\n", config.theme.as_str()));
+
+    out.push_str("\n# Terminal fallback overrides\n");
     out.push_str("# terminal.encoding = utf8\n");
     out.push_str("# terminal.colors = 256\n");
+
+    out.push_str("\n# Mouse\n");
     out.push_str(&format!("mouse.enabled = {}\n", config.mouse.enabled));
+
+    out.push_str("\n# Clipboard\n");
     out.push_str(&format!(
         "clipboard.osc52.enabled = {}\n",
         config.clipboard.osc52.enabled
@@ -22,6 +29,8 @@ pub fn default_config_text() -> String {
         "clipboard.osc52.max_bytes = {}\n",
         config.clipboard.osc52.max_bytes
     ));
+
+    out.push_str("\n# File and display limits\n");
     out.push_str(&format!(
         "limits.editable_file_soft_limit_bytes = {}\n",
         config.limits.editable_file_soft_limit_bytes

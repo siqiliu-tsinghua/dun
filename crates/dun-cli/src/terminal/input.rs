@@ -127,15 +127,15 @@ pub(crate) fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
         return;
     }
 
+    if app.handle_auxiliary_window_key_stroke(stroke) {
+        return;
+    }
+
     if app.handle_key_stroke(stroke) {
         return;
     }
 
     if app.handle_selection_key_stroke(stroke) {
-        return;
-    }
-
-    if app.handle_auxiliary_window_key_stroke(stroke) {
         return;
     }
 

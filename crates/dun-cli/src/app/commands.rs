@@ -81,6 +81,14 @@ impl AppState {
                     self.move_focused_numbered_aux_row(-1, "Outline");
                     true
                 }
+                Key::Home => {
+                    self.focus_first_numbered_aux_row("Outline");
+                    true
+                }
+                Key::End => {
+                    self.focus_last_numbered_aux_row("Outline");
+                    true
+                }
                 _ => false,
             },
             WindowKind::SearchResults => match stroke.key {
@@ -94,6 +102,14 @@ impl AppState {
                 }
                 Key::Char('p') | Key::Char('P') => {
                     self.move_focused_numbered_aux_row(-1, "Search Results");
+                    true
+                }
+                Key::Home => {
+                    self.focus_first_numbered_aux_row("Search Results");
+                    true
+                }
+                Key::End => {
+                    self.focus_last_numbered_aux_row("Search Results");
                     true
                 }
                 _ => false,

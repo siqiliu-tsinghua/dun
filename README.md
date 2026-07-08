@@ -102,13 +102,15 @@ and error messages. `F5` reloads the active configuration without restarting
 the editor, `F6` opens Config Diagnostics with source, terminal, clipboard,
 limit, keymap, and important-unbound-command summaries. The command prompt can
 jump directly to diagnostics sections such as `config keymap` or
-`diagnostics limits`. `outline` opens a read-only section list for the focused
-buffer and can jump back to a numbered or named section; the current heuristic
+`diagnostics limits`. `reloadfile` explicitly reloads the focused file buffer
+from disk after any dirty-buffer confirmation. `outline` opens a read-only
+section list for the focused buffer and can jump back to a numbered or named
+section; the current heuristic
 recognizes built-in helper headings plus common Markdown, INI/TOML, Rust, and
 shell function section lines. After a Find, `results` opens a read-only match
 list and `results N` jumps back to that match. In Outline and Search Results,
-`n`/`p` move between listed entries and `Enter` jumps back to the selected
-source location.
+`n`/`p` move between listed entries, `Home`/`End` jump to the first or last
+entry, and `Enter` jumps back to the selected source location.
 `Ctrl+P` opens a command prompt for actions such as `help`, `config`,
 `reload-config`, `theme`, `open`, `save`, `quit`, and full command ids such as
 `window.split_horizontal`; Tab completes built-in command families, cycles
@@ -310,6 +312,8 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
   release binary size baseline for macOS and Debian builds.
 - [docs/runtime-resource-audit.md](./docs/runtime-resource-audit.md):
   lightweight startup and RSS baselines for macOS and Debian builds.
+- [docs/release-smoke-checklist.md](./docs/release-smoke-checklist.md):
+  bounded automated and release-signoff checks for release candidates.
 - [docs/dependency-audit.md](./docs/dependency-audit.md): dependency shape,
   feature policy, and repeat checklist for keeping the default build small.
 - [docs/code-organization-guidelines.md](./docs/code-organization-guidelines.md):

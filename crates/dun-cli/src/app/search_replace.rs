@@ -518,6 +518,52 @@ impl AppState {
         Some(row.index)
     }
 
+    pub(crate) fn focus_first_numbered_aux_row(&mut self, label: &'static str) -> Option<usize> {
+        self.focus_numbered_aux_row_at(NumberedAuxRowPosition::First, label)
+    }
+
+    pub(crate) fn focus_last_numbered_aux_row(&mut self, label: &'static str) -> Option<usize> {
+        self.focus_numbered_aux_row_at(NumberedAuxRowPosition::Last, label)
+    }
+
+    fn focus_numbered_aux_row_at(
+        &mut self,
+        position: NumberedAuxRowPosition,
+        label: &'static str,
+    ) -> Option<usize> {
+        let buffer_id = self.workspace.focused_window().ok()?.buffer_id;
+        let rows = self
+            .buffer_state(buffer_id)
+            .map(|buffer| numbered_list_rows(&buffer.buffer))
+            .unwrap_or_default();
+        if rows.is_empty() {
+            self.set_status(format!("{label}: no entries"));
+            return None;
+        }
+
+        let row = match position {
+            NumberedAuxRowPosition::First => rows[0],
+            NumberedAuxRowPosition::Last => rows[rows.len() - 1],
+        };
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            let _ = buffer.buffer.set_cursor(Position::new(row.line, 0));
+            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        }
+        self.set_status(format!(
+            "{label}: selected {}/{}",
+            row.index + 1,
+            rows.len()
+        ));
+        Some(row.index)
+    }
+
     pub(crate) fn replace_in_focused_buffer(&mut self, spec: SearchSpec, replacement: &str) {
         if spec.is_empty() {
             self.set_status("Replace: no query");
@@ -679,4 +725,10 @@ impl AppState {
             }
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NumberedAuxRowPosition {
+    First,
+    Last,
 }

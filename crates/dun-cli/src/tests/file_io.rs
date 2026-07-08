@@ -337,6 +337,18 @@ fn reload_command_refreshes_focused_file_buffer() {
 }
 
 #[test]
+fn focused_detail_status_reports_external_file_change() {
+    let path = temp_file_path("external-change-status.txt");
+    std::fs::write(&path, "old").unwrap();
+    let app = AppState::from_path(Some(path.clone())).unwrap();
+    std::fs::write(&path, "new contents").unwrap();
+
+    assert!(app.focused_detail_status().contains("[Disk Changed]"));
+
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
 fn save_command_cleans_atomic_temp_file() {
     let path = temp_file_path("atomic-save.txt");
     std::fs::write(&path, "old").unwrap();

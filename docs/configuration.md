@@ -20,8 +20,9 @@ Configuration is loaded in this order:
 Explicit or environment-provided config paths must be readable and valid. A
 missing default config file is ignored.
 
-`dun --dump-config` prints the built-in default configuration, including
-global command bindings and Open/Save As modal bindings, so it can be used as a
+`dun --dump-config` prints the built-in default configuration grouped into
+appearance, terminal fallback, mouse, clipboard, file/display limits, global
+command bindings, and Open/Save As modal bindings, so it can be used as a
 starting point for a user config file.
 
 ## Format
@@ -131,8 +132,9 @@ Config Diagnostics can also be opened at a section with commands such as
 `outline` opens the focused buffer's section list, `outline TARGET` jumps to a
 numbered or named section, `results` opens the current Find result list, and
 `results N` jumps to a listed match. When the Outline or Search Results pane is
-focused, `n`/`p` select listed entries and `Enter` jumps to the selected source
-location. Tab completion is available for built-in command families such as
+focused, `n`/`p` select listed entries, `Home`/`End` jump to the first or last
+listed entry, and `Enter` jumps to the selected source location. Tab completion
+is available for built-in command families such as
 `output`, `config`, and `theme` when the cursor is at the end of the command
 prompt. Ambiguous completions are shown in the status line and can be cycled
 with Tab/BackTab. Path arguments complete for `open`, `save`, `save-as`,

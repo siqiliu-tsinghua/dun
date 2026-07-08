@@ -161,6 +161,39 @@ fn outline_window_keyboard_selection_enters_section_and_close_returns_source() {
 }
 
 #[test]
+fn outline_window_home_end_select_first_and_last_section() {
+    let mut app = app_with_text("# First\nbody\n# Second\nbody\n# Third\n");
+
+    submit_command_line(&mut app, "outline");
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Outline: selected 3/3".to_string())
+    );
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Outline: selected 1/3".to_string())
+    );
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+    );
+
+    let source = app.buffer_state(BufferId(1)).unwrap();
+    assert_eq!(source.buffer.cursor_position(), Position::new(0, 0));
+}
+
+#[test]
 fn document_edge_commands_work_in_read_only_windows() {
     let mut app = AppState::new();
     app.sync_view_for_area(Rect::new(0, 0, 80, 6));
@@ -371,6 +404,43 @@ fn search_results_window_keyboard_selection_enters_match() {
     assert_eq!(
         source.buffer.selection_range(),
         Some(TextRange::new(Position::new(1, 5), Position::new(1, 10)))
+    );
+}
+
+#[test]
+fn search_results_window_home_end_select_first_and_last_match() {
+    let mut app = app_with_text("alpha\nbeta alpha\ngamma alpha\n");
+
+    submit_command_line(&mut app, "find alpha");
+    submit_command_line(&mut app, "results");
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Search Results: selected 3/3".to_string())
+    );
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Search Results: selected 1/3".to_string())
+    );
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+    );
+
+    let source = app.buffer_state(BufferId(1)).unwrap();
+    assert_eq!(
+        source.buffer.selection_range(),
+        Some(TextRange::new(Position::new(0, 0), Position::new(0, 5)))
     );
 }
 

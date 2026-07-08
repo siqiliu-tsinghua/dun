@@ -47,6 +47,9 @@ fn default_config_keeps_mouse_disabled() {
 fn default_config_text_lists_parseable_default_bindings() {
     let text = default_config_text();
 
+    assert!(text.contains("# Appearance"));
+    assert!(text.contains("# Terminal fallback overrides"));
+    assert!(text.contains("# File and display limits"));
     assert!(text.contains("theme = msedit"));
     assert!(text.contains("mouse.enabled = false"));
     assert!(text.contains("key.app.help = F1"));

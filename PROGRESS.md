@@ -855,3 +855,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   movement keys. Added regression coverage that creates many buffers, uses
   Home/End in the switcher, and verifies focus moves to the first and last
   buffers.
+- Polished focused reload/search/config/release UX. The command prompt help now
+  advertises `reloadfile`, focused file status has regression coverage for
+  external disk changes, Outline and Search Results panes handle `Home`/`End`
+  for first/last entry selection, `--dump-config` groups defaults into readable
+  sections, and `docs/release-smoke-checklist.md` defines the bounded automated
+  release smoke gate.
