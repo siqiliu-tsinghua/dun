@@ -238,11 +238,16 @@ diff test 版：起两个 `Tmux`（你的 bin 与 `msedit`），各自 `capture_
 ## 10. 落地检查清单
 
 - [x] harness：`Tmux` 封装 + `capture_stable` 轮询（禁止裸 `sleep`）。
-- [ ] `parse()` 复用现有 `vt100`，产出规范化 `Grid`；PTY 测试与真终端测试共用。
+- [x] 初始 `parse()`：解析 `tmux capture-pane -ep` 输出中的可见字符、
+  基本 SGR 属性、SGR 颜色和 tmux cursor 坐标，产出 tmux 侧规范化
+  `Grid`。
+- [ ] 后续 `parse()`：评估 `vt100` 或抽取共享 parser，让 PTY 测试与真终端
+  测试共用同一套规范化 `Grid`。
 - [x] 基础位置/尺寸断言辅助：`assert_line_contains` 和固定宽高断言。
 - [ ] 后续位置/尺寸断言辅助：`assert_text_at` / `find_border_box`。
 - [x] 初始配色/fallback 断言：16 色模式不输出 256 色 SGR，ASCII fallback 不输出 Unicode 边框。
-- [ ] 后续配色断言只针对**程序发出的语义色**；文档注明不测终端主题映射。
+- [x] 初始属性断言：菜单 reverse/bold 属性和 focused cursor 坐标。
+- [ ] 后续配色/属性断言只针对**程序发出的语义色**；文档注明不测终端主题映射。
 - [x] 多尺寸布局用例（`80x24` / `100x30`）。
 - [ ] diff test：对齐输入 → 双端抓屏 → **比较投影**（正文/光标/选区/token 分类）→ 子网格 diff；失败时并排 dump。
 - [ ] 鼠标用例保留在 PTY 测试，不进 tmux 这套。

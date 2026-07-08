@@ -804,3 +804,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   rendering, and ASCII/16 fallback chrome with no 256-color SGR. The tests skip
   cleanly when tmux is unavailable or cannot create its socket. `cargo fmt --all`
   and `cargo test -p dun-cli --test tmux_grid` passed.
+- Added the first normalized tmux cell-grid parser. `TmuxGrid` now records
+  fixed width/height, visible cells, basic SGR attributes, SGR foreground and
+  background colors, and tmux-reported cursor coordinates. The tmux grid tests
+  now assert the initial focused editor cursor at `(3, 2)` and menu reverse/bold
+  attributes through parsed cells. `cargo fmt --all` and
+  `cargo test -p dun-cli --test tmux_grid` passed.

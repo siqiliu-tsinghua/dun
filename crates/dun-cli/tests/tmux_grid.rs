@@ -80,6 +80,36 @@ fn tmux_grid_respects_larger_fixed_pane_dimensions() -> io::Result<()> {
 }
 
 #[test]
+fn tmux_grid_normalizes_cursor_and_sgr_attributes() -> io::Result<()> {
+    let _guard = tmux_test_guard();
+    let Some(session) =
+        TmuxSession::start_dun("normalized-grid", 80, 24, &[OsStr::new("--no-config")])?
+    else {
+        return Ok(());
+    };
+    session.capture_until_contains("Untitled", STARTUP_TIMEOUT)?;
+
+    let grid = session.capture_grid()?;
+
+    assert_eq!(grid.width, 80);
+    assert_eq!(grid.height, 24);
+    assert_eq!(
+        grid.cursor.map(|cursor| (cursor.x, cursor.y)),
+        Some((3, 2)),
+        "initial editor cursor should be at first body cell"
+    );
+    assert_eq!(grid.text_at(0, 2, 4), "File");
+    assert!(grid.cell(0, 0).expect("menu padding cell").style.reverse);
+    let file_hotkey = grid.cell(0, 2).expect("File hotkey cell");
+    assert_eq!(file_hotkey.ch, 'F');
+    assert!(file_hotkey.style.bold);
+    assert!(file_hotkey.style.reverse);
+    assert_eq!(grid.cell(2, 1).expect("gutter number").ch, '1');
+
+    Ok(())
+}
+
+#[test]
 fn tmux_grid_command_prompt_can_split_window() -> io::Result<()> {
     let _guard = tmux_test_guard();
     let Some(session) =

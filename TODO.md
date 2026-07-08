@@ -174,13 +174,17 @@ skip cleanly when `tmux` is unavailable.
 - [x] Build a `tmux` screen-grid harness for fixed-size real-terminal runs.
 - [x] Capture alternate-screen output with `tmux capture-pane`, preserving SGR
   color and attributes.
+- [x] Add a first normalized tmux cell-grid parser for visible characters,
+  basic SGR attributes, SGR colors, and tmux cursor coordinates.
 - [ ] Add a normalized cell-grid parser shared by PTY/tmux tests, introducing
   `vt100` only if it stays Rust `1.85` compatible and lightweight enough.
 - [x] Add first tmux assertions for fixed pane dimensions, menu/status
   placement, tiled split borders, ASCII chrome fallback, and no 256-color SGR
   in 16-color mode.
-- [ ] Add normalized-grid assertions for focused cursor, selection attributes,
-  and richer semantic color output.
+- [x] Add normalized-grid assertions for focused cursor and basic menu SGR
+  attributes.
+- [ ] Add normalized-grid assertions for selection attributes and richer
+  semantic color output.
 - [ ] Keep mouse behavior in existing PTY/event-level tests rather than the
   `tmux` harness.
 - [ ] Add a later Microsoft Edit differential path that compares only projected
