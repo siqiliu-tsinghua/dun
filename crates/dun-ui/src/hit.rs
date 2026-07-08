@@ -143,7 +143,7 @@ impl UiShell {
         self.menu_bar(None)
             .items
             .iter()
-            .position(|item| super::mnemonic_matches(item.label, ch))
+            .position(|item| mnemonic_matches(item.label, ch))
     }
 
     fn hit_target_for_window(
@@ -249,4 +249,11 @@ impl UiShell {
 
         UiMouseTarget::Body(super::buffer_end_position(buffer.buffer))
     }
+}
+
+fn mnemonic_matches(label: &str, ch: char) -> bool {
+    label
+        .chars()
+        .next()
+        .is_some_and(|mnemonic| mnemonic.eq_ignore_ascii_case(&ch))
 }

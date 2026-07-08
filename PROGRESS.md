@@ -740,3 +740,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   `crates/dun-ui/src/lib.rs` dropped to 79,198 bytes / 2,330 lines after this
   batch. `cargo fmt --all`, `cargo test -p dun-ui`, `cargo test --workspace`,
   and `git diff --check` passed.
+- Completed Stage 7.5 by moving ratatui rendering into
+  `crates/dun-ui/src/render/`, split by visual layer: chrome/style conversion,
+  menu/dropdown rendering and menu geometry, modal overlay rendering and
+  layout, status bar rendering, and window/body/chrome rendering. `lib.rs`
+  now keeps `UiShell`, frame model construction, menu/status model
+  construction, and facade exports; it dropped to 48,749 bytes / 1,307 lines
+  after this batch. `cargo fmt --all` and `cargo test -p dun-ui` passed.

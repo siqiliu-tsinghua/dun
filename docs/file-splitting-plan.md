@@ -483,6 +483,9 @@ Progress note:
 - Stage 7.4 moved workspace, menu, and overlay hit-testing methods into
   `hit.rs`. Shared menu/overlay layout helpers remain in `lib.rs` until the
   render-layer extraction decides their final home.
+- Stage 7.5 moved ratatui rendering into `render/{mod,chrome,menu,overlay,
+  status,window}.rs`. `lib.rs` keeps `UiShell`, frame model construction,
+  menu/status model construction, and public facade exports.
 
 ## Stage 8: Split `dun-config`
 

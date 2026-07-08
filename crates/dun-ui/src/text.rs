@@ -1,3 +1,4 @@
+use dun_core::{Position, TextBuffer};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 pub(crate) fn decimal_digits(mut value: usize) -> usize {
@@ -118,4 +119,10 @@ pub(crate) fn status_text_for_width(
     }
 
     fit_text_to_width(left, width, truncation)
+}
+
+pub(crate) fn buffer_end_position(buffer: &TextBuffer) -> Position {
+    let last_line = buffer.line_count().saturating_sub(1);
+    let last_column = buffer.line(last_line).map(str::len).unwrap_or(0);
+    Position::new(last_line, last_column)
 }

@@ -136,7 +136,7 @@ inspection stay outside this section.
   16-color SGR output rewriting into `crates/dun-cli/src/terminal/`.
 - [x] Continue Stage 5 with terminal input dispatch, shell/run-command host
   process boundaries, and file open/save/snapshot/atomic I/O modules.
-- [ ] Split `crates/dun-ui/src/lib.rs` into model, render, hit-testing, text,
+- [x] Split `crates/dun-ui/src/lib.rs` into model, render, hit-testing, text,
   and test modules.
 - [x] Start Stage 7 by moving `dun-ui` unit tests into
   `crates/dun-ui/src/tests/` behavior modules.
@@ -144,7 +144,7 @@ inspection stay outside this section.
 - [x] Move `dun-ui` text width, truncation, wrapping, and visible-whitespace
   helpers into `text.rs`.
 - [x] Move `dun-ui` workspace/menu/overlay hit-testing methods into `hit.rs`.
-- [ ] Continue Stage 7 with render function extraction by visual layer.
+- [x] Continue Stage 7 with render function extraction by visual layer.
 - [ ] Split `crates/dun-config/src/lib.rs` into keys, parser, defaults, and
   validation modules.
 - [ ] Split `crates/dun-core/src/buffer.rs` into buffer storage, cursor,
