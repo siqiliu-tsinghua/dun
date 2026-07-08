@@ -531,6 +531,13 @@ git diff --check
 
 Expected behavior change: none.
 
+Progress note:
+
+- Stage 8.1 moved inline `dun-config` unit tests into
+  `tests/{config,keys,parser,validation,support}.rs`.
+- Stage 8.2 moved the typed config model into `config.rs` and the limits model
+  into `limits.rs`, preserving public exports from `lib.rs`.
+
 ## Stage 9: Split `dun-core::buffer`
 
 Purpose: make core editing logic reviewable without changing buffer semantics.

@@ -747,3 +747,9 @@ This is an append-only progress log. Keep new entries dated and factual.
   now keeps `UiShell`, frame model construction, menu/status model
   construction, and facade exports; it dropped to 48,749 bytes / 1,307 lines
   after this batch. `cargo fmt --all` and `cargo test -p dun-ui` passed.
+- Started Stage 8 of the `dun-config` split. Inline unit tests moved into
+  `crates/dun-config/src/tests/` as config, keys, parser, and validation
+  behavior modules with shared helpers in `support.rs`. The typed config model
+  moved into `config.rs`, and file/line display limits moved into `limits.rs`.
+  `crates/dun-config/src/lib.rs` dropped to 61,590 bytes / 1,524 lines after
+  this batch. `cargo fmt --all` and `cargo test -p dun-config` passed.

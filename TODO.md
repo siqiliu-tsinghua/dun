@@ -147,6 +147,11 @@ inspection stay outside this section.
 - [x] Continue Stage 7 with render function extraction by visual layer.
 - [ ] Split `crates/dun-config/src/lib.rs` into keys, parser, defaults, and
   validation modules.
+- [x] Start Stage 8 by moving `dun-config` unit tests into
+  `crates/dun-config/src/tests/` behavior modules.
+- [x] Move `dun-config` config model and limits model into `config.rs` and
+  `limits.rs`.
+- [ ] Continue Stage 8 with key/keymap/file-dialog-keymap extraction.
 - [ ] Split `crates/dun-core/src/buffer.rs` into buffer storage, cursor,
   selection, edit, undo, search, and tests.
 - [ ] Split `crates/dun-core/src/workspace.rs` and
