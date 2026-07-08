@@ -70,26 +70,33 @@ reveals the real implementation size and gives immediate review wins.
 
 ## Current Hotspots
 
-As of 2026-07-08, these files are already beyond the desired shape:
+As of 2026-07-08, these original hotspot files drove the staged split plan:
 
 | File | Approx size | Status | Likely first boundary |
 | --- | ---: | --- | --- |
-| `crates/dun-cli/src/main.rs` | 558k chars | debt | split tests first, then app state, input, dialogs, file I/O, terminal lifecycle, command output |
-| `crates/dun-ui/src/lib.rs` | 143k chars | debt | model, menu, overlay, window rendering, hit testing, test modules |
-| `crates/dun-config/src/lib.rs` | 84k chars | debt | key model, keymap defaults, parser, validation, defaults text |
-| `crates/dun-core/src/buffer.rs` | 74k chars | debt | cursor/movement, edit operations, selection, search, undo transactions, tests |
+| `crates/dun-cli/src/main.rs` | 558k chars | done | split into app, input, dialogs, files, terminal, command-output, help, and tests |
+| `crates/dun-ui/src/lib.rs` | 143k chars | done | split into facade, shell, frame, render, hit, text, model, and tests |
+| `crates/dun-config/src/lib.rs` | 84k chars | done | split into keys, parser, defaults, validation, commands, config, limits, and tests |
+| `crates/dun-core/src/buffer.rs` | 74k chars | done | split into buffer storage, cursor, selection, edits, line ops, undo, search, and tests |
 | `crates/dun-core/src/workspace.rs` | 31k chars | done | split into `workspace/{model,split,focus,resize,hit,tests}.rs` |
 | `crates/dun-term/src/theme.rs` | 28k chars | done | split into `theme/{color,style,palette,builtins,tests}.rs` |
 
-These sizes do not require emergency rewrites, but they do create an
-assess-on-touch rule: new feature work in one of these files should either
-perform a focused split or explain why the split is deferred and what boundary
-will be used later.
+These original hotspot files are now split. The same thresholds still create
+an assess-on-touch rule for any new file that reaches the warning or split-plan
+ranges: new feature work in one of those files should either perform a focused
+split or explain why the split is deferred and what boundary will be used
+later.
 
 Stage 10 removed the original `workspace.rs` and `theme.rs` files. The
 remaining theme palette constructor file, `theme/builtins.rs`, is concentrated
 data-style code; when adding new theme families, split that file by theme
 family before extending it further.
+
+Stage 11 reduced `dun-ui/src/lib.rs` to a facade. The main remaining watch-list
+implementation files are now feature-group files such as
+`dun-cli/src/app/search_replace.rs`, `dun-cli/src/app/editing.rs`, and
+`dun-term/src/theme/builtins.rs`; split them only when their behavior is next
+touched or their responsibility boundaries become clearer.
 
 ## Preferred Module Shape
 

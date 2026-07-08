@@ -432,9 +432,15 @@ crates/dun-ui/src/
   lib.rs
   model.rs
   shell.rs
-  menu.rs
-  overlay.rs
-  window.rs
+  frame/
+    mod.rs
+    cursor.rs
+    gutter.rs
+    highlight.rs
+    menu.rs
+    scroll.rs
+    status.rs
+    text.rs
   render/
     mod.rs
     menu.rs
@@ -486,6 +492,10 @@ Progress note:
 - Stage 7.5 moved ratatui rendering into `render/{mod,chrome,menu,overlay,
   status,window}.rs`. `lib.rs` keeps `UiShell`, frame model construction,
   menu/status model construction, and public facade exports.
+- Stage 11 finished the remaining `dun-ui` facade split. `UiShell` now lives
+  in `shell.rs`; frame construction and buffer geometry live in
+  `frame/{mod,cursor,gutter,highlight,menu,scroll,status,text}.rs`; `lib.rs`
+  is now only module declarations and public re-exports.
 
 ## Stage 8: Split `dun-config`
 
@@ -653,6 +663,52 @@ Completion note:
 - `theme/builtins.rs` intentionally keeps the current built-in palette
   constructors together. If new theme families are added, split it by theme
   family before extending the file further.
+
+## Stage 11: Finish `dun-ui` Facade Split
+
+Purpose: remove the remaining `dun-ui/src/lib.rs` debt after the Stage 7
+render split.
+
+Target shape:
+
+```text
+crates/dun-ui/src/
+  lib.rs
+  shell.rs
+  frame/
+    mod.rs
+    cursor.rs
+    gutter.rs
+    highlight.rs
+    menu.rs
+    scroll.rs
+    status.rs
+    text.rs
+```
+
+Rules:
+
+- keep `lib.rs` as a facade;
+- keep `UiShell` in `shell.rs`;
+- keep frame construction independent of ratatui rendering;
+- keep hit-testing access narrow, using `pub(crate)` only for helpers needed
+  by `hit.rs` or crate-local tests.
+
+Gate:
+
+```text
+cargo fmt --all
+cargo test --workspace
+git diff --check
+```
+
+Expected behavior change: none.
+
+Completion note:
+
+- `lib.rs` dropped from 48,749 bytes / 1,307 lines to about 1 KiB / 33 lines.
+- The largest new `dun-ui` implementation files are `frame/menu.rs` and
+  `frame/highlight.rs`, both below the split-plan threshold.
 
 ## Commit Strategy
 

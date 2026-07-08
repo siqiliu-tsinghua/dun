@@ -145,6 +145,8 @@ inspection stay outside this section.
   helpers into `text.rs`.
 - [x] Move `dun-ui` workspace/menu/overlay hit-testing methods into `hit.rs`.
 - [x] Continue Stage 7 with render function extraction by visual layer.
+- [x] Finish the `dun-ui` facade split by moving `UiShell` and frame model
+  construction out of `crates/dun-ui/src/lib.rs`.
 - [x] Split `crates/dun-config/src/lib.rs` into keys, parser, defaults, and
   validation modules.
 - [x] Start Stage 8 by moving `dun-config` unit tests into

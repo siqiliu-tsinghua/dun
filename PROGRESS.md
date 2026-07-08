@@ -788,3 +788,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   through the same crate facades. `cargo fmt --all`, `cargo test -p dun-core`,
   `cargo test -p dun-term`, `cargo test --workspace`, and `git diff --check`
   passed during the split.
+- Finished the remaining `dun-ui` facade split. `UiShell` moved to
+  `shell.rs`; workspace frame construction and buffer geometry moved into
+  `frame/{mod,cursor,gutter,highlight,menu,scroll,status,text}.rs`; `lib.rs`
+  is now only module declarations and facade re-exports. `crates/dun-ui/src/lib.rs`
+  dropped from 48,749 bytes / 1,307 lines to 1,043 bytes / 33 lines, and the
+  largest new implementation file is `frame/menu.rs` at 12,932 bytes / 270
+  lines. `cargo fmt --all`, `cargo test -p dun-ui`, `cargo test --workspace`,
+  and `git diff --check` passed.
