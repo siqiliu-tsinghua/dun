@@ -653,3 +653,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   from 558,750 bytes / 16,386 lines to 362,654 bytes / 10,802 lines after the
   move. `cargo fmt --all`, `cargo test --workspace`, and `git diff --check`
   passed.
+- Completed Stage 2 of the `dun-cli` split by moving pure state/model types
+  out of `main.rs`. New internal modules now hold `AppState` fields,
+  `BufferState`, search state, status history entries, dialog prompt/file
+  dialog/buffer-switcher/confirmation state, command-output result models, and
+  runtime terminal actions. `main.rs` dropped to 309,368 bytes / 9,075 lines
+  after this stage. `cargo fmt --all`, `cargo test --workspace`, and
+  `git diff --check` passed.

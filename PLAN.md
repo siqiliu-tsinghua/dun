@@ -243,6 +243,8 @@ release-facing host API.
 - [x] Document safe Rust and code organization guidelines.
 - [x] Document the staged oversized-file splitting plan.
 - [x] Split `dun-cli` unit tests into behavior-family modules.
+- [x] Extract `dun-cli` pure model/state types into app, dialog,
+  command-output, and terminal modules.
 - [ ] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
 - [x] Lightweight release binary size audit on macOS and Debian.
