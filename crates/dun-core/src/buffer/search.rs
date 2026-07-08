@@ -1,3 +1,4 @@
+use super::edit::{end_position_after_text, normalize_edit_text};
 use super::*;
 
 impl TextBuffer {

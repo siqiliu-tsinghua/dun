@@ -598,6 +598,13 @@ Progress note:
   model/storage types into `buffer/model.rs`, preserving facade re-exports.
 - Stage 9.3 moved `find_all`, `replace_all`, and their search helper
   functions into `buffer/search.rs`.
+- Stage 9.4 moved cursor access, cursor motion, word-boundary motion helpers,
+  selection access, and selection extension into `buffer/{cursor,selection}.rs`.
+- Stage 9.5 moved insertion/deletion/range replacement helpers into
+  `buffer/edit.rs`, line-oriented editing into `buffer/line_ops.rs`, and undo
+  transaction application/merge logic into `buffer/undo.rs`. `buffer/mod.rs`
+  now keeps only facade exports, construction, text shape accessors,
+  validation, dirty-state fingerprinting, and revision tracking.
 
 ## Stage 10: Split Remaining Split-Plan Files
 

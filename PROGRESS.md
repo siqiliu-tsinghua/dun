@@ -772,3 +772,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   moved into `buffer/search.rs`. The main buffer module dropped from 74,231
   bytes / 2,413 lines to 44,866 bytes / 1,447 lines after this batch.
   `cargo fmt --all` and `cargo test -p dun-core` passed after each sub-step.
+- Completed the remaining Stage 9 `dun-core::buffer` split. Cursor and word
+  movement now live in `buffer/cursor.rs`; selection commands in
+  `buffer/selection.rs`; insert/delete/range replacement in `buffer/edit.rs`;
+  line-oriented editing in `buffer/line_ops.rs`; undo/redo and merge logic in
+  `buffer/undo.rs`. `buffer/mod.rs` is now 170 lines and keeps facade exports,
+  construction, text shape accessors, validation, dirty-state fingerprinting,
+  and revision tracking. `cargo fmt --all` and `cargo test -p dun-core`
+  passed.
