@@ -252,10 +252,13 @@ supports:
 - soft-wrapped panes scroll and page by wrapped visual rows, including cursor
   visibility, selection/search highlight mapping, gutters, scrollbar targets,
   mouse wheel input, and status fields;
+- read-only helper panes for Help, Status History, Config Diagnostics, buffer
+  outline/section lists, and search result lists;
 - Command Output panes stay read-only while supporting
   index/summary/status/stdout/stderr/body/truncated jumps, normal Find
-  highlighting with next/previous repeat, internal copy, clear, direct save,
-  and Save Output file dialog paths;
+  highlighting with next/previous repeat, section-by-section navigation,
+  stdout-only/stderr-only derived views, internal copy, clear, direct save, and
+  Save Output file dialog paths;
 - visible Undo/Redo status feedback for successful actions and empty stacks;
 - `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
 
@@ -263,7 +266,9 @@ The current search/replace baseline is literal string based. Find caches match
 locations per buffer revision, highlights visible matches, reports the active
 match as `[Find n/m]`, previews prompt queries while typing, and supports
 next/previous wraparound. Find and Replace query input accepts `/i`, `/w`, and
-`/iw` prefixes for ignore-case and whole-word matching. Interactive Replace
+`/iw` prefixes for ignore-case and whole-word matching. The command prompt can
+open a read-only Search Results pane for the current Find query and jump back
+to a numbered match. Interactive Replace
 previews the query, then opens a confirmation modal with Replace, Skip, All,
 and Cancel actions. Command-line `replace QUERY TEXT` replaces the current or
 next match directly, and `replace all QUERY TEXT` replaces all literal matches

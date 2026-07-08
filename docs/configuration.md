@@ -122,10 +122,17 @@ for ignore-case, `/w query` for whole-word, and `/iw query` for both.
 The command prompt also accepts Command Output helpers:
 `output index`, `output summary`, `output status`, `output stdout`,
 `output stdout-body`, `output stderr`, `output stderr-body`,
-`output truncated`, `output find QUERY`, `output next`, `output previous`,
-`output clear`, `output copy`, `output save`, and `output save PATH`.
+`output truncated`, `output only stdout`, `output only stderr`,
+`output find QUERY`, `output next`, `output previous`,
+`output next-section`, `output previous-section`, `output clear`,
+`output copy`, `output save`, and `output save PATH`.
 Config Diagnostics can also be opened at a section with commands such as
 `config keymap`, `config limits`, or `diagnostics file-dialog-keymap`.
+`outline` opens the focused buffer's section list, `outline TARGET` jumps to a
+numbered or named section, `results` opens the current Find result list, and
+`results N` jumps to a listed match. Tab completion is available for built-in
+command families such as `output`, `config`, and `theme` when the cursor is at
+the end of the command prompt.
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window

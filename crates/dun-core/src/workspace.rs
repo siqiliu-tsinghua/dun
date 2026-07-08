@@ -137,8 +137,11 @@ pub enum WindowKind {
     Edit,
     ReadOnly,
     CommandOutput,
+    CommandOutputView,
     ConfigDiagnostics,
     Help,
+    Outline,
+    SearchResults,
     StatusHistory,
     Prompt,
 }

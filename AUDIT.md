@@ -115,6 +115,9 @@ Required controls:
 - command output save/copy/clear/navigation actions operate on the bounded
   read-only Command Output buffer and still go through typed editor commands
   or the command prompt;
+- stdout-only and stderr-only Command Output views are derived read-only
+  buffers generated from the bounded captured output; they do not expose a
+  process, filesystem, terminal, or plugin capability;
 - Command Output search reuses the normal read-only Find path and only changes
   cursor, selection, and search-highlight state;
 - Command Output Save through the file dialog uses the same host-owned path

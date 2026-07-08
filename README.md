@@ -100,9 +100,13 @@ and error messages. `F5` reloads the active configuration without restarting
 the editor, `F6` opens Config Diagnostics with source, terminal, clipboard,
 limit, keymap, and important-unbound-command summaries. The command prompt can
 jump directly to diagnostics sections such as `config keymap` or
-`diagnostics limits`. `Ctrl+P` opens a command prompt for actions such as
-`help`, `config`, `reload-config`, `theme`, `open`, `save`, `quit`, and full command ids such as
-`window.split_horizontal`.
+`diagnostics limits`. `outline` opens a read-only section list for the focused
+buffer and can jump back to a numbered or named section. After a Find, `results`
+opens a read-only match list and `results N` jumps back to that match.
+`Ctrl+P` opens a command prompt for actions such as `help`, `config`,
+`reload-config`, `theme`, `open`, `save`, `quit`, and full command ids such as
+`window.split_horizontal`; Tab completes built-in command families at the end
+of the prompt.
 `Ctrl+W,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
 restores the normal terminal, runs the user's shell, then resumes and redraws
 after the shell exits. `Ctrl+W,O` opens a Run Command prompt for one-shot
@@ -113,7 +117,10 @@ Run Command prompt keeps its own bounded history, separate from the editor
 command prompt. Command Output can be copied internally, cleared, searched,
 saved directly or through the file dialog, and jumped to summary, status,
 stdout, stderr, body lines, index, or truncation state through typed commands.
-`output next` and `output previous` repeat the active Command Output search.
+`output next` and `output previous` repeat the active Command Output search;
+`output next-section` and `output previous-section` move between output
+sections, and `output only stdout` or `output only stderr` opens a derived
+read-only pane for one stream.
 Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
 focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver
@@ -148,8 +155,9 @@ update the Save As path input without immediately saving.
 The external SSH and low-capability terminal release matrix is documented in
 [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
 the local PTY harness covers common terminal profiles, small VT100-style
-fallback, terminal escape payloads, and invalid-byte fallback files. External
-host results still need to be recorded before a tagged release.
+fallback, terminal escape payloads, invalid-byte fallback files, and
+event-level coverage for common modified keys after crossterm has parsed them.
+External host results still need to be recorded before a tagged release.
 Lightweight Microsoft Edit reference tests check the local `edit --help`
 contract when available and statically scan `reference/msedit` source for menu,
 status bar, color, and terminal setup reference markers.

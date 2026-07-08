@@ -1359,8 +1359,16 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::App(AppCommand::CommandOutputCopy) => "app.command_output_copy",
         EditorCommand::App(AppCommand::CommandOutputIndex) => "app.command_output_index",
         EditorCommand::App(AppCommand::CommandOutputNextMatch) => "app.command_output_next_match",
+        EditorCommand::App(AppCommand::CommandOutputNextSection) => {
+            "app.command_output_next_section"
+        }
+        EditorCommand::App(AppCommand::CommandOutputOnlyStderr) => "app.command_output_only_stderr",
+        EditorCommand::App(AppCommand::CommandOutputOnlyStdout) => "app.command_output_only_stdout",
         EditorCommand::App(AppCommand::CommandOutputPreviousMatch) => {
             "app.command_output_previous_match"
+        }
+        EditorCommand::App(AppCommand::CommandOutputPreviousSection) => {
+            "app.command_output_previous_section"
         }
         EditorCommand::App(AppCommand::CommandOutputStderr) => "app.command_output_stderr",
         EditorCommand::App(AppCommand::CommandOutputStderrBody) => "app.command_output_stderr_body",
@@ -1387,6 +1395,8 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::App(AppCommand::ConfigDiagnosticsTerminal) => {
             "app.config_diagnostics_terminal"
         }
+        EditorCommand::App(AppCommand::Outline) => "app.outline",
+        EditorCommand::App(AppCommand::SearchResults) => "app.search_results",
         EditorCommand::App(AppCommand::ShellEscape) => "app.shell_escape",
         EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
         EditorCommand::App(AppCommand::Quit) => "app.quit",
@@ -1543,8 +1553,20 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "app.command_output_next_match" => {
             Ok(EditorCommand::App(AppCommand::CommandOutputNextMatch))
         }
+        "app.command_output_next_section" => {
+            Ok(EditorCommand::App(AppCommand::CommandOutputNextSection))
+        }
+        "app.command_output_only_stderr" => {
+            Ok(EditorCommand::App(AppCommand::CommandOutputOnlyStderr))
+        }
+        "app.command_output_only_stdout" => {
+            Ok(EditorCommand::App(AppCommand::CommandOutputOnlyStdout))
+        }
         "app.command_output_previous_match" => {
             Ok(EditorCommand::App(AppCommand::CommandOutputPreviousMatch))
+        }
+        "app.command_output_previous_section" => {
+            Ok(EditorCommand::App(AppCommand::CommandOutputPreviousSection))
         }
         "app.command_output_stderr" => Ok(EditorCommand::App(AppCommand::CommandOutputStderr)),
         "app.command_output_stderr_body" => {
@@ -1587,6 +1609,8 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "app.config_diagnostics_terminal" => {
             Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsTerminal))
         }
+        "app.outline" => Ok(EditorCommand::App(AppCommand::Outline)),
+        "app.search_results" => Ok(EditorCommand::App(AppCommand::SearchResults)),
         "app.shell_escape" => Ok(EditorCommand::App(AppCommand::ShellEscape)),
         "app.status_history" => Ok(EditorCommand::App(AppCommand::StatusHistory)),
         "app.quit" => Ok(EditorCommand::App(AppCommand::Quit)),
@@ -1964,8 +1988,24 @@ mod tests {
             Ok(EditorCommand::App(AppCommand::CommandOutputNextMatch))
         );
         assert_eq!(
+            command_from_id("app.command_output_next_section"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputNextSection))
+        );
+        assert_eq!(
+            command_from_id("app.command_output_only_stderr"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputOnlyStderr))
+        );
+        assert_eq!(
+            command_from_id("app.command_output_only_stdout"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputOnlyStdout))
+        );
+        assert_eq!(
             command_from_id("app.command_output_previous_match"),
             Ok(EditorCommand::App(AppCommand::CommandOutputPreviousMatch))
+        );
+        assert_eq!(
+            command_from_id("app.command_output_previous_section"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputPreviousSection))
         );
         assert_eq!(
             command_from_id("app.command_output_stdout"),
@@ -2000,6 +2040,14 @@ mod tests {
             Ok(EditorCommand::App(
                 AppCommand::ConfigDiagnosticsFileDialogKeymap
             ))
+        );
+        assert_eq!(
+            command_from_id("app.outline"),
+            Ok(EditorCommand::App(AppCommand::Outline))
+        );
+        assert_eq!(
+            command_from_id("app.search_results"),
+            Ok(EditorCommand::App(AppCommand::SearchResults))
         );
         assert_eq!(
             command_from_id("app.nope"),

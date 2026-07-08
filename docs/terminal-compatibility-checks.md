@@ -53,6 +53,12 @@ It also opens fixtures for:
   starts and exits cleanly;
 - a `40x12` VT100/C-locale startup case.
 
+Unit coverage also checks the event-level path for common modified terminal
+keys such as `Ctrl+Home`, `Ctrl+End`, `Shift+F3`, and
+`Ctrl+Shift+Left` after crossterm has parsed them. Whether a particular SSH,
+terminal emulator, tmux/screen, or KVM path delivers those sequences remains a
+manual matrix item.
+
 If `expect(1)` is not installed, the test exits successfully after printing a
 skip message. Full workspace tests still run normally.
 
@@ -247,7 +253,8 @@ Editing:
   errors should stay inline for correction, and Save As should require a
   second Enter before overwriting an existing file. Modal keys can be remapped
   in config for terminals or KVM paths that do not deliver the defaults.
-- `Ctrl+P` opens the command prompt, and Up/Down recall command history.
+- `Ctrl+P` opens the command prompt, Tab completes built-in command families
+  when the cursor is at the end, and Up/Down recall command history.
 - Prompt inputs support Left/Right/Home/End/Delete/Backspace at UTF-8 character
   boundaries.
 - `Shift+Arrow` extends the editor selection by character or line, and
@@ -300,6 +307,8 @@ Search and navigation:
   `/i`, `/w`, and `/iw` enable ignore-case and whole-word matching.
 - `F3` and `Shift+F3` move between matches; all visible matches are
   highlighted and the status fields show the active match count.
+- Command prompt `results` opens a read-only match list for the active Find
+  query, and `results N` jumps back to a numbered match.
 - `Ctrl+R` performs the replace prompt flow, previews the query, and then uses
   a confirmation modal for Replace, Skip, All, or Cancel. It accepts the same
   search prefixes as Find. Command prompt `replace all QUERY TEXT` replaces all
@@ -307,6 +316,8 @@ Search and navigation:
 - `Ctrl+G` moves to a valid 1-based line number.
 - `F1` opens the key reference window.
 - `F2` opens the status history window.
+- Command prompt `outline` opens a read-only section list for the focused
+  buffer, and `outline TARGET` jumps to a numbered or named section.
 
 Process actions:
 
@@ -319,10 +330,12 @@ Process actions:
 - Command prompt `output index`, `output summary`, `output status`,
   `output stdout`, `output stdout-body`, `output stderr`,
   `output stderr-body`, `output truncated`, `output find dun-run`,
-  `output next`, `output previous`, `output copy`, `output clear`,
-  `output save /tmp/dun-output.txt`, and pathless `output save` should operate
-  on the read-only Command Output pane without making it editable. Pathless
-  save should open the Save Command Output file dialog.
+  `output next`, `output previous`, `output next-section`,
+  `output previous-section`, `output only stdout`, `output only stderr`,
+  `output copy`, `output clear`, `output save /tmp/dun-output.txt`, and
+  pathless `output save` should operate on the read-only Command Output pane
+  without making it editable. Pathless save should open the Save Command
+  Output file dialog.
 - `config keymap`, `config limits`, and `diagnostics file-dialog-keymap`
   should open Config Diagnostics and jump to the named section.
 - Up/Down in the Run Command prompt should navigate only previous run-command

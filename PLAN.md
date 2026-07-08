@@ -207,6 +207,10 @@ Goal: reach a practical Microsoft Edit-like baseline.
   display-layer soft wrap.
 - [x] Add shell escape and one-shot command output without embedding a terminal
   emulator.
+- [x] Add read-only outline/search-result panes and command prompt completion
+  for common command families.
+- [x] Polish Command Output for large results with section navigation and
+  stdout/stderr-only derived views.
 - [x] Static Microsoft Edit reference baseline tests.
 - [x] Automated PTY smoke tests for common SSH-style terminal profiles.
 - [x] Manual terminal checklist and current-environment checks.
@@ -231,6 +235,7 @@ release-facing host API.
 - [x] Non-UTF-8 file strategy.
 - [x] Define external SSH and low-capability terminal test matrix.
 - [x] Add broad local PTY terminal compatibility harness.
+- [x] Add automated modified-key event coverage for the terminal matrix.
 - [ ] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
 - [x] Security audit suite for control-byte rendering.

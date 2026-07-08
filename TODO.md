@@ -199,6 +199,10 @@ items belong in [PROGRESS.md](./PROGRESS.md).
   bytes.
 - [x] Add document start/end navigation for read-only and editable panes.
 - [x] Keep menu mnemonics unique within each menu.
+- [x] Add read-only outline/section list and section jump commands.
+- [x] Add read-only search result list and numbered result jumps.
+- [x] Add Command Output section navigation and stdout/stderr-only views.
+- [x] Add command-line Tab completion for built-in command families.
 
 ## File and Display Safety
 
@@ -228,6 +232,7 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Define the external SSH and low-capability terminal release matrix.
 - [x] Fix strict VT100/16-color output so low-capability profiles do not emit
   256-color-style `38;5;n` or `48;5;n` SGR sequences.
+- [x] Add automated event-level coverage for common modified terminal keys.
 - [x] Run the external SSH and low-capability Debian VM matrix for `d2c832f`.
 - [ ] Run a real server-console/KVM ASCII path before a tagged release that
   claims KVM coverage.

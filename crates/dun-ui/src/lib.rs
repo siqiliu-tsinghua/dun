@@ -1389,6 +1389,14 @@ impl UiShell {
                             EditorCommand::Window(dun_core::WindowCommand::Close),
                         ),
                         MenuEntry::new(
+                            "Outline (/)",
+                            EditorCommand::App(dun_core::AppCommand::Outline),
+                        ),
+                        MenuEntry::new(
+                            "Search Results (W)",
+                            EditorCommand::App(dun_core::AppCommand::SearchResults),
+                        ),
+                        MenuEntry::new(
                             "Status History (S)",
                             EditorCommand::App(dun_core::AppCommand::StatusHistory),
                         ),
@@ -1431,6 +1439,22 @@ impl UiShell {
                         MenuEntry::new(
                             "Output Previous Match (Q)",
                             EditorCommand::App(dun_core::AppCommand::CommandOutputPreviousMatch),
+                        ),
+                        MenuEntry::new(
+                            "Output Next Section (1)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputNextSection),
+                        ),
+                        MenuEntry::new(
+                            "Output Previous Section (2)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputPreviousSection),
+                        ),
+                        MenuEntry::new(
+                            "Output Only Stdout (3)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputOnlyStdout),
+                        ),
+                        MenuEntry::new(
+                            "Output Only Stderr (4)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputOnlyStderr),
                         ),
                         MenuEntry::new(
                             "Output Copy (Y)",
@@ -3613,6 +3637,24 @@ mod tests {
         assert!(
             commands
                 .iter()
+                .any(|command| **command == EditorCommand::App(AppCommand::Outline))
+        );
+        assert!(
+            commands
+                .iter()
+                .any(|command| **command == EditorCommand::App(AppCommand::SearchResults))
+        );
+        assert!(
+            commands.iter().any(
+                |command| **command == EditorCommand::App(AppCommand::CommandOutputNextSection)
+            )
+        );
+        assert!(commands.iter().any(
+            |command| **command == EditorCommand::App(AppCommand::CommandOutputOnlyStdout)
+        ));
+        assert!(
+            commands
+                .iter()
                 .any(|command| **command == EditorCommand::App(AppCommand::ReloadConfig))
         );
         assert!(
@@ -3730,19 +3772,21 @@ mod tests {
         let shell = UiShell::default();
         let ui_frame = shell.frame_for_workspace_with_menu_selection(
             &workspace,
-            Rect::new(0, 0, 90, 28),
+            Rect::new(0, 0, 90, 36),
             &[buffer_view],
             Some(MenuSelection::menu_only(2)),
         );
-        let backend = TestBackend::new(90, 30);
+        let backend = TestBackend::new(90, 38);
         let mut terminal = Terminal::new(backend).unwrap();
 
         terminal
             .draw(|frame| shell.render(frame, &ui_frame))
             .unwrap();
 
-        let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 90, 30);
+        let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 90, 38);
         assert!(snapshot.contains("View"));
+        assert!(snapshot.contains("Outline"));
+        assert!(snapshot.contains("Search Results"));
         assert!(snapshot.contains("Output Index"));
         assert!(snapshot.contains("Output Summary"));
         assert!(snapshot.contains("Output Status"));
@@ -3753,6 +3797,10 @@ mod tests {
         assert!(snapshot.contains("Output Truncated"));
         assert!(snapshot.contains("Output Next Match"));
         assert!(snapshot.contains("Output Previous Match"));
+        assert!(snapshot.contains("Output Next Section"));
+        assert!(snapshot.contains("Output Previous Section"));
+        assert!(snapshot.contains("Output Only Stdout"));
+        assert!(snapshot.contains("Output Only Stderr"));
         assert!(snapshot.contains("Output Save"));
         assert!(snapshot.contains("Output Clear"));
     }

@@ -584,3 +584,10 @@ This is an append-only progress log. Keep new entries dated and factual.
   keymap, limits, and file-dialog keymap. `Ctrl+Home/End` now move to document
   start/end in both editable and read-only panes, and menu mnemonic uniqueness
   is covered by UI tests.
+- Added read-only navigation helper panes for outlines and search results.
+  `outline` lists section-like lines for the focused buffer and can jump back
+  by number or name; `results` lists the current Find matches and can jump back
+  by match number. Command Output gained section-relative navigation and
+  stdout/stderr-only derived read-only panes. The command prompt now completes
+  built-in command families with Tab, and automated coverage includes common
+  modified-key events after crossterm parsing.

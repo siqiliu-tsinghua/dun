@@ -485,6 +485,8 @@ struct AppState {
     run_command_history: Vec<String>,
     last_find_query: Option<String>,
     pending_replace_query: Option<String>,
+    outline_source: Option<BufferId>,
+    search_results_source: Option<BufferId>,
     kill_ring: Option<String>,
     recent_file_dialog_input: Option<String>,
     runtime_action: Option<RuntimeAction>,
@@ -543,6 +545,8 @@ impl AppState {
             run_command_history: Vec::new(),
             last_find_query: None,
             pending_replace_query: None,
+            outline_source: None,
+            search_results_source: None,
             kill_ring: None,
             recent_file_dialog_input: None,
             runtime_action: None,
@@ -1140,8 +1144,20 @@ impl AppState {
             AppCommand::CommandOutputNextMatch => {
                 self.repeat_find_in_command_output(SearchDirection::Forward)
             }
+            AppCommand::CommandOutputNextSection => {
+                self.jump_command_output_relative_section(SearchDirection::Forward)
+            }
+            AppCommand::CommandOutputOnlyStderr => {
+                self.open_command_output_section_view(CommandOutputSection::Stderr)
+            }
+            AppCommand::CommandOutputOnlyStdout => {
+                self.open_command_output_section_view(CommandOutputSection::Stdout)
+            }
             AppCommand::CommandOutputPreviousMatch => {
                 self.repeat_find_in_command_output(SearchDirection::Backward)
+            }
+            AppCommand::CommandOutputPreviousSection => {
+                self.jump_command_output_relative_section(SearchDirection::Backward)
             }
             AppCommand::CommandOutputStderr => self.jump_command_output_stderr(),
             AppCommand::CommandOutputStderrBody => self.jump_command_output_stderr_body(),
@@ -1180,8 +1196,10 @@ impl AppState {
                 self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Terminal)
             }
             AppCommand::Help => self.open_help_screen(),
+            AppCommand::Outline => self.open_outline_screen(),
             AppCommand::ReloadConfig => self.reload_config(),
             AppCommand::RunCommand => self.start_prompt(PromptKind::RunCommand, String::new()),
+            AppCommand::SearchResults => self.open_search_results_screen(),
             AppCommand::ShellEscape => self.request_runtime_action(RuntimeAction::ShellEscape),
             AppCommand::StatusHistory => self.open_status_history_screen(),
             AppCommand::Quit => {
@@ -2308,6 +2326,55 @@ impl AppState {
         self.set_status(success_status);
     }
 
+    fn open_read_only_aux_window(&mut self, kind: WindowKind, title: &str, buffer: TextBuffer) {
+        if let Some(window_id) = self
+            .workspace
+            .windows
+            .iter()
+            .find(|window| window.kind == kind)
+            .map(|window| window.id)
+        {
+            self.workspace.focused = window_id;
+            let Ok(window) = self.workspace.window(window_id) else {
+                return;
+            };
+            let buffer_id = window.buffer_id;
+            if let Some(state) = self.buffer_state_mut(buffer_id) {
+                *state = BufferState::new(buffer_id, buffer);
+            }
+            if let Ok(window) = self.workspace.window_mut(window_id) {
+                window.title = title.to_string();
+                window.kind = kind;
+                window.buffer_kind = BufferKind::ReadOnly;
+                window.collapsed = false;
+            }
+            return;
+        }
+
+        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+            self.set_status(format!("{title} failed: focused window is missing"));
+            return;
+        };
+        let Ok(window) = self.workspace.window(window_id) else {
+            self.set_status(format!("{title} failed: window is missing"));
+            return;
+        };
+        let buffer_id = window.buffer_id;
+        let state = BufferState::new(buffer_id, buffer);
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            *buffer = state;
+        } else {
+            self.buffers.push(state);
+        }
+
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = title.to_string();
+            window.kind = kind;
+            window.buffer_kind = BufferKind::ReadOnly;
+            window.collapsed = false;
+        }
+    }
+
     fn open_help_screen(&mut self) {
         if let Some(window_id) = self.help_window_id() {
             self.workspace.focused = window_id;
@@ -2373,6 +2440,76 @@ impl AppState {
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             *buffer = help;
         }
+    }
+
+    fn open_outline_screen(&mut self) {
+        let Some(source_buffer_id) = self.outline_source_for_command() else {
+            self.set_status("Outline failed: focused buffer is missing");
+            return;
+        };
+        let source_title = self.buffer_display_name(source_buffer_id);
+        let Some(source) = self.buffer_state(source_buffer_id) else {
+            self.set_status("Outline failed: source buffer is missing");
+            return;
+        };
+        let entries = outline_entries_for_buffer(&source.buffer);
+        if entries.is_empty() {
+            self.set_status("Outline: no sections");
+            return;
+        }
+
+        self.outline_source = Some(source_buffer_id);
+        let text = outline_text(&source_title, &entries);
+        self.open_read_only_aux_window(WindowKind::Outline, "Outline", outline_buffer(&text));
+        self.set_status(format!("Outline: {} section(s)", entries.len()));
+    }
+
+    fn outline_source_for_command(&self) -> Option<BufferId> {
+        let focused = self.workspace.focused_window().ok()?;
+        if focused.kind == WindowKind::Outline {
+            return self.outline_source;
+        }
+        Some(focused.buffer_id)
+    }
+
+    fn jump_focused_outline_target(&mut self, target: &str) {
+        let Some(source_buffer_id) = self.outline_source_for_command().or(self.outline_source)
+        else {
+            self.set_status("Outline failed: source buffer is missing");
+            return;
+        };
+        let Some(source) = self.buffer_state(source_buffer_id) else {
+            self.set_status("Outline failed: source buffer is missing");
+            return;
+        };
+        let entries = outline_entries_for_buffer(&source.buffer);
+        if entries.is_empty() {
+            self.set_status("Outline: no sections");
+            return;
+        }
+
+        let target_index = parse_outline_target(target, &entries);
+        let Some(index) = target_index else {
+            self.set_status(format!("Outline: no section {target}"));
+            return;
+        };
+        let entry = entries[index].clone();
+        if !self.focus_window_for_buffer(source_buffer_id) {
+            self.set_status("Outline failed: source window is missing");
+            return;
+        }
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id: source_buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        if let Some(buffer) = self.buffer_state_mut(source_buffer_id) {
+            let _ = buffer.buffer.set_cursor(Position::new(entry.line, 0));
+            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        }
+        self.set_status(format!("Outline: {}", entry.label));
     }
 
     fn open_config_diagnostics_screen(&mut self) {
@@ -2640,6 +2777,65 @@ impl AppState {
 
     fn jump_command_output_truncated(&mut self) {
         self.jump_command_output_line(command_output_truncated_line, "truncated");
+    }
+
+    fn jump_command_output_relative_section(&mut self, direction: SearchDirection) {
+        let Some(window_id) = self.command_output_window_id() else {
+            self.set_status("Command Output: no output window");
+            return;
+        };
+        let Some(buffer_id) = self.command_output_buffer_id() else {
+            self.set_status("Command Output: no output buffer");
+            return;
+        };
+        let Some((line_index, label)) = self.buffer_state(buffer_id).and_then(|buffer| {
+            command_output_relative_section_line(
+                &buffer.buffer,
+                buffer.buffer.cursor_position().line,
+                direction,
+            )
+        }) else {
+            self.set_status("Command Output: no sections");
+            return;
+        };
+
+        self.workspace.focused = window_id;
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            let _ = buffer.buffer.set_cursor(Position::new(line_index, 0));
+            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        }
+        self.set_status(format!("Command Output: {label}"));
+    }
+
+    fn open_command_output_section_view(&mut self, section: CommandOutputSection) {
+        let Some(buffer_id) = self.command_output_buffer_id() else {
+            self.set_status("Command Output: no output window");
+            return;
+        };
+        let Some(text) = self
+            .buffer_state(buffer_id)
+            .and_then(|buffer| command_output_section_view_text(&buffer.buffer, section))
+        else {
+            self.set_status(format!(
+                "Command Output: {} section not found",
+                section.label()
+            ));
+            return;
+        };
+
+        self.open_read_only_aux_window(
+            WindowKind::CommandOutputView,
+            section.view_title(),
+            command_output_buffer(&text),
+        );
+        self.set_status(format!("Command Output: only {}", section.label()));
     }
 
     fn jump_command_output_line(
@@ -3718,6 +3914,12 @@ impl AppState {
             CrosstermKeyCode::Down => {
                 self.recall_next_prompt_history();
             }
+            CrosstermKeyCode::Tab => {
+                self.complete_command_line_prompt();
+            }
+            CrosstermKeyCode::BackTab => {
+                self.complete_command_line_prompt();
+            }
             CrosstermKeyCode::Left => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.input.move_left();
@@ -3762,6 +3964,39 @@ impl AppState {
 
         self.refresh_prompt_preview();
         true
+    }
+
+    fn complete_command_line_prompt(&mut self) {
+        let Some(prompt) = &mut self.prompt else {
+            return;
+        };
+        if prompt.kind != PromptKind::CommandLine {
+            return;
+        }
+        let input = prompt.input.as_str().to_string();
+        if prompt.input.cursor_index != input.len() {
+            self.status_message = Some("Command completion: move cursor to end".to_string());
+            return;
+        }
+        let completion = command_line_completion(&input);
+        match completion {
+            CommandCompletion::None => {
+                self.status_message = Some("Command completion: no matches".to_string());
+            }
+            CommandCompletion::Unique(text) => {
+                prompt.detach_history();
+                prompt.input.set_text(text);
+                self.status_message = Some("Command completion".to_string());
+            }
+            CommandCompletion::CommonPrefix(text, count) => {
+                prompt.detach_history();
+                prompt.input.set_text(text);
+                self.status_message = Some(format!("Command completion: {count} matches"));
+            }
+            CommandCompletion::Ambiguous(candidates) => {
+                self.status_message = Some(format!("Command completion: {}", candidates.join(" ")));
+            }
+        }
     }
 
     fn recall_previous_prompt_history(&mut self) {
@@ -4272,7 +4507,9 @@ impl AppState {
             }
             "run" | "command" => self.run_external_command_line(args),
             "output" | "commandoutput" => self.run_command_output_command(args),
+            "outline" | "sections" => self.run_outline_command(args),
             "open" | "o" => self.run_open_command(args),
+            "results" | "searchresults" | "matches" => self.run_search_results_command(args),
             "buffers" | "switch" | "switchbuffer" => {
                 self.run_no_arg_command(args, EditorCommand::File(FileCommand::SwitchBuffer))
             }
@@ -4354,10 +4591,37 @@ impl AppState {
             [action]
                 if matches!(
                     normalize_command_line_token(action).as_str(),
+                    "nextsection" | "sectionnext"
+                ) =>
+            {
+                self.handle_app_command(&AppCommand::CommandOutputNextSection)
+            }
+            [action, section] if normalize_command_line_token(action) == "only" => {
+                match parse_command_output_section(section) {
+                    Some(CommandOutputSection::Stdout) => {
+                        self.handle_app_command(&AppCommand::CommandOutputOnlyStdout)
+                    }
+                    Some(CommandOutputSection::Stderr) => {
+                        self.handle_app_command(&AppCommand::CommandOutputOnlyStderr)
+                    }
+                    None => self.set_status("Command failed: output only expects stdout or stderr"),
+                }
+            }
+            [action]
+                if matches!(
+                    normalize_command_line_token(action).as_str(),
                     "previous" | "prev" | "prevmatch" | "previousmatch"
                 ) =>
             {
                 self.handle_app_command(&AppCommand::CommandOutputPreviousMatch)
+            }
+            [action]
+                if matches!(
+                    normalize_command_line_token(action).as_str(),
+                    "previoussection" | "prevsection" | "sectionprevious" | "sectionprev"
+                ) =>
+            {
+                self.handle_app_command(&AppCommand::CommandOutputPreviousSection)
             }
             [action] if normalize_command_line_token(action) == "summary" => {
                 self.handle_app_command(&AppCommand::CommandOutputSummary)
@@ -4405,7 +4669,7 @@ impl AppState {
                 self.save_command_output_path(PathBuf::from(path))
             }
             _ => self.set_status(
-                "Command failed: output expects index, summary, status, stdout, stdout-body, stderr, stderr-body, truncated, find QUERY, next, previous, clear, copy, or save PATH",
+                "Command failed: output expects index, summary, status, stdout, stdout-body, stderr, stderr-body, truncated, only stdout|stderr, find QUERY, next, previous, next-section, previous-section, clear, copy, or save PATH",
             ),
         }
     }
@@ -4424,6 +4688,23 @@ impl AppState {
                 "Command failed: config expects zero args or one of {}",
                 config_diagnostics_section_values()
             )),
+        }
+    }
+
+    fn run_outline_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.open_outline_screen(),
+            [target] => self.jump_focused_outline_target(target),
+            _ => self
+                .set_status("Command failed: outline expects zero args or one section number/name"),
+        }
+    }
+
+    fn run_search_results_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.open_search_results_screen(),
+            [index] => self.jump_search_result(index),
+            _ => self.set_status("Command failed: results expects zero args or one match number"),
         }
     }
 
@@ -4534,6 +4815,115 @@ impl AppState {
         }
 
         self.find_in_focused_buffer(spec, direction);
+    }
+
+    fn open_search_results_screen(&mut self) {
+        let Some(source_buffer_id) = self.search_results_source_for_command() else {
+            self.set_status("Search Results: focused buffer is missing");
+            return;
+        };
+        let Some((spec, matches)) = self.search_results_for_source(source_buffer_id) else {
+            self.set_status("Search Results: no query");
+            return;
+        };
+        if matches.is_empty() {
+            self.set_status(format!("Search Results: no matches for {}", spec.display()));
+            return;
+        }
+
+        let source_name = self.buffer_display_name(source_buffer_id);
+        let text = search_results_text(
+            &source_name,
+            &spec,
+            &matches,
+            &self.buffer_state(source_buffer_id).unwrap().buffer,
+        );
+        self.search_results_source = Some(source_buffer_id);
+        self.open_read_only_aux_window(
+            WindowKind::SearchResults,
+            "Search Results",
+            search_results_buffer(&text),
+        );
+        self.set_status(format!("Search Results: {} match(es)", matches.len()));
+    }
+
+    fn search_results_source_for_command(&self) -> Option<BufferId> {
+        let focused = self.workspace.focused_window().ok()?;
+        if focused.kind == WindowKind::SearchResults {
+            return self.search_results_source;
+        }
+        Some(focused.buffer_id)
+    }
+
+    fn search_results_for_source(
+        &self,
+        source_buffer_id: BufferId,
+    ) -> Option<(SearchSpec, Vec<SearchMatch>)> {
+        let buffer = self.buffer_state(source_buffer_id)?;
+        if let Some(search) = &buffer.search {
+            return Some((search.spec.clone(), search.matches.clone()));
+        }
+        let query = self.last_find_query.as_ref()?;
+        let spec = SearchSpec::parse(query);
+        if spec.is_empty() {
+            return None;
+        }
+        Some((
+            spec.clone(),
+            buffer
+                .buffer
+                .find_all_with_options(&spec.query, spec.options),
+        ))
+    }
+
+    fn jump_search_result(&mut self, target: &str) {
+        let Some(source_buffer_id) = self
+            .search_results_source_for_command()
+            .or(self.search_results_source)
+        else {
+            self.set_status("Search Results: source buffer is missing");
+            return;
+        };
+        let Some((spec, matches)) = self.search_results_for_source(source_buffer_id) else {
+            self.set_status("Search Results: no query");
+            return;
+        };
+        if matches.is_empty() {
+            self.set_status(format!("Search Results: no matches for {}", spec.display()));
+            return;
+        }
+        let Ok(number) = target.parse::<usize>() else {
+            self.set_status("Search Results: match number expected");
+            return;
+        };
+        let Some(index) = number.checked_sub(1).filter(|index| *index < matches.len()) else {
+            self.set_status(format!("Search Results: match {number} out of range"));
+            return;
+        };
+
+        if !self.focus_window_for_buffer(source_buffer_id) {
+            self.set_status("Search Results: source window is missing");
+            return;
+        }
+        let selected = matches[index].range;
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id: source_buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        if let Some(buffer) = self.buffer_state_mut(source_buffer_id) {
+            let _ = buffer.buffer.select(selected.start, selected.end);
+            buffer.set_search(spec.clone(), matches.clone(), Some(index));
+            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        }
+        self.set_status(format!(
+            "Search Results: {}/{} {}",
+            index + 1,
+            matches.len(),
+            spec.display()
+        ));
     }
 
     fn find_in_focused_buffer(&mut self, spec: SearchSpec, direction: SearchDirection) {
@@ -5870,12 +6260,187 @@ enum MouseDragState {
     },
 }
 
-const COMMAND_LINE_HELP: &str = "Commands: help, config [section], status, reload-config, shell, run [\"command\"], output index|summary|status|stdout|stdout-body|stderr|stderr-body|truncated|find QUERY|next|previous|clear|copy|save PATH, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
+const COMMAND_LINE_HELP: &str = "Commands: help, outline [section], results [N], config [section], status, reload-config, shell, run [\"command\"], output index|summary|status|stdout|stdout-body|stderr|stderr-body|truncated|only stdout|stderr|find QUERY|next|previous|next-section|previous-section|clear|copy|save PATH, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CommandLineParseError {
     TrailingEscape,
     UnclosedQuote,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CommandCompletion {
+    None,
+    Unique(String),
+    CommonPrefix(String, usize),
+    Ambiguous(Vec<String>),
+}
+
+fn command_line_completion(input: &str) -> CommandCompletion {
+    let trailing_space = input.chars().last().is_some_and(char::is_whitespace);
+    let tokens = match parse_command_line(input) {
+        Ok(tokens) => tokens,
+        Err(_) => return CommandCompletion::None,
+    };
+    let mut tokens = tokens;
+    if trailing_space {
+        tokens.push(String::new());
+    }
+
+    match tokens.as_slice() {
+        [] => complete_last_token(input, "", command_line_top_level_candidates(), true),
+        [partial] => complete_last_token("", partial, command_line_top_level_candidates(), true),
+        [command, partial] => {
+            let candidates = match normalize_command_line_token(command).as_str() {
+                "config" | "diagnostics" | "configdiagnostics" => {
+                    config_diagnostics_section_candidates()
+                }
+                "output" | "commandoutput" => command_output_action_candidates(),
+                "theme" => theme_command_candidates(),
+                _ => return CommandCompletion::None,
+            };
+            let prefix = format!("{command} ");
+            complete_last_token(&prefix, partial, candidates, false)
+        }
+        [command, subcommand, partial]
+            if normalize_command_line_token(command) == "output"
+                && normalize_command_line_token(subcommand) == "only" =>
+        {
+            let prefix = format!("{command} {subcommand} ");
+            complete_last_token(&prefix, partial, command_output_section_candidates(), false)
+        }
+        _ => CommandCompletion::None,
+    }
+}
+
+fn complete_last_token(
+    prefix: &str,
+    partial: &str,
+    candidates: &[&'static str],
+    add_space_after_unique: bool,
+) -> CommandCompletion {
+    let normalized_partial = normalize_command_line_token(partial);
+    let matches = candidates
+        .iter()
+        .copied()
+        .filter(|candidate| {
+            normalize_command_line_token(candidate).starts_with(&normalized_partial)
+        })
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [] => CommandCompletion::None,
+        [candidate] => {
+            let mut text = format!("{prefix}{candidate}");
+            if add_space_after_unique {
+                text.push(' ');
+            }
+            CommandCompletion::Unique(text)
+        }
+        _ => {
+            let common = common_candidate_prefix(&matches);
+            if common.len() > partial.len() {
+                CommandCompletion::CommonPrefix(format!("{prefix}{common}"), matches.len())
+            } else {
+                CommandCompletion::Ambiguous(
+                    matches
+                        .iter()
+                        .map(|candidate| candidate.to_string())
+                        .collect(),
+                )
+            }
+        }
+    }
+}
+
+fn common_candidate_prefix(candidates: &[&str]) -> String {
+    let Some(first) = candidates.first() else {
+        return String::new();
+    };
+    let mut prefix = (*first).to_string();
+    for candidate in &candidates[1..] {
+        while !candidate.starts_with(&prefix) {
+            let Some((last, _)) = prefix.char_indices().last() else {
+                return String::new();
+            };
+            prefix.truncate(last);
+        }
+    }
+    prefix
+}
+
+const fn command_line_top_level_candidates() -> &'static [&'static str] {
+    &[
+        "buffers",
+        "close",
+        "commands",
+        "config",
+        "diagnostics",
+        "find",
+        "goto",
+        "help",
+        "mark",
+        "matches",
+        "new",
+        "open",
+        "outline",
+        "output",
+        "quit",
+        "reload-config",
+        "reloadfile",
+        "replace",
+        "results",
+        "save",
+        "save-as",
+        "shell",
+        "status",
+        "theme",
+        "whitespace",
+        "wrap",
+    ]
+}
+
+const fn command_output_action_candidates() -> &'static [&'static str] {
+    &[
+        "clear",
+        "copy",
+        "find",
+        "index",
+        "next",
+        "next-section",
+        "only",
+        "previous",
+        "previous-section",
+        "save",
+        "status",
+        "stderr",
+        "stderr-body",
+        "stdout",
+        "stdout-body",
+        "summary",
+        "truncated",
+    ]
+}
+
+const fn command_output_section_candidates() -> &'static [&'static str] {
+    &["stderr", "stdout"]
+}
+
+const fn config_diagnostics_section_candidates() -> &'static [&'static str] {
+    &[
+        "clipboard",
+        "file-dialog-keymap",
+        "input",
+        "keymap",
+        "limits",
+        "paths",
+        "source",
+        "summary",
+        "terminal",
+    ]
+}
+
+const fn theme_command_candidates() -> &'static [&'static str] {
+    &["dark", "dun", "msedit", "turbo"]
 }
 
 fn parse_command_line(input: &str) -> Result<Vec<String>, CommandLineParseError> {
@@ -6019,6 +6584,146 @@ impl ConfigDiagnosticsSection {
             Self::FileDialogKeymap => "file dialog keymap",
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CommandOutputSection {
+    Stdout,
+    Stderr,
+}
+
+impl CommandOutputSection {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Stdout => "stdout",
+            Self::Stderr => "stderr",
+        }
+    }
+
+    const fn view_title(self) -> &'static str {
+        match self {
+            Self::Stdout => "Command Output Stdout",
+            Self::Stderr => "Command Output Stderr",
+        }
+    }
+}
+
+fn parse_command_output_section(input: &str) -> Option<CommandOutputSection> {
+    match normalize_command_line_token(input).as_str() {
+        "stdout" | "out" => Some(CommandOutputSection::Stdout),
+        "stderr" | "err" => Some(CommandOutputSection::Stderr),
+        _ => None,
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OutlineEntry {
+    label: String,
+    line: usize,
+}
+
+fn outline_entries_for_buffer(buffer: &TextBuffer) -> Vec<OutlineEntry> {
+    (0..buffer.line_count())
+        .filter_map(|line_index| {
+            let line = buffer.line(line_index)?.trim();
+            outline_label_for_line(line).map(|label| OutlineEntry {
+                label: label.to_string(),
+                line: line_index,
+            })
+        })
+        .collect()
+}
+
+fn outline_label_for_line(line: &str) -> Option<&str> {
+    const HEADINGS: &[&str] = &[
+        "App",
+        "File",
+        "Edit",
+        "Windows",
+        "Prompts",
+        "Selection",
+        "Navigation",
+        "File Dialogs",
+        "Menus",
+        "Notes",
+        "Summary",
+        "Paths",
+        "Source",
+        "Terminal",
+        "Input",
+        "Clipboard",
+        "Limits",
+        "Keymap",
+        "File Dialog Keymap",
+        "Index",
+    ];
+    if HEADINGS.contains(&line) || line.starts_with("--- stdout") || line.starts_with("--- stderr")
+    {
+        Some(line)
+    } else {
+        None
+    }
+}
+
+fn outline_text(source: &str, entries: &[OutlineEntry]) -> String {
+    let mut out = String::from("Dun Outline\n\n");
+    out.push_str(&format!("Source: {source}\n"));
+    out.push_str(&format!("Sections: {}\n\n", entries.len()));
+    for (index, entry) in entries.iter().enumerate() {
+        out.push_str(&format!(
+            "{:>3}. L{:<5} {}\n",
+            index + 1,
+            entry.line + 1,
+            entry.label
+        ));
+    }
+    out
+}
+
+fn parse_outline_target(target: &str, entries: &[OutlineEntry]) -> Option<usize> {
+    if let Ok(number) = target.parse::<usize>() {
+        return number.checked_sub(1).filter(|index| *index < entries.len());
+    }
+    let normalized = normalize_command_line_token(target);
+    entries
+        .iter()
+        .position(|entry| normalize_command_line_token(&entry.label).contains(&normalized))
+}
+
+fn search_results_text(
+    source: &str,
+    spec: &SearchSpec,
+    matches: &[SearchMatch],
+    buffer: &TextBuffer,
+) -> String {
+    let mut out = String::from("Dun Search Results\n\n");
+    out.push_str(&format!("Source: {source}\n"));
+    out.push_str(&format!("Query: {}\n", spec.display()));
+    out.push_str(&format!("Matches: {}\n\n", matches.len()));
+    for (index, item) in matches.iter().enumerate() {
+        let line = buffer.line(item.range.start.line).unwrap_or_default();
+        out.push_str(&format!(
+            "{:>3}. L{}:C{} {}\n",
+            index + 1,
+            item.range.start.line + 1,
+            item.range.start.column + 1,
+            clipped_result_line(line)
+        ));
+    }
+    out
+}
+
+fn clipped_result_line(line: &str) -> String {
+    const LIMIT: usize = 96;
+    let mut out = String::new();
+    for (index, ch) in line.chars().enumerate() {
+        if index >= LIMIT {
+            out.push_str("...");
+            break;
+        }
+        out.push(ch);
+    }
+    out
 }
 
 fn parse_config_diagnostics_section(input: &str) -> Option<ConfigDiagnosticsSection> {
@@ -8132,6 +8837,14 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Config diagnostics",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::Outline),
+                description: "Outline sections for focused read-only pane",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::SearchResults),
+                description: "List current search results",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::ReloadConfig),
                 description: "Reload config",
             },
@@ -8178,6 +8891,22 @@ const HELP_SECTIONS: &[HelpSection] = &[
             HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputPreviousMatch),
                 description: "Find previous match in Command Output",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputNextSection),
+                description: "Jump Command Output to next section",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputPreviousSection),
+                description: "Jump Command Output to previous section",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputOnlyStdout),
+                description: "Open stdout-only Command Output view",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputOnlyStderr),
+                description: "Open stderr-only Command Output view",
             },
             HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputCopy),
@@ -8498,6 +9227,14 @@ fn status_history_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
 }
 
+fn outline_buffer(text: &str) -> TextBuffer {
+    TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
+}
+
+fn search_results_buffer(text: &str) -> TextBuffer {
+    TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
+}
+
 fn command_output_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
 }
@@ -8528,8 +9265,16 @@ fn command_output_text(result: &CommandRunResult) -> String {
         command_stream_summary(&result.stdout)
     ));
     out.push_str(&format!(
+        "Stdout Lines: {}\n",
+        command_stream_line_count(&result.stdout)
+    ));
+    out.push_str(&format!(
         "Stderr: {}\n",
         command_stream_summary(&result.stderr)
+    ));
+    out.push_str(&format!(
+        "Stderr Lines: {}\n",
+        command_stream_line_count(&result.stderr)
     ));
     out.push_str(&format!(
         "Truncated: {}\n",
@@ -8566,6 +9311,17 @@ fn command_stream_summary(stream: &CapturedCommandStream) -> String {
             "complete"
         }
     )
+}
+
+fn command_stream_line_count(stream: &CapturedCommandStream) -> usize {
+    if stream.bytes.is_empty() {
+        return 0;
+    }
+    decode_file_text(stream.bytes.clone())
+        .text
+        .lines()
+        .count()
+        .max(1)
 }
 
 fn osc52_copy_sequence(text: &str) -> String {
@@ -8652,6 +9408,61 @@ fn command_output_section_line(buffer: &TextBuffer, prefix: &str) -> Option<usiz
             .line(*line_index)
             .is_some_and(|line| line.starts_with(prefix))
     })
+}
+
+fn command_output_section_view_text(
+    buffer: &TextBuffer,
+    section: CommandOutputSection,
+) -> Option<String> {
+    let header = match section {
+        CommandOutputSection::Stdout => command_output_stdout_line(buffer)?,
+        CommandOutputSection::Stderr => command_output_stderr_line(buffer)?,
+    };
+    let mut out = format!("Dun Command Output {}\n\n", section.label());
+    for line_index in header..buffer.line_count() {
+        let line = buffer.line(line_index).unwrap_or_default();
+        if line_index > header && line.starts_with("--- ") {
+            break;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    Some(out)
+}
+
+fn command_output_relative_section_line(
+    buffer: &TextBuffer,
+    current_line: usize,
+    direction: SearchDirection,
+) -> Option<(usize, &'static str)> {
+    let mut sections = Vec::new();
+    if let Some(line) = command_output_summary_line(buffer) {
+        sections.push((line, "summary"));
+    }
+    if let Some(line) = command_output_index_line(buffer) {
+        sections.push((line, "index"));
+    }
+    if let Some(line) = command_output_stdout_line(buffer) {
+        sections.push((line, "stdout"));
+    }
+    if let Some(line) = command_output_stderr_line(buffer) {
+        sections.push((line, "stderr"));
+    }
+    sections.sort_by_key(|(line, _)| *line);
+    sections.dedup_by_key(|(line, _)| *line);
+    match direction {
+        SearchDirection::Forward => sections
+            .iter()
+            .find(|(line, _)| *line > current_line)
+            .or_else(|| sections.first())
+            .copied(),
+        SearchDirection::Backward => sections
+            .iter()
+            .rev()
+            .find(|(line, _)| *line < current_line)
+            .or_else(|| sections.last())
+            .copied(),
+    }
 }
 
 fn line_with_exact_text(buffer: &TextBuffer, text: &str) -> Option<usize> {
@@ -9703,6 +10514,45 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn translates_common_modified_terminal_keys() {
+        assert_eq!(
+            key_stroke_from_crossterm(CrosstermKeyEvent::new(
+                CrosstermKeyCode::Home,
+                CrosstermKeyModifiers::CONTROL,
+            )),
+            Some(KeyStroke::new(Key::Home, KeyModifiers::CTRL))
+        );
+        assert_eq!(
+            key_stroke_from_crossterm(CrosstermKeyEvent::new(
+                CrosstermKeyCode::End,
+                CrosstermKeyModifiers::CONTROL,
+            )),
+            Some(KeyStroke::new(Key::End, KeyModifiers::CTRL))
+        );
+        assert_eq!(
+            key_stroke_from_crossterm(CrosstermKeyEvent::new(
+                CrosstermKeyCode::F(3),
+                CrosstermKeyModifiers::SHIFT,
+            )),
+            Some(KeyStroke::new(Key::F(3), KeyModifiers::SHIFT))
+        );
+        assert_eq!(
+            key_stroke_from_crossterm(CrosstermKeyEvent::new(
+                CrosstermKeyCode::Left,
+                CrosstermKeyModifiers::SHIFT | CrosstermKeyModifiers::CONTROL,
+            )),
+            Some(KeyStroke::new(
+                Key::Left,
+                KeyModifiers {
+                    shift: true,
+                    ctrl: true,
+                    alt: false,
+                },
+            ))
+        );
+    }
+
+    #[test]
     fn text_input_inserts_into_focused_buffer() {
         let mut app = AppState::new();
 
@@ -10580,6 +11430,37 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn outline_window_lists_and_jumps_read_only_sections() {
+        let mut app = AppState::new();
+        app.handle_command(&EditorCommand::App(AppCommand::Help));
+        let help_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+
+        submit_command_line(&mut app, "outline");
+
+        let outline_window = app.workspace.focused_window().unwrap();
+        assert_eq!(outline_window.kind, WindowKind::Outline);
+        assert_eq!(outline_window.buffer_kind, BufferKind::ReadOnly);
+        let text = app
+            .buffer_state(outline_window.buffer_id)
+            .unwrap()
+            .buffer
+            .to_text();
+        assert!(text.contains("Dun Outline"));
+        assert!(text.contains("App"));
+        assert!(text.contains("Navigation"));
+
+        submit_command_line(&mut app, "outline Navigation");
+
+        let window = app.workspace.focused_window().unwrap();
+        assert_eq!(window.buffer_id, help_buffer_id);
+        let buffer = app.buffer_state(help_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("Navigation")
+        );
+    }
+
+    #[test]
     fn document_edge_commands_work_in_read_only_windows() {
         let mut app = AppState::new();
         app.sync_view_for_area(Rect::new(0, 0, 80, 6));
@@ -10783,6 +11664,63 @@ key.window.close = none
         assert_eq!(
             app.workspace.focused_window().unwrap().kind,
             WindowKind::ConfigDiagnostics
+        );
+    }
+
+    #[test]
+    fn command_line_prompt_completes_output_commands() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(&mut app, "outp");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: output ".to_string())
+        );
+
+        send_text(&mut app, "stdout-b");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: output stdout-body".to_string())
+        );
+    }
+
+    #[test]
+    fn command_line_prompt_completes_config_sections_and_themes() {
+        let mut app = AppState::new();
+
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(&mut app, "config file-d");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: config file-dialog-keymap".to_string())
+        );
+
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        );
+        app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
+        send_text(&mut app, "theme ms");
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        );
+        assert_eq!(
+            app.prompt_status_text(),
+            Some("Command: theme msedit".to_string())
         );
     }
 
@@ -11001,6 +11939,63 @@ key.window.close = none
             Some("Command Output: truncated".to_string())
         );
 
+        submit_command_line(&mut app, "output next-section");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("Index")
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Command Output: index".to_string())
+        );
+
+        submit_command_line(&mut app, "output next-section");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("--- stdout (6 bytes, complete) ---")
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Command Output: stdout".to_string())
+        );
+
+        submit_command_line(&mut app, "output previous-section");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("Index")
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Command Output: index".to_string())
+        );
+
+        submit_command_line(&mut app, "output only stdout");
+        let view_window = app.workspace.focused_window().unwrap();
+        assert_eq!(view_window.kind, WindowKind::CommandOutputView);
+        let view_text = app
+            .buffer_state(view_window.buffer_id)
+            .unwrap()
+            .buffer
+            .to_text();
+        assert!(view_text.contains("Dun Command Output stdout"));
+        assert!(view_text.contains("stdout"));
+        assert!(!view_text.contains("stderr"));
+
+        submit_command_line(&mut app, "output only stderr");
+        let view_window = app.workspace.focused_window().unwrap();
+        assert_eq!(view_window.kind, WindowKind::CommandOutputView);
+        let view_text = app
+            .buffer_state(view_window.buffer_id)
+            .unwrap()
+            .buffer
+            .to_text();
+        assert!(view_text.contains("Dun Command Output stderr"));
+        assert!(view_text.contains("stderr"));
+        assert!(!view_text.contains("stdout"));
+
         let path = temp_file_path("command-output-save.txt");
         submit_command_line(&mut app, &format!("output save {}", path.to_string_lossy()));
         let saved = std::fs::read_to_string(&path).unwrap();
@@ -11168,6 +12163,40 @@ key.window.close = none
                 .buffer
                 .to_text()
                 .contains("quoted-run")
+        );
+    }
+
+    #[test]
+    fn search_results_window_lists_and_jumps_matches() {
+        let mut app = app_with_text("alpha\nbeta alpha\ngamma\n");
+
+        submit_command_line(&mut app, "find alpha");
+        submit_command_line(&mut app, "results");
+
+        let results_window = app.workspace.focused_window().unwrap();
+        assert_eq!(results_window.kind, WindowKind::SearchResults);
+        assert_eq!(results_window.buffer_kind, BufferKind::ReadOnly);
+        let text = app
+            .buffer_state(results_window.buffer_id)
+            .unwrap()
+            .buffer
+            .to_text();
+        assert!(text.contains("Dun Search Results"));
+        assert!(text.contains("Matches: 2"));
+        assert!(text.contains("  2. L2:C6 beta alpha"));
+
+        submit_command_line(&mut app, "results 2");
+
+        let source = app.buffer_state(BufferId(1)).unwrap();
+        assert_eq!(source.buffer.cursor_position(), Position::new(1, 10));
+        assert_eq!(
+            source.buffer.selection_range(),
+            Some(TextRange::new(Position::new(1, 5), Position::new(1, 10)))
+        );
+        assert!(
+            source
+                .search_status()
+                .is_some_and(|status| status == "Find 2/2")
         );
     }
 
