@@ -75,7 +75,8 @@ Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, and `Ctrl+L` selects the
 current line, giving Cut/Copy a pure keyboard path without requiring mouse
 support. PageUp/PageDown move by the visible pane height, using wrapped visual
-rows when word-wrap is active. `Ctrl+Left/Right`
+rows when word-wrap is active, and `Ctrl+Home/End` jump to document
+start/end. `Ctrl+Left/Right`
 move by UTF-8-safe word boundaries, `Ctrl+Backspace/Delete` delete by word, and
 `Ctrl+Shift+Left/Right` extends selection by word when the terminal delivers
 those modifiers. `Shift+PageUp` and `Shift+PageDown` extend selection by the
@@ -97,9 +98,10 @@ By default, `F1` opens a read-only Help window with the active configured key
 reference, and `F2` opens a read-only Status History window with recent status
 and error messages. `F5` reloads the active configuration without restarting
 the editor, `F6` opens Config Diagnostics with source, terminal, clipboard,
-limit, keymap, and important-unbound-command summaries, and `Ctrl+P` opens a
-command prompt for actions such as `help`, `config`, `reload-config`, `theme`,
-`open`, `save`, `quit`, and full command ids such as
+limit, keymap, and important-unbound-command summaries. The command prompt can
+jump directly to diagnostics sections such as `config keymap` or
+`diagnostics limits`. `Ctrl+P` opens a command prompt for actions such as
+`help`, `config`, `reload-config`, `theme`, `open`, `save`, `quit`, and full command ids such as
 `window.split_horizontal`.
 `Ctrl+W,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
 restores the normal terminal, runs the user's shell, then resumes and redraws
@@ -110,7 +112,8 @@ Command Output window with per-stream byte counts and truncation status. The
 Run Command prompt keeps its own bounded history, separate from the editor
 command prompt. Command Output can be copied internally, cleared, searched,
 saved directly or through the file dialog, and jumped to summary, status,
-stdout, stderr, or truncation state through typed commands.
+stdout, stderr, body lines, index, or truncation state through typed commands.
+`output next` and `output previous` repeat the active Command Output search.
 Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
 focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver

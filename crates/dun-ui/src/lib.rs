@@ -1328,7 +1328,7 @@ impl UiShell {
                             EditorCommand::Edit(dun_core::EditCommand::FindNext),
                         ),
                         MenuEntry::new(
-                            "Replace (L)",
+                            "Replace (B)",
                             EditorCommand::Edit(dun_core::EditCommand::Replace),
                         ),
                         MenuEntry::new(
@@ -1393,7 +1393,11 @@ impl UiShell {
                             EditorCommand::App(dun_core::AppCommand::StatusHistory),
                         ),
                         MenuEntry::new(
-                            "Output Summary (M)",
+                            "Output Index (I)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputIndex),
+                        ),
+                        MenuEntry::new(
+                            "Output Summary (B)",
                             EditorCommand::App(dun_core::AppCommand::CommandOutputSummary),
                         ),
                         MenuEntry::new(
@@ -1405,12 +1409,28 @@ impl UiShell {
                             EditorCommand::App(dun_core::AppCommand::CommandOutputStdout),
                         ),
                         MenuEntry::new(
+                            "Output Stdout Body (J)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputStdoutBody),
+                        ),
+                        MenuEntry::new(
                             "Output Stderr (O)",
                             EditorCommand::App(dun_core::AppCommand::CommandOutputStderr),
                         ),
                         MenuEntry::new(
+                            "Output Stderr Body (L)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputStderrBody),
+                        ),
+                        MenuEntry::new(
                             "Output Truncated (G)",
                             EditorCommand::App(dun_core::AppCommand::CommandOutputTruncated),
+                        ),
+                        MenuEntry::new(
+                            "Output Next Match (F)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputNextMatch),
+                        ),
+                        MenuEntry::new(
+                            "Output Previous Match (Q)",
+                            EditorCommand::App(dun_core::AppCommand::CommandOutputPreviousMatch),
                         ),
                         MenuEntry::new(
                             "Output Copy (Y)",
@@ -3608,6 +3628,34 @@ mod tests {
     }
 
     #[test]
+    fn menu_mnemonics_are_unique_within_each_menu() {
+        let menu = UiShell::default().menu_bar(None);
+
+        for item in menu.items {
+            let mut seen = Vec::new();
+            for entry in item.entries {
+                let Some(mnemonic) = menu_entry_mnemonic(entry.label) else {
+                    continue;
+                };
+                assert!(
+                    !seen.contains(&mnemonic),
+                    "{} menu repeats mnemonic {mnemonic} in {}",
+                    item.label,
+                    entry.label
+                );
+                seen.push(mnemonic);
+            }
+        }
+    }
+
+    fn menu_entry_mnemonic(label: &str) -> Option<char> {
+        let open = label.rfind('(')?;
+        let close = label[open..].find(')')?.saturating_add(open);
+        let mnemonic = label[open + 1..close].chars().next()?;
+        Some(mnemonic.to_ascii_lowercase())
+    }
+
+    #[test]
     fn ratatui_renderer_draws_frame_without_panicking() {
         let workspace = Workspace::new_untitled();
         let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "hello\nworld");
@@ -3695,11 +3743,16 @@ mod tests {
 
         let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 90, 30);
         assert!(snapshot.contains("View"));
+        assert!(snapshot.contains("Output Index"));
         assert!(snapshot.contains("Output Summary"));
         assert!(snapshot.contains("Output Status"));
         assert!(snapshot.contains("Output Stdout"));
+        assert!(snapshot.contains("Output Stdout Body"));
         assert!(snapshot.contains("Output Stderr"));
+        assert!(snapshot.contains("Output Stderr Body"));
         assert!(snapshot.contains("Output Truncated"));
+        assert!(snapshot.contains("Output Next Match"));
+        assert!(snapshot.contains("Output Previous Match"));
         assert!(snapshot.contains("Output Save"));
         assert!(snapshot.contains("Output Clear"));
     }

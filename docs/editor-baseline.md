@@ -243,8 +243,9 @@ supports:
   to consume those strokes;
 - keyboard selection with `Shift+Arrow` and `Shift+Home/End` after the active
   keymap has had the first chance to consume those strokes;
-- PageUp/PageDown visible-page movement, UTF-8-safe word movement/deletion, and
-  configurable word-selection and page-selection commands;
+- PageUp/PageDown visible-page movement, `Ctrl+Home/End` document-edge
+  navigation, UTF-8-safe word movement/deletion, and configurable
+  word-selection and page-selection commands;
 - current-line selection through `edit.select_line`;
 - horizontal scrolling for long lines, keeping the focused cursor visible, plus
   explicit `edit.scroll_left` and `edit.scroll_right` viewport commands;
@@ -252,8 +253,9 @@ supports:
   visibility, selection/search highlight mapping, gutters, scrollbar targets,
   mouse wheel input, and status fields;
 - Command Output panes stay read-only while supporting
-  summary/status/stdout/stderr/truncated jumps, normal Find highlighting,
-  internal copy, clear, direct save, and Save Output file dialog paths;
+  index/summary/status/stdout/stderr/body/truncated jumps, normal Find
+  highlighting with next/previous repeat, internal copy, clear, direct save,
+  and Save Output file dialog paths;
 - visible Undo/Redo status feedback for successful actions and empty stacks;
 - `Ctrl+Q` quit through `EditorCommand::App(Quit)`.
 

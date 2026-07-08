@@ -257,6 +257,8 @@ Editing:
 - PageUp/PageDown move by the visible editor pane height, using wrapped visual
   rows when word-wrap is active, and Shift+PageUp/PageDown extends selection
   by the same page model when delivered.
+- `Ctrl+Home/End` move to document start/end in editable and read-only panes
+  when the terminal delivers those modified keys.
 - `Ctrl+Left/Right` move by word, `Ctrl+Backspace/Delete` delete by word, and
   `Ctrl+Shift+Left/Right` extends selection by word when the terminal delivers
   those modifiers.
@@ -314,12 +316,15 @@ Process actions:
 - `Ctrl+W,O` should open the Run Command prompt. Submitting
   `printf dun-run` should create or reuse a read-only Command Output pane with
   exit status, stdout/stderr byte counts, and truncation status.
-- Command prompt `output summary`, `output status`, `output stdout`,
-  `output stderr`, `output truncated`, `output find dun-run`, `output copy`,
-  `output clear`,
+- Command prompt `output index`, `output summary`, `output status`,
+  `output stdout`, `output stdout-body`, `output stderr`,
+  `output stderr-body`, `output truncated`, `output find dun-run`,
+  `output next`, `output previous`, `output copy`, `output clear`,
   `output save /tmp/dun-output.txt`, and pathless `output save` should operate
   on the read-only Command Output pane without making it editable. Pathless
   save should open the Save Command Output file dialog.
+- `config keymap`, `config limits`, and `diagnostics file-dialog-keymap`
+  should open Config Diagnostics and jump to the named section.
 - Up/Down in the Run Command prompt should navigate only previous run-command
   inputs, not the editor command prompt history.
 

@@ -684,6 +684,14 @@ impl Keymap {
                 KeyBinding::new("Down", EditorCommand::Edit(EditCommand::MoveDown)),
                 KeyBinding::new("PageUp", EditorCommand::Edit(EditCommand::MovePageUp)),
                 KeyBinding::new("PageDown", EditorCommand::Edit(EditCommand::MovePageDown)),
+                KeyBinding::new(
+                    "Ctrl+Home",
+                    EditorCommand::Edit(EditCommand::MoveDocumentStart),
+                ),
+                KeyBinding::new(
+                    "Ctrl+End",
+                    EditorCommand::Edit(EditCommand::MoveDocumentEnd),
+                ),
                 KeyBinding::new("Ctrl+W,[", EditorCommand::Edit(EditCommand::ScrollLeft)),
                 KeyBinding::new("Ctrl+W,]", EditorCommand::Edit(EditCommand::ScrollRight)),
                 KeyBinding::new(
@@ -1297,6 +1305,8 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Edit(EditCommand::MoveDown) => "edit.move_down",
         EditorCommand::Edit(EditCommand::MovePageUp) => "edit.move_page_up",
         EditorCommand::Edit(EditCommand::MovePageDown) => "edit.move_page_down",
+        EditorCommand::Edit(EditCommand::MoveDocumentStart) => "edit.move_document_start",
+        EditorCommand::Edit(EditCommand::MoveDocumentEnd) => "edit.move_document_end",
         EditorCommand::Edit(EditCommand::ScrollLeft) => "edit.scroll_left",
         EditorCommand::Edit(EditCommand::ScrollRight) => "edit.scroll_right",
         EditorCommand::Edit(EditCommand::MoveWordLeft) => "edit.move_word_left",
@@ -1347,12 +1357,36 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::App(AppCommand::RunCommand) => "app.run_command",
         EditorCommand::App(AppCommand::CommandOutputClear) => "app.command_output_clear",
         EditorCommand::App(AppCommand::CommandOutputCopy) => "app.command_output_copy",
+        EditorCommand::App(AppCommand::CommandOutputIndex) => "app.command_output_index",
+        EditorCommand::App(AppCommand::CommandOutputNextMatch) => "app.command_output_next_match",
+        EditorCommand::App(AppCommand::CommandOutputPreviousMatch) => {
+            "app.command_output_previous_match"
+        }
         EditorCommand::App(AppCommand::CommandOutputStderr) => "app.command_output_stderr",
+        EditorCommand::App(AppCommand::CommandOutputStderrBody) => "app.command_output_stderr_body",
         EditorCommand::App(AppCommand::CommandOutputStatus) => "app.command_output_status",
         EditorCommand::App(AppCommand::CommandOutputStdout) => "app.command_output_stdout",
+        EditorCommand::App(AppCommand::CommandOutputStdoutBody) => "app.command_output_stdout_body",
         EditorCommand::App(AppCommand::CommandOutputSummary) => "app.command_output_summary",
         EditorCommand::App(AppCommand::CommandOutputSave) => "app.command_output_save",
         EditorCommand::App(AppCommand::CommandOutputTruncated) => "app.command_output_truncated",
+        EditorCommand::App(AppCommand::ConfigDiagnosticsClipboard) => {
+            "app.config_diagnostics_clipboard"
+        }
+        EditorCommand::App(AppCommand::ConfigDiagnosticsFileDialogKeymap) => {
+            "app.config_diagnostics_file_dialog_keymap"
+        }
+        EditorCommand::App(AppCommand::ConfigDiagnosticsInput) => "app.config_diagnostics_input",
+        EditorCommand::App(AppCommand::ConfigDiagnosticsKeymap) => "app.config_diagnostics_keymap",
+        EditorCommand::App(AppCommand::ConfigDiagnosticsLimits) => "app.config_diagnostics_limits",
+        EditorCommand::App(AppCommand::ConfigDiagnosticsPaths) => "app.config_diagnostics_paths",
+        EditorCommand::App(AppCommand::ConfigDiagnosticsSource) => "app.config_diagnostics_source",
+        EditorCommand::App(AppCommand::ConfigDiagnosticsSummary) => {
+            "app.config_diagnostics_summary"
+        }
+        EditorCommand::App(AppCommand::ConfigDiagnosticsTerminal) => {
+            "app.config_diagnostics_terminal"
+        }
         EditorCommand::App(AppCommand::ShellEscape) => "app.shell_escape",
         EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
         EditorCommand::App(AppCommand::Quit) => "app.quit",
@@ -1451,6 +1485,8 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "edit.move_down" => Ok(EditorCommand::Edit(EditCommand::MoveDown)),
         "edit.move_page_up" => Ok(EditorCommand::Edit(EditCommand::MovePageUp)),
         "edit.move_page_down" => Ok(EditorCommand::Edit(EditCommand::MovePageDown)),
+        "edit.move_document_start" => Ok(EditorCommand::Edit(EditCommand::MoveDocumentStart)),
+        "edit.move_document_end" => Ok(EditorCommand::Edit(EditCommand::MoveDocumentEnd)),
         "edit.scroll_left" => Ok(EditorCommand::Edit(EditCommand::ScrollLeft)),
         "edit.scroll_right" => Ok(EditorCommand::Edit(EditCommand::ScrollRight)),
         "edit.move_word_left" => Ok(EditorCommand::Edit(EditCommand::MoveWordLeft)),
@@ -1503,13 +1539,53 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "app.run_command" => Ok(EditorCommand::App(AppCommand::RunCommand)),
         "app.command_output_clear" => Ok(EditorCommand::App(AppCommand::CommandOutputClear)),
         "app.command_output_copy" => Ok(EditorCommand::App(AppCommand::CommandOutputCopy)),
+        "app.command_output_index" => Ok(EditorCommand::App(AppCommand::CommandOutputIndex)),
+        "app.command_output_next_match" => {
+            Ok(EditorCommand::App(AppCommand::CommandOutputNextMatch))
+        }
+        "app.command_output_previous_match" => {
+            Ok(EditorCommand::App(AppCommand::CommandOutputPreviousMatch))
+        }
         "app.command_output_stderr" => Ok(EditorCommand::App(AppCommand::CommandOutputStderr)),
+        "app.command_output_stderr_body" => {
+            Ok(EditorCommand::App(AppCommand::CommandOutputStderrBody))
+        }
         "app.command_output_status" => Ok(EditorCommand::App(AppCommand::CommandOutputStatus)),
         "app.command_output_stdout" => Ok(EditorCommand::App(AppCommand::CommandOutputStdout)),
+        "app.command_output_stdout_body" => {
+            Ok(EditorCommand::App(AppCommand::CommandOutputStdoutBody))
+        }
         "app.command_output_summary" => Ok(EditorCommand::App(AppCommand::CommandOutputSummary)),
         "app.command_output_save" => Ok(EditorCommand::App(AppCommand::CommandOutputSave)),
         "app.command_output_truncated" => {
             Ok(EditorCommand::App(AppCommand::CommandOutputTruncated))
+        }
+        "app.config_diagnostics_clipboard" => {
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsClipboard))
+        }
+        "app.config_diagnostics_file_dialog_keymap" => Ok(EditorCommand::App(
+            AppCommand::ConfigDiagnosticsFileDialogKeymap,
+        )),
+        "app.config_diagnostics_input" => {
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsInput))
+        }
+        "app.config_diagnostics_keymap" => {
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsKeymap))
+        }
+        "app.config_diagnostics_limits" => {
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsLimits))
+        }
+        "app.config_diagnostics_paths" => {
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsPaths))
+        }
+        "app.config_diagnostics_source" => {
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsSource))
+        }
+        "app.config_diagnostics_summary" => {
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsSummary))
+        }
+        "app.config_diagnostics_terminal" => {
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsTerminal))
         }
         "app.shell_escape" => Ok(EditorCommand::App(AppCommand::ShellEscape)),
         "app.status_history" => Ok(EditorCommand::App(AppCommand::StatusHistory)),
@@ -1852,6 +1928,14 @@ mod tests {
             Ok(EditorCommand::Edit(EditCommand::MoveWordRight))
         );
         assert_eq!(
+            command_from_id("edit.move_document_start"),
+            Ok(EditorCommand::Edit(EditCommand::MoveDocumentStart))
+        );
+        assert_eq!(
+            command_from_id("edit.move_document_end"),
+            Ok(EditorCommand::Edit(EditCommand::MoveDocumentEnd))
+        );
+        assert_eq!(
             command_from_id("edit.extend_selection_page_down"),
             Ok(EditorCommand::Edit(EditCommand::ExtendSelectionPageDown))
         );
@@ -1872,8 +1956,24 @@ mod tests {
             Ok(EditorCommand::App(AppCommand::CommandOutputClear))
         );
         assert_eq!(
+            command_from_id("app.command_output_index"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputIndex))
+        );
+        assert_eq!(
+            command_from_id("app.command_output_next_match"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputNextMatch))
+        );
+        assert_eq!(
+            command_from_id("app.command_output_previous_match"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputPreviousMatch))
+        );
+        assert_eq!(
             command_from_id("app.command_output_stdout"),
             Ok(EditorCommand::App(AppCommand::CommandOutputStdout))
+        );
+        assert_eq!(
+            command_from_id("app.command_output_stdout_body"),
+            Ok(EditorCommand::App(AppCommand::CommandOutputStdoutBody))
         );
         assert_eq!(
             command_from_id("app.command_output_status"),
@@ -1890,6 +1990,16 @@ mod tests {
         assert_eq!(
             command_from_id("app.command_output_truncated"),
             Ok(EditorCommand::App(AppCommand::CommandOutputTruncated))
+        );
+        assert_eq!(
+            command_from_id("app.config_diagnostics_keymap"),
+            Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsKeymap))
+        );
+        assert_eq!(
+            command_from_id("app.config_diagnostics_file_dialog_keymap"),
+            Ok(EditorCommand::App(
+                AppCommand::ConfigDiagnosticsFileDialogKeymap
+            ))
         );
         assert_eq!(
             command_from_id("app.nope"),

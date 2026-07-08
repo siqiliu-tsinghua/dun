@@ -188,10 +188,17 @@ items belong in [PROGRESS.md](./PROGRESS.md).
 - [x] Add Command Output Save dialog integration.
 - [x] Add Command Output status/truncated quick jumps and View-menu coverage.
 - [x] Strengthen Command Output Save dialog overwrite/error coverage.
+- [x] Add Command Output index, body-line jumps, and next/previous search
+  repeat.
 - [x] Polish Config Diagnostics summaries for source, clipboard, limits, and
   keymap coverage.
 - [x] Improve Config Diagnostics grouping with top-level Summary and Paths.
+- [x] Add Config Diagnostics section jump commands.
 - [x] Make soft-wrap PageUp/PageDown movement and selection use visual rows.
+- [x] Strengthen soft-wrap paging tests for wide characters, tabs, and control
+  bytes.
+- [x] Add document start/end navigation for read-only and editable panes.
+- [x] Keep menu mnemonics unique within each menu.
 
 ## File and Display Safety
 

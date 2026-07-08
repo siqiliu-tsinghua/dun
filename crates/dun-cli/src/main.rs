@@ -1136,13 +1136,49 @@ impl AppState {
         match command {
             AppCommand::CommandOutputClear => self.clear_command_output(),
             AppCommand::CommandOutputCopy => self.copy_command_output(),
+            AppCommand::CommandOutputIndex => self.jump_command_output_index(),
+            AppCommand::CommandOutputNextMatch => {
+                self.repeat_find_in_command_output(SearchDirection::Forward)
+            }
+            AppCommand::CommandOutputPreviousMatch => {
+                self.repeat_find_in_command_output(SearchDirection::Backward)
+            }
             AppCommand::CommandOutputStderr => self.jump_command_output_stderr(),
+            AppCommand::CommandOutputStderrBody => self.jump_command_output_stderr_body(),
             AppCommand::CommandOutputStatus => self.jump_command_output_status(),
             AppCommand::CommandOutputStdout => self.jump_command_output_stdout(),
+            AppCommand::CommandOutputStdoutBody => self.jump_command_output_stdout_body(),
             AppCommand::CommandOutputSummary => self.jump_command_output_summary(),
             AppCommand::CommandOutputSave => self.start_command_output_save_dialog(),
             AppCommand::CommandOutputTruncated => self.jump_command_output_truncated(),
             AppCommand::ConfigDiagnostics => self.open_config_diagnostics_screen(),
+            AppCommand::ConfigDiagnosticsClipboard => {
+                self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Clipboard)
+            }
+            AppCommand::ConfigDiagnosticsFileDialogKeymap => {
+                self.jump_config_diagnostics_section(ConfigDiagnosticsSection::FileDialogKeymap)
+            }
+            AppCommand::ConfigDiagnosticsInput => {
+                self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Input)
+            }
+            AppCommand::ConfigDiagnosticsKeymap => {
+                self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Keymap)
+            }
+            AppCommand::ConfigDiagnosticsLimits => {
+                self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Limits)
+            }
+            AppCommand::ConfigDiagnosticsPaths => {
+                self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Paths)
+            }
+            AppCommand::ConfigDiagnosticsSource => {
+                self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Source)
+            }
+            AppCommand::ConfigDiagnosticsSummary => {
+                self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Summary)
+            }
+            AppCommand::ConfigDiagnosticsTerminal => {
+                self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Terminal)
+            }
             AppCommand::Help => self.open_help_screen(),
             AppCommand::ReloadConfig => self.reload_config(),
             AppCommand::RunCommand => self.start_prompt(PromptKind::RunCommand, String::new()),
@@ -1352,6 +1388,14 @@ impl AppState {
                 self.move_focused_page(1);
                 return;
             }
+            EditCommand::MoveDocumentStart => {
+                self.move_focused_document_edge(false);
+                return;
+            }
+            EditCommand::MoveDocumentEnd => {
+                self.move_focused_document_edge(true);
+                return;
+            }
             EditCommand::ScrollLeft => {
                 self.scroll_focused_columns(-1);
                 return;
@@ -1453,6 +1497,8 @@ impl AppState {
             | EditCommand::GoToLine
             | EditCommand::MovePageUp
             | EditCommand::MovePageDown
+            | EditCommand::MoveDocumentStart
+            | EditCommand::MoveDocumentEnd
             | EditCommand::ScrollLeft
             | EditCommand::ScrollRight
             | EditCommand::ExtendSelectionPageUp
@@ -1709,6 +1755,30 @@ impl AppState {
             buffer.move_page_down(page_lines)
         };
         buffer.ensure_cursor_visible(body_height, context.body_width);
+        moved
+    }
+
+    fn move_focused_document_edge(&mut self, end: bool) -> bool {
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id: BufferId(0),
+                body_height: 1,
+                body_width: 1,
+            });
+        let Some(buffer) = self.focused_buffer_mut() else {
+            return false;
+        };
+
+        let target = if end {
+            buffer_end_position(&buffer.buffer)
+        } else {
+            Position::zero()
+        };
+        let moved =
+            buffer.buffer.cursor_position() != target || buffer.buffer.selection().is_some();
+        let _ = buffer.buffer.set_cursor(target);
+        buffer.ensure_cursor_visible(context.body_height, context.body_width);
         moved
     }
 
@@ -2368,6 +2438,42 @@ impl AppState {
         }
     }
 
+    fn jump_config_diagnostics_section(&mut self, section: ConfigDiagnosticsSection) {
+        self.open_config_diagnostics_screen();
+        let Some(window_id) = self.config_diagnostics_window_id() else {
+            self.set_status("Config diagnostics failed: diagnostics window is missing");
+            return;
+        };
+        let Some(buffer_id) = self.config_diagnostics_buffer_id() else {
+            self.set_status("Config diagnostics failed: diagnostics buffer is missing");
+            return;
+        };
+        let Some(line_index) = self
+            .buffer_state(buffer_id)
+            .and_then(|buffer| line_with_exact_text(&buffer.buffer, section.heading()))
+        else {
+            self.set_status(format!(
+                "Config diagnostics: {} section not found",
+                section.label()
+            ));
+            return;
+        };
+
+        self.workspace.focused = window_id;
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id,
+                body_height: 1,
+                body_width: 1,
+            });
+        if let Some(buffer) = self.buffer_state_mut(buffer_id) {
+            let _ = buffer.buffer.set_cursor(Position::new(line_index, 0));
+            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        }
+        self.set_status(format!("Config diagnostics: {}", section.label()));
+    }
+
     fn open_status_history_screen(&mut self) {
         self.set_status("Status history");
 
@@ -2508,12 +2614,24 @@ impl AppState {
         self.jump_command_output_line(command_output_summary_line, "summary");
     }
 
+    fn jump_command_output_index(&mut self) {
+        self.jump_command_output_line(command_output_index_line, "index");
+    }
+
     fn jump_command_output_stdout(&mut self) {
         self.jump_command_output_line(command_output_stdout_line, "stdout");
     }
 
+    fn jump_command_output_stdout_body(&mut self) {
+        self.jump_command_output_line(command_output_stdout_body_line, "stdout body");
+    }
+
     fn jump_command_output_stderr(&mut self) {
         self.jump_command_output_line(command_output_stderr_line, "stderr");
+    }
+
+    fn jump_command_output_stderr_body(&mut self) {
+        self.jump_command_output_line(command_output_stderr_body_line, "stderr body");
     }
 
     fn jump_command_output_status(&mut self) {
@@ -2558,6 +2676,33 @@ impl AppState {
             buffer.ensure_cursor_visible(context.body_height, context.body_width);
         }
         self.set_status(format!("Command Output: {label}"));
+    }
+
+    fn repeat_find_in_command_output(&mut self, direction: SearchDirection) {
+        let Some(window_id) = self.command_output_window_id() else {
+            self.set_status("Command Output: no output window");
+            return;
+        };
+        let Some(buffer_id) = self.command_output_buffer_id() else {
+            self.set_status("Command Output: no output buffer");
+            return;
+        };
+        let spec = self
+            .buffer_state(buffer_id)
+            .and_then(|buffer| buffer.search.as_ref().map(|search| search.spec.clone()))
+            .or_else(|| {
+                self.last_find_query
+                    .as_ref()
+                    .map(|query| SearchSpec::parse(query))
+                    .filter(|spec| !spec.is_empty())
+            });
+        let Some(spec) = spec else {
+            self.set_status("Command Output find: no query");
+            return;
+        };
+
+        self.workspace.focused = window_id;
+        self.find_in_focused_buffer(spec, direction);
     }
 
     fn find_in_command_output(&mut self, spec: SearchSpec) {
@@ -4115,7 +4260,9 @@ impl AppState {
 
         match normalize_command_line_token(command).as_str() {
             "help" | "h" | "?" => self.open_help_screen(),
-            "config" | "diagnostics" | "configdiagnostics" => self.open_config_diagnostics_screen(),
+            "config" | "diagnostics" | "configdiagnostics" => {
+                self.run_config_diagnostics_command(args)
+            }
             "reload" | "reloadconfig" => self.reload_config(),
             "status" | "statushistory" => self.open_status_history_screen(),
             "theme" => self.run_theme_command(args),
@@ -4193,6 +4340,25 @@ impl AppState {
             [action] if normalize_command_line_token(action) == "copy" => {
                 self.handle_app_command(&AppCommand::CommandOutputCopy)
             }
+            [action] if normalize_command_line_token(action) == "index" => {
+                self.handle_app_command(&AppCommand::CommandOutputIndex)
+            }
+            [action]
+                if matches!(
+                    normalize_command_line_token(action).as_str(),
+                    "next" | "nextmatch"
+                ) =>
+            {
+                self.handle_app_command(&AppCommand::CommandOutputNextMatch)
+            }
+            [action]
+                if matches!(
+                    normalize_command_line_token(action).as_str(),
+                    "previous" | "prev" | "prevmatch" | "previousmatch"
+                ) =>
+            {
+                self.handle_app_command(&AppCommand::CommandOutputPreviousMatch)
+            }
             [action] if normalize_command_line_token(action) == "summary" => {
                 self.handle_app_command(&AppCommand::CommandOutputSummary)
             }
@@ -4202,8 +4368,24 @@ impl AppState {
             [action] if normalize_command_line_token(action) == "stdout" => {
                 self.handle_app_command(&AppCommand::CommandOutputStdout)
             }
+            [action]
+                if matches!(
+                    normalize_command_line_token(action).as_str(),
+                    "stdoutbody" | "outbody"
+                ) =>
+            {
+                self.handle_app_command(&AppCommand::CommandOutputStdoutBody)
+            }
             [action] if normalize_command_line_token(action) == "stderr" => {
                 self.handle_app_command(&AppCommand::CommandOutputStderr)
+            }
+            [action]
+                if matches!(
+                    normalize_command_line_token(action).as_str(),
+                    "stderrbody" | "errbody"
+                ) =>
+            {
+                self.handle_app_command(&AppCommand::CommandOutputStderrBody)
             }
             [action]
                 if matches!(
@@ -4223,8 +4405,25 @@ impl AppState {
                 self.save_command_output_path(PathBuf::from(path))
             }
             _ => self.set_status(
-                "Command failed: output expects summary, status, stdout, stderr, truncated, find QUERY, clear, copy, or save PATH",
+                "Command failed: output expects index, summary, status, stdout, stdout-body, stderr, stderr-body, truncated, find QUERY, next, previous, clear, copy, or save PATH",
             ),
+        }
+    }
+
+    fn run_config_diagnostics_command(&mut self, args: &[String]) {
+        match args {
+            [] => self.open_config_diagnostics_screen(),
+            [section] => match parse_config_diagnostics_section(section) {
+                Some(section) => self.jump_config_diagnostics_section(section),
+                None => self.set_status(format!(
+                    "Command failed: config expects one of {}",
+                    config_diagnostics_section_values()
+                )),
+            },
+            _ => self.set_status(format!(
+                "Command failed: config expects zero args or one of {}",
+                config_diagnostics_section_values()
+            )),
         }
     }
 
@@ -5671,7 +5870,7 @@ enum MouseDragState {
     },
 }
 
-const COMMAND_LINE_HELP: &str = "Commands: help, config, status, reload-config, shell, run [\"command\"], output summary|stdout|stderr|find QUERY|clear|copy|save PATH, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
+const COMMAND_LINE_HELP: &str = "Commands: help, config [section], status, reload-config, shell, run [\"command\"], output index|summary|status|stdout|stdout-body|stderr|stderr-body|truncated|find QUERY|next|previous|clear|copy|save PATH, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CommandLineParseError {
@@ -5769,10 +5968,74 @@ const fn theme_command_values() -> &'static str {
     "msedit|turbo|dark|dun"
 }
 
+const fn config_diagnostics_section_values() -> &'static str {
+    "summary|paths|source|terminal|input|clipboard|limits|keymap|file-dialog-keymap"
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SearchDirection {
     Forward,
     Backward,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ConfigDiagnosticsSection {
+    Summary,
+    Paths,
+    Source,
+    Terminal,
+    Input,
+    Clipboard,
+    Limits,
+    Keymap,
+    FileDialogKeymap,
+}
+
+impl ConfigDiagnosticsSection {
+    const fn heading(self) -> &'static str {
+        match self {
+            Self::Summary => "Summary",
+            Self::Paths => "Paths",
+            Self::Source => "Source",
+            Self::Terminal => "Terminal",
+            Self::Input => "Input",
+            Self::Clipboard => "Clipboard",
+            Self::Limits => "Limits",
+            Self::Keymap => "Keymap",
+            Self::FileDialogKeymap => "File Dialog Keymap",
+        }
+    }
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Summary => "summary",
+            Self::Paths => "paths",
+            Self::Source => "source",
+            Self::Terminal => "terminal",
+            Self::Input => "input",
+            Self::Clipboard => "clipboard",
+            Self::Limits => "limits",
+            Self::Keymap => "keymap",
+            Self::FileDialogKeymap => "file dialog keymap",
+        }
+    }
+}
+
+fn parse_config_diagnostics_section(input: &str) -> Option<ConfigDiagnosticsSection> {
+    match normalize_command_line_token(input).as_str() {
+        "summary" => Some(ConfigDiagnosticsSection::Summary),
+        "paths" | "path" => Some(ConfigDiagnosticsSection::Paths),
+        "source" => Some(ConfigDiagnosticsSection::Source),
+        "terminal" | "term" => Some(ConfigDiagnosticsSection::Terminal),
+        "input" => Some(ConfigDiagnosticsSection::Input),
+        "clipboard" | "clip" => Some(ConfigDiagnosticsSection::Clipboard),
+        "limits" | "limit" => Some(ConfigDiagnosticsSection::Limits),
+        "keymap" | "keys" => Some(ConfigDiagnosticsSection::Keymap),
+        "filedialogkeymap" | "filedialogkeys" | "dialogkeymap" | "dialogkeys" => {
+            Some(ConfigDiagnosticsSection::FileDialogKeymap)
+        }
+        _ => None,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -7669,6 +7932,9 @@ fn help_text(keymap: &Keymap, file_dialog_keys: &FileDialogKeymap) -> String {
     out.push_str(
         "Selection\n  Shift+Arrow       Extend selection by character or line\n  Shift+Home/End    Extend selection to line edge\n  Shift+PageUp/Down Extend selection by visible page\n  Ctrl+Shift+Arrow  Extend selection by word when delivered\n\n",
     );
+    out.push_str(
+        "Navigation\n  PageUp/PageDown   Move by visible page\n  Ctrl+Home/End     Move to document start/end\n  F3/Shift+F3       Repeat find forward/backward\n\n",
+    );
     out.push_str("File Dialogs\n");
     push_file_dialog_help(
         &mut out,
@@ -7878,6 +8144,10 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Jump Command Output to summary",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputIndex),
+                description: "Jump Command Output to index",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputStatus),
                 description: "Jump Command Output to status",
             },
@@ -7886,12 +8156,28 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Jump Command Output to stdout",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputStdoutBody),
+                description: "Jump Command Output to first stdout line",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputStderr),
                 description: "Jump Command Output to stderr",
             },
             HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputStderrBody),
+                description: "Jump Command Output to first stderr line",
+            },
+            HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputTruncated),
                 description: "Jump Command Output to truncation flag",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputNextMatch),
+                description: "Find next match in Command Output",
+            },
+            HelpCommand {
+                command: EditorCommand::App(AppCommand::CommandOutputPreviousMatch),
+                description: "Find previous match in Command Output",
             },
             HelpCommand {
                 command: EditorCommand::App(AppCommand::CommandOutputCopy),
@@ -7974,6 +8260,14 @@ const HELP_SECTIONS: &[HelpSection] = &[
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::MovePageDown),
                 description: "Move page down",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveDocumentStart),
+                description: "Move to document start",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::MoveDocumentEnd),
+                description: "Move to document end",
             },
             HelpCommand {
                 command: EditorCommand::Edit(EditCommand::ScrollLeft),
@@ -8245,6 +8539,9 @@ fn command_output_text(result: &CommandRunResult) -> String {
             "no"
         }
     ));
+    out.push_str(
+        "\nIndex\n  output summary       metadata summary\n  output status        exit status line\n  output stdout        stdout section header\n  output stdout-body   first non-empty stdout line\n  output stderr        stderr section header\n  output stderr-body   first non-empty stderr line\n  output truncated     truncation flag\n",
+    );
 
     out.push_str(&format!(
         "\n--- stdout ({}) ---\n",
@@ -8321,6 +8618,10 @@ fn command_output_summary_line(buffer: &TextBuffer) -> Option<usize> {
     })
 }
 
+fn command_output_index_line(buffer: &TextBuffer) -> Option<usize> {
+    command_output_section_line(buffer, "Index")
+}
+
 fn command_output_status_line(buffer: &TextBuffer) -> Option<usize> {
     command_output_section_line(buffer, "Status: ")
 }
@@ -8333,8 +8634,16 @@ fn command_output_stdout_line(buffer: &TextBuffer) -> Option<usize> {
     command_output_section_line(buffer, "--- stdout")
 }
 
+fn command_output_stdout_body_line(buffer: &TextBuffer) -> Option<usize> {
+    command_output_body_line(buffer, command_output_stdout_line)
+}
+
 fn command_output_stderr_line(buffer: &TextBuffer) -> Option<usize> {
     command_output_section_line(buffer, "--- stderr")
+}
+
+fn command_output_stderr_body_line(buffer: &TextBuffer) -> Option<usize> {
+    command_output_body_line(buffer, command_output_stderr_line)
 }
 
 fn command_output_section_line(buffer: &TextBuffer, prefix: &str) -> Option<usize> {
@@ -8343,6 +8652,30 @@ fn command_output_section_line(buffer: &TextBuffer, prefix: &str) -> Option<usiz
             .line(*line_index)
             .is_some_and(|line| line.starts_with(prefix))
     })
+}
+
+fn line_with_exact_text(buffer: &TextBuffer, text: &str) -> Option<usize> {
+    (0..buffer.line_count()).find(|line_index| buffer.line(*line_index) == Some(text))
+}
+
+fn command_output_body_line(
+    buffer: &TextBuffer,
+    header_finder: fn(&TextBuffer) -> Option<usize>,
+) -> Option<usize> {
+    let header = header_finder(buffer)?;
+    for line_index in header.saturating_add(1)..buffer.line_count() {
+        let Some(line) = buffer.line(line_index) else {
+            continue;
+        };
+        if line.starts_with("--- ") {
+            return None;
+        }
+        let trimmed = line.trim();
+        if !trimmed.is_empty() && trimmed != "(empty)" && trimmed != "[truncated]" {
+            return Some(line_index);
+        }
+    }
+    None
 }
 
 fn buffer_end_position(buffer: &TextBuffer) -> Position {
@@ -9887,6 +10220,64 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn wrapped_page_commands_preserve_visual_column_across_wide_chars() {
+        let mut app = app_with_text("界abcdefghi");
+        let state = app.buffer_state_mut(BufferId(1)).unwrap();
+        state.word_wrap = true;
+        state
+            .buffer
+            .set_cursor(Position::new(0, "界a".len()))
+            .unwrap();
+        app.sync_view_for_area(Rect::new(0, 0, 10, 3));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MovePageDown));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        let cursor = state.buffer.cursor_position();
+        assert_eq!(
+            state.buffer.line(0).unwrap().get(..cursor.column),
+            Some("界abcdefg")
+        );
+    }
+
+    #[test]
+    fn wrapped_page_commands_preserve_visual_column_across_tab_and_control() {
+        let mut app = app_with_text("a\tbcdefgh\na\u{1}bcdefgh");
+        let state = app.buffer_state_mut(BufferId(1)).unwrap();
+        state.word_wrap = true;
+        state
+            .buffer
+            .set_cursor(Position::new(0, "a\t".len()))
+            .unwrap();
+        app.sync_view_for_area(Rect::new(0, 0, 8, 3));
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MovePageDown));
+
+        {
+            let state = app.buffer_state(BufferId(1)).unwrap();
+            let cursor = state.buffer.cursor_position();
+            assert_eq!(
+                state.buffer.line(0).unwrap().get(..cursor.column),
+                Some("a\tbcde")
+            );
+        }
+
+        app.buffer_state_mut(BufferId(1))
+            .unwrap()
+            .buffer
+            .set_cursor(Position::new(1, "a\u{1}".len()))
+            .unwrap();
+        app.handle_command(&EditorCommand::Edit(EditCommand::MovePageDown));
+
+        let state = app.buffer_state(BufferId(1)).unwrap();
+        let cursor = state.buffer.cursor_position();
+        assert_eq!(
+            state.buffer.line(1).unwrap().get(..cursor.column),
+            Some("a\u{1}bcde")
+        );
+    }
+
+    #[test]
     fn horizontal_scroll_keeps_cursor_visible_and_reports_offset() {
         let mut app = app_with_text("0123456789abcdef");
         app.sync_view_for_area(Rect::new(0, 0, 10, 4));
@@ -10189,6 +10580,29 @@ key.app.quit = Esc
     }
 
     #[test]
+    fn document_edge_commands_work_in_read_only_windows() {
+        let mut app = AppState::new();
+        app.sync_view_for_area(Rect::new(0, 0, 80, 6));
+        app.handle_command(&EditorCommand::App(AppCommand::Help));
+        let help_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveDocumentEnd));
+
+        let buffer = app.buffer_state(help_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.cursor_position(),
+            buffer_end_position(&buffer.buffer)
+        );
+        assert!(buffer.first_line > 0);
+
+        app.handle_command(&EditorCommand::Edit(EditCommand::MoveDocumentStart));
+
+        let buffer = app.buffer_state(help_buffer_id).unwrap();
+        assert_eq!(buffer.buffer.cursor_position(), Position::zero());
+        assert_eq!(buffer.first_line, 0);
+    }
+
+    #[test]
     fn configured_help_binding_replaces_default_runtime_binding() {
         let config = parse_config("key.app.help = F10").unwrap();
         let mut app = AppState::from_config(config);
@@ -10298,6 +10712,34 @@ key.window.close = none
         app.handle_command(&EditorCommand::Window(WindowCommand::Close));
         assert_eq!(app.workspace.window_count(), 1);
         assert!(app.buffer_state(config_buffer_id).is_none());
+    }
+
+    #[test]
+    fn config_diagnostics_command_jumps_to_named_sections() {
+        let mut app = AppState::new();
+
+        submit_command_line(&mut app, "config keymap");
+
+        let window = app.workspace.focused_window().unwrap();
+        assert_eq!(window.kind, WindowKind::ConfigDiagnostics);
+        let buffer = app.buffer_state(window.buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("Keymap")
+        );
+        assert_eq!(
+            app.status_message,
+            Some("Config diagnostics: keymap".to_string())
+        );
+
+        submit_command_line(&mut app, "diagnostics file-dialog-keymap");
+
+        let window = app.workspace.focused_window().unwrap();
+        let buffer = app.buffer_state(window.buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("File Dialog Keymap")
+        );
     }
 
     #[test]
@@ -10515,7 +10957,28 @@ key.window.close = none
         assert!(
             buffer
                 .search_status()
-                .is_some_and(|status| status == "Find 1/3")
+                .is_some_and(|status| status == "Find 1/7")
+        );
+
+        submit_command_line(&mut app, "output index");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("Index")
+        );
+
+        submit_command_line(&mut app, "output stdout-body");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("stdout")
+        );
+
+        submit_command_line(&mut app, "output stderr-body");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("stderr")
         );
 
         app.handle_command(&EditorCommand::App(AppCommand::CommandOutputStatus));
@@ -10551,6 +11014,48 @@ key.window.close = none
             .buffer_state(app.workspace.focused_window().unwrap().buffer_id)
             .unwrap();
         assert_eq!(buffer.buffer.to_text(), "Dun Command Output\n\n(empty)\n");
+    }
+
+    #[test]
+    fn command_output_find_next_previous_use_output_search_cache() {
+        let mut app = AppState::new();
+        app.run_external_command_to_buffer("printf seed");
+        let output_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+        app.buffer_state_mut(output_buffer_id).unwrap().buffer = command_output_buffer(
+            "Dun Command Output\n\nCommand: generated\nShell: sh\nStatus: exit 0\nElapsed: 1ms\nLimit: 1 bytes per stream\nStdout: 2 bytes, complete\nStderr: 0 bytes, complete\nTruncated: no\n\nIndex\n  output next         next match\n\n--- stdout (2 bytes, complete) ---\nneedle\nother\nneedle\n--- stderr (0 bytes, complete) ---\n(empty)\n",
+        );
+
+        submit_command_line(&mut app, "output find needle");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("needle")
+        );
+        assert!(
+            buffer
+                .search_status()
+                .is_some_and(|status| status == "Find 1/2")
+        );
+
+        submit_command_line(&mut app, "output next");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert_eq!(
+            buffer.buffer.line(buffer.buffer.cursor_position().line),
+            Some("needle")
+        );
+        assert!(
+            buffer
+                .search_status()
+                .is_some_and(|status| status == "Find 2/2")
+        );
+
+        submit_command_line(&mut app, "output previous");
+        let buffer = app.buffer_state(output_buffer_id).unwrap();
+        assert!(
+            buffer
+                .search_status()
+                .is_some_and(|status| status == "Find 1/2")
+        );
     }
 
     #[test]

@@ -110,6 +110,7 @@ to a command gives the configured command priority.
 Default editor movement also includes PageUp/PageDown for visible-page
 movement, using wrapped visual rows when word-wrap is active.
 `Shift+PageUp/PageDown` uses the same page model for selection,
+`Ctrl+Home/End` moves to the document start/end,
 `Ctrl+W,[`/`Ctrl+W,]` for explicit horizontal viewport scrolling,
 `Ctrl+Left/Right` for word movement, `Ctrl+Shift+Left/Right` for word
 selection, `Ctrl+Backspace/Delete` for word deletion, and `Ctrl+L` for
@@ -119,9 +120,12 @@ remapped or disabled like other `key.edit.*` entries.
 Find and Replace prompts accept search prefixes before the query: `/i query`
 for ignore-case, `/w query` for whole-word, and `/iw query` for both.
 The command prompt also accepts Command Output helpers:
-`output summary`, `output status`, `output stdout`, `output stderr`,
-`output truncated`, `output find QUERY`, `output clear`, `output copy`,
-`output save`, and `output save PATH`.
+`output index`, `output summary`, `output status`, `output stdout`,
+`output stdout-body`, `output stderr`, `output stderr-body`,
+`output truncated`, `output find QUERY`, `output next`, `output previous`,
+`output clear`, `output copy`, `output save`, and `output save PATH`.
+Config Diagnostics can also be opened at a section with commands such as
+`config keymap`, `config limits`, or `diagnostics file-dialog-keymap`.
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window

@@ -576,3 +576,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   menu; Save Output dialog tests now cover overwrite confirmation and write
   errors. Config Diagnostics now starts with readable Summary and Paths groups
   before detailed source, terminal, clipboard, limits, and keymap sections.
+- Added a second navigation polish batch. Command Output now includes an Index
+  section, can jump to stdout/stderr first non-empty body lines, and supports
+  next/previous search repeat through commands and the command prompt.
+  Soft-wrap paging has focused coverage for wide characters, tabs, and control
+  bytes. Config Diagnostics can jump directly to named sections such as
+  keymap, limits, and file-dialog keymap. `Ctrl+Home/End` now move to document
+  start/end in both editable and read-only panes, and menu mnemonic uniqueness
+  is covered by UI tests.
