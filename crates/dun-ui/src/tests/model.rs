@@ -12,6 +12,22 @@ fn shell_resolves_keymap_commands() {
 }
 
 #[test]
+fn shell_resolves_single_strokes_and_describes_workspace() {
+    let shell = UiShell::default();
+    let stroke = KeyStroke::from_str("F1").unwrap();
+
+    assert_eq!(
+        shell.command_for_stroke(stroke),
+        Some(&EditorCommand::App(AppCommand::Help))
+    );
+
+    let description = shell.describe_workspace(&Workspace::new_untitled());
+    assert!(description.contains("theme=msedit"));
+    assert!(description.contains("windows=1"));
+    assert!(description.contains("border=┌──┐"));
+}
+
+#[test]
 fn frame_contains_menu_status_and_sanitized_buffer_content() {
     let workspace = Workspace::new_untitled();
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "safe\x1b]0;x\x07");

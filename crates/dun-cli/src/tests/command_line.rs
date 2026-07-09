@@ -447,6 +447,9 @@ fn command_line_open_path_refuses_dirty_focused_buffer() {
 fn command_line_reports_unknown_and_parse_errors() {
     let mut app = AppState::new();
 
+    app.run_command_line("");
+    assert_eq!(app.status_message, Some("Command cancelled".to_string()));
+
     submit_command_line(&mut app, "wat");
     assert_eq!(app.status_message, Some("Unknown command: wat".to_string()));
 
@@ -454,6 +457,236 @@ fn command_line_reports_unknown_and_parse_errors() {
     assert_eq!(
         app.status_message,
         Some("Command failed: unclosed quote".to_string())
+    );
+}
+
+#[test]
+fn command_line_reports_argument_errors_without_side_effects() {
+    let mut app = AppState::new();
+
+    submit_command_line(&mut app, "");
+    assert_eq!(app.status_message, Some("Command cancelled".to_string()));
+
+    submit_command_line(&mut app, "theme dark extra");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: theme expects zero or one theme name".to_string())
+    );
+
+    submit_command_line(&mut app, "run one two");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: run expects zero args or one quoted command".to_string())
+    );
+
+    submit_command_line(&mut app, "shell extra");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: app.shell_escape expects no arguments".to_string())
+    );
+
+    submit_command_line(&mut app, "config nope");
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.contains("Command failed: config expects one of"))
+    );
+
+    submit_command_line(&mut app, "config summary extra");
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.contains("Command failed: config expects zero args"))
+    );
+
+    submit_command_line(&mut app, "outline one two");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: outline expects zero args or one section number/name".to_string())
+    );
+
+    submit_command_line(&mut app, "results one two");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: results expects zero args or one match number".to_string())
+    );
+
+    submit_command_line(&mut app, "open one two");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: open expects zero or one path".to_string())
+    );
+
+    submit_command_line(&mut app, "save one two");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: save expects zero or one path".to_string())
+    );
+
+    submit_command_line(&mut app, "save-as one two");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: save-as expects zero or one path".to_string())
+    );
+
+    submit_command_line(&mut app, "find one two");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: find expects zero or one query".to_string())
+    );
+
+    submit_command_line(&mut app, "replace one");
+    assert_eq!(
+        app.status_message,
+        Some(
+            "Command failed: replace expects query and replacement, or all query replacement"
+                .to_string()
+        )
+    );
+
+    submit_command_line(&mut app, "goto one two");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: go-to-line expects one line number".to_string())
+    );
+}
+
+#[test]
+fn command_line_aliases_open_builtin_views() {
+    let mut app = AppState::new();
+
+    submit_command_line(&mut app, "?");
+    assert_eq!(
+        app.workspace.focused_window().unwrap().kind,
+        WindowKind::Help
+    );
+
+    submit_command_line(&mut app, "status");
+    assert_eq!(
+        app.workspace.focused_window().unwrap().kind,
+        WindowKind::StatusHistory
+    );
+
+    submit_command_line(&mut app, "diagnostics summary");
+    assert_eq!(
+        app.workspace.focused_window().unwrap().kind,
+        WindowKind::ConfigDiagnostics
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Config diagnostics: summary".to_string())
+    );
+
+    submit_command_line(&mut app, "theme");
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.starts_with("Theme: "))
+    );
+}
+
+#[test]
+fn command_line_dispatches_editor_toggle_and_output_aliases() {
+    let mut app = app_with_text("one one");
+
+    submit_command_line(&mut app, "buffers");
+    assert_eq!(
+        app.status_message,
+        Some("Buffer switcher: only one buffer".to_string())
+    );
+
+    submit_command_line(&mut app, "wrap");
+    assert_eq!(app.status_message, Some("Word wrap on".to_string()));
+
+    submit_command_line(&mut app, "whitespace");
+    assert_eq!(
+        app.status_message,
+        Some("Visible whitespace on".to_string())
+    );
+
+    submit_command_line(&mut app, "mark");
+    assert_eq!(app.status_message, Some("Bookmarked line 1".to_string()));
+
+    for command in [
+        "output clear",
+        "output copy",
+        "output index",
+        "output next",
+        "output next-section",
+        "output previous",
+        "output previous-section",
+        "output summary",
+        "output status",
+        "output stdout",
+        "output stdout-body",
+        "output stderr",
+        "output stderr-body",
+        "output truncated",
+        "output save",
+    ] {
+        submit_command_line(&mut app, command);
+        assert_eq!(
+            app.status_message,
+            Some("Command Output: no output window".to_string()),
+            "{command}"
+        );
+    }
+
+    submit_command_line(&mut app, "output bogus");
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.starts_with("Command failed: output expects"))
+    );
+
+    submit_command_line(&mut app, "replace one uno");
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "uno one"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Replace: 1/2 one -> uno; next 1/1".to_string())
+    );
+
+    submit_command_line(&mut app, "goto 1");
+    assert_eq!(app.status_message, Some("Go to line: 1".to_string()));
+
+    let mut clean_app = AppState::new();
+    clean_app.handle_text_input('x');
+    clean_app
+        .buffer_state_mut(BufferId(1))
+        .unwrap()
+        .buffer
+        .mark_saved();
+    clean_app.run_command_line("new");
+    assert_eq!(
+        clean_app
+            .buffer_state(BufferId(1))
+            .unwrap()
+            .buffer
+            .to_text(),
+        ""
+    );
+}
+
+#[test]
+fn command_line_save_paths_report_io_errors() {
+    let missing_parent = temp_file_path("missing-save-parent").join("file.txt");
+    let mut app = app_with_text("dirty");
+
+    submit_command_line(&mut app, &format!("save {}", missing_parent.display()));
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.starts_with("Save As failed:"))
+    );
+
+    submit_command_line(&mut app, &format!("save-as {}", missing_parent.display()));
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.starts_with("Save As failed:"))
     );
 }
 

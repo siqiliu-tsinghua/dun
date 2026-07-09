@@ -109,12 +109,43 @@ fn parse_cli_args_reports_usage_errors() {
             .to_string(),
         "--config and --no-config cannot be used together"
     );
+    assert_eq!(
+        parse_cli_args(["--no-config", "--config", "one"])
+            .unwrap_err()
+            .to_string(),
+        "--config and --no-config cannot be used together"
+    );
+    assert_eq!(
+        parse_cli_args(["--config="]).unwrap_err().to_string(),
+        "missing path after --config"
+    );
+    assert_eq!(
+        parse_cli_args(["--config=one", "--config=two"])
+            .unwrap_err()
+            .to_string(),
+        "--config may only be used once"
+    );
+    assert_eq!(
+        parse_cli_args(["--no-config", "--config=one"])
+            .unwrap_err()
+            .to_string(),
+        "--config and --no-config cannot be used together"
+    );
 }
 
 #[test]
 fn cli_error_exit_codes_are_stable() {
     assert_eq!(CliError::Usage(UsageError::new("bad")).exit_code(), 2);
     assert_eq!(CliError::Io(io::Error::other("boom")).exit_code(), 1);
+    assert!(
+        CliError::Usage(UsageError::new("bad"))
+            .to_string()
+            .contains("Usage: dun")
+    );
+    assert_eq!(
+        CliError::Io(io::Error::other("boom")).to_string(),
+        "dun: boom"
+    );
     assert!(cli_help_text().contains("Exit codes:"));
     assert!(cli_help_text().contains("--config PATH"));
     assert!(cli_help_text().contains("--dump-config"));

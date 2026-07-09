@@ -158,6 +158,21 @@ fn find_reports_missing_query_and_missing_match() {
 }
 
 #[test]
+fn find_preview_reports_missing_match_without_committing_query() {
+    let mut app = app_with_text("abc");
+
+    app.commit_find_preview(SearchSpec::parse("z"));
+
+    let state = app.buffer_state(BufferId(1)).unwrap();
+    assert_eq!(
+        app.status_message,
+        Some("Find: no matches for z".to_string())
+    );
+    assert_eq!(state.search_status(), Some("Find 0".to_string()));
+    assert_eq!(state.buffer.selection_range(), None);
+}
+
+#[test]
 fn replace_command_prompts_and_replaces_next_match() {
     let mut app = app_with_text("one two one");
 
@@ -399,6 +414,221 @@ fn replace_reports_missing_match() {
         Some("Replace: no matches for z".to_string())
     );
     assert_eq!(state.buffer.selection_range(), None);
+}
+
+#[test]
+fn direct_replace_commands_report_empty_and_missing_queries() {
+    let mut app = app_with_text("abc");
+
+    app.replace_in_focused_buffer(SearchSpec::parse(""), "x");
+    assert_eq!(app.status_message, Some("Replace: no query".to_string()));
+
+    app.replace_in_focused_buffer(SearchSpec::parse("z"), "x");
+    assert_eq!(
+        app.status_message,
+        Some("Replace: no matches for z".to_string())
+    );
+
+    app.replace_all_in_focused_buffer(SearchSpec::parse(""), "x");
+    assert_eq!(
+        app.status_message,
+        Some("Replace All: no query".to_string())
+    );
+
+    app.replace_all_in_focused_buffer(SearchSpec::parse("z"), "x");
+    assert_eq!(
+        app.status_message,
+        Some("Replace All: no matches for z".to_string())
+    );
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "abc"
+    );
+}
+
+#[test]
+fn direct_replace_reports_next_or_no_remaining_matches() {
+    let mut app = app_with_text("one two one");
+
+    app.replace_in_focused_buffer(SearchSpec::parse("one"), "uno");
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "uno two one"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Replace: 1/2 one -> uno; next 1/1".to_string())
+    );
+
+    app.replace_in_focused_buffer(SearchSpec::parse("one"), "uno");
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "uno two uno"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Replace: 1/1 one -> uno; no matches left".to_string())
+    );
+}
+
+#[test]
+fn replace_all_reports_remaining_matches_when_replacement_contains_query() {
+    let mut app = app_with_text("a a");
+
+    app.replace_all_in_focused_buffer(SearchSpec::parse("a"), "aa");
+
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "aa aa"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Replace All: 2 a -> aa; 4 matches remain".to_string())
+    );
+}
+
+#[test]
+fn replace_confirmation_cancel_and_empty_query_paths_are_reported() {
+    let mut app = app_with_text("one");
+
+    assert!(
+        !app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
+            CrosstermKeyCode::Esc,
+            CrosstermKeyModifiers::NONE
+        ))
+    );
+
+    app.start_replace_confirmation(SearchSpec::parse(""), "x".to_string());
+    assert_eq!(app.status_message, Some("Replace: no query".to_string()));
+    assert!(app.replace_confirm.is_none());
+
+    app.start_replace_confirmation(SearchSpec::parse("one"), "uno".to_string());
+    assert!(app.replace_confirm.is_some());
+    assert_eq!(
+        app.confirm_status_text(),
+        Some("Match 1/1; replaced 0, skipped 0".to_string())
+    );
+
+    assert!(app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
+        CrosstermKeyCode::Char('c'),
+        CrosstermKeyModifiers::NONE
+    )));
+    assert!(app.replace_confirm.is_none());
+    assert_eq!(
+        app.status_message,
+        Some("Replace cancelled: 0 replaced, 0 skipped".to_string())
+    );
+}
+
+#[test]
+fn replace_confirmation_skip_enter_and_unknown_keys_are_handled() {
+    let mut app = app_with_text("one");
+
+    app.start_replace_confirmation(SearchSpec::parse("one"), "uno".to_string());
+    assert!(app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
+        CrosstermKeyCode::Char('x'),
+        CrosstermKeyModifiers::NONE
+    )));
+    assert!(app.replace_confirm.is_some());
+    assert_eq!(
+        app.confirm_status_text(),
+        Some("Match 1/1; replaced 0, skipped 0".to_string())
+    );
+
+    assert!(app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
+        CrosstermKeyCode::Char('s'),
+        CrosstermKeyModifiers::NONE
+    )));
+    assert!(app.replace_confirm.is_none());
+    assert_eq!(
+        app.status_message,
+        Some("Replace done: 0 replaced, 1 skipped".to_string())
+    );
+
+    app.start_replace_confirmation(SearchSpec::parse("one"), "uno".to_string());
+    assert!(app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
+        CrosstermKeyCode::Enter,
+        CrosstermKeyModifiers::NONE
+    )));
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "uno"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Replace done: 1 replaced, 0 skipped".to_string())
+    );
+
+    app.start_replace_confirmation(SearchSpec::parse("one"), "uno".to_string());
+    assert_eq!(
+        app.status_message,
+        Some("Replace: no matches for one".to_string())
+    );
+}
+
+#[test]
+fn repeat_find_treats_empty_last_query_as_missing() {
+    let mut app = app_with_text("abc");
+
+    app.last_find_query = Some(String::new());
+    app.handle_command(&EditorCommand::Edit(EditCommand::FindNext));
+
+    assert_eq!(app.status_message, Some("Find: no query".to_string()));
+}
+
+#[test]
+fn search_results_report_empty_missing_and_invalid_targets() {
+    let mut app = app_with_text("abc");
+
+    app.open_search_results_screen();
+    assert_eq!(
+        app.status_message,
+        Some("Search Results: no query".to_string())
+    );
+
+    app.last_find_query = Some("z".to_string());
+    app.open_search_results_screen();
+    assert_eq!(
+        app.status_message,
+        Some("Search Results: no matches for z".to_string())
+    );
+
+    app.last_find_query = Some("a".to_string());
+    app.jump_search_result("abc");
+    assert_eq!(
+        app.status_message,
+        Some("Search Results: match number expected".to_string())
+    );
+
+    app.jump_search_result("2");
+    assert_eq!(
+        app.status_message,
+        Some("Search Results: match 2 out of range".to_string())
+    );
+
+    app.jump_search_result("1");
+    assert_eq!(
+        app.status_message,
+        Some("Search Results: 1/1 a".to_string())
+    );
+
+    app.open_search_results_screen();
+    assert_eq!(
+        app.workspace.focused_window().unwrap().kind,
+        WindowKind::SearchResults
+    );
+    app.move_focused_numbered_aux_row(1, "Search Results");
+    assert_eq!(
+        app.status_message,
+        Some("Search Results: selected 1/1".to_string())
+    );
+    assert_eq!(app.focus_first_numbered_aux_row("Search Results"), Some(0));
+    assert_eq!(app.focus_last_numbered_aux_row("Search Results"), Some(0));
+    app.jump_current_search_result();
+    assert_eq!(
+        app.status_message,
+        Some("Search Results: 1/1 a".to_string())
+    );
 }
 
 #[test]

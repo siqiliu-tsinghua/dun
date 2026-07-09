@@ -342,6 +342,89 @@ fn command_output_find_next_previous_use_output_search_cache() {
 }
 
 #[test]
+fn command_output_actions_report_missing_output_window() {
+    let mut app = AppState::new();
+
+    app.handle_command(&EditorCommand::App(AppCommand::CommandOutputClear));
+    assert_eq!(
+        app.status_message,
+        Some("Command Output: no output window".to_string())
+    );
+
+    app.handle_command(&EditorCommand::App(AppCommand::CommandOutputCopy));
+    assert_eq!(
+        app.status_message,
+        Some("Command Output: no output window".to_string())
+    );
+
+    app.handle_command(&EditorCommand::App(AppCommand::CommandOutputSummary));
+    assert_eq!(
+        app.status_message,
+        Some("Command Output: no output window".to_string())
+    );
+
+    app.handle_command(&EditorCommand::App(AppCommand::CommandOutputNextSection));
+    assert_eq!(
+        app.status_message,
+        Some("Command Output: no output window".to_string())
+    );
+
+    app.handle_command(&EditorCommand::App(AppCommand::CommandOutputNextMatch));
+    assert_eq!(
+        app.status_message,
+        Some("Command Output: no output window".to_string())
+    );
+
+    app.handle_command(&EditorCommand::App(AppCommand::CommandOutputSave));
+    assert_eq!(
+        app.status_message,
+        Some("Command Output: no output window".to_string())
+    );
+
+    submit_command_line(&mut app, "output find");
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.starts_with("Command failed: output expects"))
+    );
+
+    submit_command_line(&mut app, "output find \"\"");
+    assert_eq!(
+        app.status_message,
+        Some("Command Output find: no query".to_string())
+    );
+
+    submit_command_line(&mut app, "output only both");
+    assert_eq!(
+        app.status_message,
+        Some("Command failed: output only expects stdout or stderr".to_string())
+    );
+
+    submit_command_line(&mut app, "output save missing.txt");
+    assert_eq!(
+        app.status_message,
+        Some("Command Output: no output window".to_string())
+    );
+}
+
+#[test]
+fn command_output_repeat_find_uses_last_query_when_output_has_no_search_cache() {
+    let mut app = AppState::new();
+    app.run_external_command_to_buffer("printf alpha");
+    let output_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+
+    app.last_find_query = Some("alpha".to_string());
+    app.handle_command(&EditorCommand::App(AppCommand::CommandOutputNextMatch));
+
+    let buffer = app.buffer_state(output_buffer_id).unwrap();
+    assert!(
+        buffer
+            .search_status()
+            .is_some_and(|status| status.starts_with("Find 1/"))
+    );
+}
+
+#[test]
 fn command_output_save_dialog_writes_output() {
     let mut app = AppState::new();
     app.run_external_command_to_buffer("printf dialog-save");

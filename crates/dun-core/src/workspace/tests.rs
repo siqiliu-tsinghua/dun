@@ -1,3 +1,4 @@
+use super::model::SplitPathStep;
 use super::*;
 
 fn area() -> Rect {
@@ -115,6 +116,23 @@ fn resize_focused_changes_nearest_split_ratio() {
 }
 
 #[test]
+fn resize_focused_changes_vertical_split_ratio_from_both_children() {
+    let mut workspace = Workspace::new_untitled();
+    let first = workspace.focused;
+    let second = workspace.split_focused(Axis::Vertical).unwrap();
+
+    workspace.focused = first;
+    assert_eq!(workspace.resize_focused(Direction::Down).unwrap(), 550);
+    assert_eq!(layout_rect(&workspace, first), Rect::new(0, 0, 100, 22));
+    assert_eq!(layout_rect(&workspace, second), Rect::new(0, 22, 100, 18));
+
+    workspace.focused = second;
+    assert_eq!(workspace.resize_focused(Direction::Up).unwrap(), 500);
+    assert_eq!(layout_rect(&workspace, first), Rect::new(0, 0, 100, 20));
+    assert_eq!(layout_rect(&workspace, second), Rect::new(0, 20, 100, 20));
+}
+
+#[test]
 fn split_at_returns_handle_for_split_boundary() {
     let mut workspace = Workspace::new_untitled();
     workspace.split_focused(Axis::Horizontal).unwrap();
@@ -151,6 +169,26 @@ fn resize_split_to_clamps_to_supported_ratio_range() {
 }
 
 #[test]
+fn resize_split_to_handles_vertical_tiny_and_invalid_paths() {
+    let mut workspace = Workspace::new_untitled();
+    workspace.split_focused(Axis::Vertical).unwrap();
+    let handle = workspace.split_at(area(), 10, 20).unwrap();
+
+    assert_eq!(
+        workspace.resize_split_to(&handle, Rect::new(0, 0, 100, 1), 10, 0),
+        Ok(500)
+    );
+
+    let invalid_handle = SplitDragHandle {
+        path: vec![SplitPathStep::First],
+    };
+    assert_eq!(
+        workspace.resize_split_to(&invalid_handle, area(), 10, 10),
+        Err(WorkspaceError::NoResizableSplit)
+    );
+}
+
+#[test]
 fn resize_focused_reports_when_no_matching_edge_exists() {
     let mut workspace = Workspace::new_untitled();
     workspace.split_focused(Axis::Horizontal).unwrap();
@@ -159,6 +197,27 @@ fn resize_focused_reports_when_no_matching_edge_exists() {
         workspace.resize_focused(Direction::Down),
         Err(WorkspaceError::NoResizableSplit)
     );
+}
+
+#[test]
+fn workspace_reports_focus_missing_for_corrupt_focus() {
+    let mut workspace = Workspace::new_untitled();
+    workspace.split_focused(Axis::Horizontal).unwrap();
+    workspace.focused = WindowId(999);
+
+    assert_eq!(
+        workspace.split_focused(Axis::Horizontal),
+        Err(WorkspaceError::FocusMissing)
+    );
+    assert_eq!(
+        workspace.resize_focused(Direction::Right),
+        Err(WorkspaceError::FocusMissing)
+    );
+    assert_eq!(
+        workspace.rotate_focused_split(),
+        Err(WorkspaceError::FocusMissing)
+    );
+    assert_eq!(workspace.close_focused(), Err(WorkspaceError::FocusMissing));
 }
 
 #[test]

@@ -61,6 +61,40 @@ fn line_edit_commands_apply_to_focused_buffer() {
 }
 
 #[test]
+fn line_edit_commands_report_edge_statuses() {
+    let mut app = app_with_text("one");
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineUp));
+    assert_eq!(
+        app.status_message,
+        Some("Move line: already at top".to_string())
+    );
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineDown));
+    assert_eq!(
+        app.status_message,
+        Some("Move line: already at bottom".to_string())
+    );
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::OutdentLine));
+    assert_eq!(
+        app.status_message,
+        Some("Outdent: nothing changed".to_string())
+    );
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::TrimTrailingWhitespace));
+    assert_eq!(
+        app.status_message,
+        Some("Trim: no trailing whitespace".to_string())
+    );
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::DeleteLine));
+    assert_eq!(app.status_message, Some("Deleted line".to_string()));
+    app.handle_command(&EditorCommand::Edit(EditCommand::DeleteLine));
+    assert_eq!(app.status_message, Some("Deleted line".to_string()));
+}
+
+#[test]
 fn view_toggles_and_bookmarks_update_buffer_state() {
     let mut app = app_with_text("one\ntwo");
 
@@ -82,6 +116,50 @@ fn view_toggles_and_bookmarks_update_buffer_state() {
             .buffer
             .cursor_position(),
         Position::new(0, 0)
+    );
+}
+
+#[test]
+fn view_toggles_bookmarks_and_scroll_edges_report_status() {
+    let mut app = app_with_text("0123456789abcdef\nsecond");
+    app.sync_view_for_area(Rect::new(0, 0, 10, 4));
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleWordWrap));
+    assert_eq!(app.status_message, Some("Word wrap on".to_string()));
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleWordWrap));
+    assert_eq!(app.status_message, Some("Word wrap off".to_string()));
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace));
+    assert_eq!(
+        app.status_message,
+        Some("Visible whitespace on".to_string())
+    );
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace));
+    assert_eq!(
+        app.status_message,
+        Some("Visible whitespace off".to_string())
+    );
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::NextBookmark));
+    assert_eq!(app.status_message, Some("Bookmark: none set".to_string()));
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleBookmark));
+    assert_eq!(app.status_message, Some("Bookmarked line 1".to_string()));
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleBookmark));
+    assert_eq!(
+        app.status_message,
+        Some("Removed bookmark at line 1".to_string())
+    );
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::ScrollLeft));
+    assert_eq!(app.status_message, Some("Already at left edge".to_string()));
+
+    for _ in 0..10 {
+        app.handle_command(&EditorCommand::Edit(EditCommand::ScrollRight));
+    }
+    assert_eq!(
+        app.status_message,
+        Some("Already at right edge".to_string())
     );
 }
 

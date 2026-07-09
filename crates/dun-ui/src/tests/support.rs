@@ -2,7 +2,7 @@
 
 pub(super) use crate::*;
 pub(super) use dun_config::{
-    ColorProfile, Config, EncodingProfile, KeySequence, TerminalOverrides,
+    ColorProfile, Config, EncodingProfile, KeySequence, KeyStroke, TerminalOverrides,
 };
 pub(super) use dun_core::{
     AppCommand, Axis, BufferId, BufferKind, EditorCommand, FileCommand, Position, Rect, TextBuffer,

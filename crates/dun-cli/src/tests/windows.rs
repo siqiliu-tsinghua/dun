@@ -125,6 +125,34 @@ fn buffer_switcher_focuses_selected_buffer() {
 }
 
 #[test]
+fn buffer_switcher_reports_single_buffer_and_escape_cancels() {
+    let mut app = AppState::new();
+
+    app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
+
+    assert!(app.buffer_switcher.is_none());
+    assert_eq!(
+        app.status_message,
+        Some("Buffer switcher: only one buffer".to_string())
+    );
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
+    assert!(app.buffer_switcher.is_some());
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+    );
+
+    assert!(app.buffer_switcher.is_none());
+    assert_eq!(
+        app.status_message,
+        Some("Switch buffer cancelled".to_string())
+    );
+}
+
+#[test]
 fn buffer_switcher_overlay_reports_scroll_overflow() {
     let mut app = AppState::new();
     for _ in 0..13 {
@@ -189,6 +217,81 @@ fn buffer_switcher_home_end_jump_to_first_and_last_buffer() {
         app.workspace.focused_window().unwrap().buffer_id,
         last_buffer_id
     );
+}
+
+#[test]
+fn buffer_switcher_page_keys_and_mouse_select_visible_entries() {
+    let mut app = AppState::new();
+    app.mouse_enabled = true;
+    app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+    let first_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    for _ in 0..13 {
+        app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    }
+    let last_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+
+    app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
+    let last_index = app.buffer_switcher.as_ref().unwrap().selected_index;
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::PageUp, CrosstermKeyModifiers::NONE),
+    );
+    assert!(app.buffer_switcher.as_ref().unwrap().selected_index < last_index);
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::PageDown, CrosstermKeyModifiers::NONE),
+    );
+    assert_eq!(
+        app.buffer_switcher.as_ref().unwrap().selected_index,
+        last_index
+    );
+
+    handle_mouse_event(&mut app, scroll_up(20, 8));
+    assert_eq!(
+        app.buffer_switcher.as_ref().unwrap().selected_index,
+        last_index - 1
+    );
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+    );
+    let (x, y) = buffer_switcher_list_point(&app, 0);
+    handle_mouse_event(&mut app, left_click(x, y));
+
+    assert_eq!(
+        app.workspace.focused_window().unwrap().buffer_id,
+        first_buffer_id
+    );
+    assert_eq!(app.status_message, Some("Switched to Untitled".to_string()));
+
+    app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+    );
+    let (x, y) = buffer_switcher_list_point(
+        &app,
+        app.active_overlay().unwrap().selected_list_index.unwrap(),
+    );
+    handle_mouse_event(&mut app, left_click(x, y));
+
+    assert_eq!(
+        app.workspace.focused_window().unwrap().buffer_id,
+        last_buffer_id
+    );
+}
+
+fn buffer_switcher_list_point(app: &AppState, visible_index: usize) -> (u16, u16) {
+    let overlay = app.active_overlay().expect("buffer switcher overlay");
+    let area = app.overlay_area();
+    for y in 0..area.height {
+        if app.shell.hit_test_overlay_list(&overlay, area, 20, y) == Some(visible_index) {
+            return (20, y);
+        }
+    }
+
+    panic!("visible buffer switcher row {visible_index} was not hittable");
 }
 
 #[test]
