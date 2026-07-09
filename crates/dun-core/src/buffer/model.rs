@@ -129,6 +129,16 @@ pub enum EditMergeKind {
     DeleteForwardRun,
 }
 
+pub(super) struct MergeEdit<'a> {
+    pub merge_kind: EditMergeKind,
+    pub range: TextRange,
+    pub old_text: &'a str,
+    pub new_text: &'a str,
+    pub before_cursor: Position,
+    pub after_cursor: Position,
+    pub before_selection: Option<Selection>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BufferError {
     InvalidPosition(Position),

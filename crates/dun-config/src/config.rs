@@ -70,17 +70,9 @@ pub struct MouseConfig {
     pub enabled: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ClipboardConfig {
     pub osc52: Osc52Config,
-}
-
-impl Default for ClipboardConfig {
-    fn default() -> Self {
-        Self {
-            osc52: Osc52Config::default(),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

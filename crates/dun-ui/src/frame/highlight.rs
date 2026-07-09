@@ -5,6 +5,14 @@ use crate::{
     visible_whitespace_text, wrap_line_segments,
 };
 
+#[derive(Clone, Copy)]
+struct WrappedLineLayout {
+    visual_y: isize,
+    body_width: usize,
+    body_height: usize,
+    gutter_width: usize,
+}
+
 impl UiShell {
     pub(super) fn selection_for_buffer(
         &self,
@@ -140,10 +148,12 @@ impl UiShell {
                     line,
                     start_column,
                     end_column,
-                    visual_y,
-                    body_width,
-                    body_height,
-                    gutter_width,
+                    WrappedLineLayout {
+                        visual_y,
+                        body_width,
+                        body_height,
+                        gutter_width,
+                    },
                 ) {
                     lines.push(UiSelectionLine { y, start_x, end_x });
                 }
@@ -280,10 +290,12 @@ impl UiShell {
                 line,
                 range.start.column,
                 range.end.column,
-                visual_y,
-                body_width,
-                body_height,
-                gutter_width,
+                WrappedLineLayout {
+                    visual_y,
+                    body_width,
+                    body_height,
+                    gutter_width,
+                },
             ) {
                 lines.push(UiSearchMatchLine {
                     y,
@@ -303,10 +315,7 @@ impl UiShell {
         line: &str,
         start_column: usize,
         end_column: usize,
-        visual_y: isize,
-        body_width: usize,
-        body_height: usize,
-        gutter_width: usize,
+        layout: WrappedLineLayout,
     ) -> Vec<(u16, u16, u16)> {
         if start_column >= end_column {
             return Vec::new();
@@ -330,15 +339,18 @@ impl UiShell {
         );
         let mut spans = Vec::new();
         let mut segment_start = 0usize;
-        for (row_offset, segment) in wrap_line_segments(&visible, body_width).iter().enumerate() {
-            let row = visual_y.saturating_add(row_offset as isize);
+        for (row_offset, segment) in wrap_line_segments(&visible, layout.body_width)
+            .iter()
+            .enumerate()
+        {
+            let row = layout.visual_y.saturating_add(row_offset as isize);
             let segment_width = display_width(segment);
             let segment_end = segment_start.saturating_add(segment_width);
             if row < 0 {
                 segment_start = segment_end;
                 continue;
             }
-            if row >= body_height as isize {
+            if row >= layout.body_height as isize {
                 break;
             }
             let start = start_display.max(segment_start);
@@ -346,8 +358,8 @@ impl UiShell {
             if start < end {
                 spans.push((
                     1 + row as u16,
-                    1 + gutter_width as u16 + (start - segment_start) as u16,
-                    1 + gutter_width as u16 + (end - segment_start) as u16,
+                    1 + layout.gutter_width as u16 + (start - segment_start) as u16,
+                    1 + layout.gutter_width as u16 + (end - segment_start) as u16,
                 ));
             }
             segment_start = segment_end;

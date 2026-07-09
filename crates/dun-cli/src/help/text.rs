@@ -184,9 +184,7 @@ pub(crate) fn shell_outline_label(line: &str) -> Option<String> {
         return Some(format!("function {name}"));
     }
 
-    let Some(name) = trimmed.split("()").next() else {
-        return None;
-    };
+    let name = trimmed.split("()").next()?;
     let name = name.trim();
     if name.is_empty()
         || !trimmed[name.len()..].trim_start().starts_with("()")

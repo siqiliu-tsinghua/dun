@@ -1,4 +1,5 @@
 use super::edit::end_position_after_text;
+use super::model::MergeEdit;
 use super::*;
 
 impl TextBuffer {
@@ -36,49 +37,18 @@ impl TextBuffer {
         Ok(true)
     }
 
-    pub(super) fn try_merge_transaction(
-        &mut self,
-        merge_kind: EditMergeKind,
-        range: TextRange,
-        old_text: &str,
-        new_text: &str,
-        before_cursor: Position,
-        after_cursor: Position,
-        before_selection: Option<Selection>,
-    ) -> bool {
-        match merge_kind {
-            EditMergeKind::InsertRun => self.try_merge_insert_run(
-                range,
-                old_text,
-                new_text,
-                before_cursor,
-                after_cursor,
-                before_selection,
-            ),
-            EditMergeKind::DeleteBackwardRun | EditMergeKind::DeleteForwardRun => self
-                .try_merge_delete_run(
-                    merge_kind,
-                    range,
-                    old_text,
-                    new_text,
-                    before_cursor,
-                    after_cursor,
-                    before_selection,
-                ),
+    pub(super) fn try_merge_transaction(&mut self, edit: MergeEdit<'_>) -> bool {
+        match edit.merge_kind {
+            EditMergeKind::InsertRun => self.try_merge_insert_run(&edit),
+            EditMergeKind::DeleteBackwardRun | EditMergeKind::DeleteForwardRun => {
+                self.try_merge_delete_run(&edit)
+            }
             EditMergeKind::None => false,
         }
     }
 
-    fn try_merge_insert_run(
-        &mut self,
-        range: TextRange,
-        old_text: &str,
-        new_text: &str,
-        before_cursor: Position,
-        after_cursor: Position,
-        before_selection: Option<Selection>,
-    ) -> bool {
-        if !range.is_empty() || !old_text.is_empty() || before_selection.is_some() {
+    fn try_merge_insert_run(&mut self, edit: &MergeEdit<'_>) -> bool {
+        if !edit.range.is_empty() || !edit.old_text.is_empty() || edit.before_selection.is_some() {
             return false;
         }
 
@@ -90,7 +60,7 @@ impl TextBuffer {
             return false;
         };
         if transaction.merge_kind != EditMergeKind::InsertRun
-            || transaction.after_cursor != before_cursor
+            || transaction.after_cursor != edit.before_cursor
             || transaction.after_selection.is_some()
             || transaction.edits.len() != 1
         {
@@ -106,29 +76,20 @@ impl TextBuffer {
             return false;
         }
 
-        if end_position_after_text(previous_range.start, previous_new_text) != range.start {
+        if end_position_after_text(previous_range.start, previous_new_text) != edit.range.start {
             return false;
         }
 
-        previous_new_text.push_str(new_text);
-        transaction.after_cursor = after_cursor;
+        previous_new_text.push_str(edit.new_text);
+        transaction.after_cursor = edit.after_cursor;
         true
     }
 
-    fn try_merge_delete_run(
-        &mut self,
-        merge_kind: EditMergeKind,
-        range: TextRange,
-        old_text: &str,
-        new_text: &str,
-        before_cursor: Position,
-        after_cursor: Position,
-        before_selection: Option<Selection>,
-    ) -> bool {
-        if range.is_empty()
-            || old_text.is_empty()
-            || !new_text.is_empty()
-            || before_selection.is_some()
+    fn try_merge_delete_run(&mut self, edit: &MergeEdit<'_>) -> bool {
+        if edit.range.is_empty()
+            || edit.old_text.is_empty()
+            || !edit.new_text.is_empty()
+            || edit.before_selection.is_some()
             || !self.redo_stack.is_empty()
         {
             return false;
@@ -137,27 +98,31 @@ impl TextBuffer {
         let Some(transaction) = self.undo_stack.last_mut() else {
             return false;
         };
-        if transaction.merge_kind != merge_kind
-            || transaction.after_cursor != before_cursor
+        if transaction.merge_kind != edit.merge_kind
+            || transaction.after_cursor != edit.before_cursor
             || transaction.after_selection.is_some()
             || transaction.edits.is_empty()
         {
             return false;
         }
 
-        match merge_kind {
-            EditMergeKind::DeleteBackwardRun if range.end != before_cursor => return false,
-            EditMergeKind::DeleteForwardRun if range.start != before_cursor => return false,
+        match edit.merge_kind {
+            EditMergeKind::DeleteBackwardRun if edit.range.end != edit.before_cursor => {
+                return false;
+            }
+            EditMergeKind::DeleteForwardRun if edit.range.start != edit.before_cursor => {
+                return false;
+            }
             EditMergeKind::DeleteBackwardRun | EditMergeKind::DeleteForwardRun => {}
             EditMergeKind::None | EditMergeKind::InsertRun => return false,
         }
 
         transaction.edits.push(TextEdit::Replace {
-            range,
-            old_text: old_text.to_string(),
+            range: edit.range,
+            old_text: edit.old_text.to_string(),
             new_text: String::new(),
         });
-        transaction.after_cursor = after_cursor;
+        transaction.after_cursor = edit.after_cursor;
         true
     }
 

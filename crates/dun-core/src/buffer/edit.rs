@@ -1,3 +1,4 @@
+use super::model::MergeEdit;
 use super::*;
 
 impl TextBuffer {
@@ -182,15 +183,15 @@ impl TextBuffer {
         self.replace_range_inner(range, new_text)?;
         self.cursor = Cursor::new(after_cursor);
         self.selection = None;
-        if self.try_merge_transaction(
+        if self.try_merge_transaction(MergeEdit {
             merge_kind,
             range,
-            &old_text,
+            old_text: &old_text,
             new_text,
             before_cursor,
             after_cursor,
             before_selection,
-        ) {
+        }) {
             self.redo_stack.clear();
             self.bump_revision();
             return Ok(after_cursor);

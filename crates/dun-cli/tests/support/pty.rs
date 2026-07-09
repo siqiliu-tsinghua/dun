@@ -137,7 +137,7 @@ fn run_expect_script(
     let mut command = Command::new(expect);
 
     command
-        .arg(&script_path)
+        .arg(script_path)
         .env("TERM", case.term)
         .env("LANG", case.lang)
         .env("LC_CTYPE", case.lc_ctype)
