@@ -885,3 +885,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   active server-console/KVM release item; v0.1 delivery should state only the
   automated, SSH, multiplexer, locale, color, size, and VM terminal coverage
   actually recorded.
+- Decided the plugin system is protocol-first instead of `rum`-first. The
+  required `dun` runtime feature is a small host-neutral framed-stdio plugin
+  client with role/policy validation, bounded snapshots, timeout/cancel/crash
+  handling, stale revision rejection, and fixture-host tests. The client must
+  fit inside the 1 MiB macOS/Debian release budget; if it does not, optional
+  editor features are trimmed before cutting the protocol client. `rum` remains
+  a future optional pure-sandbox host, while Python/Rust/script fixture hosts
+  are user-trusted unless separately sandboxed.

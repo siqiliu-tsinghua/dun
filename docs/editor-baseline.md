@@ -346,17 +346,23 @@ Paste policy:
 - platform clipboard commands and OSC 52 paste/query support are out of scope
   for the baseline.
 
-## Log and rum Work
+## Plugin, Log, and rum Work
 
-Do not implement the log/filter product line before `rum` is ready enough to
-embed deliberately.
+Do not implement the full log/filter product line before the host-neutral
+plugin protocol boundary is working. `rum` is not required to build that
+boundary; it is the intended future pure-sandbox host for untrusted
+third-party plugins.
 
-When `rum` is available, it can power:
+Before `rum` is available, trusted fixture hosts may exercise the protocol and
+prove syntax highlighting, log filtering, or text transformation flows. Those
+hosts are user-trusted unless separately sandboxed.
+
+When `rum` is available, it can provide the safe default runtime for:
 
 - safe custom log filters;
 - richer search/replace;
 - internal safety-audit plugins;
 - text transformation plugins.
 
-Until then, `dun` should stay focused on the editor foundation and the tiling
-workspace.
+Until the protocol client is implemented, `dun` should stay focused on the
+editor foundation and the tiling workspace.

@@ -16,8 +16,9 @@ build command: cargo build --release --locked -p dun-cli
 ```
 
 The budget applies to the uncompressed executable. It does not count source,
-tests, documents, `target/` intermediates, local reference checkouts, or future
-optional plugin/runtime artifacts.
+tests, documents, `target/` intermediates, local reference checkouts, external
+plugin host executables, future optional runtime packages, or bundled example
+plugins that are not linked into `target/release/dun`.
 
 The checked-in `[profile.release]` is the release-size profile. Do not use a
 different profile to claim v0.1 budget compliance.
@@ -69,6 +70,11 @@ product scope is explicitly rewritten.
 | Internal clipboard | Cut, copy, and paste through a process-local clipboard without requiring an OS clipboard. |
 | Shell escape | Suspend the TUI, run the user's shell, and resume without embedding a terminal emulator. |
 | CLI contract | `--help`, `--version`, `--config`, `--no-config`, `--dump-config`, stable usage/runtime exit codes. |
+| Plugin protocol client | Host-neutral framed-stdio protocol client, role and policy model, bounded snapshots, output validation, timeout/cancel/crash handling, stale revision rejection, and fixture-host test path. This excludes the `rum` runtime and other external hosts. |
+
+The plugin protocol client is required even though actual plugin runtimes are
+optional. If the required client causes the 1 MiB gate to fail, trim optional
+editor features in the order below before cutting the client.
 
 ## Optional Runtime Trim Order
 
@@ -95,6 +101,10 @@ first when the budget is exceeded.
 Tests, documentation, and local reference/differential harnesses do not count
 toward runtime size unless they add runtime dependencies or code to the final
 binary.
+
+External plugin hosts, including future `dun-rum-host`, are separately sized
+artifacts. They may have their own size budgets later, but they must not be
+linked into the default `dun` executable.
 
 ## Change Control
 

@@ -6,16 +6,18 @@ an operations-oriented log inspection tool with a future pure-plugin layer.
 
 ## Design Principles
 
-1. Core first, plugins later.
+1. Core first, plugin runtimes later.
 2. Rust owns state and side effects.
 3. Rendering is never allowed to emit untrusted control bytes.
 4. Terminal compatibility is a first-class feature.
 5. The first usable line is a text editor; log workflows wait until the editor
-   foundation and future `rum` integration are ready.
+   foundation and plugin protocol boundary are ready.
 6. Architecture should allow `rum` later without depending on an unstable API.
+   `dun` targets a host-neutral plugin protocol first; `rum` is a future
+   official pure host, not the protocol itself.
 7. The UI supports multiple simultaneous views through a lightweight tiling
    split tree, not sidebars, tabs, or floating windows.
-8. Keybindings are configurable because terminals and KVM devices vary.
+8. Keybindings are configurable because terminals and remote sessions vary.
 9. The final v0.1 release executable must be at most 1 MiB on both audited
    macOS and Debian builds. The feature budget and trim order in
    [docs/feature-budget.md](./docs/feature-budget.md) govern feature
@@ -221,18 +223,29 @@ Goal: reach a practical Microsoft Edit-like baseline.
 - [x] Automated PTY smoke tests for common SSH-style terminal profiles.
 - [x] Manual terminal checklist and current-environment checks.
 
-## Phase 9: Future Plugin and Log Line
+## Phase 9: Plugin Protocol Client
 
-Starts only after the editor baseline is usable and `rum` has a stable
-release-facing host API.
+Status: planned next required runtime stage.
 
-- Define `PluginRole`.
-- Define `PluginPolicy`.
-- Define plugin input snapshots and output intents.
-- Add fixture runtime tests.
-- Add `dun-plugin-rum`.
-- Run untrusted code with pure-only capability policy.
-- Add log/filter workflows after the sandbox boundary is working.
+Starts after the editor baseline and release hardening are stable. This phase
+does not wait for `rum`. It builds the host-neutral Dun Plugin Protocol client
+inside `dun`; `rum` integration remains a later optional host that speaks the
+same protocol.
+
+- [ ] Define the framed stdio protocol and JSON message schema.
+- [ ] Define `PluginRole`, `PluginPolicy`, trust classes, and manifest fields.
+- [ ] Define plugin input snapshots and output intents for the first roles.
+- [ ] Add external host process lifecycle with direct executable launch,
+  bounded frames, timeouts, cancellation, crash handling, and diagnostics.
+- [ ] Add fixture host tests for handshake, request/response, malformed
+  output, oversized output, timeout, cancellation, crash, and stale revision.
+- [ ] Implement at least one visible low-risk role end to end, preferably
+  `SyntaxHighlight`, with result validation before UI application.
+- [ ] Keep the default `dun` executable within the 1 MiB macOS/Debian budget;
+  trim optional editor features before cutting the protocol client.
+- [ ] Keep `dun-rum-host` deferred until `rum` has a stable release-facing host
+  API and can provide the pure-sandbox security claim.
+- [ ] Add log/filter workflows only after the protocol boundary is working.
 
 ## Phase 10: Hardening
 
@@ -255,7 +268,7 @@ release-facing host API.
   and view-state modules.
 - [x] Start `dun-cli` process I/O boundary extraction with terminal lifecycle
   and SGR output modules.
-- [ ] Run external SSH and low-capability terminal matrix before release.
+- [x] Run external SSH and low-capability terminal matrix before release.
 - [x] Large-file performance baselines.
 - [x] Lightweight release binary size audit on macOS and Debian.
 - [x] Security audit suite for control-byte rendering.
@@ -273,9 +286,8 @@ budget before broadening scope.
   profile.
 - [x] Record current Debian release size against the checked-in release
   profile.
-- [ ] Run the release smoke checklist.
-- [ ] Decide whether v0.1 claims real server-console/KVM coverage; if yes,
-  run and record that manual matrix before release.
+- [x] Run the release smoke checklist.
 
-Do not add new runtime features during Phase 11 unless they are release
-blockers under [docs/feature-budget.md](./docs/feature-budget.md).
+Phase 11 is closed. New runtime work starts only through Phase 9's required
+plugin protocol client or through explicit release blockers under
+[docs/feature-budget.md](./docs/feature-budget.md).

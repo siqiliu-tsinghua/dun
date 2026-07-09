@@ -232,7 +232,8 @@ All actual split/close/resize operations are performed by `dun`.
 9. Render multiple tiled windows.
 10. Add optional mouse focus, selection, split dragging, and menu clicks after
     keyboard flow works.
-11. Add log and filter views after `rum` is ready enough to embed deliberately.
+11. Add log and filter views after the plugin protocol boundary is working;
+    use future pure `rum` as the safe default runtime when it is ready.
 
 ## Open Questions
 

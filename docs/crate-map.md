@@ -117,17 +117,25 @@ Responsibilities:
 
 `dun-cli` should stay thin. Product behavior belongs in library crates.
 
-## Deferred Crates
+## Plugin Protocol Crates
 
-Do not create these yet:
+The host-neutral plugin protocol may be added before `rum` is ready:
 
-- `dun-plugin-api`;
+- `dun-plugin-api` or an equivalent module/crate for protocol messages, roles,
+  policies, input snapshots, output intents, and validation.
+
+It becomes useful after the editor baseline is working and before runtime
+adapters are added. The protocol client is required core infrastructure, so it
+must stay inside the default release-size budget.
+
+Still deferred:
+
 - `dun-plugin-rum`;
 - `dun-log`.
 
-They become useful only after the editor baseline is working and `rum` has a
-stable release-facing host API.
+`dun-plugin-rum` becomes useful only after `rum` has a stable release-facing
+host API and can provide the pure-sandbox security claim.
 
 The default workspace must not depend on `rum`. Keep common editor behavior in
-the Rust crates above; add `dun-plugin-rum` only as an optional adapter for
-workflows that justify carrying the runtime footprint.
+the Rust crates above; add `dun-plugin-rum` only as a separate optional host
+for workflows that justify carrying the runtime footprint.

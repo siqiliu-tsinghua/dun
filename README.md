@@ -197,8 +197,8 @@ The current baseline decisions are:
 - The final v0.1 release executable must be no larger than 1 MiB on both
   audited macOS and Debian builds; see
   [docs/feature-budget.md](./docs/feature-budget.md).
-- A future plugin system will be designed around `rum`, but `rum` is not a
-  dependency until its release API is stable enough to embed.
+- The plugin system is protocol-first. The `dun` protocol client is required
+  core infrastructure, while `rum` is a future optional pure-sandbox host.
 
 ## Product Goal
 
@@ -212,9 +212,10 @@ The first product line should make the common remote editing loop fast:
 6. Temporarily drop to a shell or capture one-shot command output.
 7. Save with predictable host-owned file I/O.
 
-The long-term plugin story is still aimed at operational filters:
-operators should be able to write concise rule-style filters for custom logs
-without granting those filters filesystem, process, or network access.
+The long-term plugin story is still aimed at operational filters: operators
+should be able to write concise rule-style filters for custom logs. The
+protocol can be tested with trusted external fixture hosts first; the strong
+third-party safety claim waits for a pure-sandbox host such as future `rum`.
 
 ## Non-Goals
 
@@ -243,30 +244,37 @@ The current codebase is a Cargo workspace with these boundaries:
 - `dun-cli`: terminal lifecycle, event loop, key input routing, and command
   application.
 
-Future plugin crates remain planned but intentionally absent until `rum` has a
-stable release-facing host API:
+Plugin protocol support is planned before `rum` integration:
 
-- `dun-plugin-api`: plugin roles, policies, input snapshots, and output intents.
-- `dun-plugin-rum`: pure `rum` runtime adapter.
+- `dun-plugin-api` or an equivalent crate/module: host-neutral protocol
+  messages, roles, policies, input snapshots, output intents, and validation.
+- `dun-plugin-rum`: future pure `rum` host adapter, optional and separately
+  sized.
 
 The default editor line should stay small and pure Rust. Current size audit
 results put size-oriented `dun` binaries around 0.8-1.0 MiB on macOS/Debian,
 with empty-startup RSS in the low-megabyte range on the audited macOS and
 Debian hosts, while `rum` is currently treated as an approximately 6 MiB
-runtime dependency. That makes `rum` valuable but too large for basic editor
-features. Common editing, search, file, window, outline, and status workflows
-should remain in Rust core code; future `rum` support should be optional or
-late-loaded and used only when its language power is worth the extra runtime
-footprint.
+runtime dependency. That makes `rum` valuable but too large for the default
+editor executable. The required plugin protocol client must fit inside the
+1 MiB `dun` budget; if it causes a budget failure, optional editor features are
+trimmed before the protocol client. External hosts, including future
+`dun-rum-host`, are separate optional artifacts.
 
 ## Plugin Boundary
 
 The safety boundary is intentionally host-owned.
 
-Future `rum` plugins in `dun` must run as pure computations only. They receive
-bounded input snapshots from `dun` and return structured data or command
-intents. `dun` validates those results against the plugin role and policy, then
-performs any actual editor action itself.
+Plugins speak the Dun Plugin Protocol over framed stdio. They receive bounded
+input snapshots from `dun` and return structured data or command intents.
+`dun` validates those results against the plugin role and policy, then performs
+any actual editor action itself.
+
+Protocol compatibility is not a sandbox. A future pure `rum` host can provide
+the strong untrusted-third-party safety claim because it should have no file,
+process, network, terminal, environment, or editor-state side effects. Python,
+shell, Rust, or other external hosts are useful for tests and local workflows,
+but they are user-trusted unless an OS sandbox is added outside `dun`.
 
 Invariants:
 
@@ -277,7 +285,9 @@ Invariants:
 - file operations are always performed by `dun` core code;
 - plugin output is intent, not authority.
 
-See [AUDIT.md](./AUDIT.md) for the security model.
+See [AUDIT.md](./AUDIT.md) and
+[docs/plugin-protocol.md](./docs/plugin-protocol.md) for the security model
+and protocol boundary.
 
 ## Terminal Compatibility
 
@@ -315,6 +325,8 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
   release binary size baseline for macOS and Debian builds.
 - [docs/feature-budget.md](./docs/feature-budget.md): hard v0.1 runtime size
   gate, required feature set, and optional feature trim order.
+- [docs/plugin-protocol.md](./docs/plugin-protocol.md): host-neutral plugin
+  protocol, trust classes, role policy, and completion criteria.
 - [docs/runtime-resource-audit.md](./docs/runtime-resource-audit.md):
   lightweight startup and RSS baselines for macOS and Debian builds.
 - [docs/release-smoke-checklist.md](./docs/release-smoke-checklist.md):

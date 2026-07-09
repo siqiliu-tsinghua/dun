@@ -55,10 +55,14 @@ Default builds should remain suitable for small remote systems:
 - add a size and runtime-resource note when a dependency is expected to affect
   binary size, startup, memory, or terminal portability.
 
-The future plugin direction remains optional or late-loaded:
+The future runtime direction remains optional or late-loaded:
 
-- `dun-plugin-rum` should be separate from the basic editor path;
+- the host-neutral plugin protocol client is part of the required editor path
+  and must remain small enough for the 1 MiB budget;
+- `dun-plugin-rum` should be separate from the basic editor executable;
 - untrusted `rum` evaluation must be pure-only;
+- protocol-compatible external scripts or binaries are user-trusted unless
+  separately sandboxed;
 - role/policy validation belongs to `dun`;
 - basic editing, file I/O, search, tiling, configuration diagnostics, shell
   escape, and one-shot command output do not require `rum`.
@@ -78,4 +82,3 @@ When changing dependencies or features:
    runtime path.
 6. Re-run the runtime-resource audit if the dependency affects startup, file
    loading, rendering, command execution, or plugin/runtime behavior.
-

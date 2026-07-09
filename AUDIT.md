@@ -61,6 +61,12 @@ Rust outline parser.
 - `dun` validates every plugin result against the plugin role and policy.
 - `dun` performs all actual file operations itself.
 
+These invariants describe authority mediated by `dun`. A host-neutral protocol
+can prevent a plugin from asking `dun` to exceed its role, but it cannot by
+itself sandbox an external Python script, shell script, or arbitrary binary.
+Only runtimes with a real pure sandbox can be treated as safe for untrusted
+third-party code.
+
 ## Role and Policy Model
 
 Roles are owned by `dun`, not by the plugin runtime.
@@ -106,6 +112,45 @@ Forbidden pattern:
 1. Plugin receives filesystem capability.
 2. Plugin reads or writes paths by itself.
 3. Plugin returns unvalidated side effects.
+
+## Plugin Process and Protocol Boundary
+
+The plugin system is protocol-first. `dun` speaks the Dun Plugin Protocol over
+framed stdio to an external host process, and validates all role outputs before
+applying them. The protocol is documented in
+[docs/plugin-protocol.md](./docs/plugin-protocol.md).
+
+The protocol client is required core infrastructure. The `rum` runtime is not:
+future `rum` integration must be an optional host that speaks the same protocol.
+
+Trust classes:
+
+| Trust class | Security claim |
+| --- | --- |
+| `pure-sandbox` | Runtime cannot perform filesystem, process, network, terminal, environment, or editor-state side effects outside the bounded inputs and structured outputs. Future pure `rum` is expected to use this class. |
+| `user-trusted-external` | External executable or script speaks the protocol, but may still have normal OS authority outside `dun`. Users must explicitly configure and trust it. |
+| `unsupported-unsafe` | Unknown runtime, unknown trust class, or direct authority request. Rejected by default. |
+
+Required controls for all protocol hosts:
+
+- length-prefixed messages with an allocation cap before decoding;
+- request ids for all asynchronous work;
+- buffer or stream revisions for state-sensitive results;
+- per-role input and output limits;
+- timeout, cancellation, crash, malformed-frame, and oversized-output handling;
+- diagnostics treated as untrusted display text;
+- stale results discarded without mutating editor state;
+- rejected results leave editor state unchanged except for a bounded
+  diagnostic.
+
+Additional controls for `user-trusted-external` hosts:
+
+- launch only from explicit configuration;
+- execute the configured path directly, not through a shell;
+- inherit no unnecessary file descriptors;
+- pass a minimal environment or explicit environment whitelist;
+- document that protocol compliance does not prevent the external process from
+  using ordinary OS authority outside `dun`.
 
 ## Process Boundary
 
@@ -284,17 +329,18 @@ Before adding a `rum` adapter:
 
 - `rum` must have a release-facing host API stable enough to target.
 - A minimal `dun` build must remain usable without the `rum` runtime.
+- The host-neutral Dun Plugin Protocol must already have role and policy tests.
 - Simple editor behavior should stay in Rust core code; `rum` should be
   reserved for high-leverage plugin workflows such as complex log filtering,
   structured extraction, advanced text transforms, and semantic plugin logic.
-- `dun` must already have plugin role and policy tests.
 - The adapter must use pure-only evaluation for untrusted plugins.
 - The adapter must map `rum` values into `dun` output types before validation.
 - The adapter must reject unknown or malformed output.
 - The adapter must enforce timeout/cancel limits.
 - A memory budget strategy must be documented before enabling long-running
   plugin workflows.
-- Log/filter workflows should wait until this boundary can be used deliberately.
+- `dun-rum-host` must be a separate optional artifact rather than a dependency
+  of the default 1 MiB editor executable.
 
 ## Audit Test Checklist
 

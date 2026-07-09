@@ -3,11 +3,105 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./PROGRESS.md).
 
-## Current Stage: v0.1 Release Hardening
+## Current Stage: Plugin Protocol Client
 
-The active plan is now budget and release hardening, not open-ended feature
-growth. Runtime feature decisions are governed by
-[docs/feature-budget.md](./docs/feature-budget.md).
+The active plan is the required host-neutral plugin protocol client. This does
+not wait for `rum`; `rum` is a future optional pure-sandbox host that must
+speak the same protocol.
+
+The protocol client is a required runtime feature under
+[docs/feature-budget.md](./docs/feature-budget.md). If it pushes
+`target/release/dun` over `1,048,576` bytes on audited macOS or Debian builds,
+trim optional editor features before cutting protocol-client functionality.
+External plugin hosts and future runtime packages are separate artifacts and do
+not count toward the default `dun` executable size.
+
+Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
+
+### Protocol Specification
+
+- [ ] Freeze protocol v0 message envelope: protocol version, `request_id`,
+  `plugin_id`, `role`, optional buffer/stream `revision`, and payload.
+- [ ] Define length-prefixed stdio framing:
+  `u32 little-endian payload_length` plus UTF-8 JSON payload.
+- [ ] Define frame and payload caps before allocation.
+- [ ] Define structured protocol errors for malformed frame, unsupported
+  version, unknown role, policy rejection, timeout, cancellation, host crash,
+  oversized output, and stale revision.
+- [ ] Define stderr handling as bounded human diagnostics, never protocol.
+
+### Role and Policy Model
+
+- [ ] Define `PluginRole` with at least `SyntaxHighlight`, `LogFilter`,
+  `TextTransform`, and `ConfigHelper` variants.
+- [ ] Define `TrustClass`: `pure-sandbox`, `user-trusted-external`, and
+  `unsupported-unsafe`.
+- [ ] Define `PluginPolicy`: max input bytes, max output bytes, timeout,
+  diagnostic cap, allowed outputs, and whether user confirmation is required.
+- [ ] Define plugin manifest/config fields for id, command, runtime,
+  trust class, roles, and per-role policy overrides.
+- [ ] Reject unknown trust classes, unknown roles, missing command paths, and
+  any direct filesystem/process/network/terminal/editor authority request.
+
+### Transport and Host Lifecycle
+
+- [ ] Add a small Rust-owned protocol client module or crate without adding
+  `rum` or heavy runtime dependencies.
+- [ ] Launch configured external hosts directly, not through a shell.
+- [ ] Pass only stdin/stdout/stderr plus a minimal environment or explicit
+  whitelist.
+- [ ] Implement `Hello`/`HelloAck`, `LoadPlugin`, role `Request`/`Response`,
+  `Diagnostic`, `CancelRequest`, `Error`, and `Shutdown` paths.
+- [ ] Add per-request timeout and cancellation.
+- [ ] Kill or quarantine a host after malformed frames, oversized output,
+  timeout, failed cancellation, EOF during frame, or process crash.
+- [ ] Ensure plugin host failure never corrupts buffers, file state, terminal
+  state, or workspace layout.
+
+### First Applied Role
+
+- [ ] Implement one visible low-risk role end to end, preferably
+  `SyntaxHighlight`.
+- [ ] Send bounded visible or nearby text snapshots with buffer revision and
+  language hint.
+- [ ] Validate returned style spans: known style ids, in-range line/column
+  coordinates, sorted or normalized ranges, bounded count, and matching
+  revision.
+- [ ] Discard stale results when the buffer revision has changed.
+- [ ] Apply validated results through existing UI highlight paths without
+  granting plugins access to UI or terminal APIs.
+- [ ] Keep plugin diagnostics sanitized and visible through existing status or
+  diagnostics surfaces.
+
+### Fixture Hosts and Tests
+
+- [ ] Add a Rust fixture host for CI-grade protocol tests.
+- [ ] Add optional Python fixture/examples only outside the required CI path.
+- [ ] Test handshake success and protocol-version rejection.
+- [ ] Test normal request/response for the first applied role.
+- [ ] Test malformed frame, malformed JSON, oversized frame, oversized output,
+  unknown role, forbidden output, timeout, cancellation, host crash, and stderr
+  diagnostics.
+- [ ] Test stale revision rejection leaves editor state unchanged.
+- [ ] Test that rejected plugin output cannot request file I/O, process spawn,
+  terminal writes, direct buffer mutation, or raw control-byte rendering.
+
+### Release Gates for This Stage
+
+- [ ] `cargo fmt --all -- --check`.
+- [ ] `cargo clippy --workspace --all-targets -- -D warnings`.
+- [ ] `cargo test --workspace`.
+- [ ] Release smoke checklist passes.
+- [ ] macOS `target/release/dun` remains no larger than `1,048,576` bytes.
+- [ ] Debian VM `target/release/dun` remains no larger than `1,048,576` bytes.
+- [ ] If either binary exceeds budget, trim optional features in
+  [docs/feature-budget.md](./docs/feature-budget.md) order and record the
+  result before continuing.
+
+Do not add runtime features while either audited release binary exceeds the
+1 MiB budget.
+
+## Completed Stage: v0.1 Release Hardening
 
 - [x] Set the hard runtime budget: `target/release/dun` must be no larger than
   `1,048,576` bytes on both audited macOS and Debian builds.
@@ -17,9 +111,6 @@ growth. Runtime feature decisions are governed by
 - [x] Record the current macOS release binary size.
 - [x] Record the current Debian release binary size.
 - [x] Run the release smoke checklist.
-
-Do not add runtime features while either audited release binary exceeds the
-1 MiB budget.
 
 ## Active Baseline
 
@@ -366,9 +457,9 @@ this section focused on post-baseline extensions only.
   integration.
 - [x] Crash recovery and orphaned atomic-save temp-file cleanup.
 - [ ] `rum` configuration evaluation.
-- [ ] `dun-plugin-api`.
 - [ ] `dun-plugin-rum`.
 - [ ] Syntax highlighting plugins backed by `rum`.
-- [ ] Log viewing and filtering after `rum` is ready to embed.
+- [ ] Full log viewing and filtering product after the plugin protocol client
+  is working; untrusted third-party defaults wait for a pure `rum` host.
 - [ ] Memory watchdog design for long-running plugin evaluation.
 - [x] Broad terminal compatibility test harness.

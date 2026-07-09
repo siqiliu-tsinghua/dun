@@ -6,19 +6,18 @@ This file gives working instructions for agents and contributors changing
 ## Project Shape
 
 `dun` is a Rust `1.85` terminal editor for Linux and macOS terminals, with
-remote SSH usage as a primary scenario. It will eventually support sandboxed
-plugins through `rum`, but the editor must be useful before that integration
-exists.
+remote SSH usage as a primary scenario. Its plugin system is protocol-first:
+the editor speaks a host-neutral protocol, and future `rum` support is an
+optional pure-sandbox host rather than the protocol itself.
 
 Do not add a `rum` dependency until the `rum` release-facing host API is stable
 enough for this repository to target deliberately.
 
 Keep the default editor small and Rust-owned. Implement simple and common
-editor features in `dun` itself; reserve future `rum` integration for
-high-leverage plugin work that needs the language runtime's Wolfram-like
-expressiveness, such as complex log filters, structured extraction, advanced
-text transforms, or semantic plugin logic. A minimal build must not require the
-`rum` runtime.
+editor features in `dun` itself. The plugin protocol client is required core
+infrastructure and must fit inside the 1 MiB budget; future runtime hosts such
+as `rum`, Python fixtures, or user-trusted external tools must remain separate
+artifacts. A minimal build must not require the `rum` runtime.
 
 ## Document Responsibilities
 
@@ -29,6 +28,8 @@ text transforms, or semantic plugin logic. A minimal build must not require the
 - `TODO.md`: active task list; keep it focused on near-term work.
 - `PROGRESS.md`: append-only history of completed work and decisions.
 - `AUDIT.md`: security model, threat notes, invariants, and audit checklist.
+- `docs/plugin-protocol.md`: host-neutral plugin protocol, trust classes,
+  role-policy boundary, transport, and completion criteria.
 - `docs/code-organization-guidelines.md`: safe Rust, file-size, module
   splitting, and directory organization rules.
 
@@ -46,6 +47,9 @@ same change.
 - Keep editor state owned by Rust core code.
 - Prefer Rust core implementations for simple editor features before reaching
   for a plugin/runtime boundary.
+- Treat the host-neutral plugin protocol client as a required runtime feature.
+  If it pushes the audited release binary over budget, trim optional editor
+  features before cutting protocol-client functionality.
 - Keep the final v0.1 release executable within the hard runtime budget:
   `target/release/dun` must be no larger than `1,048,576` bytes on both audited
   macOS and Debian builds. The checked-in `[profile.release]` is the budget
@@ -66,14 +70,17 @@ same change.
 
 ## Plugin Security Invariants
 
-The future plugin model is role and policy based, but `rum` itself is only a
-pure evaluator inside `dun`.
+The plugin model is role and policy based. `dun` owns the protocol, roles,
+policies, validation, and application of results. `rum` is only a future
+pure-sandbox host for the protocol.
 
 Required invariants:
 
 - all future untrusted `rum` evaluations use a pure-only sandbox policy;
+- host-neutral plugin protocol messages are bounded, versioned, and validated
+  by `dun`;
 - filesystem, process, network, terminal, and editor mutation capabilities are
-  never exposed directly to untrusted `rum` code;
+  never exposed directly to untrusted plugin code through `dun`;
 - `dun` passes plugins bounded input snapshots;
 - plugins return structured data or command intents;
 - `dun` validates every output against the plugin role and policy;
@@ -83,6 +90,10 @@ Required invariants:
 Roles should be modeled in `dun`, not in `rum`. Example roles include
 configuration, UI description, syntax highlighting, log filtering, text
 transformation, and command generation.
+
+Protocol-compatible external scripts or binaries are not automatically safe.
+Unless they run in a real pure sandbox, treat them as user-trusted external
+tools that must be enabled explicitly.
 
 ## Terminal Compatibility Rules
 
