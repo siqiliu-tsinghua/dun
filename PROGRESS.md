@@ -861,3 +861,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   for first/last entry selection, `--dump-config` groups defaults into readable
   sections, and `docs/release-smoke-checklist.md` defines the bounded automated
   release smoke gate.
+- Established the v0.1 release-size governance rule: `target/release/dun` must
+  be no larger than 1 MiB on both audited macOS and Debian builds. Added a
+  checked-in size-budget release profile and `docs/feature-budget.md`, which
+  classifies implemented runtime features as required or optional and gives a
+  concrete trim order for optional features when the size gate fails.
+- Rebuilt the checked-in release profile on macOS and the Debian VM. The
+  measured `target/release/dun` sizes are 863,664 bytes on macOS x86_64 and
+  1,038,936 bytes on Debian x86_64, so both pass the 1 MiB gate. Debian has
+  only 9,640 bytes of margin, so new runtime work is budget-sensitive.

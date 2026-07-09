@@ -26,9 +26,16 @@ Expected results:
 - Microsoft Edit differential tests pass when `edit` is installed and skip
   cleanly otherwise;
 - the release binary builds with locked dependencies;
+- the release binary is no larger than `1,048,576` bytes on both audited macOS
+  and Debian builds, using the checked-in release profile;
 - `--version` exits successfully and prints the package version;
 - `--dump-config` exits successfully and prints parseable default
   configuration.
+
+Measure the release binary with `stat -f%z target/release/dun` on macOS and
+`stat -c%s target/release/dun` on Debian/Linux. If either platform exceeds the
+limit, follow the trim order in
+[feature-budget.md](./feature-budget.md) before adding any features.
 
 ## Size And Resource Drift
 

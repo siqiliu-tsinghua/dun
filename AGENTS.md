@@ -46,6 +46,12 @@ same change.
 - Keep editor state owned by Rust core code.
 - Prefer Rust core implementations for simple editor features before reaching
   for a plugin/runtime boundary.
+- Keep the final v0.1 release executable within the hard runtime budget:
+  `target/release/dun` must be no larger than `1,048,576` bytes on both audited
+  macOS and Debian builds. The checked-in `[profile.release]` is the budget
+  profile. If the gate fails, do not add runtime features; follow
+  [docs/feature-budget.md](./docs/feature-budget.md) and trim optional
+  features in the documented order.
 - Keep terminal rendering behind profile/theme/glyph abstractions.
 - Keep log processing streaming-friendly; avoid whole-file assumptions for
   large logs.

@@ -3,6 +3,26 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./PROGRESS.md).
 
+## Current Stage: v0.1 Release Hardening
+
+The active plan is now budget and release hardening, not open-ended feature
+growth. Runtime feature decisions are governed by
+[docs/feature-budget.md](./docs/feature-budget.md).
+
+- [x] Set the hard runtime budget: `target/release/dun` must be no larger than
+  `1,048,576` bytes on both audited macOS and Debian builds.
+- [x] Make the checked-in release profile the size-budget profile.
+- [x] Classify implemented runtime features as required or optional.
+- [x] Define the optional runtime trim order.
+- [x] Record the current macOS release binary size.
+- [x] Record the current Debian release binary size.
+- [ ] Run the release smoke checklist.
+- [ ] Decide whether v0.1 claims real server-console/KVM coverage; if yes,
+  run and record that manual matrix before release.
+
+Do not add runtime features while either audited release binary exceeds the
+1 MiB budget.
+
 ## Active Baseline
 
 - [x] Create the Rust `1.85` workspace structure.

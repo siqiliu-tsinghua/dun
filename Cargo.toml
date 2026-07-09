@@ -23,3 +23,10 @@ dun-term = { path = "crates/dun-term" }
 dun-ui = { path = "crates/dun-ui" }
 ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
 unicode-width = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

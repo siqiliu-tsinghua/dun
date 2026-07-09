@@ -194,6 +194,9 @@ The current baseline decisions are:
 - 16-color, low-capability, and ASCII-only fallback modes are required.
 - The first usable version is a Microsoft Edit-like text editor, not the full
   log/plugin product.
+- The final v0.1 release executable must be no larger than 1 MiB on both
+  audited macOS and Debian builds; see
+  [docs/feature-budget.md](./docs/feature-budget.md).
 - A future plugin system will be designed around `rum`, but `rum` is not a
   dependency until its release API is stable enough to embed.
 
@@ -310,6 +313,8 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
   large-file performance baseline tests and current local sample output.
 - [docs/release-size-audit.md](./docs/release-size-audit.md): lightweight
   release binary size baseline for macOS and Debian builds.
+- [docs/feature-budget.md](./docs/feature-budget.md): hard v0.1 runtime size
+  gate, required feature set, and optional feature trim order.
 - [docs/runtime-resource-audit.md](./docs/runtime-resource-audit.md):
   lightweight startup and RSS baselines for macOS and Debian builds.
 - [docs/release-smoke-checklist.md](./docs/release-smoke-checklist.md):

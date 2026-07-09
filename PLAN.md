@@ -16,6 +16,10 @@ an operations-oriented log inspection tool with a future pure-plugin layer.
 7. The UI supports multiple simultaneous views through a lightweight tiling
    split tree, not sidebars, tabs, or floating windows.
 8. Keybindings are configurable because terminals and KVM devices vary.
+9. The final v0.1 release executable must be at most 1 MiB on both audited
+   macOS and Debian builds. The feature budget and trim order in
+   [docs/feature-budget.md](./docs/feature-budget.md) govern feature
+   admission and removal.
 
 ## Workspace Shape
 
@@ -256,3 +260,22 @@ release-facing host API.
 - [x] Lightweight release binary size audit on macOS and Debian.
 - [x] Security audit suite for control-byte rendering.
 - [ ] Security audit suite for plugin policy after plugin APIs exist.
+
+## Phase 11: v0.1 Release Hardening
+
+Goal: freeze the baseline editor feature set and verify it fits the runtime
+budget before broadening scope.
+
+- [x] Define a 1 MiB macOS/Debian release executable budget.
+- [x] Classify implemented runtime features as required or optional.
+- [x] Define the optional runtime feature trim order.
+- [x] Record current macOS release size against the checked-in release
+  profile.
+- [x] Record current Debian release size against the checked-in release
+  profile.
+- [ ] Run the release smoke checklist.
+- [ ] Decide whether v0.1 claims real server-console/KVM coverage; if yes,
+  run and record that manual matrix before release.
+
+Do not add new runtime features during Phase 11 unless they are release
+blockers under [docs/feature-budget.md](./docs/feature-budget.md).
