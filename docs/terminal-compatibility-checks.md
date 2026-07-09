@@ -18,7 +18,8 @@ The first editor baseline targets:
 This document is the release terminal matrix source of truth. Automated PTY
 tests cover local regressions, but tagged releases still need a manual pass on
 real external SSH hosts because terminal emulators, multiplexers, locales, and
-KVM devices can disagree about the same key names and glyph capabilities.
+low-capability terminal paths can disagree about the same key names and glyph
+capabilities.
 
 ## Automated Baseline
 
@@ -62,8 +63,8 @@ It also opens fixtures for:
 Unit coverage also checks the event-level path for common modified terminal
 keys such as `Ctrl+Home`, `Ctrl+End`, `Shift+F3`, and
 `Ctrl+Shift+Left` after crossterm has parsed them. Whether a particular SSH,
-terminal emulator, tmux/screen, or KVM path delivers those sequences remains a
-manual matrix item.
+terminal emulator, or tmux/screen path delivers those sequences remains a
+compatibility note for that terminal path.
 
 Real-terminal automated coverage also includes:
 
@@ -97,12 +98,12 @@ SSH-SCREEN      ssh inside screen     TERM=screen, UTF-8 locale
 SSH-VT100       ssh direct            TERM=vt100, LANG=C, LC_CTYPE=C
 SSH-MONO        ssh direct            NO_COLOR=1, UTF-8 locale
 SSH-SMALL       ssh direct            40x12 and 80x24 terminal sizes
-KVM-ASCII       server console/KVM    ASCII or C locale, no mouse assumption
 ```
 
 The current workspace has a project-local Debian VirtualBox VM available over
-SSH for external terminal checks. Real server console/KVM results are still not
-covered and must be gathered before a tagged release that claims that path.
+SSH for external terminal checks. Release notes should claim only the
+automated, SSH, multiplexer, locale, color, and size combinations recorded
+here.
 
 ## Latest External VM Run
 
@@ -172,9 +173,6 @@ SSH-RUN-COMMAND: pass
   Ctrl+W,O opened the Run Command prompt. Submitting "printf ssh-run" opened a
   read-only Command Output pane showing stdout, "Stdout: 7 bytes, complete",
   "Stderr: 0 bytes, complete", and "Truncated: no".
-
-KVM-ASCII: not run
-  No real server console or KVM path was available in this run.
 ```
 
 ## Result Record
@@ -270,7 +268,7 @@ Editing:
   `.`, and `..` is available for parent-directory navigation. File-dialog
   errors should stay inline for correction, and Save As should require a
   second Enter before overwriting an existing file. Modal keys can be remapped
-  in config for terminals or KVM paths that do not deliver the defaults.
+  in config for terminals that do not deliver the defaults.
 - `Ctrl+P` opens the command prompt, Tab completes built-in command families
   and path arguments when the cursor is at the end, Tab/BackTab cycle
   ambiguous candidates after the status line lists them, and Up/Down recall
@@ -379,7 +377,7 @@ Tiling:
 
 Low-capability expectations:
 
-- If `Alt+Arrow` or `Alt+Shift+Arrow` is not delivered by a terminal or KVM,
+- If `Alt+Arrow` or `Alt+Shift+Arrow` is not delivered by a terminal,
   `Ctrl+W,Arrow` focus movement and `Ctrl+W,Shift+Arrow` resize remain the
   primary required path. Terminals that cannot deliver shifted arrows should
   record resize as a keybinding compatibility note, not an editor state
@@ -393,9 +391,9 @@ Low-capability expectations:
   clicks and drags should scroll long buffers. Mouse support is not required
   for passing the matrix.
 - `Alt+F`, `Alt+E`, `Alt+V`, and `Alt+H` should open the grouped menus where
-  the terminal sends Alt-modified character keys. If a terminal or KVM cannot
-  deliver those strokes, command-line prompt and direct command keybindings
-  remain the required keyboard path.
+  the terminal sends Alt-modified character keys. If a terminal cannot deliver
+  those strokes, command-line prompt and direct command keybindings remain the
+  required keyboard path.
 - ASCII/VT100 cases must remain keyboard usable even if colors are reduced or
   absent.
 - UTF-8 text is not required to render correctly in `LANG=C`/ASCII cases, but

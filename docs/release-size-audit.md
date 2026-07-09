@@ -133,8 +133,7 @@ Use this checklist when refreshing the release-size baseline:
 
 ## 2026-07-09 Budget Gate Refresh
 
-Source baseline: working tree based on `4626c7f`, after adding the checked-in
-release-size profile and `docs/feature-budget.md`.
+Source baseline: committed code at `60d45a2`.
 
 Build command on both platforms:
 

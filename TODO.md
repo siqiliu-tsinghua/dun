@@ -16,9 +16,7 @@ growth. Runtime feature decisions are governed by
 - [x] Define the optional runtime trim order.
 - [x] Record the current macOS release binary size.
 - [x] Record the current Debian release binary size.
-- [ ] Run the release smoke checklist.
-- [ ] Decide whether v0.1 claims real server-console/KVM coverage; if yes,
-  run and record that manual matrix before release.
+- [x] Run the release smoke checklist.
 
 Do not add runtime features while either audited release binary exceeds the
 1 MiB budget.
@@ -359,8 +357,6 @@ this section focused on post-baseline extensions only.
   256-color-style `38;5;n` or `48;5;n` SGR sequences.
 - [x] Add automated event-level coverage for common modified terminal keys.
 - [x] Run the external SSH and low-capability Debian VM matrix for `d2c832f`.
-- [ ] Run a real server-console/KVM ASCII path before a tagged release that
-  claims KVM coverage.
 - [x] Add static Microsoft Edit reference tests for source-visible menu,
   status, color, and terminal setup markers.
 

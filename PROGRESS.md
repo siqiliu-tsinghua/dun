@@ -870,3 +870,18 @@ This is an append-only progress log. Keep new entries dated and factual.
   measured `target/release/dun` sizes are 863,664 bytes on macOS x86_64 and
   1,038,936 bytes on Debian x86_64, so both pass the 1 MiB gate. Debian has
   only 9,640 bytes of margin, so new runtime work is budget-sensitive.
+- Ran the v0.1 release smoke checklist on 2026-07-09. Local macOS
+  `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  and `cargo test --workspace` passed. The release binary built with
+  `cargo build --release --locked -p dun-cli`; `--version`, `--help`, and
+  `--dump-config` ran successfully, with the macOS binary measuring 863,664
+  bytes. The Debian VM clean archive build used Debian system `rustc 1.85.0`
+  and `cargo 1.85.0`, used the same locked release command, produced a
+  1,038,936 byte binary, printed `dun 0.1.0`, and emitted 19 help lines plus
+  121 default-config lines. Focused smoke
+  subsets also passed: `cargo test -p dun-cli file_io` reported 32 passed and
+  2 ignored performance tests, while `pty_smoke`, `terminal_grid`, and
+  `tmux_grid` reported 7, 6, and 5 passed tests respectively. Removed the
+  active server-console/KVM release item; v0.1 delivery should state only the
+  automated, SSH, multiplexer, locale, color, size, and VM terminal coverage
+  actually recorded.

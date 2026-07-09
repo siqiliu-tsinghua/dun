@@ -194,7 +194,7 @@ Keybindings must be configurable from the start.
 Reasons:
 
 - terminals differ;
-- KVM/IPMI devices often handle modifier keys poorly;
+- remote management consoles often handle modifier keys poorly;
 - SSH clients vary;
 - macOS terminal applications do not normally deliver Command or Fn to TUI
   programs, and Option only becomes Alt/Meta when the terminal is configured

@@ -10,6 +10,7 @@ Run these from the repository root:
 
 ```text
 cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo test -p dun-cli --test tmux_grid
 cargo test -p dun-cli --test msedit_diff
@@ -21,6 +22,7 @@ target/release/dun --dump-config
 Expected results:
 
 - formatting has no changes to apply;
+- clippy reports no warnings;
 - the workspace test suite passes;
 - tmux-backed tests pass when `tmux` is installed and skip cleanly otherwise;
 - Microsoft Edit differential tests pass when `edit` is installed and skip
@@ -55,7 +57,8 @@ Record updated results in
 Before a tagged release, record the external SSH and low-capability terminal
 matrix in [terminal-compatibility-checks.md](./terminal-compatibility-checks.md).
 The automated PTY, tmux, and Microsoft Edit tests are the default local smoke
-path; real external terminal results remain the release signoff path.
+path; real external terminal results remain the release signoff path. Release
+notes should claim only the terminal paths recorded in that matrix.
 
 ## Completion Criteria
 
