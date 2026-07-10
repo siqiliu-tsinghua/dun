@@ -25,12 +25,6 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Edit(EditCommand::OutdentLine) => "edit.outdent_line",
         EditorCommand::Edit(EditCommand::TrimTrailingWhitespace) => "edit.trim_trailing_whitespace",
         EditorCommand::Edit(EditCommand::ToggleWordWrap) => "edit.toggle_word_wrap",
-        EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace) => {
-            "edit.toggle_visible_whitespace"
-        }
-        EditorCommand::Edit(EditCommand::ToggleBookmark) => "edit.toggle_bookmark",
-        EditorCommand::Edit(EditCommand::NextBookmark) => "edit.next_bookmark",
-        EditorCommand::Edit(EditCommand::PreviousBookmark) => "edit.previous_bookmark",
         EditorCommand::Edit(EditCommand::MoveLeft) => "edit.move_left",
         EditorCommand::Edit(EditCommand::MoveRight) => "edit.move_right",
         EditorCommand::Edit(EditCommand::MoveUp) => "edit.move_up",
@@ -138,12 +132,6 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
             Ok(EditorCommand::Edit(EditCommand::TrimTrailingWhitespace))
         }
         "edit.toggle_word_wrap" => Ok(EditorCommand::Edit(EditCommand::ToggleWordWrap)),
-        "edit.toggle_visible_whitespace" => {
-            Ok(EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace))
-        }
-        "edit.toggle_bookmark" => Ok(EditorCommand::Edit(EditCommand::ToggleBookmark)),
-        "edit.next_bookmark" => Ok(EditorCommand::Edit(EditCommand::NextBookmark)),
-        "edit.previous_bookmark" => Ok(EditorCommand::Edit(EditCommand::PreviousBookmark)),
         "edit.move_left" => Ok(EditorCommand::Edit(EditCommand::MoveLeft)),
         "edit.move_right" => Ok(EditorCommand::Edit(EditCommand::MoveRight)),
         "edit.move_up" => Ok(EditorCommand::Edit(EditCommand::MoveUp)),

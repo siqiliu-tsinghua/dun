@@ -443,22 +443,6 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Toggle word wrap",
             },
             HelpCommand {
-                command: EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace),
-                description: "Toggle visible whitespace",
-            },
-            HelpCommand {
-                command: EditorCommand::Edit(EditCommand::ToggleBookmark),
-                description: "Toggle bookmark on current line",
-            },
-            HelpCommand {
-                command: EditorCommand::Edit(EditCommand::NextBookmark),
-                description: "Go to next bookmark",
-            },
-            HelpCommand {
-                command: EditorCommand::Edit(EditCommand::PreviousBookmark),
-                description: "Go to previous bookmark",
-            },
-            HelpCommand {
                 command: EditorCommand::Edit(EditCommand::Find),
                 description: "Find",
             },

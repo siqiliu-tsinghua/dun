@@ -65,16 +65,6 @@ impl Keymap {
                     EditorCommand::Edit(EditCommand::TrimTrailingWhitespace),
                 ),
                 KeyBinding::new("Ctrl+W,Z", EditorCommand::Edit(EditCommand::ToggleWordWrap)),
-                KeyBinding::new(
-                    "Ctrl+W,.",
-                    EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace),
-                ),
-                KeyBinding::new("Ctrl+W,M", EditorCommand::Edit(EditCommand::ToggleBookmark)),
-                KeyBinding::new("Ctrl+W,N", EditorCommand::Edit(EditCommand::NextBookmark)),
-                KeyBinding::new(
-                    "Ctrl+W,P",
-                    EditorCommand::Edit(EditCommand::PreviousBookmark),
-                ),
                 KeyBinding::new("Left", EditorCommand::Edit(EditCommand::MoveLeft)),
                 KeyBinding::new("Right", EditorCommand::Edit(EditCommand::MoveRight)),
                 KeyBinding::new("Up", EditorCommand::Edit(EditCommand::MoveUp)),

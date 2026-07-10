@@ -88,8 +88,8 @@ are filled during the triage.
 | F09 | Internal clipboard cut/copy/paste | `edit.cut/copy/paste` | req | A | | |
 | F10 | Opt-in OSC 52 external copy | `edit.copy_external`, `clipboard.osc52.*` | req | B | | |
 | F11 | Line commands: copy/delete/move/indent/outdent/trim | `edit.*_line`, `edit.trim_*` | t3 | B | | |
-| F12 | Bookmarks: toggle/next/previous + gutter markers | `edit.*bookmark*` | t3 | C | | |
-| F13 | Visible-whitespace markers | `edit.toggle_visible_whitespace` | t3 | C | | |
+| F12 | Bookmarks: toggle/next/previous + gutter markers | `edit.*bookmark*` | t3 | C | | C, removed 2026-07-10 (batch 3) |
+| F13 | Visible-whitespace markers | `edit.toggle_visible_whitespace` | t3 | C | | C, removed 2026-07-10 (batch 3) |
 | F14 | Soft-wrap visual-row model: wrap toggle + wrapped scrolling/selection/highlights/paging | `edit.toggle_word_wrap` + display layer | t9 | B, likely largest single unit | | |
 | F15 | Horizontal scrolling, explicit scroll commands, clip edge indicators | `edit.scroll_left/right` | req | A | | |
 

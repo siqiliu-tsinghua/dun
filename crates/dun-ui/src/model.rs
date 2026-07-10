@@ -13,8 +13,6 @@ pub struct BufferView<'a> {
     pub search_matches: &'a [SearchMatch],
     pub active_search_match: Option<usize>,
     pub wrap: bool,
-    pub show_whitespace: bool,
-    pub bookmarks: &'a [usize],
 }
 
 impl<'a> BufferView<'a> {
@@ -28,8 +26,6 @@ impl<'a> BufferView<'a> {
             search_matches: &[],
             active_search_match: None,
             wrap: false,
-            show_whitespace: false,
-            bookmarks: &[],
         }
     }
 
@@ -43,8 +39,6 @@ impl<'a> BufferView<'a> {
             search_matches: &[],
             active_search_match: None,
             wrap: false,
-            show_whitespace: false,
-            bookmarks: &[],
         }
     }
 
@@ -63,8 +57,6 @@ impl<'a> BufferView<'a> {
             search_matches: &[],
             active_search_match: None,
             wrap: false,
-            show_whitespace: false,
-            bookmarks: &[],
         }
     }
 
@@ -83,15 +75,8 @@ impl<'a> BufferView<'a> {
         self
     }
 
-    pub fn with_view_options(
-        mut self,
-        wrap: bool,
-        show_whitespace: bool,
-        bookmarks: &'a [usize],
-    ) -> Self {
+    pub fn with_wrap(mut self, wrap: bool) -> Self {
         self.wrap = wrap;
-        self.show_whitespace = show_whitespace;
-        self.bookmarks = bookmarks;
         self
     }
 }

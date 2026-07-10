@@ -90,12 +90,6 @@ impl AppState {
         if buffer.word_wrap {
             parts.insert(4, bracket("Wrap"));
         }
-        if buffer.visible_whitespace {
-            parts.insert(4, bracket("Whitespace"));
-        }
-        if buffer.bookmarks.contains(&position.line) {
-            parts.insert(4, bracket("Mark"));
-        }
         if let Some(selection) = selection_status(&buffer.buffer) {
             parts.insert(4, bracket(&selection));
         }

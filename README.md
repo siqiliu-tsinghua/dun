@@ -68,9 +68,9 @@ dirty/read-only markers, and status fields for position, total lines,
 selection, active search count, visible scroll range, horizontal scroll offset,
 line ending, file-text encoding, terminal profile, and focused window index.
 It also includes a lightweight buffer switcher for open tiled buffers, line
-commands for copy/delete/move/indent/outdent/trim, line bookmarks shown in the
-gutter, a display-layer word-wrap toggle, and visible-whitespace markers with
-ASCII fallback. In word-wrap mode, scrolling, cursor visibility, selection
+commands for copy/delete/move/indent/outdent/trim, and a display-layer
+word-wrap toggle. Line bookmarks and visible-whitespace markers were removed
+in the 2026-07 slimming stage. In word-wrap mode, scrolling, cursor visibility, selection
 highlights, search-match highlights, gutters, and scrollbars operate on
 wrapped visual rows instead of only whole logical lines.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those

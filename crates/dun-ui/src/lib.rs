@@ -26,7 +26,7 @@ pub(crate) use render::window::window_title_for_width;
 pub use shell::UiShell;
 pub(crate) use text::{
     buffer_end_position, decimal_digits, display_width, fit_text_to_width, status_text_for_width,
-    visible_whitespace_prefix_text, visible_whitespace_text, wrap_line_segments,
+    wrap_line_segments,
 };
 
 #[cfg(test)]

@@ -203,7 +203,6 @@ const fn command_line_top_level_candidates() -> &'static [&'static str] {
         "find",
         "goto",
         "help",
-        "mark",
         "matches",
         "new",
         "open",
@@ -217,7 +216,6 @@ const fn command_line_top_level_candidates() -> &'static [&'static str] {
         "shell",
         "status",
         "theme",
-        "whitespace",
         "wrap",
     ]
 }

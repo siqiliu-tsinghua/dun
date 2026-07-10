@@ -34,11 +34,7 @@ impl UiShell {
                 break;
             }
 
-            let marker = if buffer.bookmarks.contains(&line_index) {
-                '*'
-            } else {
-                ' '
-            };
+            let marker = ' ';
             let visual_rows = if buffer.wrap {
                 let inner_width = rect.width.saturating_sub(2) as usize;
                 let body_width = inner_width.saturating_sub(gutter_width as usize).max(1);

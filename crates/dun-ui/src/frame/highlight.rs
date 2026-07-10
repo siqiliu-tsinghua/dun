@@ -1,8 +1,7 @@
 use dun_core::{Rect, TextRange};
 
 use crate::{
-    BufferView, UiSearchMatchLine, UiSelectionLine, UiShell, display_width,
-    visible_whitespace_text, wrap_line_segments,
+    BufferView, UiSearchMatchLine, UiSelectionLine, UiShell, display_width, wrap_line_segments,
 };
 
 #[derive(Clone, Copy)]
@@ -92,10 +91,10 @@ impl UiShell {
             return None;
         }
         let start_column = start_column.max(visible_byte_start);
-        let body_origin = self.line_display_column_for_buffer(buffer, line, visible_byte_start)?;
+        let body_origin = self.display_column(line, visible_byte_start)?;
         let last_column = body_origin.saturating_add(body_width);
-        let start_display = self.line_display_column_for_buffer(buffer, line, start_column)?;
-        let end_display = self.line_display_column_for_buffer(buffer, line, end_column)?;
+        let start_display = self.display_column(line, start_column)?;
+        let end_display = self.display_column(line, end_column)?;
         if end_display <= body_origin || start_display >= last_column {
             return None;
         }
@@ -144,7 +143,6 @@ impl UiShell {
                     line.len()
                 };
                 for (y, start_x, end_x) in self.wrapped_highlight_spans(
-                    buffer,
                     line,
                     start_column,
                     end_column,
@@ -228,10 +226,10 @@ impl UiShell {
             return None;
         }
         let start_column = range.start.column.max(visible_byte_start);
-        let body_origin = self.line_display_column_for_buffer(buffer, line, visible_byte_start)?;
+        let body_origin = self.display_column(line, visible_byte_start)?;
         let last_column = body_origin.saturating_add(body_width);
-        let start_display = self.line_display_column_for_buffer(buffer, line, start_column)?;
-        let end_display = self.line_display_column_for_buffer(buffer, line, range.end.column)?;
+        let start_display = self.display_column(line, start_column)?;
+        let end_display = self.display_column(line, range.end.column)?;
         if end_display <= body_origin || start_display >= last_column {
             return None;
         }
@@ -286,7 +284,6 @@ impl UiShell {
                 continue;
             };
             for (y, start_x, end_x) in self.wrapped_highlight_spans(
-                buffer,
                 line,
                 range.start.column,
                 range.end.column,
@@ -311,7 +308,6 @@ impl UiShell {
 
     fn wrapped_highlight_spans(
         &self,
-        buffer: &BufferView<'_>,
         line: &str,
         start_column: usize,
         end_column: usize,
@@ -320,26 +316,19 @@ impl UiShell {
         if start_column >= end_column {
             return Vec::new();
         }
-        let Some(start_display) = self.line_display_column_for_buffer(buffer, line, start_column)
-        else {
+        let Some(start_display) = self.display_column(line, start_column) else {
             return Vec::new();
         };
-        let Some(end_display) = self.line_display_column_for_buffer(buffer, line, end_column)
-        else {
+        let Some(end_display) = self.display_column(line, end_column) else {
             return Vec::new();
         };
         if start_display >= end_display {
             return Vec::new();
         }
 
-        let visible = visible_whitespace_text(
-            line,
-            buffer.show_whitespace,
-            self.display_sanitizer.ascii_only,
-        );
         let mut spans = Vec::new();
         let mut segment_start = 0usize;
-        for (row_offset, segment) in wrap_line_segments(&visible, layout.body_width)
+        for (row_offset, segment) in wrap_line_segments(line, layout.body_width)
             .iter()
             .enumerate()
         {

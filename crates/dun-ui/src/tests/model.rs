@@ -56,18 +56,18 @@ fn frame_contains_menu_status_and_sanitized_buffer_content() {
 }
 
 #[test]
-fn frame_renders_visible_whitespace_wrap_and_bookmarks() {
+fn frame_renders_wrapped_lines_with_plain_gutter() {
     let workspace = Workspace::new_untitled();
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcd efghij");
-    let buffer_view = BufferView::new(BufferId(1), &buffer).with_view_options(true, true, &[0]);
+    let buffer_view = BufferView::new(BufferId(1), &buffer).with_wrap(true);
     let shell = UiShell::default();
 
     let frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 12, 6), &[buffer_view]);
 
-    assert_eq!(frame.windows[0].gutter[0].label, "1*");
+    assert_eq!(frame.windows[0].gutter[0].label, "1 ");
     assert_eq!(frame.windows[0].gutter[1].label, "  ");
-    assert_eq!(frame.windows[0].body[0].as_plain_text(), "abcd·efg");
-    assert_eq!(frame.windows[0].body[1].as_plain_text(), "hij¶");
+    assert_eq!(frame.windows[0].body[0].as_plain_text(), "abcd efg");
+    assert_eq!(frame.windows[0].body[1].as_plain_text(), "hij");
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn frame_maps_wrapped_selection_to_visual_rows() {
     buffer
         .select(Position::new(0, 2), Position::new(0, 14))
         .unwrap();
-    let buffer_view = BufferView::new(BufferId(1), &buffer).with_view_options(true, false, &[]);
+    let buffer_view = BufferView::new(BufferId(1), &buffer).with_wrap(true);
 
     let frame =
         UiShell::default().frame_for_workspace(&workspace, Rect::new(0, 0, 12, 6), &[buffer_view]);
@@ -186,7 +186,7 @@ fn frame_starts_wrapped_body_at_visual_row_offset() {
         .unwrap();
     let buffer_view = BufferView::new(BufferId(1), &buffer)
         .with_first_visual_row(1)
-        .with_view_options(true, false, &[]);
+        .with_wrap(true);
 
     let frame =
         UiShell::default().frame_for_workspace(&workspace, Rect::new(0, 0, 12, 6), &[buffer_view]);
@@ -238,7 +238,7 @@ fn frame_maps_wrapped_search_matches_to_visual_rows() {
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdefghijklmnop");
     let matches = buffer.find_all("efghij");
     let buffer_view = BufferView::new(BufferId(1), &buffer)
-        .with_view_options(true, false, &[])
+        .with_wrap(true)
         .with_search(&matches, Some(0));
 
     let frame =

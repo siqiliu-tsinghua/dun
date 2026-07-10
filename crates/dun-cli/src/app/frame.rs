@@ -22,11 +22,7 @@ impl AppState {
                 )
                 .with_first_visual_row(buffer.first_visual_row)
                 .with_search(search_matches, active_search_match)
-                .with_view_options(
-                    buffer.word_wrap,
-                    buffer.visible_whitespace,
-                    &buffer.bookmarks,
-                )
+                .with_wrap(buffer.word_wrap)
             })
             .collect()
     }

@@ -18,8 +18,6 @@ pub(crate) struct BufferState {
     pub(crate) first_column: usize,
     pub(crate) search: Option<BufferSearchState>,
     pub(crate) word_wrap: bool,
-    pub(crate) visible_whitespace: bool,
-    pub(crate) bookmarks: Vec<usize>,
 }
 
 impl BufferState {
@@ -35,8 +33,6 @@ impl BufferState {
             first_column: 0,
             search: None,
             word_wrap: false,
-            visible_whitespace: false,
-            bookmarks: Vec::new(),
         }
     }
 
@@ -52,8 +48,6 @@ impl BufferState {
             first_column: 0,
             search: None,
             word_wrap: false,
-            visible_whitespace: false,
-            bookmarks: Vec::new(),
         }
     }
 
@@ -474,9 +468,6 @@ impl BufferState {
                 body_width,
             );
         }
-        if self.visible_whitespace {
-            advance_wrapped_column(&mut row, &mut column, 1, body_width);
-        }
         row.saturating_add(1)
     }
 
@@ -521,32 +512,6 @@ impl BufferState {
             remaining = remaining.saturating_sub(rows);
         }
         buffer_end_position(&self.buffer)
-    }
-
-    pub(crate) fn normalize_bookmarks(&mut self) {
-        let max_line = self.buffer.line_count().saturating_sub(1);
-        for bookmark in &mut self.bookmarks {
-            *bookmark = (*bookmark).min(max_line);
-        }
-        self.bookmarks.sort_unstable();
-        self.bookmarks.dedup();
-    }
-
-    pub(crate) fn remap_bookmarks_after_line_move(&mut self, direction: isize) {
-        let moved_to = self.buffer.cursor_position().line;
-        let moved_from = if direction < 0 {
-            moved_to.saturating_add(1)
-        } else {
-            moved_to.saturating_sub(1)
-        };
-        for bookmark in &mut self.bookmarks {
-            if *bookmark == moved_from {
-                *bookmark = moved_to;
-            } else if *bookmark == moved_to {
-                *bookmark = moved_from;
-            }
-        }
-        self.normalize_bookmarks();
     }
 
     pub(crate) fn keep_cursor_inside_visible_lines(&mut self, body_height: usize) {

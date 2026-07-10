@@ -73,7 +73,7 @@ impl UiShell {
         }
 
         let line = buffer.buffer.line(position.line)?;
-        let display_column = self.line_display_column_for_buffer(buffer, line, position.column)?;
+        let display_column = self.display_column(line, position.column)?;
         let row_offset = display_column / body_width;
         visual_y = visual_y.saturating_add(row_offset as isize);
         if visual_y < 0 || visual_y >= body_height as isize {

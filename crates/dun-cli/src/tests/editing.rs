@@ -95,32 +95,7 @@ fn line_edit_commands_report_edge_statuses() {
 }
 
 #[test]
-fn view_toggles_and_bookmarks_update_buffer_state() {
-    let mut app = app_with_text("one\ntwo");
-
-    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleWordWrap));
-    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace));
-    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleBookmark));
-
-    let state = app.buffer_state(BufferId(1)).unwrap();
-    assert!(state.word_wrap);
-    assert!(state.visible_whitespace);
-    assert_eq!(state.bookmarks, vec![0]);
-    assert!(app.focused_detail_status().contains("[Mark]"));
-
-    app.handle_command(&EditorCommand::Edit(EditCommand::MoveDown));
-    app.handle_command(&EditorCommand::Edit(EditCommand::PreviousBookmark));
-    assert_eq!(
-        app.buffer_state(BufferId(1))
-            .unwrap()
-            .buffer
-            .cursor_position(),
-        Position::new(0, 0)
-    );
-}
-
-#[test]
-fn view_toggles_bookmarks_and_scroll_edges_report_status() {
+fn word_wrap_toggle_and_scroll_edges_report_status() {
     let mut app = app_with_text("0123456789abcdef\nsecond");
     app.sync_view_for_area(Rect::new(0, 0, 10, 4));
 
@@ -128,28 +103,6 @@ fn view_toggles_bookmarks_and_scroll_edges_report_status() {
     assert_eq!(app.status_message, Some("Word wrap on".to_string()));
     app.handle_command(&EditorCommand::Edit(EditCommand::ToggleWordWrap));
     assert_eq!(app.status_message, Some("Word wrap off".to_string()));
-
-    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace));
-    assert_eq!(
-        app.status_message,
-        Some("Visible whitespace on".to_string())
-    );
-    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace));
-    assert_eq!(
-        app.status_message,
-        Some("Visible whitespace off".to_string())
-    );
-
-    app.handle_command(&EditorCommand::Edit(EditCommand::NextBookmark));
-    assert_eq!(app.status_message, Some("Bookmark: none set".to_string()));
-
-    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleBookmark));
-    assert_eq!(app.status_message, Some("Bookmarked line 1".to_string()));
-    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleBookmark));
-    assert_eq!(
-        app.status_message,
-        Some("Removed bookmark at line 1".to_string())
-    );
 
     app.handle_command(&EditorCommand::Edit(EditCommand::ScrollLeft));
     assert_eq!(app.status_message, Some("Already at left edge".to_string()));

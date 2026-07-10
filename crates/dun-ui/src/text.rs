@@ -14,38 +14,6 @@ pub(crate) fn display_width(text: &str) -> usize {
     UnicodeWidthStr::width(text)
 }
 
-pub(crate) fn visible_whitespace_text(
-    line: &str,
-    show_whitespace: bool,
-    ascii_only: bool,
-) -> String {
-    if !show_whitespace {
-        return line.to_string();
-    }
-
-    let mut text = visible_whitespace_prefix_text(line, ascii_only);
-    if ascii_only {
-        text.push('$');
-    } else {
-        text.push('¶');
-    }
-    text
-}
-
-pub(crate) fn visible_whitespace_prefix_text(line: &str, ascii_only: bool) -> String {
-    let mut text = String::with_capacity(line.len());
-    for ch in line.chars() {
-        match ch {
-            ' ' if ascii_only => text.push('.'),
-            ' ' => text.push('·'),
-            '\t' if ascii_only => text.push('>'),
-            '\t' => text.push('→'),
-            _ => text.push(ch),
-        }
-    }
-    text
-}
-
 pub(crate) fn wrap_line_segments(line: &str, width: usize) -> Vec<&str> {
     let width = width.max(1);
     if line.is_empty() {

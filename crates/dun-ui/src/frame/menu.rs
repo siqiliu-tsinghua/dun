@@ -140,22 +140,6 @@ impl UiShell {
                             EditorCommand::Edit(dun_core::EditCommand::ToggleWordWrap),
                         ),
                         MenuEntry::new(
-                            "Visible Whitespace (.)",
-                            EditorCommand::Edit(dun_core::EditCommand::ToggleVisibleWhitespace),
-                        ),
-                        MenuEntry::new(
-                            "Toggle Bookmark (M)",
-                            EditorCommand::Edit(dun_core::EditCommand::ToggleBookmark),
-                        ),
-                        MenuEntry::new(
-                            "Next Bookmark (N)",
-                            EditorCommand::Edit(dun_core::EditCommand::NextBookmark),
-                        ),
-                        MenuEntry::new(
-                            "Previous Bookmark (P)",
-                            EditorCommand::Edit(dun_core::EditCommand::PreviousBookmark),
-                        ),
-                        MenuEntry::new(
                             "Scroll Left ([)",
                             EditorCommand::Edit(dun_core::EditCommand::ScrollLeft),
                         ),

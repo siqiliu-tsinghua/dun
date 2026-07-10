@@ -16,6 +16,12 @@ rules: [docs/feature-triage.md](./docs/feature-triage.md).
 - [ ] Execute C/D removals as full-trail diffs behind the release gates.
 - [ ] Set the B-class total byte cap and new trim order from measured costs.
 - [ ] Rewrite docs/feature-budget.md from the completed triage.
+- [ ] Fix the tmux-backed grid harness under tmux 3.7: since the host tmux
+  upgrade to 3.7b (2026-07-09), `tmux_grid_normalizes_cursor_and_sgr_attributes`
+  fails its reverse-attribute assertion on both macOS and the Debian VM
+  (tmux 3.5a) with no code change; suspect a capture-pane SGR behavior change
+  the grid parser must accommodate. Code-independent; verified failing at
+  pre-slimming commit `b03192d`.
 
 ## Next Stage: Plugin Protocol Client
 

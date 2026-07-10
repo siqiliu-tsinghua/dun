@@ -1,10 +1,7 @@
 use dun_core::{DisplaySanitizer, Rect, SanitizedLine};
 use unicode_width::UnicodeWidthStr;
 
-use crate::{
-    BufferView, UiShell, visible_whitespace_prefix_text, visible_whitespace_text,
-    wrap_line_segments,
-};
+use crate::{BufferView, UiShell, wrap_line_segments};
 
 impl UiShell {
     pub(super) fn sanitize_buffer_body(
@@ -29,7 +26,7 @@ impl UiShell {
 
             let line = buffer.buffer.line(line_index).unwrap_or_default();
             let start = self.byte_column_for_display_column(line, buffer.first_column);
-            lines.push(self.sanitize_visible_line(&line[start..], buffer.show_whitespace));
+            lines.push(self.display_sanitizer.sanitize_line(&line[start..]));
         }
 
         lines
@@ -52,11 +49,6 @@ impl UiShell {
             }
 
             let line = buffer.buffer.line(line_index).unwrap_or_default();
-            let visible = visible_whitespace_text(
-                line,
-                buffer.show_whitespace,
-                self.display_sanitizer.ascii_only,
-            );
             let start_offset = if line_index == buffer.first_line {
                 buffer.first_visual_row.min(
                     self.wrapped_visual_line_count(buffer, line_index, body_width)
@@ -65,7 +57,7 @@ impl UiShell {
             } else {
                 0
             };
-            for segment in wrap_line_segments(&visible, body_width)
+            for segment in wrap_line_segments(line, body_width)
                 .iter()
                 .skip(start_offset)
             {
@@ -79,15 +71,6 @@ impl UiShell {
         lines
     }
 
-    fn sanitize_visible_line(&self, line: &str, show_whitespace: bool) -> SanitizedLine {
-        if !show_whitespace {
-            return self.display_sanitizer.sanitize_line(line);
-        }
-
-        let visible =
-            visible_whitespace_text(line, show_whitespace, self.display_sanitizer.ascii_only);
-        self.display_sanitizer.sanitize_line(&visible)
-    }
     pub(crate) fn wrapped_visual_line_count(
         &self,
         buffer: &BufferView<'_>,
@@ -97,12 +80,7 @@ impl UiShell {
         let Some(line) = buffer.buffer.line(line_index) else {
             return 1;
         };
-        let visible = visible_whitespace_text(
-            line,
-            buffer.show_whitespace,
-            self.display_sanitizer.ascii_only,
-        );
-        wrap_line_segments(&visible, body_width.max(1)).len().max(1)
+        wrap_line_segments(line, body_width.max(1)).len().max(1)
     }
 
     pub(super) fn wrapped_total_visual_rows(
@@ -152,25 +130,6 @@ impl UiShell {
             max_bytes: usize::MAX,
         };
         let display_text = display_sanitizer.sanitize_line(prefix).as_plain_text();
-        Some(UnicodeWidthStr::width(display_text.as_str()))
-    }
-
-    pub(super) fn line_display_column_for_buffer(
-        &self,
-        buffer: &BufferView<'_>,
-        line: &str,
-        byte_column: usize,
-    ) -> Option<usize> {
-        let prefix = line.get(..byte_column)?;
-        if !buffer.show_whitespace {
-            return self.display_column(line, byte_column);
-        }
-        let display_sanitizer = DisplaySanitizer {
-            ascii_only: self.display_sanitizer.ascii_only,
-            max_bytes: usize::MAX,
-        };
-        let visible = visible_whitespace_prefix_text(prefix, self.display_sanitizer.ascii_only);
-        let display_text = display_sanitizer.sanitize_line(&visible).as_plain_text();
         Some(UnicodeWidthStr::width(display_text.as_str()))
     }
 

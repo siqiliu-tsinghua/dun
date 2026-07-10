@@ -572,15 +572,6 @@ fn command_line_dispatches_editor_toggle_and_output_aliases() {
     submit_command_line(&mut app, "wrap");
     assert_eq!(app.status_message, Some("Word wrap on".to_string()));
 
-    submit_command_line(&mut app, "whitespace");
-    assert_eq!(
-        app.status_message,
-        Some("Visible whitespace on".to_string())
-    );
-
-    submit_command_line(&mut app, "mark");
-    assert_eq!(app.status_message, Some("Bookmarked line 1".to_string()));
-
     submit_command_line(&mut app, "replace one uno");
     assert_eq!(
         app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),

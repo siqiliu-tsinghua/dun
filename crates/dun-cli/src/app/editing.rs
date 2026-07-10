@@ -77,22 +77,6 @@ impl AppState {
                 self.toggle_word_wrap();
                 return;
             }
-            EditCommand::ToggleVisibleWhitespace => {
-                self.toggle_visible_whitespace();
-                return;
-            }
-            EditCommand::ToggleBookmark => {
-                self.toggle_bookmark();
-                return;
-            }
-            EditCommand::NextBookmark => {
-                self.goto_bookmark(SearchDirection::Forward);
-                return;
-            }
-            EditCommand::PreviousBookmark => {
-                self.goto_bookmark(SearchDirection::Backward);
-                return;
-            }
             EditCommand::Undo => {
                 self.undo_focused_buffer();
                 return;
@@ -205,10 +189,6 @@ impl AppState {
             | EditCommand::OutdentLine
             | EditCommand::TrimTrailingWhitespace
             | EditCommand::ToggleWordWrap
-            | EditCommand::ToggleVisibleWhitespace
-            | EditCommand::ToggleBookmark
-            | EditCommand::NextBookmark
-            | EditCommand::PreviousBookmark
             | EditCommand::Undo
             | EditCommand::Redo
             | EditCommand::Find
@@ -253,10 +233,7 @@ impl AppState {
         };
 
         let status = match buffer.buffer.delete_current_line() {
-            Ok(true) => {
-                buffer.normalize_bookmarks();
-                "Deleted line".to_string()
-            }
+            Ok(true) => "Deleted line".to_string(),
             Ok(false) => "Delete line: nothing deleted".to_string(),
             Err(error) => format!("Delete line failed: {}", buffer_error_text(error)),
         };
@@ -276,7 +253,6 @@ impl AppState {
         };
         let status = match moved {
             Ok(true) => {
-                buffer.remap_bookmarks_after_line_move(direction);
                 if direction < 0 {
                     "Moved line up".to_string()
                 } else {
@@ -347,83 +323,6 @@ impl AppState {
             buffer.first_visual_row = 0;
             self.set_status("Word wrap off");
         }
-    }
-
-    fn toggle_visible_whitespace(&mut self) {
-        let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Whitespace failed: focused buffer is missing");
-            return;
-        };
-
-        buffer.visible_whitespace = !buffer.visible_whitespace;
-        if buffer.visible_whitespace {
-            self.set_status("Visible whitespace on");
-        } else {
-            self.set_status("Visible whitespace off");
-        }
-    }
-
-    fn toggle_bookmark(&mut self) {
-        let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Bookmark failed: focused buffer is missing");
-            return;
-        };
-
-        let line = buffer.buffer.cursor_position().line;
-        if let Some(index) = buffer
-            .bookmarks
-            .iter()
-            .position(|bookmark| *bookmark == line)
-        {
-            buffer.bookmarks.remove(index);
-            self.set_status(format!("Removed bookmark at line {}", line + 1));
-        } else {
-            buffer.bookmarks.push(line);
-            buffer.bookmarks.sort_unstable();
-            self.set_status(format!("Bookmarked line {}", line + 1));
-        }
-    }
-
-    fn goto_bookmark(&mut self, direction: SearchDirection) {
-        let context = self
-            .focused_buffer_view_context(self.workspace_area)
-            .unwrap_or(BufferViewContext {
-                buffer_id: BufferId(0),
-                body_height: 1,
-                body_width: 1,
-            });
-        let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Bookmark failed: focused buffer is missing");
-            return;
-        };
-
-        buffer.normalize_bookmarks();
-        if buffer.bookmarks.is_empty() {
-            self.set_status("Bookmark: none set");
-            return;
-        }
-
-        let cursor_line = buffer.buffer.cursor_position().line;
-        let target_line = match direction {
-            SearchDirection::Forward => buffer
-                .bookmarks
-                .iter()
-                .copied()
-                .find(|line| *line > cursor_line)
-                .unwrap_or(buffer.bookmarks[0]),
-            SearchDirection::Backward => buffer
-                .bookmarks
-                .iter()
-                .rev()
-                .copied()
-                .find(|line| *line < cursor_line)
-                .unwrap_or_else(|| *buffer.bookmarks.last().expect("non-empty bookmarks")),
-        };
-        let column =
-            buffer.clamp_column_to_line(target_line, buffer.buffer.cursor_position().column);
-        let _ = buffer.buffer.set_cursor(Position::new(target_line, column));
-        buffer.ensure_cursor_visible(context.body_height, context.body_width);
-        self.set_status(format!("Bookmark: line {}", target_line + 1));
     }
 
     fn undo_focused_buffer(&mut self) {
