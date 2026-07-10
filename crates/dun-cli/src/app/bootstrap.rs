@@ -28,7 +28,10 @@ impl AppState {
         let clipboard = loaded_config.config.clipboard;
         let mouse_enabled = loaded_config.config.mouse.enabled;
 
+        let highlighter = PluginHighlighter::from_entries(&loaded_config.config.plugins);
+
         Self {
+            highlighter,
             workspace: Workspace::new_untitled(),
             buffers: vec![BufferState::new(BufferId(1), TextBuffer::new_untitled())],
             config_request,

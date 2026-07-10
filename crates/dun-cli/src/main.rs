@@ -25,6 +25,7 @@ use dun_core::{
     Selection, SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind, WindowState,
     Workspace, WorkspaceError, decode_file_text,
 };
+use dun_plugin::StyleSpan;
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
 use dun_ui::{BufferView, MenuSelection, UiMouseTarget, UiOverlay, UiShell};
 use ratatui::Terminal;
@@ -39,13 +40,14 @@ mod config_loading;
 mod dialogs;
 mod files;
 mod help;
+mod plugins;
 mod terminal;
 mod util;
 
 use app::{
-    AppState, BufferSearchState, BufferState, BufferViewContext, MouseDragState, SearchDirection,
-    SearchSpec, StatusEntry, StatusLevel, choose_search_match, current_match_selection,
-    editor_body_width, preview_selection_match,
+    AppState, BufferHighlight, BufferSearchState, BufferState, BufferViewContext, MouseDragState,
+    SearchDirection, SearchSpec, StatusEntry, StatusLevel, choose_search_match,
+    current_match_selection, editor_body_width, preview_selection_match,
 };
 #[cfg(test)]
 pub(crate) use cli::UsageError;
@@ -105,6 +107,7 @@ use help::text::{
     ConfigDiagnosticsSection, line_with_exact_text, numbered_list_index_for_line,
     numbered_list_rows, parse_config_diagnostics_section, search_results_text,
 };
+use plugins::{HighlightJob, HighlightOutcome, PluginHighlighter, language_hint};
 #[cfg(test)]
 use terminal::rewrite_16_color_sgr;
 use terminal::{

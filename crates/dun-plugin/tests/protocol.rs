@@ -28,7 +28,7 @@ fn snapshot(language: &str) -> InputSnapshot {
 }
 
 fn launch(policy: Policy) -> HostClient {
-    match HostClient::launch(Path::new(FIXTURE_HOST), policy) {
+    match HostClient::launch(Path::new(FIXTURE_HOST), "highlight", policy) {
         Ok(client) => client,
         Err(error) => panic!("fixture host launches: {error}"),
     }
@@ -46,7 +46,7 @@ fn handshake_error(mode: &str) -> PluginError {
     let launcher = ModeLauncher::new(mode);
     // Handshake-mode hosts reply (or die) immediately; the generous timeout
     // only absorbs process-spawn latency under parallel test load.
-    match HostClient::launch(launcher.path(), policy(Duration::from_secs(5))) {
+    match HostClient::launch(launcher.path(), "highlight", policy(Duration::from_secs(5))) {
         Ok(client) => {
             drop(client);
             panic!("{mode} unexpectedly completed the handshake");

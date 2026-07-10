@@ -70,6 +70,7 @@ impl fmt::Display for PluginError {
 }
 
 pub struct HostClient {
+    plugin_id: String,
     child: Child,
     stdin: ChildStdin,
     frames: Receiver<Result<Vec<u8>, FrameError>>,
@@ -81,7 +82,11 @@ pub struct HostClient {
 }
 
 impl HostClient {
-    pub fn launch(command_path: &Path, policy: Policy) -> Result<Self, PluginError> {
+    pub fn launch(
+        command_path: &Path,
+        plugin_id: &str,
+        policy: Policy,
+    ) -> Result<Self, PluginError> {
         let mut child = Command::new(command_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -125,6 +130,7 @@ impl HostClient {
         });
 
         let mut client = Self {
+            plugin_id: plugin_id.to_string(),
             child,
             stdin,
             frames,
@@ -194,7 +200,7 @@ impl HostClient {
         self.send(&Envelope {
             kind: MessageKind::Request,
             request_id,
-            plugin_id: "highlight".to_string(),
+            plugin_id: self.plugin_id.clone(),
             role: Some(Role::SyntaxHighlight),
             revision: Some(snapshot.buffer_revision),
             payload: Json::Obj(vec![
@@ -217,7 +223,7 @@ impl HostClient {
                     let _ = self.send(&Envelope {
                         kind: MessageKind::CancelRequest,
                         request_id,
-                        plugin_id: "highlight".to_string(),
+                        plugin_id: self.plugin_id.clone(),
                         role: Some(Role::SyntaxHighlight),
                         revision: None,
                         payload: Json::Null,

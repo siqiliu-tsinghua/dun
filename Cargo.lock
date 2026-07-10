@@ -116,6 +116,7 @@ dependencies = [
  "crossterm",
  "dun-config",
  "dun-core",
+ "dun-plugin",
  "dun-term",
  "dun-ui",
  "ratatui",

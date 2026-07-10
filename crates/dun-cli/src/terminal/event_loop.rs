@@ -67,6 +67,8 @@ pub(crate) fn run_event_loop(
         if let Some(action) = app.take_runtime_action() {
             handle_runtime_action(action, terminal, app, guard)?;
         }
+
+        app.pump_plugins();
     }
 
     Ok(())

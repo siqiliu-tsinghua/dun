@@ -69,12 +69,15 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 
 - [ ] Add a small Rust-owned protocol client module or crate without adding
   `rum` or heavy runtime dependencies.
-- [ ] Launch configured external hosts directly, not through a shell.
-- [ ] Pass only stdin/stdout/stderr plus a minimal environment or explicit
-  whitelist.
+- [x] Launch configured external hosts directly, not through a shell
+  (worker-thread lifecycle in `crates/dun-cli/src/plugins.rs`; lazy launch,
+  failure cooldown, relaunch on next request).
+- [x] Pass only stdin/stdout/stderr plus a minimal environment or explicit
+  whitelist (env is cleared in `HostClient::launch`).
 - [ ] Implement `Hello`/`HelloAck`, `LoadPlugin`, role `Request`/`Response`,
   `Diagnostic`, `CancelRequest`, `Error`, and `Shutdown` paths.
-- [ ] Add per-request timeout and cancellation.
+- [x] Add per-request timeout and cancellation (configured
+  `plugin.<id>.timeout_ms` maps onto the client policy).
 - [ ] Kill or quarantine a host after malformed frames, oversized output,
   timeout, failed cancellation, EOF during frame, or process crash.
 - [ ] Ensure plugin host failure never corrupts buffers, file state, terminal
@@ -84,12 +87,13 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 
 - [ ] Implement one visible low-risk role end to end, preferably
   `SyntaxHighlight`.
-- [ ] Send bounded visible or nearby text snapshots with buffer revision and
-  language hint.
+- [x] Send bounded visible-window snapshots with buffer revision and a
+  file-extension language hint (focused Edit pane, coalesced on the worker).
 - [ ] Validate returned style spans: known style ids, in-range line/column
   coordinates, sorted or normalized ranges, bounded count, and matching
   revision.
-- [ ] Discard stale results when the buffer revision has changed.
+- [x] Discard stale results when the buffer revision has changed (client
+  layer and again at cache application in the editor).
 - [ ] Apply validated results through existing UI highlight paths without
   granting plugins access to UI or terminal APIs.
 - [ ] Keep plugin diagnostics sanitized and visible through existing status or

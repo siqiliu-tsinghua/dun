@@ -9,6 +9,7 @@ mod file_dialog;
 mod file_io;
 mod helper_panes;
 mod menus_mouse;
+mod plugins;
 mod prompts;
 mod search_replace;
 mod support;

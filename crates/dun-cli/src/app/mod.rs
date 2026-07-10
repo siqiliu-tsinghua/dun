@@ -9,6 +9,7 @@ mod file_dialogs;
 mod file_io;
 mod frame;
 mod helper_panes;
+mod highlight;
 mod menus;
 mod mouse;
 mod prompt_dialogs;
@@ -20,7 +21,7 @@ mod status_view;
 mod view_state;
 mod windows;
 
-pub(crate) use buffer_state::{BufferState, BufferViewContext, editor_body_width};
+pub(crate) use buffer_state::{BufferHighlight, BufferState, BufferViewContext, editor_body_width};
 pub(crate) use mouse::MouseDragState;
 pub(crate) use search::{
     BufferSearchState, SearchDirection, SearchSpec, choose_search_match, current_match_selection,

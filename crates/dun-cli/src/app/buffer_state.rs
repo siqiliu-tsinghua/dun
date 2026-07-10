@@ -7,6 +7,13 @@ pub(crate) struct BufferViewContext {
     pub(crate) body_width: usize,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BufferHighlight {
+    pub(crate) revision: u64,
+    pub(crate) first_line: usize,
+    pub(crate) spans: Vec<StyleSpan>,
+}
+
 pub(crate) struct BufferState {
     pub(crate) id: BufferId,
     pub(crate) buffer: TextBuffer,
@@ -18,6 +25,7 @@ pub(crate) struct BufferState {
     pub(crate) first_column: usize,
     pub(crate) search: Option<BufferSearchState>,
     pub(crate) word_wrap: bool,
+    pub(crate) highlight: Option<BufferHighlight>,
 }
 
 impl BufferState {
@@ -33,6 +41,7 @@ impl BufferState {
             first_column: 0,
             search: None,
             word_wrap: false,
+            highlight: None,
         }
     }
 
@@ -48,6 +57,7 @@ impl BufferState {
             first_column: 0,
             search: None,
             word_wrap: false,
+            highlight: None,
         }
     }
 
