@@ -56,4 +56,12 @@ zsh -ic "cdx exec -C '$repo_root' -s danger-full-access 'Read $rel and execute i
 rc=$?
 set -e
 echo "cdx exit=$rc ; report in $log"
+
+# Known codex-release failure modes (both leave the tree clean; re-dispatch
+# after the fix):
+if [[ $rc -ne 0 ]] && grep -q "requires a newer version of Codex" "$log"; then
+  echo "KNOWN FAILURE: installed codex CLI is older than the configured model requires." >&2
+  echo "Fix: update codex in an interactive terminal (run 'cdx' once, accept the update)," >&2
+  echo "then re-dispatch this brief. See CLAUDE.md 'Codex delegation' known failures." >&2
+fi
 exit $rc

@@ -73,6 +73,13 @@ verbatim evidence — it never commits, branches, or pushes.
 - Watch Codex's recurring failure modes in review: fixing at the wrong
   layer, masking symptoms instead of causes, and drive-by edits outside
   scope.
+- Known dispatch failures around a new codex release (tree stays clean in
+  both; re-dispatch after the user updates codex interactively): (a) log
+  stalls forever at "Reading additional input from stdin..." — pending
+  self-update prompt with no TTY; safe to kill; the `< /dev/null` in the
+  dispatcher usually prevents this. (b) fast fail with API 400 "model
+  requires a newer version of Codex" — the dispatcher prints the remedy.
+  First seen in rum 2026-07-01 (hang) and dun 2026-07-10 (fast fail).
 
 ## Debian Measurement VM
 
