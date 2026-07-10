@@ -81,9 +81,11 @@ Sequencing:
 2. **Feature triage + proactive trim** — reclassify all features into
    A core / B optional (measured byte cost + trim order) / C remove now /
    D delegate-to-plugin. The paper inventory can proceed in parallel with the
-   spike. Execute C/D removals in gated batches. This supersedes the lazy
-   trim-on-failure order in [docs/feature-budget.md](./docs/feature-budget.md);
-   rewrite that document as part of this stage.
+   spike. Execute C/D removals in gated batches. Working document:
+   [docs/feature-triage.md](./docs/feature-triage.md). This supersedes the
+   lazy trim-on-failure order in
+   [docs/feature-budget.md](./docs/feature-budget.md); rewrite that document
+   as part of this stage.
 3. **Land the real plugin protocol client** on the freed budget
    (TODO.md "Plugin Protocol Client" stage).
 4. **Re-audit** both platforms and refresh

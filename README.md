@@ -327,6 +327,8 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
   details and working conventions.
 - [docs/feature-budget.md](./docs/feature-budget.md): hard v0.1 runtime size
   gate, required feature set, and optional feature trim order.
+- [docs/feature-triage.md](./docs/feature-triage.md): working inventory and
+  A/B/C/D classification for the v0.1 slimming stage.
 - [docs/plugin-protocol.md](./docs/plugin-protocol.md): host-neutral plugin
   protocol, trust classes, role policy, and completion criteria.
 - [docs/runtime-resource-audit.md](./docs/runtime-resource-audit.md):
