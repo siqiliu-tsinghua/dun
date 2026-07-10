@@ -11,42 +11,39 @@ platforms:
 ```text
 maximum size: 1,048,576 bytes
 platforms: macOS x86_64 and Debian x86_64
-binary: target/release/dun
-build command: cargo build --release --locked -p dun-cli
+binary: target/<host-triple>/release/dun
+build command: scripts/release-build.sh
 ```
+
+The budget build is the build-std contract decided 2026-07-10 (stable 1.85
+compiler, RUSTC_BOOTSTRAP=1, `-Zbuild-std=std,panic_abort`
+`-Zbuild-std-features=`; rust-src required). Panic hooks and messages work
+under it; panic-backtrace symbolization is not linked. Plain
+`cargo build --release` remains a dev build and is not a budget claim.
 
 The budget applies to the uncompressed executable. It does not count source,
 tests, documents, `target/` intermediates, local reference checkouts, external
 plugin host executables, future optional runtime packages, or bundled example
 plugins that are not linked into `target/release/dun`.
 
-The checked-in `[profile.release]` is the release-size profile. Do not use a
-different profile to claim v0.1 budget compliance.
-
-Measure with:
-
-```text
-# macOS
-stat -f%z target/release/dun
-
-# Debian/Linux
-stat -c%s target/release/dun
-```
+The checked-in `[profile.release]` plus `scripts/release-build.sh` is the
+release-size recipe. Do not use a different profile or plain-cargo build to
+claim v0.1 budget compliance. The script prints the binary path and size.
 
 ## Budget Failure Rule
 
 If either audited platform is above `1,048,576` bytes:
 
 1. Do not add features.
-2. Confirm the checked-in release profile was used.
-3. Rebuild from a clean enough release target if the result is surprising.
-4. Remove optional runtime features in the trim order below.
-5. Re-run tests and both platform size measurements after each trim.
-6. Stop trimming only when both platforms are within budget.
+2. Confirm `scripts/release-build.sh` was used (build-std contract).
+3. Rebuild from a clean release target if the result is surprising.
+4. Consult [feature-triage.md](./feature-triage.md): B-class units are the
+   candidates, ranked by measured bytes per value; C/D-class removals are
+   already executed.
+5. Re-run tests and both platform size measurements after each batch.
 
-If all optional runtime features have been trimmed and the binary is still too
-large, stop and rewrite the v0.1 product scope. Do not silently cut required
-features.
+If the budget still fails with all B-class units removed, stop and rewrite
+the v0.1 product scope. Do not silently cut required features.
 
 ## Required Runtime Features
 

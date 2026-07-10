@@ -14,10 +14,15 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo test -p dun-cli --test tmux_grid
 cargo test -p dun-cli --test msedit_diff
-cargo build --release --locked -p dun-cli
-target/release/dun --version
-target/release/dun --dump-config
+scripts/release-build.sh
+target/<host-triple>/release/dun --version
+target/<host-triple>/release/dun --dump-config
 ```
+
+`scripts/release-build.sh` is the budget build (build-std contract, decided
+2026-07-10); it prints the binary path and byte size. Plain
+`cargo build --release` remains a valid dev build but is NOT the budget
+measurement.
 
 Expected results:
 
@@ -34,9 +39,9 @@ Expected results:
 - `--dump-config` exits successfully and prints parseable default
   configuration.
 
-Measure the release binary with `stat -f%z target/release/dun` on macOS and
-`stat -c%s target/release/dun` on Debian/Linux. If either platform exceeds the
-limit, follow the trim order in
+`scripts/release-build.sh` prints the byte size (the binary lives under
+`target/<host-triple>/release/dun`). If either platform exceeds the limit,
+consult [feature-triage.md](./feature-triage.md) and
 [feature-budget.md](./feature-budget.md) before adding any features.
 
 ## Size And Resource Drift

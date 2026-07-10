@@ -3,30 +3,36 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./PROGRESS.md).
 
-## Current Stage: Feature Triage and Slimming
+## Completed Stage: Feature Triage and Slimming (2026-07-10)
 
-The plugin-client size spike (branch `spike/plugin-client-size`, `c7f042c`)
-measured the required client at about 76 KiB on the binding Debian platform,
-against a 9,640-byte budget margin. Optional features must therefore be
-trimmed before the client can land. Inventory, budget math, and decision
-rules: [docs/feature-triage.md](./docs/feature-triage.md).
+Outcome in [docs/feature-triage.md](./docs/feature-triage.md) and
+[docs/release-size-audit.md](./docs/release-size-audit.md): C/D batches 1-3
+removed the advanced Command Output family, Outline, bookmarks, and
+visible-whitespace markers (-48 KiB Debian); the decisive lever was the
+build-std release contract (`scripts/release-build.sh`, user decision
+2026-07-10), which drops panic-backtrace machinery while keeping panic
+hooks and messages (verified). Post-contract binaries: Debian 620,928 /
+macOS 575,460 bytes — margin 427,648 on the binding platform. All
+remaining B-class features are KEPT; no lazy trim order remains.
 
-- [ ] Classify every inventory unit (A/B/C/D) in docs/feature-triage.md.
-- [ ] Measure C/D removal batches on the Debian VM and record byte deltas.
-- [ ] Execute C/D removals as full-trail diffs behind the release gates.
-- [ ] Set the B-class total byte cap and new trim order from measured costs.
-- [ ] Rewrite docs/feature-budget.md from the completed triage.
+- [x] Classify inventory units and execute C/D removals (batches 1-3).
+- [x] Measure removals and the toolchain lever on the Debian VM.
+- [x] Adopt the build-std budget build contract (user decision 2026-07-10).
+- [x] Rewrite docs/feature-budget.md from the completed triage.
 
-## Next Stage: Plugin Protocol Client
+## Current Stage: Plugin Protocol Client
 
-The next stage is the required host-neutral plugin protocol client. This does
-not wait for `rum`; `rum` is a future optional pure-sandbox host that must
-speak the same protocol.
+The active stage is the required host-neutral plugin protocol client. This
+does not wait for `rum`; `rum` is a future optional pure-sandbox host that
+must speak the same protocol. Size groundwork is done: the client's measured
+cost (~76 KiB Debian, spike branch `spike/plugin-client-size`) fits the
+post-build-std margin with room to spare. The renderer-replacement line
+(Surface grid, brief-002) continues in parallel as dependency hygiene via
+small Codex briefs.
 
 The protocol client is a required runtime feature under
-[docs/feature-budget.md](./docs/feature-budget.md). If it pushes
-`target/release/dun` over `1,048,576` bytes on audited macOS or Debian builds,
-trim optional editor features before cutting protocol-client functionality.
+[docs/feature-budget.md](./docs/feature-budget.md). The budget gate is the
+`scripts/release-build.sh` binary on both audited platforms.
 External plugin hosts and future runtime packages are separate artifacts and do
 not count toward the default `dun` executable size.
 
@@ -106,11 +112,12 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings`.
 - [ ] `cargo test --workspace`.
 - [ ] Release smoke checklist passes.
-- [ ] macOS `target/release/dun` remains no larger than `1,048,576` bytes.
-- [ ] Debian VM `target/release/dun` remains no larger than `1,048,576` bytes.
-- [ ] If either binary exceeds budget, trim optional features in
-  [docs/feature-budget.md](./docs/feature-budget.md) order and record the
-  result before continuing.
+- [ ] macOS `scripts/release-build.sh` binary stays within `1,048,576` bytes.
+- [ ] Debian VM `scripts/release-build.sh` binary stays within `1,048,576`
+  bytes.
+- [ ] If either binary exceeds budget, consult
+  [docs/feature-triage.md](./docs/feature-triage.md) and record the result
+  before continuing.
 
 Do not add runtime features while either audited release binary exceeds the
 1 MiB budget.

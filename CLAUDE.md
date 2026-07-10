@@ -26,11 +26,17 @@ keymap defaults + menu entries + help text + tests + README/docs paragraphs.
 ## Build, Test, Gates
 
 ```text
-cargo build --release --locked -p dun-cli    # budget measurement build
+scripts/release-build.sh                     # budget measurement build
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo test --workspace --no-fail-fast
 ```
+
+`scripts/release-build.sh` is the build-std budget contract (decided
+2026-07-10): RUSTC_BOOTSTRAP=1 + `-Zbuild-std=std,panic_abort`
+`-Zbuild-std-features=` on stable 1.85; needs rust-src (present on both
+platforms). Panic hooks and messages verified working under it. Plain
+`cargo build --release` stays a dev build only.
 
 Runtime-code commits must pass fmt, clippy, tests, the release smoke
 checklist ([docs/release-smoke-checklist.md](./docs/release-smoke-checklist.md)),
@@ -38,18 +44,17 @@ and the size gate below.
 
 ## Hard Size Budget (the binding constraint)
 
-`target/release/dun` must be ≤ 1,048,576 bytes on macOS x86_64 AND Debian
-x86_64 using the checked-in `[profile.release]`. Baseline 2026-07-09
-(`60d45a2`):
+The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
+x86_64 AND Debian x86_64. Baseline 2026-07-10 (`b2510a3`, build-std
+contract):
 
-- macOS: 863,664 bytes (184,912 under budget)
-- Debian: 1,038,936 bytes (9,640 under budget — **Debian is the binding
-  platform**; it runs ~175 KiB fatter than macOS)
+- macOS: 575,460 bytes (`target/x86_64-apple-darwin/release/dun`)
+- Debian: 620,928 bytes — **binding platform**, margin 427,648 bytes
 
-Treat every runtime code or dependency addition as budget-sensitive. Decisive
-size measurements happen on the Debian VM; macOS deltas are only a proxy.
-With `opt-level = "z"` + fat LTO, size deltas are non-additive — measure
-removals per batch, not per item.
+Reserve plan on the margin: plugin client ~76 KiB + future-feature reserve
+120 KiB still leaves ~230 KiB. Decisive measurements happen on the Debian
+VM; macOS deltas are proxies (~1.25x rule of thumb). With `opt-level = "z"`
++ fat LTO, size deltas are non-additive — measure per batch.
 
 ## Codex Delegation (grunt-work packages)
 
@@ -102,28 +107,22 @@ Positioning: `dun` is a lightweight TUI editor in its own right. Embedding
 hosts ([docs/plugin-protocol.md](./docs/plugin-protocol.md)). The plugin
 protocol client is required core; `rum-host` is a future separate artifact.
 
-Sequencing:
+Sequencing (stages 1–2 completed 2026-07-10):
 
-1. **Plugin-client size spike** — a minimal framed-stdio + JSON + one-role
-   prototype, measured on Debian with the locked release profile. Its byte
-   delta anchors how much the trim must free. No JSON/serde dependency exists
-   in-tree today; adding one is a budget decision, not a convenience decision.
-2. **Feature triage + proactive trim** — reclassify all features into
-   A core / B optional (measured byte cost + trim order) / C remove now /
-   D delegate-to-plugin. The paper inventory can proceed in parallel with the
-   spike. Execute C/D removals in gated batches. Working document:
-   [docs/feature-triage.md](./docs/feature-triage.md). This supersedes the
-   lazy trim-on-failure order in
-   [docs/feature-budget.md](./docs/feature-budget.md); rewrite that document
-   as part of this stage.
-3. **Land the real plugin protocol client** on the freed budget
-   (TODO.md "Plugin Protocol Client" stage).
-4. **Re-audit** both platforms and refresh
-   [docs/release-size-audit.md](./docs/release-size-audit.md).
+1. ~~Plugin-client size spike~~ — done: 76 KiB Debian floor, hand-rolled
+   JSON; implementation reference on branch `spike/plugin-client-size`.
+2. ~~Feature triage + trim~~ — done: C/D batches 1-3 (-48 KiB) plus the
+   decisive build-std contract (spike A; all remaining B features KEPT).
+   Outcome in [docs/feature-triage.md](./docs/feature-triage.md).
+3. **Land the real plugin protocol client** (ACTIVE — TODO.md "Plugin
+   Protocol Client" stage). Margin is ample; keep the client hand-rolled
+   JSON, no serde.
+4. **Re-audit** both platforms after the client lands.
 
-Budget target for stages 2–3: after the plugin client lands, Debian must
-retain a reserve for future features (target figure to be set from the spike
-measurement, ~80–120 KiB).
+Parallel line: renderer replacement (drop ratatui for the in-house Surface
+backend) as dependency hygiene, sliced into small Codex briefs (brief-002
+landed the Surface grid). No longer size-critical; correctness gates and
+the tmux/PTY suites are the fence.
 
 Triage decision rules (apply in order, first hit wins):
 

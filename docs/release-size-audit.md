@@ -8,31 +8,29 @@ Results are machine-local baselines, not release claims.
 The v0.1 release budget is strict:
 
 ```text
-target/release/dun <= 1,048,576 bytes
+target/<host-triple>/release/dun <= 1,048,576 bytes
 ```
 
-The gate must pass on both audited macOS x86_64 and Debian x86_64 builds. The
-checked-in `[profile.release]` is the size-budget profile, so the release
-measurement command is simply:
+The gate must pass on both audited macOS x86_64 and Debian x86_64 builds.
+Since 2026-07-10 the budget build is the build-std contract:
 
 ```text
-cargo build --release --locked -p dun-cli
+scripts/release-build.sh
 ```
 
-If either platform is above the limit, follow the feature trim order in
+If either platform is above the limit, consult
+[feature-triage.md](./feature-triage.md) and
 [feature-budget.md](./feature-budget.md). Do not add runtime features while
 the budget is failing.
 
 ## Build Profiles
 
-The checked-in release build:
+The budget build is `scripts/release-build.sh` (build-std contract,
+2026-07-10). Sections below dated before 2026-07-10 used the plain stable
+build `cargo build --release --locked -p dun-cli`; their numbers remain
+valid history for that recipe.
 
-```text
-cargo build --release --locked -p dun-cli
-```
-
-The previous audit used a size-oriented profile through environment variables.
-That profile is now checked in as `[profile.release]`:
+The checked-in `[profile.release]` (shared by both recipes):
 
 ```text
 opt-level = "z"
@@ -106,9 +104,11 @@ Use this checklist when refreshing the release-size baseline:
 
 1. Record the source commit, local modifications, toolchain, host OS, and CPU
    architecture.
-2. Build the release binary with `cargo build --release --locked -p dun-cli`.
-3. Record byte size with `stat`, executable type with `file`, and dynamic
-   dependencies with `otool -L` on macOS or `ldd` on Linux.
+2. Build the release binary with `scripts/release-build.sh` (the build-std
+   budget contract; prints the byte size).
+3. Record executable type with `file` and dynamic dependencies with
+   `otool -L` on macOS or `ldd` on Linux (binary under
+   `target/<host-triple>/release/dun`).
 4. Verify the size is no larger than `1,048,576` bytes.
 5. Run the binary with `--version` to verify the measured executable starts.
 6. Run `--dump-config` to verify the measured executable can emit defaults.
@@ -220,6 +220,36 @@ The 2026-07-10 defect-fix commit (`06ed915`: panic terminal-restore hook,
 run-command timeout, dirty-check caching) measured 826,768 bytes on macOS
 (+112) and 997,976 bytes on Debian (+8,192 after page alignment); margin
 50,600 bytes.
+
+## 2026-07-10 Build Contract: build-std (Spike A)
+
+Following the msedit size study (docs/msedit-reference.md), three build-std
+variants were measured on the Debian VM at `1578aff` (RUSTC_BOOTSTRAP=1 on
+the stable 1.85 toolchain, rust-src from the Debian package):
+
+| Variant | Debian bytes | vs 997,976 | Panic behavior (verified) |
+| --- | ---: | ---: | --- |
+| stable baseline | 997,976 | — | hook + message + backtrace machinery |
+| build-std, default std features | 780,728 | −217,248 | unchanged, std rebuilt with release profile |
+| build-std, `-Zbuild-std-features=` | 620,928 | −377,048 | hook runs, message with location; no backtrace symbolization |
+| + `panic_immediate_abort` | 534,912 | −463,064 | hook does NOT run, no output |
+
+Panic behavior was verified with a standalone hook-and-panic experiment per
+variant. The user ratified the empty-features variant as the release build
+contract (2026-07-10); `panic_immediate_abort` was rejected because it
+disables the terminal-restore panic hook (an A-level invariant).
+
+Adopted recipe: `scripts/release-build.sh` (prints binary path and size).
+Recorded at `b2510a3`:
+
+| Platform | Size | Margin | Dynamic dependencies |
+| --- | ---: | ---: | --- |
+| macOS x86_64 | 575,460 | 473,116 | unchanged |
+| Debian x86_64 | 620,928 | 427,648 | `libgcc_s.so.1`, `libc.so.6`, `ld-linux` (unchanged) |
+
+Both binaries passed `--version` and `--dump-config` smoke. Dev builds and
+`cargo test` remain on the plain stable path; rust-src is a one-time
+prerequisite per machine (rustup component / Debian `rust-src` package).
 Each batch passed fmt/clippy, the workspace test suite (13 suites; the
 tmux 3.7 grid-harness failure recorded in TODO.md predates the slimming
 stage and reproduces at `b03192d`), and `--version`/`--dump-config` smoke

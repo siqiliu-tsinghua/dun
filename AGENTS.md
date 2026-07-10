@@ -51,11 +51,13 @@ same change.
   If it pushes the audited release binary over budget, trim optional editor
   features before cutting protocol-client functionality.
 - Keep the final v0.1 release executable within the hard runtime budget:
-  `target/release/dun` must be no larger than `1,048,576` bytes on both audited
-  macOS and Debian builds. The checked-in `[profile.release]` is the budget
-  profile. If the gate fails, do not add runtime features; follow
-  [docs/feature-budget.md](./docs/feature-budget.md) and trim optional
-  features in the documented order.
+  the `scripts/release-build.sh` binary must be no larger than `1,048,576`
+  bytes on both audited macOS and Debian builds. That script (checked-in
+  `[profile.release]` plus the 2026-07-10 build-std contract) is the budget
+  build; plain `cargo build --release` is a dev build, not a budget claim.
+  If the gate fails, do not add runtime features; follow
+  [docs/feature-budget.md](./docs/feature-budget.md) and
+  [docs/feature-triage.md](./docs/feature-triage.md).
 - Keep terminal rendering behind profile/theme/glyph abstractions.
 - Keep log processing streaming-friendly; avoid whole-file assumptions for
   large logs.

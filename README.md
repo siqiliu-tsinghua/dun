@@ -191,7 +191,8 @@ The current baseline decisions are:
 - The first usable version is a Microsoft Edit-like text editor, not the full
   log/plugin product.
 - The final v0.1 release executable must be no larger than 1 MiB on both
-  audited macOS and Debian builds; see
+  audited macOS and Debian builds; the budget build is
+  `scripts/release-build.sh` (build-std contract). See
   [docs/feature-budget.md](./docs/feature-budget.md).
 - The plugin system is protocol-first. The `dun` protocol client is required
   core infrastructure, while `rum` is a future optional pure-sandbox host.

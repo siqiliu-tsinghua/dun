@@ -11,20 +11,24 @@ sequencing live in [CLAUDE.md](../CLAUDE.md).
 All figures are Debian x86_64, the binding platform.
 
 ```text
-baseline (2026-07-09, 60d45a2):        1,038,936 bytes
-budget:                                1,048,576 bytes
-margin at baseline:                        9,640 bytes
+STAGE CLOSED 2026-07-10 — final state under the build-std contract:
 
-plugin client cost (spike, 2026-07-10):   77,824 bytes  (76.0 KiB, Debian)
-future-feature reserve (target):      80–120 KiB
-required freed bytes:                150,104–191,064 bytes  (~147–187 KiB)
+baseline (2026-07-09, 60d45a2, stable): 1,038,936 bytes
+C/D batches 1–3:                          -49,152 bytes
+defect fixes (06ed915):                    +8,192 bytes
+build-std contract (scripts/release-build.sh, spike A):
+  Debian:                                 620,928 bytes  (margin 427,648)
+  macOS:                                  575,460 bytes
 
-freed by C/D batches 1–3 (2026-07-10):    49,152 bytes  (48.0 KiB)
-defect-fix cost (06ed915):                +8,192 bytes  (safety fixes)
-current binary (06ed915):                997,976 bytes  (50,600 under budget)
-still to free:                       ~109,144–150,104 bytes  (~107–147 KiB)
-next lever: ratatui-replacement spike (est. 30–60 KiB, zero feature loss)
+plugin client cost (spike):               ~77,824 bytes — fits
+future-feature reserve:                   120 KiB — fits, ~230 KiB spare
+required additional feature cuts:         NONE — all remaining B units KEPT
 ```
+
+Spike A variants (Debian, measured 2026-07-10): build-std default features
+780,728; empty std features 620,928 (panic hook + message verified working);
+panic_immediate_abort 534,912 (hook does NOT run — rejected to preserve the
+terminal-restore invariant). The user ratified the empty-features contract.
 
 The client cost comes from the `spike/plugin-client-size` branch
 (`c7f042c`), measured on the Debian VM with the locked release profile; see
@@ -71,8 +75,12 @@ so removals are measured per batch. macOS deltas are proxies only.
 
 `Current` reflects [feature-budget.md](./feature-budget.md): `req` =
 required table, `t1`–`t13` = optional trim position. `Hypothesis` is the
-pre-measurement expectation and is not a decision. `Bytes` and `Decision`
-are filled during the triage.
+pre-measurement expectation and is not a decision.
+
+STAGE OUTCOME (2026-07-10): with the build-std contract adopted, every unit
+whose Decision cell is blank is KEPT — A units confirmed core, B units kept
+without a byte cap. Only the C/D rows below carry removal records; further
+per-unit measurement was cancelled as unnecessary.
 
 ### File and buffers
 

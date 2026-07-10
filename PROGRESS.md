@@ -945,3 +945,17 @@ This is an append-only progress log. Keep new entries dated and factual.
   style-inconsistent unwrap/expect calls in runtime code and repaired stale
   `key.app.command_output_*` examples in docs/configuration.md left over from
   slimming batch 1. macOS release cost of all fixes: +112 bytes.
+- Adopted the build-std release contract (2026-07-10, user decision) after
+  spike A measured three variants on the Debian VM against the 997,976-byte
+  stable baseline: std rebuilt with default features 780,728; with empty std
+  features 620,928 (panic hook and message verified working by experiment;
+  backtrace symbolization dropped); with panic_immediate_abort 534,912
+  (hook verified NOT running - rejected to preserve the terminal-restore
+  invariant). scripts/release-build.sh is now the budget build
+  (RUSTC_BOOTSTRAP=1 stable 1.85 + -Zbuild-std, the msedit-recommended
+  pattern); recorded binaries: Debian 620,928 (margin 427,648), macOS
+  575,460. All remaining B-class features are kept; the slimming stage is
+  closed and the plugin protocol client stage reopened. Also landed the
+  Codex delegation workflow (docs/dev/codex/, scripts/dispatch-brief.sh)
+  with two gated briefs: densified dun-ui hit tests (brief-001) and the
+  Surface cell grid, slice 1 of the renderer-replacement line (brief-002).
