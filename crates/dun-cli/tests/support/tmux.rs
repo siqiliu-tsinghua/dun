@@ -244,8 +244,13 @@ pub fn tmux_test_guard() -> MutexGuard<'static, ()> {
 }
 
 fn shell_command_for_executable(executable: &OsStr, args: &[&OsStr]) -> String {
-    let mut command =
-        String::from("env TERM='xterm-256color' LANG='en_US.UTF-8' LC_CTYPE='en_US.UTF-8'");
+    // Pin every capability input the editor's terminal detection reads
+    // (TERM, COLORTERM, LANG, LC_CTYPE, NO_COLOR). The launching shell's
+    // values leak through the tmux server into the pane otherwise, and a
+    // stray NO_COLOR flips the whole session to the mono profile.
+    let mut command = String::from(
+        "env -u NO_COLOR -u COLORTERM TERM='xterm-256color' LANG='en_US.UTF-8' LC_CTYPE='en_US.UTF-8'",
+    );
     command.push(' ');
     command.push_str(&shell_quote(executable));
     for arg in args {

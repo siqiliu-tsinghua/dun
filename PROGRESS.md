@@ -922,3 +922,16 @@ This is an append-only progress log. Keep new entries dated and factual.
   under the hosts' newer tmux with no code change (verified at pre-slimming
   b03192d); the release smoke claim is blocked on fixing that harness, not
   on editor behavior.
+- Diagnosed and fixed the tmux grid-test failure recorded during the slimming
+  batches. The earlier "newer tmux" suspicion was wrong: the tmux harness's
+  env prefix pinned TERM/LANG/LC_CTYPE but let NO_COLOR and COLORTERM leak
+  from the launching shell through the tmux server into the pane, so a shell
+  with NO_COLOR set rendered the mono profile (reverse-video menu, matching
+  the old assertions) while a shell without it rendered 256-color and failed
+  the reverse assertion. Editor behavior is correct in both profiles; the
+  test depended on an unpinned environment. The harness now launches panes
+  with `env -u NO_COLOR -u COLORTERM`, and the normalized-grid test asserts
+  the indexed menu colors, which also covers 38;5;n/48;5;n extended-color
+  parsing. The tmux suite now passes with and without NO_COLOR in the
+  invoking shell; tmux version skew (Homebrew 3.7b vs Debian 3.5a) was
+  irrelevant.

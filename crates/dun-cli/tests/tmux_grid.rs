@@ -9,7 +9,9 @@ use std::time::Duration;
 mod support;
 
 use support::pty::temp_path;
-use support::terminal_grid::{GridRect, assert_text_at, find_border_box, find_border_boxes};
+use support::terminal_grid::{
+    GridRect, TerminalColor, assert_text_at, find_border_box, find_border_boxes,
+};
 use support::tmux::{TmuxCapture, TmuxSession, tmux_test_guard};
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(3);
@@ -122,11 +124,17 @@ fn tmux_grid_normalizes_cursor_and_sgr_attributes() -> io::Result<()> {
         "initial editor cursor should be at first body cell"
     );
     assert_text_at(&grid, 0, 2, "File");
-    assert!(grid.cell(0, 0).expect("menu padding cell").style.reverse);
+    // With the pinned xterm-256color environment the msedit theme paints the
+    // menu bar with indexed colors; this also exercises 38;5;n/48;5;n
+    // extended-color parsing in the captured grid.
+    let padding = grid.cell(0, 0).expect("menu padding cell");
+    assert_eq!(padding.style.fg, TerminalColor::Indexed(255));
+    assert_eq!(padding.style.bg, TerminalColor::Indexed(67));
+    assert!(!padding.style.reverse);
     let file_hotkey = grid.cell(0, 2).expect("File hotkey cell");
     assert_eq!(file_hotkey.ch, 'F');
     assert!(file_hotkey.style.bold);
-    assert!(file_hotkey.style.reverse);
+    assert_eq!(file_hotkey.style.bg, TerminalColor::Indexed(67));
     assert_eq!(grid.cell(2, 1).expect("gutter number").ch, '1');
 
     Ok(())
