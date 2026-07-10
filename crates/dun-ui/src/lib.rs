@@ -5,6 +5,8 @@ mod hit;
 mod model;
 mod render;
 mod shell;
+#[allow(dead_code)]
+mod surface;
 mod text;
 
 pub use model::{

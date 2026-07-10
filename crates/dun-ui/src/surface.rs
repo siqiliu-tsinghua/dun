@@ -1,0 +1,336 @@
+use unicode_width::UnicodeWidthChar;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SurfaceCell {
+    pub(crate) symbol: String,
+    pub(crate) style: dun_term::Style,
+    pub(crate) wide_continuation: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Surface {
+    width: u16,
+    height: u16,
+    cells: Vec<SurfaceCell>,
+}
+
+impl Surface {
+    pub(crate) fn new(width: u16, height: u16, fill_style: dun_term::Style) -> Self {
+        let cell = SurfaceCell {
+            symbol: String::from(" "),
+            style: fill_style,
+            wide_continuation: false,
+        };
+        let cell_count = usize::from(width) * usize::from(height);
+
+        Self {
+            width,
+            height,
+            cells: vec![cell; cell_count],
+        }
+    }
+
+    pub(crate) fn width(&self) -> u16 {
+        self.width
+    }
+
+    pub(crate) fn height(&self) -> u16 {
+        self.height
+    }
+
+    pub(crate) fn cell(&self, x: u16, y: u16) -> Option<&SurfaceCell> {
+        let index = self.index(x, y)?;
+        self.cells.get(index)
+    }
+
+    pub(crate) fn set_text(&mut self, x: u16, y: u16, text: &str, style: dun_term::Style) -> u16 {
+        if x >= self.width || y >= self.height {
+            return 0;
+        }
+
+        let mut column = x;
+        let mut previous_cell: Option<usize> = None;
+
+        for ch in text.chars() {
+            debug_assert!(!ch.is_control());
+            if ch.is_control() {
+                continue;
+            }
+
+            let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+            if char_width == 0 {
+                if let Some(index) = previous_cell {
+                    if let Some(cell) = self.cells.get_mut(index) {
+                        cell.symbol.push(ch);
+                    }
+                }
+                continue;
+            }
+
+            debug_assert!(char_width <= 2);
+            let char_width = match char_width {
+                1 => 1,
+                2 => 2,
+                _ => continue,
+            };
+            if self.width - column < char_width {
+                break;
+            }
+
+            self.clear_wide_at(column, y);
+            if char_width == 2 {
+                self.clear_wide_at(column + 1, y);
+            }
+
+            let Some(index) = self.index(column, y) else {
+                break;
+            };
+            if let Some(cell) = self.cells.get_mut(index) {
+                cell.symbol.clear();
+                cell.symbol.push(ch);
+                cell.style = style;
+                cell.wide_continuation = false;
+            }
+
+            if char_width == 2 {
+                if let Some(cell) = self.cells.get_mut(index + 1) {
+                    cell.symbol.clear();
+                    cell.style = style;
+                    cell.wide_continuation = true;
+                }
+            }
+
+            previous_cell = Some(index);
+            column += char_width;
+        }
+
+        column - x
+    }
+
+    pub(crate) fn fill_rect(
+        &mut self,
+        x: u16,
+        y: u16,
+        w: u16,
+        h: u16,
+        symbol: char,
+        style: dun_term::Style,
+    ) {
+        let symbol_width = UnicodeWidthChar::width(symbol);
+        debug_assert_eq!(symbol_width, Some(1));
+        if symbol_width != Some(1) {
+            return;
+        }
+
+        let end_x = x.saturating_add(w).min(self.width);
+        let end_y = y.saturating_add(h).min(self.height);
+        for row in y..end_y {
+            for column in x..end_x {
+                self.clear_wide_at(column, row);
+                if let Some(index) = self.index(column, row) {
+                    if let Some(cell) = self.cells.get_mut(index) {
+                        cell.symbol.clear();
+                        cell.symbol.push(symbol);
+                        cell.style = style;
+                        cell.wide_continuation = false;
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn row_text(&self, y: u16) -> String {
+        if y >= self.height {
+            return String::new();
+        }
+
+        let start = usize::from(y) * usize::from(self.width);
+        let end = start + usize::from(self.width);
+        let mut text = String::new();
+        if let Some(row) = self.cells.get(start..end) {
+            for cell in row {
+                if !cell.wide_continuation {
+                    text.push_str(&cell.symbol);
+                }
+            }
+        }
+        text
+    }
+
+    fn index(&self, x: u16, y: u16) -> Option<usize> {
+        if x >= self.width || y >= self.height {
+            return None;
+        }
+
+        Some(usize::from(y) * usize::from(self.width) + usize::from(x))
+    }
+
+    fn clear_wide_at(&mut self, x: u16, y: u16) {
+        let Some(index) = self.index(x, y) else {
+            return;
+        };
+        let is_continuation = self
+            .cells
+            .get(index)
+            .is_some_and(|cell| cell.wide_continuation);
+        let has_continuation = x + 1 < self.width
+            && self
+                .cells
+                .get(index + 1)
+                .is_some_and(|cell| cell.wide_continuation);
+
+        Self::blank_cell(self.cells.get_mut(index));
+        if is_continuation && x > 0 {
+            Self::blank_cell(self.cells.get_mut(index - 1));
+        } else if has_continuation {
+            Self::blank_cell(self.cells.get_mut(index + 1));
+        }
+    }
+
+    fn blank_cell(cell: Option<&mut SurfaceCell>) {
+        if let Some(cell) = cell {
+            cell.symbol.clear();
+            cell.symbol.push(' ');
+            cell.wide_continuation = false;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dun_term::{AnsiColor, Style, TerminalColor};
+
+    use super::{Surface, SurfaceCell};
+
+    const FILL_STYLE: Style = Style::plain(TerminalColor::Default, TerminalColor::Default);
+    const TEXT_STYLE: Style = Style::plain(
+        TerminalColor::Ansi(AnsiColor::White),
+        TerminalColor::Ansi(AnsiColor::Blue),
+    );
+
+    #[test]
+    fn new_fills_cells_and_reports_dimensions() {
+        let surface = Surface::new(3, 2, FILL_STYLE);
+
+        assert_eq!(surface.width(), 3);
+        assert_eq!(surface.height(), 2);
+        assert!(surface.cells.iter().all(|cell| {
+            cell.symbol == " " && cell.style == FILL_STYLE && !cell.wide_continuation
+        }));
+        assert_eq!(
+            surface.cell(2, 1),
+            Some(&SurfaceCell {
+                symbol: String::from(" "),
+                style: FILL_STYLE,
+                wide_continuation: false,
+            })
+        );
+    }
+
+    #[test]
+    fn set_text_writes_ascii_and_returns_display_width() {
+        let mut surface = Surface::new(5, 1, FILL_STYLE);
+
+        assert_eq!(surface.set_text(1, 0, "abc", TEXT_STYLE), 3);
+        assert_eq!(surface.row_text(0), " abc ");
+        assert_eq!(surface.cell(2, 0).map(|cell| cell.style), Some(TEXT_STYLE));
+    }
+
+    #[test]
+    fn set_text_clips_wide_character_at_right_edge() {
+        let mut surface = Surface::new(3, 1, FILL_STYLE);
+
+        assert_eq!(surface.set_text(1, 0, "a界", TEXT_STYLE), 1);
+        assert_eq!(surface.row_text(0), " a ");
+        assert_eq!(surface.cell(2, 0).map(|cell| cell.style), Some(FILL_STYLE));
+    }
+
+    #[test]
+    fn set_text_marks_wide_character_continuation() {
+        let mut surface = Surface::new(3, 1, FILL_STYLE);
+
+        assert_eq!(surface.set_text(0, 0, "界", TEXT_STYLE), 2);
+        assert_eq!(
+            surface.cell(0, 0).map(|cell| cell.symbol.as_str()),
+            Some("界")
+        );
+        assert_eq!(
+            surface.cell(1, 0),
+            Some(&SurfaceCell {
+                symbol: String::new(),
+                style: TEXT_STYLE,
+                wide_continuation: true,
+            })
+        );
+        assert_eq!(surface.row_text(0), "界 ");
+    }
+
+    #[test]
+    fn overwriting_wide_head_blanks_continuation() {
+        let mut surface = Surface::new(4, 1, FILL_STYLE);
+        assert_eq!(surface.set_text(1, 0, "界", TEXT_STYLE), 2);
+
+        assert_eq!(surface.set_text(1, 0, "x", FILL_STYLE), 1);
+
+        assert_eq!(surface.row_text(0), " x  ");
+        assert_eq!(
+            surface
+                .cell(2, 0)
+                .map(|cell| (cell.symbol.as_str(), cell.wide_continuation)),
+            Some((" ", false))
+        );
+    }
+
+    #[test]
+    fn overwriting_wide_continuation_blanks_head() {
+        let mut surface = Surface::new(4, 1, FILL_STYLE);
+        assert_eq!(surface.set_text(1, 0, "界", TEXT_STYLE), 2);
+
+        assert_eq!(surface.set_text(2, 0, "x", FILL_STYLE), 1);
+
+        assert_eq!(surface.row_text(0), "  x ");
+        assert_eq!(
+            surface
+                .cell(1, 0)
+                .map(|cell| (cell.symbol.as_str(), cell.wide_continuation)),
+            Some((" ", false))
+        );
+    }
+
+    #[test]
+    fn zero_width_character_appends_to_previous_written_cell() {
+        let mut surface = Surface::new(3, 1, FILL_STYLE);
+
+        assert_eq!(surface.set_text(0, 0, "e\u{301}", TEXT_STYLE), 1);
+        assert_eq!(
+            surface.cell(0, 0).map(|cell| cell.symbol.as_str()),
+            Some("e\u{301}")
+        );
+
+        let before = surface.clone();
+        assert_eq!(surface.set_text(2, 0, "\u{301}", TEXT_STYLE), 0);
+        assert_eq!(surface, before);
+    }
+
+    #[test]
+    fn out_of_bounds_access_and_writes_do_nothing() {
+        let mut surface = Surface::new(2, 1, FILL_STYLE);
+
+        assert_eq!(surface.set_text(2, 0, "x", TEXT_STYLE), 0);
+        assert_eq!(surface.set_text(0, 1, "x", TEXT_STYLE), 0);
+        assert_eq!(surface.cell(2, 0), None);
+        assert_eq!(surface.cell(0, 1), None);
+        assert_eq!(surface.row_text(0), "  ");
+    }
+
+    #[test]
+    fn fill_rect_clips_at_surface_bounds() {
+        let mut surface = Surface::new(3, 2, FILL_STYLE);
+
+        surface.fill_rect(2, 1, 3, 2, '#', TEXT_STYLE);
+
+        assert_eq!(surface.row_text(0), "   ");
+        assert_eq!(surface.row_text(1), "  #");
+        assert_eq!(surface.cell(2, 1).map(|cell| cell.style), Some(TEXT_STYLE));
+    }
+}
