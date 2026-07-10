@@ -321,3 +321,42 @@ EditorCommand
 - Whether the first text buffer should use a simple `Vec<String>` model or move
   directly to a rope/gap-buffer design.
 - How much of status bar interactivity should exist before mouse support.
+
+## Size Engineering Study (2026-07-10)
+
+Where the ~506 KB release binary actually comes from (source:
+`reference/msedit` at 2.0.0; Homebrew binary measured 506,376 bytes):
+
+1. **Panic machinery removal (the largest lever).** Their
+   `.cargo/release.toml` states "The backtrace code for panics in Rust is
+   almost as large as the entire editor" and builds with
+   `panic = "immediate-abort"` plus `-Zbuild-std=std,panic_abort` and
+   `panic-immediate-abort`. Their README officially recommends
+   `RUSTC_BOOTSTRAP=1` for stable toolchains — the same stable compiler,
+   with `-Z` unlocked. This matches dun's own attribution finding (~90+ KiB
+   of std is gimli/addr2line/rustc_demangle). Note the trade: with
+   `panic_immediate_abort` panic hooks do not run, which would disable dun's
+   terminal-restore-on-panic hook and panic messages. A middle configuration
+   (build-std with the `backtrace` std feature dropped, plain
+   `panic = "abort"`) may keep hooks/messages while shedding the
+   symbolization stack; needs measurement.
+2. **Zero-dependency UI stack.** Unix builds depend on `libc` only. They
+   self-implement: a diffing framebuffer with a color-mix hash cache
+   (`framebuffer.rs`), an immediate-mode TUI (`tui.rs`), a VT parser
+   (`vt.rs`), and platform abstractions (`sys/`). No crossterm, no ratatui.
+   For dun this supports the planned ratatui-replacement spike; owning SGR
+   emission would also let dun delete the 16-color SGR rewriter layer.
+3. **Profile details.** `opt-level = "s"` (they measured it well against
+   size), fat LTO, `codegen-units = 1`, and notably `debug = "full"` +
+   `split-debuginfo = "packed"` + `strip = "symbols"` — a fully debuggable
+   release via external dSYM/dwp at no binary-size cost. dun currently ships
+   no debug info at all; adopting this is free.
+
+Not worth copying for dun's scope: the line-index-free O(n) buffer with SIMD
+`memchr2` seeks and custom grapheme measurement (built for >1 GiB files; dun
+caps editable files at 16 MiB), arena allocators, and dynamic ICU offload
+for search. They are the right calls for msedit's goals, but dun's
+`Vec<String>` model is proportionate to its limits.
+
+msedit does not avoid `format!` (23 uses); smallness comes from the three
+structural decisions above, not from ascetic code style.
