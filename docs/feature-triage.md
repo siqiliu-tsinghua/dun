@@ -13,11 +13,15 @@ All figures are Debian x86_64, the binding platform.
 ```text
 baseline (2026-07-09, 60d45a2):        1,038,936 bytes
 budget:                                1,048,576 bytes
-current margin:                            9,640 bytes
+margin at baseline:                        9,640 bytes
 
 plugin client cost (spike, 2026-07-10):   77,824 bytes  (76.0 KiB, Debian)
 future-feature reserve (target):      80–120 KiB
 required freed bytes:                150,104–191,064 bytes  (~147–187 KiB)
+
+freed by C/D batches 1–3 (2026-07-10):    49,152 bytes  (48.0 KiB)
+current binary (53fe7f8):                989,784 bytes  (58,792 under budget)
+still to free:                       ~100,952–141,912 bytes  (~99–139 KiB)
 ```
 
 The client cost comes from the `spike/plugin-client-size` branch
@@ -88,8 +92,8 @@ are filled during the triage.
 | F09 | Internal clipboard cut/copy/paste | `edit.cut/copy/paste` | req | A | | |
 | F10 | Opt-in OSC 52 external copy | `edit.copy_external`, `clipboard.osc52.*` | req | B | | |
 | F11 | Line commands: copy/delete/move/indent/outdent/trim | `edit.*_line`, `edit.trim_*` | t3 | B | | |
-| F12 | Bookmarks: toggle/next/previous + gutter markers | `edit.*bookmark*` | t3 | C | | C, removed 2026-07-10 (batch 3) |
-| F13 | Visible-whitespace markers | `edit.toggle_visible_whitespace` | t3 | C | | C, removed 2026-07-10 (batch 3) |
+| F12 | Bookmarks: toggle/next/previous + gutter markers | `edit.*bookmark*` | t3 | C | 12,288* | C, removed 2026-07-10 (batch 3) |
+| F13 | Visible-whitespace markers | `edit.toggle_visible_whitespace` | t3 | C | * | C, removed 2026-07-10 (batch 3); *12,288 is the combined F12+F13 batch delta |
 | F14 | Soft-wrap visual-row model: wrap toggle + wrapped scrolling/selection/highlights/paging | `edit.toggle_word_wrap` + display layer | t9 | B, likely largest single unit | | |
 | F15 | Horizontal scrolling, explicit scroll commands, clip edge indicators | `edit.scroll_left/right` | req | A | | |
 
@@ -102,7 +106,7 @@ are filled during the triage.
 | F17b | Interactive replace confirmation modal (replace/skip/all/cancel) | replace flow | req | B | | |
 | F18 | Go to line | `edit.go_to_line` | req | A | | |
 | F19 | Search Results pane: `results`, `results N`, row navigation | `app.search_results` | t4 | B | | |
-| F20 | Outline pane: section heuristics (Markdown/INI/TOML/Rust/shell), jumps | `app.outline` | t4 | D (structure role) | | D, removed 2026-07-10 (batch 2); structure-listing role recorded in plugin-protocol.md |
+| F20 | Outline pane: section heuristics (Markdown/INI/TOML/Rust/shell), jumps | `app.outline` | t4 | D (structure role) | 12,288 | D, removed 2026-07-10 (batch 2); structure-listing role recorded in plugin-protocol.md |
 
 ### Tiling windows
 
@@ -156,7 +160,7 @@ are filled during the triage.
 | --- | --- | --- | --- | --- | ---: | --- |
 | F44 | Shell escape: suspend TUI, run shell, resume | `app.shell_escape` | req | A | | |
 | F45 | Run Command: prompt, bounded capture, base output pane, own history | `app.run_command` | t11 | B | | |
-| F46 | Command Output advanced: search/next/prev, save + dialog, summary/status/stdout/stderr/body/index/truncation jumps, section nav, only-stdout/only-stderr derived panes | `app.command_output_*` (17 ids) | t10 | C/D (showcase leftover; LogFilter role overlap) | | C, removed 2026-07-10 (batch 1); stream filtering/derived views recorded as LogFilter plugin territory |
+| F46 | Command Output advanced: search/next/prev, save + dialog, summary/status/stdout/stderr/body/index/truncation jumps, section nav, only-stdout/only-stderr derived panes | `app.command_output_*` (17 ids) | t10 | C/D (showcase leftover; LogFilter role overlap) | 24,576 | C, removed 2026-07-10 (batch 1); stream filtering/derived views recorded as LogFilter plugin territory |
 
 ### CLI and plugin
 

@@ -909,3 +909,16 @@ This is an append-only progress log. Keep new entries dated and factual.
   real client lands. cargo-bloat attribution shows ~90+ KiB of std is
   unremovable panic-backtrace machinery on stable, so trims must come from
   feature code.
+- Executed slimming batches 1-3 (2026-07-10), the first C/D removals from the
+  feature triage: the 17-command advanced Command Output family (F46, with
+  derived stream views recorded as future LogFilter plugin territory), the
+  Outline pane (F20, recorded as a future DocumentStructure plugin role), and
+  bookmarks plus visible-whitespace markers (F12/F13). Each batch was a
+  full-trail diff (command ids, keymap defaults, menus, help, tests, README
+  and docs) gated by fmt/clippy/tests and dual-platform release builds.
+  Debian sizes: 1,038,936 -> 1,014,360 -> 1,002,072 -> 989,784 bytes,
+  freeing 49,152 bytes of the ~147-187 KiB target; macOS ended at 826,656
+  bytes. Known issue recorded in TODO.md: the tmux-backed grid test fails
+  under the hosts' newer tmux with no code change (verified at pre-slimming
+  b03192d); the release smoke claim is blocked on fixing that harness, not
+  on editor behavior.

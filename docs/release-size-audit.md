@@ -200,3 +200,22 @@ Conclusions:
   current margin). See [feature-triage.md](./feature-triage.md).
 - Debian deltas ran ~1.25x macOS for identical code; usable for quick local
   estimates, never for gate claims.
+
+## 2026-07-10 Slimming Batches 1–3
+
+C/D removals from the feature triage, each built and measured on both
+platforms with the locked release profile; Debian numbers are binding.
+Deltas are per whole batch (fat LTO makes per-item deltas non-additive).
+
+| Batch | Commit | Removed | macOS bytes | Debian bytes | Debian delta |
+| ---: | --- | --- | ---: | ---: | ---: |
+| — | `60d45a2` | (baseline) | 863,664 | 1,038,936 | — |
+| 1 | `ce68f20` | F46 advanced Command Output family | 843,136 | 1,014,360 | −24,576 |
+| 2 | `13d3ef7` | F20 Outline pane (→ plugin role) | 834,888 | 1,002,072 | −12,288 |
+| 3 | `53fe7f8` | F12 bookmarks + F13 visible whitespace | 826,656 | 989,784 | −12,288 |
+
+Cumulative: −49,152 bytes (48.0 KiB) on Debian; margin is 58,792 bytes.
+Each batch passed fmt/clippy, the workspace test suite (13 suites; the
+tmux 3.7 grid-harness failure recorded in TODO.md predates the slimming
+stage and reproduces at `b03192d`), and `--version`/`--dump-config` smoke
+on both platforms.
