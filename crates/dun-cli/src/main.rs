@@ -55,12 +55,11 @@ pub(crate) use command_line::CommandLineParseError;
 pub(crate) use command_line::{
     COMMAND_LINE_HELP, CommandCompletion, CommandCompletionCandidate, command_line_completion,
     command_line_parse_error_text, config_diagnostics_section_values, normalize_command_line_token,
-    parse_command_line, parse_command_output_section, parse_theme_command_value,
-    theme_command_values,
+    parse_command_line, parse_theme_command_value, theme_command_values,
 };
 use command_output::{
-    COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES, CapturedCommandStream, CommandOutputSection,
-    CommandRunResult, command_output_buffer, command_output_empty_buffer, command_output_text,
+    COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES, CapturedCommandStream, CommandRunResult,
+    command_output_buffer, command_output_text,
 };
 #[cfg(test)]
 pub(crate) use config_loading::load_startup_config;
@@ -105,12 +104,9 @@ use help::status::{
     workspace_error_text,
 };
 use help::text::{
-    ConfigDiagnosticsSection, command_output_index_line, command_output_relative_section_line,
-    command_output_section_view_text, command_output_status_line, command_output_stderr_body_line,
-    command_output_stderr_line, command_output_stdout_body_line, command_output_stdout_line,
-    command_output_summary_line, command_output_truncated_line, line_with_exact_text,
-    numbered_list_index_for_line, numbered_list_rows, outline_entries_for_buffer, outline_text,
-    parse_config_diagnostics_section, parse_outline_target, search_results_text,
+    ConfigDiagnosticsSection, line_with_exact_text, numbered_list_index_for_line,
+    numbered_list_rows, outline_entries_for_buffer, outline_text, parse_config_diagnostics_section,
+    parse_outline_target, search_results_text,
 };
 #[cfg(test)]
 use terminal::rewrite_16_color_sgr;

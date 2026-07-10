@@ -87,29 +87,6 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::App(AppCommand::Help) => "app.help",
         EditorCommand::App(AppCommand::ReloadConfig) => "app.reload_config",
         EditorCommand::App(AppCommand::RunCommand) => "app.run_command",
-        EditorCommand::App(AppCommand::CommandOutputClear) => "app.command_output_clear",
-        EditorCommand::App(AppCommand::CommandOutputCopy) => "app.command_output_copy",
-        EditorCommand::App(AppCommand::CommandOutputIndex) => "app.command_output_index",
-        EditorCommand::App(AppCommand::CommandOutputNextMatch) => "app.command_output_next_match",
-        EditorCommand::App(AppCommand::CommandOutputNextSection) => {
-            "app.command_output_next_section"
-        }
-        EditorCommand::App(AppCommand::CommandOutputOnlyStderr) => "app.command_output_only_stderr",
-        EditorCommand::App(AppCommand::CommandOutputOnlyStdout) => "app.command_output_only_stdout",
-        EditorCommand::App(AppCommand::CommandOutputPreviousMatch) => {
-            "app.command_output_previous_match"
-        }
-        EditorCommand::App(AppCommand::CommandOutputPreviousSection) => {
-            "app.command_output_previous_section"
-        }
-        EditorCommand::App(AppCommand::CommandOutputStderr) => "app.command_output_stderr",
-        EditorCommand::App(AppCommand::CommandOutputStderrBody) => "app.command_output_stderr_body",
-        EditorCommand::App(AppCommand::CommandOutputStatus) => "app.command_output_status",
-        EditorCommand::App(AppCommand::CommandOutputStdout) => "app.command_output_stdout",
-        EditorCommand::App(AppCommand::CommandOutputStdoutBody) => "app.command_output_stdout_body",
-        EditorCommand::App(AppCommand::CommandOutputSummary) => "app.command_output_summary",
-        EditorCommand::App(AppCommand::CommandOutputSave) => "app.command_output_save",
-        EditorCommand::App(AppCommand::CommandOutputTruncated) => "app.command_output_truncated",
         EditorCommand::App(AppCommand::ConfigDiagnosticsClipboard) => {
             "app.config_diagnostics_clipboard"
         }
@@ -226,41 +203,6 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "app.help" => Ok(EditorCommand::App(AppCommand::Help)),
         "app.reload_config" => Ok(EditorCommand::App(AppCommand::ReloadConfig)),
         "app.run_command" => Ok(EditorCommand::App(AppCommand::RunCommand)),
-        "app.command_output_clear" => Ok(EditorCommand::App(AppCommand::CommandOutputClear)),
-        "app.command_output_copy" => Ok(EditorCommand::App(AppCommand::CommandOutputCopy)),
-        "app.command_output_index" => Ok(EditorCommand::App(AppCommand::CommandOutputIndex)),
-        "app.command_output_next_match" => {
-            Ok(EditorCommand::App(AppCommand::CommandOutputNextMatch))
-        }
-        "app.command_output_next_section" => {
-            Ok(EditorCommand::App(AppCommand::CommandOutputNextSection))
-        }
-        "app.command_output_only_stderr" => {
-            Ok(EditorCommand::App(AppCommand::CommandOutputOnlyStderr))
-        }
-        "app.command_output_only_stdout" => {
-            Ok(EditorCommand::App(AppCommand::CommandOutputOnlyStdout))
-        }
-        "app.command_output_previous_match" => {
-            Ok(EditorCommand::App(AppCommand::CommandOutputPreviousMatch))
-        }
-        "app.command_output_previous_section" => {
-            Ok(EditorCommand::App(AppCommand::CommandOutputPreviousSection))
-        }
-        "app.command_output_stderr" => Ok(EditorCommand::App(AppCommand::CommandOutputStderr)),
-        "app.command_output_stderr_body" => {
-            Ok(EditorCommand::App(AppCommand::CommandOutputStderrBody))
-        }
-        "app.command_output_status" => Ok(EditorCommand::App(AppCommand::CommandOutputStatus)),
-        "app.command_output_stdout" => Ok(EditorCommand::App(AppCommand::CommandOutputStdout)),
-        "app.command_output_stdout_body" => {
-            Ok(EditorCommand::App(AppCommand::CommandOutputStdoutBody))
-        }
-        "app.command_output_summary" => Ok(EditorCommand::App(AppCommand::CommandOutputSummary)),
-        "app.command_output_save" => Ok(EditorCommand::App(AppCommand::CommandOutputSave)),
-        "app.command_output_truncated" => {
-            Ok(EditorCommand::App(AppCommand::CommandOutputTruncated))
-        }
         "app.config_diagnostics_clipboard" => {
             Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsClipboard))
         }

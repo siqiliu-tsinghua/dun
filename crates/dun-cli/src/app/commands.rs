@@ -142,35 +142,6 @@ impl AppState {
 
     pub(crate) fn handle_app_command(&mut self, command: &AppCommand) {
         match command {
-            AppCommand::CommandOutputClear => self.clear_command_output(),
-            AppCommand::CommandOutputCopy => self.copy_command_output(),
-            AppCommand::CommandOutputIndex => self.jump_command_output_index(),
-            AppCommand::CommandOutputNextMatch => {
-                self.repeat_find_in_command_output(SearchDirection::Forward)
-            }
-            AppCommand::CommandOutputNextSection => {
-                self.jump_command_output_relative_section(SearchDirection::Forward)
-            }
-            AppCommand::CommandOutputOnlyStderr => {
-                self.open_command_output_section_view(CommandOutputSection::Stderr)
-            }
-            AppCommand::CommandOutputOnlyStdout => {
-                self.open_command_output_section_view(CommandOutputSection::Stdout)
-            }
-            AppCommand::CommandOutputPreviousMatch => {
-                self.repeat_find_in_command_output(SearchDirection::Backward)
-            }
-            AppCommand::CommandOutputPreviousSection => {
-                self.jump_command_output_relative_section(SearchDirection::Backward)
-            }
-            AppCommand::CommandOutputStderr => self.jump_command_output_stderr(),
-            AppCommand::CommandOutputStderrBody => self.jump_command_output_stderr_body(),
-            AppCommand::CommandOutputStatus => self.jump_command_output_status(),
-            AppCommand::CommandOutputStdout => self.jump_command_output_stdout(),
-            AppCommand::CommandOutputStdoutBody => self.jump_command_output_stdout_body(),
-            AppCommand::CommandOutputSummary => self.jump_command_output_summary(),
-            AppCommand::CommandOutputSave => self.start_command_output_save_dialog(),
-            AppCommand::CommandOutputTruncated => self.jump_command_output_truncated(),
             AppCommand::ConfigDiagnostics => self.open_config_diagnostics_screen(),
             AppCommand::ConfigDiagnosticsClipboard => {
                 self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Clipboard)

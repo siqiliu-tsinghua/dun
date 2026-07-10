@@ -93,7 +93,7 @@ first when the budget is exceeded.
 | 7 | Buffer switcher overlay | Switch Buffer UI. Tiled windows and loaded buffers remain, but direct switcher polish may be cut. |
 | 8 | Advanced file-dialog polish | Hidden-file toggle, parent-directory row, scroll overflow indicators, recent directory memory, mouse wheel, and larger visual polish. Basic Open/Save As path entry stays required. |
 | 9 | Soft-wrap visual-row model | Display-layer word wrap and visual-row paging. Horizontal scrolling and safe long-line display stay required. |
-| 10 | Advanced Command Output polish | Output search, save dialog integration, section/body jumps, truncated/status jumps, and stdout/stderr-only derived panes. |
+| 10 | Advanced Command Output polish | Removed 2026-07-10 in the slimming stage (feature-triage F46); the base Run Command output pane stays under trim 11. |
 | 11 | One-shot Run Command capture | `run` prompt and bounded captured output pane. Shell escape stays required. |
 | 12 | Runtime config/theme convenience | `reload-config`, runtime `theme`, and live refresh of helper screens. Startup config and `--dump-config` stay required. |
 | 13 | Help/key reference pane | In-editor Help window. The CLI `--help` output and documented default config stay required. |

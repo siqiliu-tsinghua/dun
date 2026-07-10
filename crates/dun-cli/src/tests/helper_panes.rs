@@ -236,8 +236,6 @@ key.window.close = none
     assert!(text.contains("Help [app.help]"));
     assert!(text.contains("F9"));
     assert!(text.contains("Go to line [edit.go_to_line]"));
-    assert!(text.contains("Jump Command Output to status [app.command_output_status]"));
-    assert!(text.contains("Jump Command Output to truncation flag [app.command_output_truncated]"));
     assert!(text.contains("(unbound)"));
     assert!(text.contains("Close focused window [window.close]"));
     assert!(text.contains("Toggle hidden files [file_dialog.toggle_hidden]"));

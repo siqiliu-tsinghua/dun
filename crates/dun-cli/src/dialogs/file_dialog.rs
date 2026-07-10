@@ -45,7 +45,6 @@ impl FileDialogState {
         let label = match self.kind {
             FileDialogKind::Open => "Open: ",
             FileDialogKind::SaveAs => "Save As: ",
-            FileDialogKind::CommandOutputSave => "Save Output: ",
         };
         format!("{label}{}", self.input.as_str())
     }
@@ -432,7 +431,7 @@ impl FileDialogState {
                     FileDialogSubmit::Path(entry.path)
                 }
             }
-            FileDialogKind::SaveAs | FileDialogKind::CommandOutputSave => {
+            FileDialogKind::SaveAs => {
                 self.apply_entry(index);
                 FileDialogSubmit::ContinueEditing
             }
@@ -453,7 +452,6 @@ impl FileDialogState {
 pub(crate) enum FileDialogKind {
     Open,
     SaveAs,
-    CommandOutputSave,
 }
 
 impl FileDialogKind {
@@ -461,7 +459,6 @@ impl FileDialogKind {
         match self {
             Self::Open => "Open",
             Self::SaveAs => "Save As",
-            Self::CommandOutputSave => "Save Command Output",
         }
     }
 
@@ -469,12 +466,11 @@ impl FileDialogKind {
         match self {
             Self::Open => "File name",
             Self::SaveAs => "Save as",
-            Self::CommandOutputSave => "Save output as",
         }
     }
 
     pub(crate) const fn confirms_overwrite(self) -> bool {
-        matches!(self, Self::SaveAs | Self::CommandOutputSave)
+        matches!(self, Self::SaveAs)
     }
 
     pub(crate) fn help_text(self, entry_count: usize) -> String {
@@ -482,9 +478,6 @@ impl FileDialogKind {
         match self {
             Self::Open => format!("Select a file or type a path. {entry_count} {noun}."),
             Self::SaveAs => format!("Type the destination path. {entry_count} {noun}."),
-            Self::CommandOutputSave => {
-                format!("Type the output destination path. {entry_count} {noun}.")
-            }
         }
     }
 }

@@ -156,7 +156,7 @@ are filled during the triage.
 | --- | --- | --- | --- | --- | ---: | --- |
 | F44 | Shell escape: suspend TUI, run shell, resume | `app.shell_escape` | req | A | | |
 | F45 | Run Command: prompt, bounded capture, base output pane, own history | `app.run_command` | t11 | B | | |
-| F46 | Command Output advanced: search/next/prev, save + dialog, summary/status/stdout/stderr/body/index/truncation jumps, section nav, only-stdout/only-stderr derived panes | `app.command_output_*` (17 ids) | t10 | C/D (showcase leftover; LogFilter role overlap) | | |
+| F46 | Command Output advanced: search/next/prev, save + dialog, summary/status/stdout/stderr/body/index/truncation jumps, section nav, only-stdout/only-stderr derived panes | `app.command_output_*` (17 ids) | t10 | C/D (showcase leftover; LogFilter role overlap) | | C, removed 2026-07-10 (batch 1); stream filtering/derived views recorded as LogFilter plugin territory |
 
 ### CLI and plugin
 

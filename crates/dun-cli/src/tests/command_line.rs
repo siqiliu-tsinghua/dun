@@ -52,32 +52,6 @@ fn command_line_prompt_dispatches_app_commands() {
 }
 
 #[test]
-fn command_line_prompt_completes_output_commands() {
-    let mut app = AppState::new();
-
-    app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
-    send_text(&mut app, "outp");
-    handle_key_event(
-        &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
-    );
-    assert_eq!(
-        app.prompt_status_text(),
-        Some("Command: output ".to_string())
-    );
-
-    send_text(&mut app, "stdout-b");
-    handle_key_event(
-        &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
-    );
-    assert_eq!(
-        app.prompt_status_text(),
-        Some("Command: output stdout-body".to_string())
-    );
-}
-
-#[test]
 fn command_line_prompt_completes_config_sections_and_themes() {
     let mut app = AppState::new();
 
@@ -606,38 +580,6 @@ fn command_line_dispatches_editor_toggle_and_output_aliases() {
 
     submit_command_line(&mut app, "mark");
     assert_eq!(app.status_message, Some("Bookmarked line 1".to_string()));
-
-    for command in [
-        "output clear",
-        "output copy",
-        "output index",
-        "output next",
-        "output next-section",
-        "output previous",
-        "output previous-section",
-        "output summary",
-        "output status",
-        "output stdout",
-        "output stdout-body",
-        "output stderr",
-        "output stderr-body",
-        "output truncated",
-        "output save",
-    ] {
-        submit_command_line(&mut app, command);
-        assert_eq!(
-            app.status_message,
-            Some("Command Output: no output window".to_string()),
-            "{command}"
-        );
-    }
-
-    submit_command_line(&mut app, "output bogus");
-    assert!(
-        app.status_message
-            .as_deref()
-            .is_some_and(|status| status.starts_with("Command failed: output expects"))
-    );
 
     submit_command_line(&mut app, "replace one uno");
     assert_eq!(

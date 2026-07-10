@@ -134,7 +134,7 @@ and application path without giving plugins authority.
 | Role | Input snapshot | Allowed output |
 | --- | --- | --- |
 | `SyntaxHighlight` | Language hint, buffer id token, revision, visible or bounded text slice. | Style spans with bounded line/range coordinates and known style classes. |
-| `LogFilter` | Stream id token, chunk index, bounded text chunk, final flag. | Keep/drop decisions, match ranges, extracted fields, tags, and bounded summary data. |
+| `LogFilter` | Stream id token, chunk index, bounded text chunk, final flag. | Keep/drop decisions, match ranges, extracted fields, tags, and bounded summary data. Derived stream views and command-output section filtering (the removed built-in `output only`/section-jump family) are expected to return as plugin-provided behavior under this role. |
 | `TextTransform` | Selection or bounded text slice, cursor context, revision. | Proposed edit patch or replacement text requiring `dun` validation and, where appropriate, user confirmation. |
 | `ConfigHelper` | Defaults, config context, environment summary without secrets. | Typed config patch against the Rust-owned `Config` model. |
 

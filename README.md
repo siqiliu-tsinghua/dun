@@ -115,8 +115,8 @@ entry, and `Enter` jumps back to the selected source location.
 `reload-config`, `theme`, `open`, `save`, `quit`, and full command ids such as
 `window.split_horizontal`; Tab completes built-in command families, cycles
 ambiguous candidates, shows ambiguous completion candidates in the prompt
-overlay, and completes path arguments for commands such as `open`, `save-as`,
-and `output save`.
+overlay, and completes path arguments for commands such as `open` and
+`save-as`.
 `Ctrl+W,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
 restores the normal terminal, runs the user's shell, then resumes and redraws
 after the shell exits. `Ctrl+W,O` opens a Run Command prompt for one-shot
@@ -124,15 +124,11 @@ non-interactive commands; stdout and stderr are captured with bounded memory,
 decoded through the same safe display path as files, and shown in a read-only
 Command Output window with per-stream byte counts and truncation status. The
 Run Command prompt keeps its own bounded history, separate from the editor
-command prompt. Command Output can be copied internally, cleared, searched,
-saved directly or through the file dialog, and jumped to summary, status,
-stdout, stderr, body lines, index, or truncation state through typed commands.
-`output next` and `output previous` repeat the active Command Output search;
-`output next-section` and `output previous-section` move between output
-sections, and `output only stdout` or `output only stderr` opens a derived
-read-only pane for one stream. When focused, that derived pane is the target
-for Command Output find/copy/save, so saving an only-view writes only that
-stream; closing it returns focus to the full Command Output pane.
+command prompt. The advanced Command Output command family (in-pane search,
+section/body jumps, stdout/stderr-only derived panes, and dedicated
+copy/save/clear commands) was removed in the 2026-07 slimming stage; the pane
+remains a normal read-only buffer, so ordinary selection, copy, and Find work
+inside it.
 Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
 focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver

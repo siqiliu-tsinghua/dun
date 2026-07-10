@@ -264,62 +264,8 @@ fn command_ids_round_trip() {
         command_from_id("edit.copy_external"),
         Ok(EditorCommand::Edit(EditCommand::CopyExternal))
     );
-    assert_eq!(
-        command_from_id("app.command_output_clear"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputClear))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_index"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputIndex))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_next_match"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputNextMatch))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_next_section"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputNextSection))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_only_stderr"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputOnlyStderr))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_only_stdout"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputOnlyStdout))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_previous_match"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputPreviousMatch))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_previous_section"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputPreviousSection))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_stdout"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputStdout))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_stdout_body"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputStdoutBody))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_status"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputStatus))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_summary"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputSummary))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_save"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputSave))
-    );
-    assert_eq!(
-        command_from_id("app.command_output_truncated"),
-        Ok(EditorCommand::App(AppCommand::CommandOutputTruncated))
-    );
+    assert!(command_from_id("app.command_output_clear").is_err());
+    assert!(command_from_id("app.command_output_save").is_err());
     assert_eq!(
         command_from_id("app.config_diagnostics_keymap"),
         Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsKeymap))

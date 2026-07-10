@@ -1,6 +1,6 @@
 use crate::*;
 
-pub(crate) const COMMAND_LINE_HELP: &str = "Commands: help, outline [section], results [N], config [section], status, reload-config, reloadfile, shell, run [\"command\"], output index|summary|status|stdout|stdout-body|stderr|stderr-body|truncated|only stdout|stderr|find QUERY|next|previous|next-section|previous-section|clear|copy|save PATH, theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
+pub(crate) const COMMAND_LINE_HELP: &str = "Commands: help, outline [section], results [N], config [section], status, reload-config, reloadfile, shell, run [\"command\"], theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CommandLineParseError {
@@ -44,25 +44,11 @@ pub(crate) fn command_line_completion(input: &str) -> CommandCompletion {
                 "config" | "diagnostics" | "configdiagnostics" => {
                     config_diagnostics_section_candidates()
                 }
-                "output" | "commandoutput" => command_output_action_candidates(),
                 "theme" => theme_command_candidates(),
                 _ => return CommandCompletion::None,
             };
             let prefix = format!("{command} ");
             complete_last_token(&prefix, partial, candidates, false)
-        }
-        [command, subcommand, partial]
-            if normalize_command_line_token(command) == "output"
-                && normalize_command_line_token(subcommand) == "save" =>
-        {
-            complete_path_token(&format!("{command} {subcommand} "), partial)
-        }
-        [command, subcommand, partial]
-            if normalize_command_line_token(command) == "output"
-                && normalize_command_line_token(subcommand) == "only" =>
-        {
-            let prefix = format!("{command} {subcommand} ");
-            complete_last_token(&prefix, partial, command_output_section_candidates(), false)
         }
         _ => CommandCompletion::None,
     }
@@ -222,7 +208,6 @@ const fn command_line_top_level_candidates() -> &'static [&'static str] {
         "new",
         "open",
         "outline",
-        "output",
         "quit",
         "reload-config",
         "reloadfile",
@@ -236,32 +221,6 @@ const fn command_line_top_level_candidates() -> &'static [&'static str] {
         "whitespace",
         "wrap",
     ]
-}
-
-const fn command_output_action_candidates() -> &'static [&'static str] {
-    &[
-        "clear",
-        "copy",
-        "find",
-        "index",
-        "next",
-        "next-section",
-        "only",
-        "previous",
-        "previous-section",
-        "save",
-        "status",
-        "stderr",
-        "stderr-body",
-        "stdout",
-        "stdout-body",
-        "summary",
-        "truncated",
-    ]
-}
-
-const fn command_output_section_candidates() -> &'static [&'static str] {
-    &["stderr", "stdout"]
 }
 
 const fn config_diagnostics_section_candidates() -> &'static [&'static str] {
@@ -374,12 +333,4 @@ pub(crate) const fn theme_command_values() -> &'static str {
 
 pub(crate) const fn config_diagnostics_section_values() -> &'static str {
     "summary|paths|source|terminal|input|clipboard|limits|keymap|file-dialog-keymap"
-}
-
-pub(crate) fn parse_command_output_section(input: &str) -> Option<CommandOutputSection> {
-    match normalize_command_line_token(input).as_str() {
-        "stdout" | "out" => Some(CommandOutputSection::Stdout),
-        "stderr" | "err" => Some(CommandOutputSection::Stderr),
-        _ => None,
-    }
 }

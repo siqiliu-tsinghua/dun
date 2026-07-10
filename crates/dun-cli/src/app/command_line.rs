@@ -30,7 +30,6 @@ impl AppState {
                 self.run_no_arg_command(args, EditorCommand::App(AppCommand::ShellEscape))
             }
             "run" | "command" => self.run_external_command_line(args),
-            "output" | "commandoutput" => self.run_command_output_command(args),
             "outline" | "sections" => self.run_outline_command(args),
             "open" | "o" => self.run_open_command(args),
             "results" | "searchresults" | "matches" => self.run_search_results_command(args),
@@ -90,111 +89,6 @@ impl AppState {
             [] => self.handle_app_command(&AppCommand::RunCommand),
             [command] => self.run_external_command_to_buffer(command),
             _ => self.set_status("Command failed: run expects zero args or one quoted command"),
-        }
-    }
-
-    fn run_command_output_command(&mut self, args: &[String]) {
-        match args {
-            [action] if normalize_command_line_token(action) == "clear" => {
-                self.handle_app_command(&AppCommand::CommandOutputClear)
-            }
-            [action] if normalize_command_line_token(action) == "copy" => {
-                self.handle_app_command(&AppCommand::CommandOutputCopy)
-            }
-            [action] if normalize_command_line_token(action) == "index" => {
-                self.handle_app_command(&AppCommand::CommandOutputIndex)
-            }
-            [action]
-                if matches!(
-                    normalize_command_line_token(action).as_str(),
-                    "next" | "nextmatch"
-                ) =>
-            {
-                self.handle_app_command(&AppCommand::CommandOutputNextMatch)
-            }
-            [action]
-                if matches!(
-                    normalize_command_line_token(action).as_str(),
-                    "nextsection" | "sectionnext"
-                ) =>
-            {
-                self.handle_app_command(&AppCommand::CommandOutputNextSection)
-            }
-            [action, section] if normalize_command_line_token(action) == "only" => {
-                match parse_command_output_section(section) {
-                    Some(CommandOutputSection::Stdout) => {
-                        self.handle_app_command(&AppCommand::CommandOutputOnlyStdout)
-                    }
-                    Some(CommandOutputSection::Stderr) => {
-                        self.handle_app_command(&AppCommand::CommandOutputOnlyStderr)
-                    }
-                    None => self.set_status("Command failed: output only expects stdout or stderr"),
-                }
-            }
-            [action]
-                if matches!(
-                    normalize_command_line_token(action).as_str(),
-                    "previous" | "prev" | "prevmatch" | "previousmatch"
-                ) =>
-            {
-                self.handle_app_command(&AppCommand::CommandOutputPreviousMatch)
-            }
-            [action]
-                if matches!(
-                    normalize_command_line_token(action).as_str(),
-                    "previoussection" | "prevsection" | "sectionprevious" | "sectionprev"
-                ) =>
-            {
-                self.handle_app_command(&AppCommand::CommandOutputPreviousSection)
-            }
-            [action] if normalize_command_line_token(action) == "summary" => {
-                self.handle_app_command(&AppCommand::CommandOutputSummary)
-            }
-            [action] if normalize_command_line_token(action) == "status" => {
-                self.handle_app_command(&AppCommand::CommandOutputStatus)
-            }
-            [action] if normalize_command_line_token(action) == "stdout" => {
-                self.handle_app_command(&AppCommand::CommandOutputStdout)
-            }
-            [action]
-                if matches!(
-                    normalize_command_line_token(action).as_str(),
-                    "stdoutbody" | "outbody"
-                ) =>
-            {
-                self.handle_app_command(&AppCommand::CommandOutputStdoutBody)
-            }
-            [action] if normalize_command_line_token(action) == "stderr" => {
-                self.handle_app_command(&AppCommand::CommandOutputStderr)
-            }
-            [action]
-                if matches!(
-                    normalize_command_line_token(action).as_str(),
-                    "stderrbody" | "errbody"
-                ) =>
-            {
-                self.handle_app_command(&AppCommand::CommandOutputStderrBody)
-            }
-            [action]
-                if matches!(
-                    normalize_command_line_token(action).as_str(),
-                    "truncated" | "truncate" | "trunc"
-                ) =>
-            {
-                self.handle_app_command(&AppCommand::CommandOutputTruncated)
-            }
-            [action, query] if normalize_command_line_token(action) == "find" => {
-                self.find_in_command_output(SearchSpec::parse(query))
-            }
-            [action] if normalize_command_line_token(action) == "save" => {
-                self.handle_app_command(&AppCommand::CommandOutputSave)
-            }
-            [action, path] if normalize_command_line_token(action) == "save" => {
-                self.save_command_output_path(PathBuf::from(path))
-            }
-            _ => self.set_status(
-                "Command failed: output expects index, summary, status, stdout, stdout-body, stderr, stderr-body, truncated, only stdout|stderr, find QUERY, next, previous, next-section, previous-section, clear, copy, or save PATH",
-            ),
         }
     }
 

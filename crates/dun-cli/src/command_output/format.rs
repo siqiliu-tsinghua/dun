@@ -5,10 +5,6 @@ pub(crate) fn command_output_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
 }
 
-pub(crate) fn command_output_empty_buffer() -> TextBuffer {
-    command_output_buffer("Dun Command Output\n\n(empty)\n")
-}
-
 pub(crate) fn command_output_text(result: &CommandRunResult) -> String {
     let mut out = String::from("Dun Command Output\n\n");
     out.push_str(&format!("Command: {}\n", result.command));
@@ -38,7 +34,6 @@ pub(crate) fn command_output_text(result: &CommandRunResult) -> String {
         "Stderr Lines: {}\n",
         command_stream_line_count(&result.stderr)
     ));
-    out.push_str("Sections: 4\n");
     out.push_str(&format!(
         "Truncated: {}\n",
         if result.stdout.truncated || result.stderr.truncated {
@@ -47,9 +42,6 @@ pub(crate) fn command_output_text(result: &CommandRunResult) -> String {
             "no"
         }
     ));
-    out.push_str(
-        "\nIndex\n  output summary       metadata summary\n  output status        exit status line\n  output stdout        stdout section header\n  output stdout-body   first non-empty stdout line\n  output stderr        stderr section header\n  output stderr-body   first non-empty stderr line\n  output truncated     truncation flag\n",
-    );
 
     out.push_str(&format!(
         "\n--- stdout ({}) ---\n",

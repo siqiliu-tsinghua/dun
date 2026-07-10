@@ -135,7 +135,6 @@ impl AppState {
         match window.kind {
             WindowKind::Outline => self.outline_source,
             WindowKind::SearchResults => self.search_results_source,
-            WindowKind::CommandOutputView => self.command_output_buffer_id(),
             _ => None,
         }
     }

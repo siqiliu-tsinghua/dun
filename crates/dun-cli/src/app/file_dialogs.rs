@@ -313,34 +313,6 @@ impl AppState {
                         self.note_recent_file_dialog_path(&path);
                     }
                 }
-                FileDialogKind::CommandOutputSave => {
-                    let Some(text) = self.command_output_text_current() else {
-                        let status = "Command Output: no output window".to_string();
-                        let mut dialog = dialog;
-                        dialog.message = Some(status.clone());
-                        self.file_dialog = Some(dialog);
-                        self.set_status(status);
-                        return;
-                    };
-                    match atomic_write_text_file(&path, &text)
-                        .map_err(|error| path_io_error(&path, error))
-                    {
-                        Ok(report) => {
-                            self.note_recent_file_dialog_path(&path);
-                            self.set_status(status_with_atomic_temp_report(
-                                format!("Saved Command Output {}", path.display()),
-                                &report.temp_reconcile,
-                            ));
-                        }
-                        Err(error) => {
-                            let status = format!("Command Output save failed: {error}");
-                            let mut dialog = dialog;
-                            dialog.message = Some(status.clone());
-                            self.file_dialog = Some(dialog);
-                            self.set_status(status);
-                        }
-                    }
-                }
             },
         }
     }

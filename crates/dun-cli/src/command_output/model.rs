@@ -2,28 +2,6 @@ use std::ffi::OsString;
 use std::process::ExitStatus;
 use std::time::Duration;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CommandOutputSection {
-    Stdout,
-    Stderr,
-}
-
-impl CommandOutputSection {
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Stdout => "stdout",
-            Self::Stderr => "stderr",
-        }
-    }
-
-    pub(crate) const fn view_title(self) -> &'static str {
-        match self {
-            Self::Stdout => "Command Output Stdout",
-            Self::Stderr => "Command Output Stderr",
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CommandRunResult {
     pub(crate) command: String,
