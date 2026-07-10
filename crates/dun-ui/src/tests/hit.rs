@@ -20,6 +20,17 @@ fn menu_hit_tests_map_columns_and_dropdown_rows() {
 }
 
 #[test]
+fn menu_index_for_mnemonic_maps_top_level_menus() {
+    let shell = UiShell::default();
+
+    assert_eq!(shell.menu_index_for_mnemonic('f'), Some(0));
+    assert_eq!(shell.menu_index_for_mnemonic('e'), Some(1));
+    assert_eq!(shell.menu_index_for_mnemonic('v'), Some(2));
+    assert_eq!(shell.menu_index_for_mnemonic('h'), Some(3));
+    assert_eq!(shell.menu_index_for_mnemonic('x'), None);
+}
+
+#[test]
 fn hit_test_maps_body_click_to_buffer_position() {
     let workspace = Workspace::new_untitled();
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcd");
@@ -53,6 +64,57 @@ fn hit_test_maps_wide_character_click_to_valid_utf8_boundary() {
 }
 
 #[test]
+fn hit_test_maps_second_wrapped_visual_row_to_buffer_position() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdefgh");
+    let buffer_view = BufferView::new(BufferId(1), &buffer).with_wrap(true);
+    let shell = UiShell::default();
+
+    let hit = shell
+        .hit_test_workspace(&workspace, Rect::new(0, 0, 8, 6), &[buffer_view], 3, 2)
+        .unwrap();
+
+    assert_eq!(hit.target, UiMouseTarget::Body(Position::new(0, 4)));
+}
+
+#[test]
+fn hit_test_wrapped_body_accounts_for_first_visual_row() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdefghijkl");
+    let buffer_view = BufferView::new(BufferId(1), &buffer)
+        .with_wrap(true)
+        .with_first_visual_row(1);
+    let shell = UiShell::default();
+
+    let hit = shell
+        .hit_test_workspace(&workspace, Rect::new(0, 0, 8, 6), &[buffer_view], 3, 2)
+        .unwrap();
+
+    assert_eq!(hit.target, UiMouseTarget::Body(Position::new(0, 8)));
+}
+
+#[test]
+fn hit_test_maps_wrapped_wide_character_to_valid_utf8_boundary() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdefg中x");
+    let buffer_view = BufferView::new(BufferId(1), &buffer).with_wrap(true);
+    let shell = UiShell::default();
+
+    let hit = shell
+        .hit_test_workspace(&workspace, Rect::new(0, 0, 12, 6), &[buffer_view], 4, 2)
+        .unwrap();
+    let expected = Position::new(0, "abcdefg中".len());
+
+    assert_eq!(hit.target, UiMouseTarget::Body(expected));
+    assert!(
+        buffer
+            .line(expected.line)
+            .unwrap()
+            .is_char_boundary(expected.column)
+    );
+}
+
+#[test]
 fn hit_test_separates_window_chrome_and_gutter() {
     let workspace = Workspace::new_untitled();
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcd");
@@ -68,6 +130,36 @@ fn hit_test_separates_window_chrome_and_gutter() {
 
     assert_eq!(chrome.target, UiMouseTarget::Chrome);
     assert_eq!(gutter.target, UiMouseTarget::Gutter);
+}
+
+#[test]
+fn hit_test_maps_narrow_pane_body_without_gutter() {
+    let workspace = Workspace::new_untitled();
+    let text = (0..1000).map(|_| "x").collect::<Vec<_>>().join("\n");
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, &text);
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let shell = UiShell::default();
+
+    let hit = shell
+        .hit_test_workspace(&workspace, Rect::new(0, 0, 8, 6), &[buffer_view], 1, 1)
+        .unwrap();
+
+    assert_eq!(hit.target, UiMouseTarget::Body(Position::new(0, 0)));
+}
+
+#[test]
+fn hit_test_maps_collapsed_window_interior_to_chrome() {
+    let mut workspace = Workspace::new_untitled();
+    workspace.collapse_focused().unwrap();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "hidden");
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let shell = UiShell::default();
+
+    let hit = shell
+        .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view], 10, 5)
+        .unwrap();
+
+    assert_eq!(hit.target, UiMouseTarget::Chrome);
 }
 
 #[test]
@@ -120,6 +212,37 @@ fn hit_test_maps_scrollbar_click_to_target_line() {
 }
 
 #[test]
+fn hit_test_maps_scrollbar_extreme_rows_in_range() {
+    let workspace = Workspace::new_untitled();
+    let buffer =
+        TextBuffer::from_text_with_kind(BufferKind::Untitled, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let shell = UiShell::default();
+
+    let first = shell
+        .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 6), &[buffer_view], 79, 1)
+        .unwrap();
+    let last = shell
+        .hit_test_workspace(&workspace, Rect::new(0, 0, 80, 6), &[buffer_view], 79, 4)
+        .unwrap();
+
+    assert_eq!(
+        first.target,
+        UiMouseTarget::Scrollbar {
+            first_line: 0,
+            first_visual_row: 0,
+        }
+    );
+    assert_eq!(
+        last.target,
+        UiMouseTarget::Scrollbar {
+            first_line: 6,
+            first_visual_row: 0,
+        }
+    );
+}
+
+#[test]
 fn scrolled_dropdown_hit_test_tracks_visible_entry_range() {
     let shell = UiShell::default();
     let menu = shell.menu_bar(None);
@@ -143,7 +266,7 @@ fn scrolled_dropdown_hit_test_tracks_visible_entry_range() {
 }
 
 #[test]
-fn overlay_hit_test_maps_file_dialog_list_rows() {
+fn overlay_hit_test_respects_file_dialog_list_boundaries() {
     let shell = UiShell::default();
     let overlay = UiOverlay::file_dialog(
         "Open",
@@ -159,7 +282,11 @@ fn overlay_hit_test_maps_file_dialog_list_rows() {
     );
     let area = Rect::new(0, 0, 90, 16);
 
-    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 20, 8), Some(0));
-    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 20, 9), Some(1));
-    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 20, 7), None);
+    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 17, 8), Some(0));
+    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 16, 8), None);
+    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 72, 8), Some(0));
+    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 73, 8), None);
+    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 17, 7), None);
+    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 17, 9), Some(1));
+    assert_eq!(shell.hit_test_overlay_list(&overlay, area, 17, 10), None);
 }
