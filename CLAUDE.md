@@ -51,6 +51,29 @@ size measurements happen on the Debian VM; macOS deltas are only a proxy.
 With `opt-level = "z"` + fat LTO, size deltas are non-additive — measure
 removals per batch, not per item.
 
+## Codex Delegation (grunt-work packages)
+
+Method imported from the rum project (2026-07-10). Role split: I own
+direction, diagnosis, brief writing, the authoritative gate, and the commit;
+Codex executes exactly one brief, self-verifies to green, and reports with
+verbatim evidence — it never commits, branches, or pushes.
+
+- Briefs live in `docs/dev/codex/`: `TEMPLATE.md` is the format,
+  `brief-NNN-<slug>.md` are the packages. Commit the brief FIRST, then
+  dispatch: `scripts/dispatch-brief.sh NNN` (resolves the brief, runs
+  `cdx exec -s danger-full-access`, logs to `/tmp/dun_cdx_brief_NNN.log`;
+  `DRY_RUN=1` previews). Launch via Bash `run_in_background: true` — never a
+  hand-typed `&`-detach.
+- Do not mutate the repo while a brief is in flight.
+- The gate before crediting any brief: (1) scope check — the diff touches
+  only the MAY-modify list; (2) `cargo fmt --all -- --check`, clippy
+  `-D warnings`, `cargo test --workspace --no-fail-fast` reproduced by me;
+  (3) for runtime-code briefs, the dual-platform size gate and release smoke;
+  (4) I reproduce claimed evidence myself before committing.
+- Watch Codex's recurring failure modes in review: fixing at the wrong
+  layer, masking symptoms instead of causes, and drive-by edits outside
+  scope.
+
 ## Debian Measurement VM
 
 VirtualBox VM `debvbox`; connection details and working conventions are in
