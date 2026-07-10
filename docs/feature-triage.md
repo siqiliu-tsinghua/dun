@@ -15,13 +15,36 @@ baseline (2026-07-09, 60d45a2):        1,038,936 bytes
 budget:                                1,048,576 bytes
 current margin:                            9,640 bytes
 
-plugin client cost (spike, TBD):               ? bytes
+plugin client cost (spike, 2026-07-10):   77,824 bytes  (76.0 KiB, Debian)
 future-feature reserve (target):      80–120 KiB
-required freed bytes = client cost + reserve - 9,640
+required freed bytes:                150,104–191,064 bytes  (~147–187 KiB)
 ```
 
-The spike measurement fills in the client cost; until then classification can
-proceed but no removal batch is sized.
+The client cost comes from the `spike/plugin-client-size` branch
+(`c7f042c`), measured on the Debian VM with the locked release profile; see
+[release-size-audit.md](./release-size-audit.md). Treat 76 KiB as a floor:
+the spike covers framing, hand-rolled JSON, envelope/role/policy, validation,
+and timeout/cancel/crash handling for one role, but not config integration or
+additional roles. Same-commit macOS delta was 62,032 bytes; Debian deltas run
+roughly 1.25x macOS, which is usable for quick local estimates only.
+
+## Rough Attribution (macOS, 2026-07-10)
+
+`cargo bloat` over the release profile with `strip` disabled, at `0404b18`
+(.text total 670.3 KiB): std 352.2 KiB, dun-cli 158.1 KiB, dun-ui 41.1 KiB,
+dun-config 30.8 KiB, dun-core 25.5 KiB, crossterm 21.5 KiB, ratatui
+15.8 KiB, dun-term 3.8 KiB.
+
+Two structural findings:
+
+- Roughly 90+ KiB of the std share is panic-backtrace symbolization (gimli,
+  addr2line, rustc_demangle), linked even with `panic = "abort"`. It cannot
+  be removed on the stable toolchain, so trims must come from the remaining
+  ~580 KiB.
+- Feature code is spread across many small methods; visible single functions
+  (Command Output capture 5.0 KiB, Config Diagnostics text 5.6 KiB, command
+  prompt run/complete 12.6 KiB combined) understate their units. Per-unit
+  `Bytes` therefore comes from batch removal experiments, not attribution.
 
 ## Classes and Decision Rules
 

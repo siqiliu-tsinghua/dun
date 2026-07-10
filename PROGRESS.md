@@ -893,3 +893,19 @@ This is an append-only progress log. Keep new entries dated and factual.
   editor features are trimmed before cutting the protocol client. `rum` remains
   a future optional pure-sandbox host, while Python/Rust/script fixture hosts
   are user-trusted unless separately sandboxed.
+- Repositioned `dun` as a standalone lightweight TUI editor and started the
+  v0.1 slimming stage (2026-07-10). Added CLAUDE.md session guidance,
+  documented Debian VM access with tracked `vm-test/vm-run`/`vm-sync` helper
+  scripts, cleaned two stale checkouts off the VM after verifying their
+  uncommitted diffs had already landed, and created the feature triage
+  inventory (docs/feature-triage.md) with A/B/C/D decision rules over 48
+  separately-removable units.
+- Measured the plugin-client size spike (branch `spike/plugin-client-size`,
+  `c7f042c`): a working framed-stdio + hand-rolled JSON protocol client with
+  envelope/role/policy model, span validation, timeout/cancel/crash handling,
+  and a fixture-host end-to-end path costs +62,032 bytes on macOS (925,696
+  total) and +77,824 bytes on Debian (1,116,760 total, 68,184 bytes over the
+  1 MiB gate). Derived trim target: free ~147-187 KiB on Debian before the
+  real client lands. cargo-bloat attribution shows ~90+ KiB of std is
+  unremovable panic-backtrace machinery on stable, so trims must come from
+  feature code.

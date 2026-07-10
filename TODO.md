@@ -3,9 +3,23 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./PROGRESS.md).
 
-## Current Stage: Plugin Protocol Client
+## Current Stage: Feature Triage and Slimming
 
-The active plan is the required host-neutral plugin protocol client. This does
+The plugin-client size spike (branch `spike/plugin-client-size`, `c7f042c`)
+measured the required client at about 76 KiB on the binding Debian platform,
+against a 9,640-byte budget margin. Optional features must therefore be
+trimmed before the client can land. Inventory, budget math, and decision
+rules: [docs/feature-triage.md](./docs/feature-triage.md).
+
+- [ ] Classify every inventory unit (A/B/C/D) in docs/feature-triage.md.
+- [ ] Measure C/D removal batches on the Debian VM and record byte deltas.
+- [ ] Execute C/D removals as full-trail diffs behind the release gates.
+- [ ] Set the B-class total byte cap and new trim order from measured costs.
+- [ ] Rewrite docs/feature-budget.md from the completed triage.
+
+## Next Stage: Plugin Protocol Client
+
+The next stage is the required host-neutral plugin protocol client. This does
 not wait for `rum`; `rum` is a future optional pure-sandbox host that must
 speak the same protocol.
 

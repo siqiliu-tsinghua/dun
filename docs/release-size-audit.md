@@ -168,3 +168,35 @@ configuration with `--dump-config`.
 Result: both audited builds pass the 1 MiB gate, but Debian has less than
 10 KiB of margin. Treat any new runtime code or dependency as budget-sensitive
 until a fresh size audit proves otherwise.
+
+## 2026-07-10 Plugin-Client Spike Measurement
+
+Source: branch `spike/plugin-client-size` at `c7f042c` (baseline `0404b18`
+plus the spike prototype; `0404b18` is runtime-identical to `60d45a2`).
+
+The spike adds a `dun-plugin` crate — framed stdio, hand-rolled JSON,
+envelope/role/policy model, span validation, timeout/cancel/crash handling
+for one role — wired into `dun-cli` behind a hidden `--plugin-spike` flag so
+fat LTO keeps it live. Build command on both platforms:
+
+```text
+cargo build --release --locked -p dun-cli
+```
+
+| Platform | Baseline | With spike | Delta | Budget check |
+| --- | ---: | ---: | ---: | --- |
+| macOS x86_64 | 863,664 | 925,696 | +62,032 | 122,880 under |
+| Debian x86_64 | 1,038,936 | 1,116,760 | +77,824 | **68,184 over** |
+
+Both spike binaries passed `--version`; the macOS build also passed an
+end-to-end `--plugin-spike` round trip against the fixture host example.
+
+Conclusions:
+
+- The required plugin client costs about 76 KiB on the binding Debian
+  platform — a floor, excluding config integration and additional roles.
+- Landing it requires trimming optional features first; the derived target
+  is ~147–187 KiB freed on Debian (client cost + future-feature reserve −
+  current margin). See [feature-triage.md](./feature-triage.md).
+- Debian deltas ran ~1.25x macOS for identical code; usable for quick local
+  estimates, never for gate claims.
