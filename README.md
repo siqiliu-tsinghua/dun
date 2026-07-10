@@ -101,7 +101,9 @@ configured through `plugin.<id>.*` keys are launched as child processes on a
 worker thread (never blocking the event loop), and a `syntax-highlight` role
 host returns style spans that are validated, revision-guarded, and rendered
 through the theme's syntax palette; host failures surface as bounded status
-messages without touching editor state.
+messages without touching editor state. Reference host implementations in
+Rust (syntect), Python (Pygments), and dependency-free Lua live in
+[hosts/](./hosts/) with a language-agnostic conformance checker.
 By default, `F1` opens a read-only Help window with the active configured key
 reference, and `F2` opens a read-only Status History window with recent status
 and error messages. `F5` reloads the active configuration without restarting

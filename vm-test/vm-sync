@@ -23,7 +23,7 @@ if [ "${1:-}" = "--worktree" ]; then
         exit 1
     fi
     rsync -az --delete \
-        --exclude '/target/' --exclude '/.git/' --exclude '/reference/' \
+        --exclude 'target/' --exclude '/.git/' --exclude '/reference/' \
         --exclude '/vm-test/' --exclude '.DS_Store' \
         -e "ssh ${VM_SSH_OPTS[*]}" \
         "$REPO_ROOT/" "$VM_DEST:dun-worktree/"

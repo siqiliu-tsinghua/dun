@@ -194,3 +194,14 @@ The protocol-client stage is complete when:
 `rum` integration is not part of this completion definition. A future
 `dun-rum-host` must speak this same protocol and add the separate pure-sandbox
 security claim.
+
+## Reference Hosts
+
+Host-neutrality is demonstrated by working `syntax-highlight` hosts in three
+languages under [hosts/](../hosts/): Rust (syntect), Python (Pygments), and
+dependency-free Lua (hand-written JSON codec and lexer). A language-agnostic
+conformance checker, `hosts/check-host.py`, validates any host command against
+the wire behavior the client relies on (envelope fields, revision echo,
+character-column span bounds, style vocabulary). These are examples outside
+the editor build and its gates; the CI fixture host remains
+`crates/dun-plugin/src/bin/fixture-host.rs`.

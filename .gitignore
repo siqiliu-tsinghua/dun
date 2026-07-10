@@ -1,4 +1,5 @@
 /target
+/hosts/rust-syntect/target/
 /reference/
 .DS_Store
 # VM scripts are tracked; keys and anything else in vm-test/ stay untracked.

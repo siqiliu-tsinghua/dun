@@ -1,0 +1,19 @@
+[package]
+name = "dun-syntect-host"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+description = "Dun Plugin Protocol host: syntax highlighting via syntect."
+
+# Standalone project: deliberately NOT a member of the dun workspace so the
+# default editor build, lockfile, and gates stay independent of syntect.
+[workspace]
+
+[dependencies]
+dun-plugin = { path = "../../crates/dun-plugin" }
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+
+[profile.release]
+opt-level = "s"
+strip = "symbols"

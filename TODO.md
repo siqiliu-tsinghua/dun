@@ -106,7 +106,10 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 - [x] Add a Rust fixture host for CI-grade protocol tests
   (`crates/dun-plugin/src/bin/fixture-host.rs`, mode via argv or program
   name).
-- [ ] Add optional Python fixture/examples only outside the required CI path.
+- [x] Add optional example hosts outside the required CI path: `hosts/`
+  carries syntax-highlight hosts in Rust (syntect), Python (Pygments), and
+  dependency-free Lua, plus `hosts/check-host.py`, a language-agnostic
+  conformance checker. All three pass the checker on Debian (2026-07-11).
 - [x] Test handshake success and protocol-version rejection.
 - [x] Test normal request/response for the highlight role (client-level;
   editor application pending).
