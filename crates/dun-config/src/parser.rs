@@ -115,6 +115,11 @@ fn apply_config_entry(
                 ConfigParseError::line(line_number, "OSC 52 byte limit does not fit this platform")
             })?;
         }
+        "limits.run_command_timeout_ms" => {
+            config.limits.run_command_timeout_ms = value.parse().map_err(|_| {
+                ConfigParseError::line(line_number, "expected a timeout in milliseconds")
+            })?;
+        }
         "limits.editable_file_soft_limit_bytes" => {
             config.limits.editable_file_soft_limit_bytes = parse_byte_count(value, line_number)?;
         }

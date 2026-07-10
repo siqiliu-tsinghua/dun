@@ -61,6 +61,7 @@ fn run_interactive_shell() -> io::Result<ExitStatus> {
 pub(crate) fn run_command_capture(
     command: &str,
     stream_limit: usize,
+    timeout: Duration,
 ) -> io::Result<CommandRunResult> {
     let shell = shell_program();
     let started = Instant::now();
@@ -82,7 +83,7 @@ pub(crate) fn run_command_capture(
         .ok_or_else(|| io::Error::other("failed to capture command stderr"))?;
     let stdout_reader = std::thread::spawn(move || read_capped_stream(stdout, stream_limit));
     let stderr_reader = std::thread::spawn(move || read_capped_stream(stderr, stream_limit));
-    let status = child.wait()?;
+    let (status, timed_out) = wait_with_timeout(&mut child, started, timeout)?;
     let elapsed = started.elapsed();
     let stdout = join_captured_stream(stdout_reader)?;
     let stderr = join_captured_stream(stderr_reader)?;
@@ -92,9 +93,32 @@ pub(crate) fn run_command_capture(
         shell,
         status,
         elapsed,
+        timed_out,
         stdout,
         stderr,
     })
+}
+
+/// Poll the child until it exits or the deadline passes; on timeout kill it
+/// so a non-terminating command cannot hang the editor. Killing also closes
+/// the child's pipes, which unblocks the capture reader threads.
+fn wait_with_timeout(
+    child: &mut std::process::Child,
+    started: Instant,
+    timeout: Duration,
+) -> io::Result<(ExitStatus, bool)> {
+    let deadline = started + timeout;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok((status, false));
+        }
+        if Instant::now() >= deadline {
+            child.kill()?;
+            let status = child.wait()?;
+            return Ok((status, true));
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn shell_program() -> OsString {
@@ -137,11 +161,18 @@ fn join_captured_stream(
 }
 
 pub(crate) fn command_run_status(result: &CommandRunResult) -> String {
-    let mut status = format!(
-        "Command returned {} in {}",
-        exit_status_text(result.status),
-        duration_status_text(result.elapsed)
-    );
+    let mut status = if result.timed_out {
+        format!(
+            "Command timed out after {} and was killed",
+            duration_status_text(result.elapsed)
+        )
+    } else {
+        format!(
+            "Command returned {} in {}",
+            exit_status_text(result.status),
+            duration_status_text(result.elapsed)
+        )
+    };
     if result.stdout.truncated || result.stderr.truncated {
         status.push_str("; output truncated");
     }

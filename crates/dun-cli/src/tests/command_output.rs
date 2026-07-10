@@ -118,3 +118,23 @@ fn run_command_reuses_output_window_for_new_results() {
     assert!(text.contains("two"));
     assert!(!text.contains("one"));
 }
+
+#[test]
+fn run_command_kills_non_terminating_commands_after_timeout() {
+    let mut app = AppState::new();
+    app.limits.run_command_timeout_ms = 100;
+
+    app.run_external_command_to_buffer("sleep 5");
+
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.contains("Command timed out after")),
+        "status: {:?}",
+        app.status_message
+    );
+    let window = app.workspace.focused_window().unwrap();
+    assert_eq!(window.kind, WindowKind::CommandOutput);
+    let text = app.buffer_state(window.buffer_id).unwrap().buffer.to_text();
+    assert!(text.contains("Status: timed out; process killed"));
+}

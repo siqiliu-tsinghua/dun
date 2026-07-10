@@ -36,6 +36,9 @@ fn limits_error_text(error: LimitsError) -> &'static str {
         LimitsError::LineDisplaySoftLimitZero => {
             "line display soft limit must be greater than zero"
         }
+        LimitsError::RunCommandTimeoutZero => {
+            "run command timeout must be greater than zero milliseconds"
+        }
     }
 }
 

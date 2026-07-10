@@ -118,7 +118,9 @@ overlay, and completes path arguments for commands such as `open` and
 `Ctrl+W,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
 restores the normal terminal, runs the user's shell, then resumes and redraws
 after the shell exits. `Ctrl+W,O` opens a Run Command prompt for one-shot
-non-interactive commands; stdout and stderr are captured with bounded memory,
+non-interactive commands; stdout and stderr are captured with bounded memory
+and a configurable timeout (`limits.run_command_timeout_ms`, default 30s)
+after which the process is killed,
 decoded through the same safe display path as files, and shown in a read-only
 Command Output window with per-stream byte counts and truncation status. The
 Run Command prompt keeps its own bounded history, separate from the editor

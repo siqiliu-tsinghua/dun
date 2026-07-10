@@ -39,6 +39,10 @@ pub fn default_config_text() -> String {
         "limits.line_display_soft_limit_bytes = {}\n",
         config.limits.line_display_soft_limit_bytes
     ));
+    out.push_str(&format!(
+        "limits.run_command_timeout_ms = {}\n",
+        config.limits.run_command_timeout_ms
+    ));
 
     out.push_str("\n# Global editor command keybindings\n");
     let mut keybindings = config

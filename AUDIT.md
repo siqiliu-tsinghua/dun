@@ -162,8 +162,10 @@ Allowed user actions:
 - Shell Escape suspends the TUI, restores the normal terminal, runs the user's
   shell, then resumes the TUI after the shell exits.
 - Run Command executes one non-interactive shell command, captures stdout and
-  stderr with bounded per-stream memory, and shows the result with byte counts
-  and truncation state in a read-only buffer.
+  stderr with bounded per-stream memory and a configured timeout
+  (`limits.run_command_timeout_ms`) that kills non-terminating processes, and
+  shows the result with byte counts, timeout state, and truncation state in a
+  read-only buffer.
 
 Required controls:
 
@@ -283,6 +285,9 @@ Current implementation:
   snapshots instead of silently overwriting external changes.
 - Long-line display work is capped by byte count without splitting a UTF-8
   character.
+- A process panic hook restores the terminal (mouse capture, bracketed paste,
+  alternate screen, raw mode) before the release profile's `panic = "abort"`
+  kills the process, so panics do not leave the user's terminal in raw mode.
 - Mouse capture is disabled by default, enabled only through typed config, and
   restored on exit or runtime disable. Current mouse input can focus tiled
   windows, place the cursor, update a text selection, resize a split, or

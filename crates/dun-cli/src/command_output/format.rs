@@ -9,7 +9,11 @@ pub(crate) fn command_output_text(result: &CommandRunResult) -> String {
     let mut out = String::from("Dun Command Output\n\n");
     out.push_str(&format!("Command: {}\n", result.command));
     out.push_str(&format!("Shell: {}\n", result.shell.to_string_lossy()));
-    out.push_str(&format!("Status: {}\n", exit_status_text(result.status)));
+    if result.timed_out {
+        out.push_str("Status: timed out; process killed\n");
+    } else {
+        out.push_str(&format!("Status: {}\n", exit_status_text(result.status)));
+    }
     out.push_str(&format!(
         "Elapsed: {}\n",
         duration_status_text(result.elapsed)

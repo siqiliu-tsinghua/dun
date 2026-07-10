@@ -243,3 +243,16 @@ fn config_parser_reports_byte_count_errors() {
     assert_eq!(error.line, Some(1));
     assert!(error.to_string().contains("outside the supported range"));
 }
+
+#[test]
+fn parses_run_command_timeout_and_rejects_zero() {
+    let config = parse_config("limits.run_command_timeout_ms = 5000").expect("parses");
+    assert_eq!(config.limits.run_command_timeout_ms, 5000);
+
+    let error = parse_config("limits.run_command_timeout_ms = 0").expect_err("rejects zero");
+    assert!(error.message.contains("run command timeout"));
+
+    let error =
+        parse_config("limits.run_command_timeout_ms = soon").expect_err("rejects non-numeric");
+    assert!(error.message.contains("milliseconds"));
+}

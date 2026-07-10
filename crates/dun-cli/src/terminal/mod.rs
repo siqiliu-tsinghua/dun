@@ -13,7 +13,7 @@ pub(crate) use event_loop::run_event_loop;
 pub(crate) use input::{
     handle_key_event, handle_mouse_event, key_stroke_from_crossterm, text_input_from_crossterm,
 };
-pub(crate) use lifecycle::TerminalGuard;
+pub(crate) use lifecycle::{TerminalGuard, install_panic_terminal_restore};
 pub(crate) use profile::detect_terminal_profile;
 #[cfg(test)]
 pub(crate) use sgr::rewrite_16_color_sgr;

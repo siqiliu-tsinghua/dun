@@ -935,3 +935,13 @@ This is an append-only progress log. Keep new entries dated and factual.
   parsing. The tmux suite now passes with and without NO_COLOR in the
   invoking shell; tmux version skew (Homebrew 3.7b vs Debian 3.5a) was
   irrelevant.
+- Fixed the three defects from the 2026-07-10 full-project review: installed a
+  panic hook that restores the terminal (mouse capture, bracketed paste,
+  alternate screen, raw mode) before `panic = "abort"` kills the process;
+  added a configured Run Command timeout (`limits.run_command_timeout_ms`,
+  default 30s) that kills non-terminating processes instead of hanging the
+  editor; and cached the per-revision dirty state so status rendering no
+  longer hashes the whole buffer every frame. Also removed the two remaining
+  style-inconsistent unwrap/expect calls in runtime code and repaired stale
+  `key.app.command_output_*` examples in docs/configuration.md left over from
+  slimming batch 1. macOS release cost of all fixes: +112 bytes.

@@ -68,7 +68,11 @@ impl AppState {
 
     pub(crate) fn run_external_command_to_buffer(&mut self, input: &str) {
         self.set_status(format!("Running command: {input}"));
-        match run_command_capture(input, COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES) {
+        match run_command_capture(
+            input,
+            COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES,
+            std::time::Duration::from_millis(self.limits.run_command_timeout_ms),
+        ) {
             Ok(result) => {
                 let status = command_run_status(&result);
                 self.open_command_output_screen(&result);

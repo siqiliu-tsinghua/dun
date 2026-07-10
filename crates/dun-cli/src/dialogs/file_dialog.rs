@@ -348,15 +348,16 @@ impl FileDialogState {
         let selected = self
             .selected_index
             .filter(|index| completion_indices.contains(index))
-            .unwrap_or_else(|| {
+            .or_else(|| {
                 if forward {
-                    completion_indices[0]
+                    completion_indices.first().copied()
                 } else {
-                    *completion_indices
-                        .last()
-                        .expect("completion indices are non-empty")
+                    completion_indices.last().copied()
                 }
             });
+        let Some(selected) = selected else {
+            return;
+        };
         self.apply_entry(selected);
     }
 

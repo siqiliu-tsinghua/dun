@@ -38,6 +38,7 @@ clipboard.osc52.enabled = true | false
 clipboard.osc52.max_bytes = 16 KiB
 limits.editable_file_soft_limit_bytes = 16 MiB
 limits.line_display_soft_limit_bytes = 16 KiB
+limits.run_command_timeout_ms = 30000
 ```
 
 Byte values accept plain bytes or binary units: `KiB`, `MiB`, and `GiB`.
@@ -48,10 +49,7 @@ Keybindings use command ids:
 key.app.quit = Ctrl+Q
 key.app.reload_config = F5
 key.app.config_diagnostics = F6
-key.app.command_output_summary = none
-key.app.command_output_stdout = none
-key.app.command_output_stderr = none
-key.app.command_output_save = none
+key.app.status_history = none
 key.edit.find = Ctrl+F
 key.edit.copy_external = Ctrl+W,Ctrl+C
 key.window.split_horizontal = Ctrl+W,H
@@ -160,10 +158,6 @@ limits.editable_file_soft_limit_bytes = 8 MiB
 key.app.quit = Ctrl+Q
 key.app.reload_config = F5
 key.app.config_diagnostics = F6
-key.app.command_output_summary = none
-key.app.command_output_stdout = none
-key.app.command_output_stderr = none
-key.app.command_output_save = none
 key.edit.find = Ctrl+F
 key.edit.copy_external = Ctrl+W,Ctrl+C
 key.edit.scroll_left = Ctrl+W,[

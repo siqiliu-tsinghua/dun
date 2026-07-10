@@ -109,8 +109,8 @@ use help::text::{
 use terminal::rewrite_16_color_sgr;
 use terminal::{
     RuntimeAction, TerminalColorRewrite, TerminalGuard, TerminalWriter, command_run_status,
-    detect_terminal_profile, key_stroke_from_crossterm, osc52_copy_sequence, run_command_capture,
-    run_event_loop, text_input_from_crossterm,
+    detect_terminal_profile, install_panic_terminal_restore, key_stroke_from_crossterm,
+    osc52_copy_sequence, run_command_capture, run_event_loop, text_input_from_crossterm,
 };
 #[cfg(test)]
 use terminal::{handle_key_event, handle_mouse_event};
@@ -159,6 +159,7 @@ fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>)
     let config_request = ConfigLoadRequest::new(config_path, no_config);
     let loaded_config = load_config(&config_request)?;
     let mut app = AppState::from_loaded_config_path(config_request, loaded_config, path)?;
+    install_panic_terminal_restore();
     let mut guard = TerminalGuard::enter(app.mouse_enabled())?;
     let color_rewrite = TerminalColorRewrite::new(app.shell.profile);
     let backend = CrosstermBackend::new(TerminalWriter::new(io::stdout(), color_rewrite.clone()));

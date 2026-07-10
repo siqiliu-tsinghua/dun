@@ -166,7 +166,7 @@ impl Default for SearchOptions {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct TextBuffer {
     pub(super) kind: BufferKind,
     pub(super) lines: Vec<String>,
@@ -177,4 +177,24 @@ pub struct TextBuffer {
     pub(super) redo_stack: Vec<EditTransaction>,
     pub(super) revision: u64,
     pub(super) saved_fingerprint: u64,
+    // Lazily computed dirty state for the current revision; costs O(buffer)
+    // to fill, so status rendering must not recompute it every frame.
+    pub(super) dirty_cache: std::cell::Cell<Option<bool>>,
 }
+
+impl PartialEq for TextBuffer {
+    fn eq(&self, other: &Self) -> bool {
+        // dirty_cache is a memoization detail, not buffer state.
+        self.kind == other.kind
+            && self.lines == other.lines
+            && self.line_ending == other.line_ending
+            && self.cursor == other.cursor
+            && self.selection == other.selection
+            && self.undo_stack == other.undo_stack
+            && self.redo_stack == other.redo_stack
+            && self.revision == other.revision
+            && self.saved_fingerprint == other.saved_fingerprint
+    }
+}
+
+impl Eq for TextBuffer {}

@@ -8,6 +8,23 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 
+/// Restore the terminal before the process dies on a panic. The release
+/// profile uses `panic = "abort"`, so `TerminalGuard::drop` never runs on
+/// panic; without this hook any panic leaves the user's terminal in raw
+/// mode on the alternate screen. Panic hooks run before the abort.
+pub(crate) fn install_panic_terminal_restore() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let mut stdout = io::stdout();
+        let _ = execute!(stdout, DisableMouseCapture);
+        let _ = execute!(stdout, DisableBracketedPaste);
+        let _ = execute!(stdout, LeaveAlternateScreen);
+        let _ = stdout.flush();
+        let _ = disable_raw_mode();
+        default_hook(info);
+    }));
+}
+
 pub(crate) struct TerminalGuard {
     mouse_enabled: bool,
     bracketed_paste_enabled: bool,

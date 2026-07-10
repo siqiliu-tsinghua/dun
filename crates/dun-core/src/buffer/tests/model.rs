@@ -46,3 +46,24 @@ fn mark_saved_resets_dirty_baseline() {
 
     assert!(!buffer.is_dirty());
 }
+
+#[test]
+fn dirty_state_survives_repeated_queries_and_undo_to_saved_state() {
+    let mut buffer = TextBuffer::from_text("one");
+
+    assert!(!buffer.is_dirty());
+    assert!(!buffer.is_dirty());
+
+    buffer.insert_char('x').unwrap();
+    assert!(buffer.is_dirty());
+    assert!(buffer.is_dirty());
+
+    buffer.undo().unwrap();
+    assert!(!buffer.is_dirty(), "undo back to saved content is clean");
+
+    buffer.redo().unwrap();
+    assert!(buffer.is_dirty());
+
+    buffer.mark_saved();
+    assert!(!buffer.is_dirty());
+}

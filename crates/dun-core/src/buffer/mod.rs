@@ -72,11 +72,17 @@ impl TextBuffer {
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.current_fingerprint() != self.saved_fingerprint
+        if let Some(dirty) = self.dirty_cache.get() {
+            return dirty;
+        }
+        let dirty = self.current_fingerprint() != self.saved_fingerprint;
+        self.dirty_cache.set(Some(dirty));
+        dirty
     }
 
     pub fn mark_saved(&mut self) {
         self.saved_fingerprint = self.current_fingerprint();
+        self.dirty_cache.set(Some(false));
     }
 
     pub(super) fn from_parts(
@@ -98,6 +104,7 @@ impl TextBuffer {
             redo_stack: Vec::new(),
             revision: 0,
             saved_fingerprint: 0,
+            dirty_cache: std::cell::Cell::new(Some(false)),
         };
         buffer.saved_fingerprint = buffer.current_fingerprint();
         buffer
@@ -144,6 +151,7 @@ impl TextBuffer {
 
     fn bump_revision(&mut self) {
         self.revision = self.revision.saturating_add(1);
+        self.dirty_cache.set(None);
     }
 }
 

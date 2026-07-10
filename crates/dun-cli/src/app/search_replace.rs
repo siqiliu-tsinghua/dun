@@ -309,12 +309,11 @@ impl AppState {
         }
 
         let source_name = self.buffer_display_name(source_buffer_id);
-        let text = search_results_text(
-            &source_name,
-            &spec,
-            &matches,
-            &self.buffer_state(source_buffer_id).unwrap().buffer,
-        );
+        let Some(source) = self.buffer_state(source_buffer_id) else {
+            self.set_status("Search Results: source buffer is missing");
+            return;
+        };
+        let text = search_results_text(&source_name, &spec, &matches, &source.buffer);
         self.search_results_source = Some(source_buffer_id);
         self.open_read_only_aux_window(
             WindowKind::SearchResults,
