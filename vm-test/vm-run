@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Run a command on the debvbox measurement VM, or open an interactive shell.
+#
+# Usage:
+#   vm-test/vm-run                          interactive shell
+#   vm-test/vm-run sudo whoami              run a command
+#   vm-test/vm-run 'cd ~/dun-abc && ls'     shell string for pipes/cd/&&
+#
+# Arguments are joined by ssh and run through the remote login shell, so
+# quote metacharacters as you would for plain ssh.
+set -euo pipefail
+
+source "$(dirname "$0")/vm-common.sh"
+
+exec ssh "${VM_SSH_OPTS[@]}" "$VM_DEST" "$@"

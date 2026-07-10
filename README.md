@@ -323,6 +323,8 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
   large-file performance baseline tests and current local sample output.
 - [docs/release-size-audit.md](./docs/release-size-audit.md): lightweight
   release binary size baseline for macOS and Debian builds.
+- [docs/debian-vm.md](./docs/debian-vm.md): Debian measurement VM connection
+  details and working conventions.
 - [docs/feature-budget.md](./docs/feature-budget.md): hard v0.1 runtime size
   gate, required feature set, and optional feature trim order.
 - [docs/plugin-protocol.md](./docs/plugin-protocol.md): host-neutral plugin

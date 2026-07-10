@@ -1,4 +1,8 @@
 /target
 /reference/
 .DS_Store
-/vm-test/
+# VM scripts are tracked; keys and anything else in vm-test/ stay untracked.
+/vm-test/*
+!/vm-test/vm-common.sh
+!/vm-test/vm-run
+!/vm-test/vm-sync

@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Sync dun sources to the debvbox measurement VM.
+#
+# Usage:
+#   vm-test/vm-sync [REF]        clean `git archive` of REF (default HEAD)
+#                                into ~/dun-<shortsha> on the VM; the remote
+#                                directory is replaced if it already exists.
+#   vm-test/vm-sync --worktree   rsync the current working tree (excluding
+#                                target/, .git/, reference/, vm-test/) into
+#                                ~/dun-worktree. For iteration only — binding
+#                                measurements must use a clean REF sync.
+#
+# Prints the remote directory on success. Clean up remote directories after
+# recording results (docs/debian-vm.md).
+set -euo pipefail
+
+source "$(dirname "$0")/vm-common.sh"
+
+if [ "${1:-}" = "--worktree" ]; then
+    if ! ssh "${VM_SSH_OPTS[@]}" "$VM_DEST" 'command -v rsync >/dev/null'; then
+        echo "vm-sync: rsync missing on the VM; install it first:" >&2
+        echo "  vm-test/vm-run sudo apt-get install -y rsync" >&2
+        exit 1
+    fi
+    rsync -az --delete \
+        --exclude '/target/' --exclude '/.git/' --exclude '/reference/' \
+        --exclude '/vm-test/' --exclude '.DS_Store' \
+        -e "ssh ${VM_SSH_OPTS[*]}" \
+        "$REPO_ROOT/" "$VM_DEST:dun-worktree/"
+    echo "synced working tree -> ~/dun-worktree (not a clean commit; no binding measurements)"
+    exit 0
+fi
+
+ref="${1:-HEAD}"
+sha="$(git -C "$REPO_ROOT" rev-parse --short "$ref")"
+dest="dun-$sha"
+
+git -C "$REPO_ROOT" archive --format=tar "$ref" \
+    | ssh "${VM_SSH_OPTS[@]}" "$VM_DEST" \
+        "rm -rf ~/$dest && mkdir -p ~/$dest && tar -x -C ~/$dest"
+
+if [ "$ref" = "HEAD" ] && ! git -C "$REPO_ROOT" diff --quiet HEAD 2>/dev/null; then
+    echo "note: local working tree is dirty; the archive contains only commit $sha" >&2
+fi
+echo "synced $ref ($sha) -> ~/$dest"
