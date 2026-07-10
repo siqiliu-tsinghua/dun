@@ -1,0 +1,226 @@
+#![forbid(unsafe_code)]
+
+//! Minimal fixture host for exercising the plugin protocol client end to end.
+//!
+//! Handshake misbehavior is selected by the first argument, or — because
+//! `HostClient` launches hosts without arguments — by running the binary
+//! through a hard link named `fixture-host--<mode>` (the mode is read from
+//! the program name). Request misbehavior is selected through the request
+//! payload's `language` field.
+
+use std::io::{self, Write};
+use std::thread;
+use std::time::Duration;
+
+use dun_plugin::frame::{read_frame, write_frame};
+use dun_plugin::json::{self, Json};
+
+const MAX_FRAME_BYTES: usize = 256 * 1024;
+const FLOOD_SPAN_COUNT: usize = 4097;
+const DIAGNOSTIC_FLOOD_COUNT: usize = 17;
+const STDERR_FLOOD_BYTES: usize = 64 * 1024;
+
+fn main() -> io::Result<()> {
+    let handshake_mode = std::env::args().nth(1).or_else(|| {
+        let program = std::env::args().next()?;
+        let name = std::path::Path::new(&program).file_name()?.to_str()?;
+        Some(name.rsplit_once("--")?.1.to_string())
+    });
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    let mut input = stdin.lock();
+    let mut output = stdout.lock();
+
+    loop {
+        let Ok(payload) = read_frame(&mut input, MAX_FRAME_BYTES) else {
+            return Ok(());
+        };
+        let Ok(message) = json::parse(&payload) else {
+            eprintln!("fixture host: malformed frame payload");
+            return Ok(());
+        };
+        let kind = message.get("kind").and_then(Json::as_str).unwrap_or("");
+        let request_id = message
+            .get("request_id")
+            .and_then(Json::as_u64)
+            .unwrap_or(0);
+        match kind {
+            "hello" => match handshake_mode.as_deref() {
+                Some("bad-version") => {
+                    let reply = envelope_with_version(
+                        9,
+                        "hello-ack",
+                        request_id,
+                        None,
+                        hello_payload("user-trusted-external"),
+                    );
+                    write_frame(&mut output, &reply)?;
+                }
+                Some("bad-trust") => {
+                    let reply = envelope(
+                        "hello-ack",
+                        request_id,
+                        None,
+                        hello_payload("unknown-trust"),
+                    );
+                    write_frame(&mut output, &reply)?;
+                }
+                Some("no-ack") => {
+                    let reply = envelope(
+                        "error",
+                        request_id,
+                        None,
+                        json::obj([("message", json::str("handshake rejected"))]),
+                    );
+                    write_frame(&mut output, &reply)?;
+                }
+                Some("garbage-frame") => {
+                    output.write_all(&32_u32.to_le_bytes())?;
+                    output.write_all(b"{}")?;
+                    output.flush()?;
+                    return Ok(());
+                }
+                _ => {
+                    let reply = envelope(
+                        "hello-ack",
+                        request_id,
+                        None,
+                        hello_payload("user-trusted-external"),
+                    );
+                    write_frame(&mut output, &reply)?;
+                }
+            },
+            "request" => handle_request(&message, request_id, &mut output)?,
+            "cancel-request" => {}
+            "shutdown" => return Ok(()),
+            _ => {
+                let reply = envelope(
+                    "error",
+                    request_id,
+                    None,
+                    json::obj([("message", json::str("unsupported message kind"))]),
+                );
+                write_frame(&mut output, &reply)?;
+            }
+        }
+    }
+}
+
+fn handle_request(message: &Json, request_id: u64, output: &mut impl Write) -> io::Result<()> {
+    let revision = message.get("revision").and_then(Json::as_u64).unwrap_or(0);
+    let payload = message.get("payload");
+    let language = payload
+        .and_then(|value| value.get("language"))
+        .and_then(Json::as_str)
+        .unwrap_or("");
+    let first_line = payload
+        .and_then(|value| value.get("first_line"))
+        .and_then(Json::as_u64)
+        .unwrap_or(0);
+
+    match language {
+        "crash-test" => std::process::exit(2),
+        "slow-test" => thread::sleep(Duration::from_secs(30)),
+        "stderr-test" => write_stderr_flood()?,
+        _ => {}
+    }
+
+    if language == "diag-flood-test" {
+        for _ in 0..DIAGNOSTIC_FLOOD_COUNT {
+            let diagnostic = envelope(
+                "diagnostic",
+                request_id,
+                Some(revision),
+                json::obj([("message", json::str("fixture diagnostic"))]),
+            );
+            write_frame(output, &diagnostic)?;
+        }
+    }
+
+    let reply_revision = if language == "stale-test" {
+        revision.wrapping_sub(1)
+    } else {
+        revision
+    };
+    let reply_request_id = if language == "wrong-id-test" {
+        request_id.wrapping_add(1)
+    } else {
+        request_id
+    };
+
+    let spans = match language {
+        "flood-test" => Json::Arr(
+            (0..FLOOD_SPAN_COUNT)
+                .map(|_| span(first_line, 2, "keyword"))
+                .collect(),
+        ),
+        "badcoord-test" => Json::Arr(vec![span(first_line, 1_000_000, "keyword")]),
+        "badstyle-test" => Json::Arr(vec![span(first_line, 2, "blink")]),
+        _ => Json::Arr(vec![span(first_line, 2, "keyword")]),
+    };
+    let mut payload_fields = vec![("spans".to_string(), spans)];
+    if language == "bigframe-test" {
+        payload_fields.push((
+            "padding".to_string(),
+            Json::Str("x".repeat(MAX_FRAME_BYTES)),
+        ));
+    }
+    let reply = envelope(
+        "response",
+        reply_request_id,
+        Some(reply_revision),
+        Json::Obj(payload_fields),
+    );
+    write_frame(output, &reply)
+}
+
+fn write_stderr_flood() -> io::Result<()> {
+    let stderr = io::stderr();
+    let mut output = stderr.lock();
+    let chunk = [b'x'; 1024];
+    for _ in 0..STDERR_FLOOD_BYTES / chunk.len() {
+        output.write_all(&chunk)?;
+    }
+    output.flush()
+}
+
+fn hello_payload(trust: &str) -> Json {
+    json::obj([
+        ("host_id", json::str("fixture")),
+        ("trust", json::str(trust)),
+    ])
+}
+
+fn span(line: u64, end_col: u64, style: &str) -> Json {
+    json::obj([
+        ("line", json::num(line)),
+        ("start_col", json::num(0)),
+        ("end_col", json::num(end_col)),
+        ("style", json::str(style)),
+    ])
+}
+
+fn envelope(kind: &str, request_id: u64, revision: Option<u64>, payload: Json) -> Vec<u8> {
+    envelope_with_version(0, kind, request_id, revision, payload)
+}
+
+fn envelope_with_version(
+    version: u64,
+    kind: &str,
+    request_id: u64,
+    revision: Option<u64>,
+    payload: Json,
+) -> Vec<u8> {
+    let mut fields = vec![
+        ("v".to_string(), json::num(version)),
+        ("kind".to_string(), json::str(kind)),
+        ("request_id".to_string(), json::num(request_id)),
+        ("plugin_id".to_string(), json::str("fixture")),
+        ("role".to_string(), json::str("syntax-highlight")),
+    ];
+    if let Some(revision) = revision {
+        fields.push(("revision".to_string(), json::num(revision)));
+    }
+    fields.push(("payload".to_string(), payload));
+    json::to_string(&Json::Obj(fields)).into_bytes()
+}

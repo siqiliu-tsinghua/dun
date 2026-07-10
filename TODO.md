@@ -106,6 +106,15 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 - [ ] Test that rejected plugin output cannot request file I/O, process spawn,
   terminal writes, direct buffer mutation, or raw control-byte rendering.
 
+### Open Investigations
+
+- [ ] Handshake latency spikes: under parallel test load, HostClient launch
+  handshakes intermittently exceeded 500 ms while raw spawn+reply latency
+  measures 6-14 ms; the protocol test suite now uses generous fuse timeouts
+  (assertions are event-driven), but the mechanism is unexplained. Instrument
+  handshake timing before relying on tight per-host timeouts in the wiring
+  stage.
+
 ### Release Gates for This Stage
 
 - [ ] `cargo fmt --all -- --check`.
