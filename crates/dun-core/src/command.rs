@@ -106,7 +106,6 @@ pub enum AppCommand {
     ConfigDiagnosticsSource,
     ConfigDiagnosticsSummary,
     ConfigDiagnosticsTerminal,
-    Outline,
     SearchResults,
     ShellEscape,
     StatusHistory,

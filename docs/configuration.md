@@ -120,25 +120,18 @@ remapped or disabled like other `key.edit.*` entries.
 
 Find and Replace prompts accept search prefixes before the query: `/i query`
 for ignore-case, `/w query` for whole-word, and `/iw query` for both.
-The command prompt also accepts Command Output helpers:
-`output index`, `output summary`, `output status`, `output stdout`,
-`output stdout-body`, `output stderr`, `output stderr-body`,
-`output truncated`, `output only stdout`, `output only stderr`,
-`output find QUERY`, `output next`, `output previous`,
-`output next-section`, `output previous-section`, `output clear`,
-`output copy`, `output save`, and `output save PATH`.
 Config Diagnostics can also be opened at a section with commands such as
 `config keymap`, `config limits`, or `diagnostics file-dialog-keymap`.
-`outline` opens the focused buffer's section list, `outline TARGET` jumps to a
-numbered or named section, `results` opens the current Find result list, and
-`results N` jumps to a listed match. When the Outline or Search Results pane is
-focused, `n`/`p` select listed entries, `Home`/`End` jump to the first or last
-listed entry, and `Enter` jumps to the selected source location. Tab completion
-is available for built-in command families such as
-`output`, `config`, and `theme` when the cursor is at the end of the command
-prompt. Ambiguous completions are shown in the status line and can be cycled
-with Tab/BackTab. Path arguments complete for `open`, `save`, `save-as`,
-`reloadfile`, and `output save`.
+`results` opens the current Find result list and `results N` jumps to a
+listed match. When the Search Results pane is focused, `n`/`p` select listed
+entries, `Home`/`End` jump to the first or last listed entry, and `Enter`
+jumps to the selected source location. Tab completion is available for
+built-in command families such as `config` and `theme` when the cursor is at
+the end of the command prompt. Ambiguous completions are shown in the status
+line and can be cycled with Tab/BackTab. Path arguments complete for `open`,
+`save`, `save-as`, and `reloadfile`.
+The advanced `output ...` command family and the `outline` section list were
+removed in the 2026-07 slimming stage (feature-triage F46 and F20).
 
 Mouse support is optional and disabled by default. When `mouse.enabled = true`,
 `dun` enables terminal mouse capture and accepts left-clicks for tiled-window

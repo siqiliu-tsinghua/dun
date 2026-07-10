@@ -473,10 +473,10 @@ fn command_line_reports_argument_errors_without_side_effects() {
             .is_some_and(|status| status.contains("Command failed: config expects zero args"))
     );
 
-    submit_command_line(&mut app, "outline one two");
+    submit_command_line(&mut app, "outline");
     assert_eq!(
         app.status_message,
-        Some("Command failed: outline expects zero args or one section number/name".to_string())
+        Some("Unknown command: outline".to_string())
     );
 
     submit_command_line(&mut app, "results one two");

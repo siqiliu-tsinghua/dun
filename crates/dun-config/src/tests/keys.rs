@@ -276,10 +276,7 @@ fn command_ids_round_trip() {
             AppCommand::ConfigDiagnosticsFileDialogKeymap
         ))
     );
-    assert_eq!(
-        command_from_id("app.outline"),
-        Ok(EditorCommand::App(AppCommand::Outline))
-    );
+    assert!(command_from_id("app.outline").is_err());
     assert_eq!(
         command_from_id("app.search_results"),
         Ok(EditorCommand::App(AppCommand::SearchResults))

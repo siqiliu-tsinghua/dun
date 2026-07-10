@@ -104,7 +104,6 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::App(AppCommand::ConfigDiagnosticsTerminal) => {
             "app.config_diagnostics_terminal"
         }
-        EditorCommand::App(AppCommand::Outline) => "app.outline",
         EditorCommand::App(AppCommand::SearchResults) => "app.search_results",
         EditorCommand::App(AppCommand::ShellEscape) => "app.shell_escape",
         EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
@@ -230,7 +229,6 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "app.config_diagnostics_terminal" => {
             Ok(EditorCommand::App(AppCommand::ConfigDiagnosticsTerminal))
         }
-        "app.outline" => Ok(EditorCommand::App(AppCommand::Outline)),
         "app.search_results" => Ok(EditorCommand::App(AppCommand::SearchResults)),
         "app.shell_escape" => Ok(EditorCommand::App(AppCommand::ShellEscape)),
         "app.status_history" => Ok(EditorCommand::App(AppCommand::StatusHistory)),

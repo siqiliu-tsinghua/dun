@@ -88,9 +88,7 @@ use files::{
 };
 #[cfg(test)]
 use files::{atomic_temp_path, validate_stable_file_read};
-use help::buffers::{
-    config_diagnostics_buffer, outline_buffer, search_results_buffer, status_history_buffer,
-};
+use help::buffers::{config_diagnostics_buffer, search_results_buffer, status_history_buffer};
 #[cfg(test)]
 use help::content::help_text;
 use help::content::{
@@ -105,8 +103,7 @@ use help::status::{
 };
 use help::text::{
     ConfigDiagnosticsSection, line_with_exact_text, numbered_list_index_for_line,
-    numbered_list_rows, outline_entries_for_buffer, outline_text, parse_config_diagnostics_section,
-    parse_outline_target, search_results_text,
+    numbered_list_rows, parse_config_diagnostics_section, search_results_text,
 };
 #[cfg(test)]
 use terminal::rewrite_16_color_sgr;

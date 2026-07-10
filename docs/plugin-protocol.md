@@ -143,6 +143,11 @@ prove at least one visible, low-risk role end to end, preferably
 `SyntaxHighlight`, because stale revision handling and bounded style-span
 validation are easy to test.
 
+A `DocumentStructure` role is a recorded future need: the built-in Outline
+pane (Markdown/INI/TOML/Rust/shell section heuristics) was removed in the
+2026-07 slimming stage with the expectation that plugins provide section
+listings through a bounded snapshot in, label/line list out contract.
+
 ## Output Validation
 
 `dun` validates all plugin output before applying it.

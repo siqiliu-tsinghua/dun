@@ -133,7 +133,6 @@ impl AppState {
 
     fn auxiliary_return_buffer_id(&self, window: &WindowState) -> Option<BufferId> {
         match window.kind {
-            WindowKind::Outline => self.outline_source,
             WindowKind::SearchResults => self.search_results_source,
             _ => None,
         }

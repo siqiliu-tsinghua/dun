@@ -93,7 +93,7 @@ fn ratatui_renderer_draws_active_submenu() {
 }
 
 #[test]
-fn ratatui_renderer_draws_view_output_commands_in_submenu() {
+fn ratatui_renderer_draws_view_submenu_without_removed_families() {
     let workspace = Workspace::new_untitled();
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
     let buffer_view = BufferView::new(BufferId(1), &buffer);
@@ -113,24 +113,15 @@ fn ratatui_renderer_draws_view_output_commands_in_submenu() {
 
     let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 90, 38);
     assert!(snapshot.contains("View"));
-    assert!(snapshot.contains("Outline"));
     assert!(snapshot.contains("Search Results"));
-    assert!(snapshot.contains("Output Index"));
-    assert!(snapshot.contains("Output Summary"));
-    assert!(snapshot.contains("Output Status"));
-    assert!(snapshot.contains("Output Stdout"));
-    assert!(snapshot.contains("Output Stdout Body"));
-    assert!(snapshot.contains("Output Stderr"));
-    assert!(snapshot.contains("Output Stderr Body"));
-    assert!(snapshot.contains("Output Truncated"));
-    assert!(snapshot.contains("Output Next Match"));
-    assert!(snapshot.contains("Output Previous Match"));
-    assert!(snapshot.contains("Output Next Section"));
-    assert!(snapshot.contains("Output Previous Section"));
-    assert!(snapshot.contains("Output Only Stdout"));
-    assert!(snapshot.contains("Output Only Stderr"));
-    assert!(snapshot.contains("Output Save"));
-    assert!(snapshot.contains("Output Clear"));
+    assert!(snapshot.contains("Status History"));
+    assert!(snapshot.contains("Config Diagnostics"));
+    assert!(snapshot.contains("Reload Config"));
+    // Removed in the 2026-07 slimming stage: advanced Command Output menu
+    // entries (triage F46) and the Outline pane (triage F20).
+    assert!(!snapshot.contains("Output Index"));
+    assert!(!snapshot.contains("Output Summary"));
+    assert!(!snapshot.contains("Outline"));
 }
 
 #[test]

@@ -28,7 +28,6 @@ pub(crate) struct AppState {
     pub(crate) run_command_history: Vec<String>,
     pub(crate) last_find_query: Option<String>,
     pub(crate) pending_replace_query: Option<String>,
-    pub(crate) outline_source: Option<BufferId>,
     pub(crate) search_results_source: Option<BufferId>,
     pub(crate) kill_ring: Option<String>,
     pub(crate) recent_file_dialog_input: Option<String>,

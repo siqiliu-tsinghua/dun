@@ -103,14 +103,12 @@ the editor, `F6` opens Config Diagnostics with source, terminal, clipboard,
 limit, keymap, and important-unbound-command summaries. The command prompt can
 jump directly to diagnostics sections such as `config keymap` or
 `diagnostics limits`. `reloadfile` explicitly reloads the focused file buffer
-from disk after any dirty-buffer confirmation. `outline` opens a read-only
-section list for the focused buffer and can jump back to a numbered or named
-section; the current heuristic
-recognizes built-in helper headings plus common Markdown, INI/TOML, Rust, and
-shell function section lines. After a Find, `results` opens a read-only match
-list and `results N` jumps back to that match. In Outline and Search Results,
-`n`/`p` move between listed entries, `Home`/`End` jump to the first or last
-entry, and `Enter` jumps back to the selected source location.
+from disk after any dirty-buffer confirmation. After a Find, `results` opens
+a read-only match list and `results N` jumps back to that match. In Search
+Results, `n`/`p` move between listed entries, `Home`/`End` jump to the first
+or last entry, and `Enter` jumps back to the selected source location. The
+built-in Outline pane was removed in the 2026-07 slimming stage; document
+structure listing is planned to return as a plugin role.
 `Ctrl+P` opens a command prompt for actions such as `help`, `config`,
 `reload-config`, `theme`, `open`, `save`, `quit`, and full command ids such as
 `window.split_horizontal`; Tab completes built-in command families, cycles

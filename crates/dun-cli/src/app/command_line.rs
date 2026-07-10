@@ -30,7 +30,6 @@ impl AppState {
                 self.run_no_arg_command(args, EditorCommand::App(AppCommand::ShellEscape))
             }
             "run" | "command" => self.run_external_command_line(args),
-            "outline" | "sections" => self.run_outline_command(args),
             "open" | "o" => self.run_open_command(args),
             "results" | "searchresults" | "matches" => self.run_search_results_command(args),
             "buffers" | "switch" | "switchbuffer" => {
@@ -106,15 +105,6 @@ impl AppState {
                 "Command failed: config expects zero args or one of {}",
                 config_diagnostics_section_values()
             )),
-        }
-    }
-
-    fn run_outline_command(&mut self, args: &[String]) {
-        match args {
-            [] => self.open_outline_screen(),
-            [target] => self.jump_focused_outline_target(target),
-            _ => self
-                .set_status("Command failed: outline expects zero args or one section number/name"),
         }
     }
 

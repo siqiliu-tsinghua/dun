@@ -102,7 +102,7 @@ are filled during the triage.
 | F17b | Interactive replace confirmation modal (replace/skip/all/cancel) | replace flow | req | B | | |
 | F18 | Go to line | `edit.go_to_line` | req | A | | |
 | F19 | Search Results pane: `results`, `results N`, row navigation | `app.search_results` | t4 | B | | |
-| F20 | Outline pane: section heuristics (Markdown/INI/TOML/Rust/shell), jumps | `app.outline` | t4 | D (structure role) | | |
+| F20 | Outline pane: section heuristics (Markdown/INI/TOML/Rust/shell), jumps | `app.outline` | t4 | D (structure role) | | D, removed 2026-07-10 (batch 2); structure-listing role recorded in plugin-protocol.md |
 
 ### Tiling windows
 

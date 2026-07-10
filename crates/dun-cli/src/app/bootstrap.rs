@@ -56,7 +56,6 @@ impl AppState {
             run_command_history: Vec::new(),
             last_find_query: None,
             pending_replace_query: None,
-            outline_source: None,
             search_results_source: None,
             kill_ring: None,
             recent_file_dialog_input: None,

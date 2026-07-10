@@ -1,6 +1,6 @@
 use crate::*;
 
-pub(crate) const COMMAND_LINE_HELP: &str = "Commands: help, outline [section], results [N], config [section], status, reload-config, reloadfile, shell, run [\"command\"], theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
+pub(crate) const COMMAND_LINE_HELP: &str = "Commands: help, results [N], config [section], status, reload-config, reloadfile, shell, run [\"command\"], theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CommandLineParseError {
@@ -207,7 +207,6 @@ const fn command_line_top_level_candidates() -> &'static [&'static str] {
         "matches",
         "new",
         "open",
-        "outline",
         "quit",
         "reload-config",
         "reloadfile",

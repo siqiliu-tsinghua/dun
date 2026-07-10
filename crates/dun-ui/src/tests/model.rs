@@ -512,11 +512,6 @@ fn menu_exposes_help_and_quit_commands() {
     assert!(
         commands
             .iter()
-            .any(|command| **command == EditorCommand::App(AppCommand::Outline))
-    );
-    assert!(
-        commands
-            .iter()
             .any(|command| **command == EditorCommand::App(AppCommand::SearchResults))
     );
     assert!(

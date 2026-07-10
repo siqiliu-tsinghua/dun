@@ -120,7 +120,6 @@ pub enum WindowKind {
     CommandOutput,
     ConfigDiagnostics,
     Help,
-    Outline,
     SearchResults,
     StatusHistory,
     Prompt,

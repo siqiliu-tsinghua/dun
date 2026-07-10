@@ -68,29 +68,6 @@ impl AppState {
         };
 
         match window.kind {
-            WindowKind::Outline => match stroke.key {
-                Key::Enter => {
-                    self.jump_current_outline_target();
-                    true
-                }
-                Key::Char('n') | Key::Char('N') => {
-                    self.move_focused_numbered_aux_row(1, "Outline");
-                    true
-                }
-                Key::Char('p') | Key::Char('P') => {
-                    self.move_focused_numbered_aux_row(-1, "Outline");
-                    true
-                }
-                Key::Home => {
-                    self.focus_first_numbered_aux_row("Outline");
-                    true
-                }
-                Key::End => {
-                    self.focus_last_numbered_aux_row("Outline");
-                    true
-                }
-                _ => false,
-            },
             WindowKind::SearchResults => match stroke.key {
                 Key::Enter => {
                     self.jump_current_search_result();
@@ -128,10 +105,6 @@ impl AppState {
         };
 
         match window.kind {
-            WindowKind::Outline => {
-                self.jump_current_outline_target();
-                true
-            }
             WindowKind::SearchResults => {
                 self.jump_current_search_result();
                 true
@@ -171,7 +144,6 @@ impl AppState {
                 self.jump_config_diagnostics_section(ConfigDiagnosticsSection::Terminal)
             }
             AppCommand::Help => self.open_help_screen(),
-            AppCommand::Outline => self.open_outline_screen(),
             AppCommand::ReloadConfig => self.reload_config(),
             AppCommand::RunCommand => self.start_prompt(PromptKind::RunCommand, String::new()),
             AppCommand::SearchResults => self.open_search_results_screen(),

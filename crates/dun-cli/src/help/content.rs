@@ -229,10 +229,6 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Config diagnostics",
             },
             HelpCommand {
-                command: EditorCommand::App(AppCommand::Outline),
-                description: "Outline sections for focused read-only pane",
-            },
-            HelpCommand {
                 command: EditorCommand::App(AppCommand::SearchResults),
                 description: "List current search results",
             },

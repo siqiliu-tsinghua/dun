@@ -168,10 +168,6 @@ impl UiShell {
                             EditorCommand::Window(dun_core::WindowCommand::Close),
                         ),
                         MenuEntry::new(
-                            "Outline (/)",
-                            EditorCommand::App(dun_core::AppCommand::Outline),
-                        ),
-                        MenuEntry::new(
                             "Search Results (W)",
                             EditorCommand::App(dun_core::AppCommand::SearchResults),
                         ),

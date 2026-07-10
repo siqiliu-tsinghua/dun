@@ -335,9 +335,6 @@ Search and navigation:
 - `Ctrl+G` moves to a valid 1-based line number.
 - `F1` opens the key reference window.
 - `F2` opens the status history window.
-- Command prompt `outline` opens a read-only section list for the focused
-  buffer, `n`/`p` select outline rows, and `Enter` or `outline TARGET` jumps to
-  a numbered or named section.
 
 Process actions:
 

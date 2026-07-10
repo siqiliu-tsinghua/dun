@@ -87,7 +87,7 @@ first when the budget is exceeded.
 | 1 | Extra built-in themes | Keep `turbo`, `dark`, and `dun`; retain `msedit` and fallback colors if trimmed. |
 | 2 | Optional mouse interaction | Mouse focus, cursor placement, selection drag, split drag, menu clicks, scrollbar drag, and file-dialog mouse clicks. |
 | 3 | Editor convenience markers | Bookmarks, visible-whitespace markers, and nonessential line commands beyond core cut/copy/paste/editing. |
-| 4 | Read-only helper panes | Outline, Search Results, helper-pane row navigation, and source-return polish. Core Find/Replace stays required. |
+| 4 | Read-only helper panes | Search Results, helper-pane row navigation, and source-return polish. Core Find/Replace stays required. Outline was removed 2026-07-10 in the slimming stage (feature-triage F20). |
 | 5 | Status History pane | In-editor status/error history screen. Current status line stays required. |
 | 6 | Config Diagnostics pane | In-editor config diagnostics, section jumps, and keymap summaries. Config loading/validation stays required. |
 | 7 | Buffer switcher overlay | Switch Buffer UI. Tiled windows and loaded buffers remain, but direct switcher polish may be cut. |
