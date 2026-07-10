@@ -250,6 +250,19 @@ Recorded at `b2510a3`:
 Both binaries passed `--version` and `--dump-config` smoke. Dev builds and
 `cargo test` remain on the plain stable path; rust-src is a one-time
 prerequisite per machine (rustup component / Debian `rust-src` package).
+
+## 2026-07-11 Plugin Client Wiring
+
+`eb38c7b` makes `dun-plugin` a real `dun-cli` dependency (worker-thread
+host lifecycle, per-buffer highlight cache, configured policies):
+
+| Platform | Before | After | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 575,460 | 653,852 | +78,392 | 394,724 |
+| Debian x86_64 | 620,928 | 702,848 | +81,920 | 345,728 |
+
+Matches the spike's ~76 KiB floor plus wiring. `--version`/`--dump-config`
+smoke and the full workspace suite passed on both platforms.
 Each batch passed fmt/clippy, the workspace test suite (13 suites; the
 tmux 3.7 grid-harness failure recorded in TODO.md predates the slimming
 stage and reproduces at `b03192d`), and `--version`/`--dump-config` smoke

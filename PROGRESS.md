@@ -959,3 +959,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   Codex delegation workflow (docs/dev/codex/, scripts/dispatch-brief.sh)
   with two gated briefs: densified dun-ui hit tests (brief-001) and the
   Surface cell grid, slice 1 of the renderer-replacement line (brief-002).
+- Wired configured plugin hosts into the editor (2026-07-11, eb38c7b): the
+  protocol client became a real dun-cli dependency with a worker-thread host
+  lifecycle (lazy launch, failure cooldown, job coalescing) so hosts can
+  never block the event loop; validated highlight spans land in a
+  revision-guarded per-buffer cache and plugin errors surface as bounded
+  status text. HostClient now carries the configured plugin id. Measured
+  cost of the client + wiring: Debian +81,920 bytes (702,848 total, margin
+  345,728), macOS +78,392 (653,852). Render application of the cached spans
+  is the next slice.
