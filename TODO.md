@@ -474,6 +474,12 @@ this section focused on post-baseline extensions only.
 
 ## Deferred
 
+- [ ] Restoration review after the plugin protocol client lands: revisit the
+  removed C/D units (see docs/feature-triage.md "Restoration Path"), restore
+  selected ones by revert + gates if margin allows; F12/F13 (bookmarks,
+  visible whitespace) are the leading candidates, F20 (Outline) returns as a
+  plugin role instead.
+
 - [ ] OSC 52 paste/query support or platform-specific clipboard command
   integration.
 - [x] Crash recovery and orphaned atomic-save temp-file cleanup.

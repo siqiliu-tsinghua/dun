@@ -30,6 +30,26 @@ Spike A variants (Debian, measured 2026-07-10): build-std default features
 panic_immediate_abort 534,912 (hook does NOT run — rejected to preserve the
 terminal-restore invariant). The user ratified the empty-features contract.
 
+## Restoration Path for Removed Units
+
+The C/D removals predate the build-std contract; size alone no longer
+justifies them. Each batch is one clean full-trail commit, so restoration
+is a `git revert` plus the normal gates (user ruling 2026-07-10: eligible
+for restoration once the plugin client and other priority features have
+landed, if margin allows):
+
+- `ce68f20` — F46 advanced Command Output family. Value rationale for
+  removal (showcase-era leftover; LogFilter plugin overlap) still holds;
+  restore only with a concrete need.
+- `13d3ef7` — F20 Outline. Classified D: the recorded plan is to return as
+  a `DocumentStructure` plugin role, not as a core revert.
+- `53fe7f8` — F12 bookmarks + F13 visible whitespace. The most
+  size-motivated of the three; the strongest restoration candidates on
+  pure value grounds.
+
+Note: revert conflicts grow as the renderer-replacement line churns
+render/gutter/menu code — if F12/F13 are to come back, earlier is cheaper.
+
 The client cost comes from the `spike/plugin-client-size` branch
 (`c7f042c`), measured on the Debian VM with the locked release profile; see
 [release-size-audit.md](./release-size-audit.md). Treat 76 KiB as a floor:
