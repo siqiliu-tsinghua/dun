@@ -4,6 +4,7 @@ members = [
     "crates/dun-cli",
     "crates/dun-config",
     "crates/dun-core",
+    "crates/dun-plugin",
     "crates/dun-term",
     "crates/dun-ui",
 ]
@@ -19,6 +20,7 @@ license = "MIT"
 crossterm = "0.28"
 dun-config = { path = "crates/dun-config" }
 dun-core = { path = "crates/dun-core" }
+dun-plugin = { path = "crates/dun-plugin" }
 dun-term = { path = "crates/dun-term" }
 dun-ui = { path = "crates/dun-ui" }
 ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }

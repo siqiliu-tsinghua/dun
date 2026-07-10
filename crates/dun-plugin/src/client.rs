@@ -1,0 +1,353 @@
+//! Child-process plugin host client: launch, handshake, one-role requests,
+//! timeout/cancel, crash handling, and shutdown.
+//!
+//! Hosts are launched directly (no shell) with a cleared environment and
+//! only stdin/stdout/stderr passed through. stdout carries framed protocol
+//! messages; stderr is captured as bounded human-readable diagnostics.
+
+use std::fmt;
+use std::io::Read;
+use std::path::Path;
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use crate::frame::{FrameError, read_frame, write_frame};
+use crate::json::{self, Json};
+use crate::proto::{Envelope, MessageKind, Policy, ProtocolError, Role, TrustClass};
+use crate::validate::{InputSnapshot, StyleSpan, validate_spans};
+
+const SHUTDOWN_GRACE: Duration = Duration::from_millis(500);
+const MAX_HOST_ERROR_CHARS: usize = 200;
+
+#[derive(Debug)]
+pub enum PluginError {
+    Spawn(std::io::Error),
+    Io(std::io::Error),
+    Frame(FrameError),
+    Protocol(ProtocolError),
+    Handshake(&'static str),
+    Timeout,
+    HostClosed,
+    HostError(String),
+    StaleRevision {
+        expected: u64,
+        received: Option<u64>,
+    },
+    PolicyViolation(&'static str),
+}
+
+impl fmt::Display for PluginError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Spawn(error) => write!(formatter, "failed to launch plugin host: {error}"),
+            Self::Io(error) => write!(formatter, "plugin host I/O failed: {error}"),
+            Self::Frame(error) => write!(formatter, "plugin frame error: {error}"),
+            Self::Protocol(error) => write!(formatter, "plugin protocol error: {error}"),
+            Self::Handshake(message) => write!(formatter, "plugin handshake failed: {message}"),
+            Self::Timeout => write!(formatter, "plugin host timed out"),
+            Self::HostClosed => write!(formatter, "plugin host closed its protocol stream"),
+            Self::HostError(message) => {
+                write!(formatter, "plugin host reported an error: {message}")
+            }
+            Self::StaleRevision { expected, received } => match received {
+                Some(received) => write!(
+                    formatter,
+                    "stale plugin response: expected revision {expected}, received {received}"
+                ),
+                None => write!(
+                    formatter,
+                    "stale plugin response: expected revision {expected}, received none"
+                ),
+            },
+            Self::PolicyViolation(message) => {
+                write!(formatter, "plugin output rejected: {message}")
+            }
+        }
+    }
+}
+
+pub struct HostClient {
+    child: Child,
+    stdin: ChildStdin,
+    frames: Receiver<Result<Vec<u8>, FrameError>>,
+    stderr_tail: Arc<Mutex<Vec<u8>>>,
+    policy: Policy,
+    next_request_id: u64,
+    host_id: String,
+    trust: TrustClass,
+}
+
+impl HostClient {
+    pub fn launch(command_path: &Path, policy: Policy) -> Result<Self, PluginError> {
+        let mut child = Command::new(command_path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .env_clear()
+            .spawn()
+            .map_err(PluginError::Spawn)?;
+
+        let stdin = child.stdin.take().expect("child stdin is piped");
+        let mut stdout = child.stdout.take().expect("child stdout is piped");
+        let mut stderr = child.stderr.take().expect("child stderr is piped");
+
+        let (frame_sender, frames) = mpsc::channel();
+        let max_frame_bytes = policy.max_frame_bytes;
+        thread::spawn(move || {
+            loop {
+                let result = read_frame(&mut stdout, max_frame_bytes);
+                let stop = result.is_err();
+                if frame_sender.send(result).is_err() || stop {
+                    return;
+                }
+            }
+        });
+
+        let stderr_tail = Arc::new(Mutex::new(Vec::new()));
+        let stderr_capture = Arc::clone(&stderr_tail);
+        let max_stderr_bytes = policy.max_stderr_bytes;
+        thread::spawn(move || {
+            let mut chunk = [0u8; 1024];
+            loop {
+                match stderr.read(&mut chunk) {
+                    Ok(0) | Err(_) => return,
+                    Ok(count) => {
+                        if let Ok(mut tail) = stderr_capture.lock() {
+                            let space = max_stderr_bytes.saturating_sub(tail.len());
+                            tail.extend_from_slice(&chunk[..count.min(space)]);
+                        }
+                    }
+                }
+            }
+        });
+
+        let mut client = Self {
+            child,
+            stdin,
+            frames,
+            stderr_tail,
+            policy,
+            next_request_id: 1,
+            host_id: String::new(),
+            trust: TrustClass::UserTrustedExternal,
+        };
+
+        if let Err(error) = client.handshake() {
+            client.kill();
+            return Err(error);
+        }
+        Ok(client)
+    }
+
+    fn handshake(&mut self) -> Result<(), PluginError> {
+        self.send(&Envelope {
+            kind: MessageKind::Hello,
+            request_id: 0,
+            plugin_id: String::new(),
+            role: None,
+            revision: None,
+            payload: json::obj([("host", json::str("dun"))]),
+        })?;
+        let timeout = self.policy.timeout;
+        let ack = self.recv(timeout)?;
+        if ack.kind != MessageKind::HelloAck {
+            return Err(PluginError::Handshake("expected hello-ack"));
+        }
+        let host_id = ack
+            .payload
+            .get("host_id")
+            .and_then(Json::as_str)
+            .ok_or(PluginError::Handshake("missing host id"))?;
+        let trust_id = ack
+            .payload
+            .get("trust")
+            .and_then(Json::as_str)
+            .ok_or(PluginError::Handshake("missing trust class"))?;
+        let trust = TrustClass::from_id(trust_id)
+            .ok_or(PluginError::Handshake("unsupported trust class"))?;
+        self.host_id = host_id.to_string();
+        self.trust = trust;
+        Ok(())
+    }
+
+    pub fn host_id(&self) -> &str {
+        &self.host_id
+    }
+
+    pub const fn trust(&self) -> TrustClass {
+        self.trust
+    }
+
+    pub fn request_highlight(
+        &mut self,
+        snapshot: &InputSnapshot,
+    ) -> Result<Vec<StyleSpan>, PluginError> {
+        if snapshot.lines.len() > self.policy.max_snapshot_lines {
+            return Err(PluginError::PolicyViolation("snapshot exceeds line budget"));
+        }
+        let request_id = self.next_request_id;
+        self.next_request_id += 1;
+        let lines = snapshot.lines.iter().map(|line| json::str(line)).collect();
+        self.send(&Envelope {
+            kind: MessageKind::Request,
+            request_id,
+            plugin_id: "highlight".to_string(),
+            role: Some(Role::SyntaxHighlight),
+            revision: Some(snapshot.buffer_revision),
+            payload: Json::Obj(vec![
+                ("language".to_string(), json::str(&snapshot.language)),
+                (
+                    "first_line".to_string(),
+                    json::num(u64::from(snapshot.first_line)),
+                ),
+                ("lines".to_string(), Json::Arr(lines)),
+            ]),
+        })?;
+
+        let mut diagnostics_seen = 0usize;
+        let deadline = Instant::now() + self.policy.timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let envelope = match self.recv(remaining) {
+                Ok(envelope) => envelope,
+                Err(PluginError::Timeout) => {
+                    let _ = self.send(&Envelope {
+                        kind: MessageKind::CancelRequest,
+                        request_id,
+                        plugin_id: "highlight".to_string(),
+                        role: Some(Role::SyntaxHighlight),
+                        revision: None,
+                        payload: Json::Null,
+                    });
+                    self.kill();
+                    return Err(PluginError::Timeout);
+                }
+                Err(error) => {
+                    self.kill();
+                    return Err(error);
+                }
+            };
+            match envelope.kind {
+                MessageKind::Diagnostic => {
+                    diagnostics_seen += 1;
+                    if diagnostics_seen > self.policy.max_diagnostics {
+                        self.kill();
+                        return Err(PluginError::PolicyViolation("diagnostic flood"));
+                    }
+                }
+                MessageKind::Response => {
+                    if envelope.request_id != request_id {
+                        self.kill();
+                        return Err(PluginError::PolicyViolation("response for unknown request"));
+                    }
+                    if envelope.role != Some(Role::SyntaxHighlight) {
+                        self.kill();
+                        return Err(PluginError::PolicyViolation("response role mismatch"));
+                    }
+                    if envelope.revision != Some(snapshot.buffer_revision) {
+                        return Err(PluginError::StaleRevision {
+                            expected: snapshot.buffer_revision,
+                            received: envelope.revision,
+                        });
+                    }
+                    return validate_spans(snapshot, &envelope.payload, &self.policy)
+                        .map_err(PluginError::PolicyViolation);
+                }
+                MessageKind::Error => {
+                    let message = envelope
+                        .payload
+                        .get("message")
+                        .and_then(Json::as_str)
+                        .unwrap_or("unspecified");
+                    return Err(PluginError::HostError(bounded_message(message)));
+                }
+                _ => {
+                    self.kill();
+                    return Err(PluginError::PolicyViolation("unexpected message kind"));
+                }
+            }
+        }
+    }
+
+    pub fn shutdown(mut self) -> Result<(), PluginError> {
+        let _ = self.send(&Envelope {
+            kind: MessageKind::Shutdown,
+            request_id: 0,
+            plugin_id: String::new(),
+            role: None,
+            revision: None,
+            payload: Json::Null,
+        });
+        let deadline = Instant::now() + SHUTDOWN_GRACE;
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(status)) => {
+                    if status.success() {
+                        return Ok(());
+                    }
+                    let mut message = format!("host exited with {status}");
+                    let excerpt = self.stderr_excerpt();
+                    if !excerpt.is_empty() {
+                        message.push_str(": ");
+                        message.push_str(&excerpt);
+                    }
+                    return Err(PluginError::HostError(bounded_message(&message)));
+                }
+                Ok(None) => {
+                    if Instant::now() >= deadline {
+                        self.kill();
+                        return Err(PluginError::Timeout);
+                    }
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => return Err(PluginError::Io(error)),
+            }
+        }
+    }
+
+    fn send(&mut self, envelope: &Envelope) -> Result<(), PluginError> {
+        write_frame(&mut self.stdin, &envelope.to_json_bytes()).map_err(PluginError::Io)
+    }
+
+    fn recv(&mut self, timeout: Duration) -> Result<Envelope, PluginError> {
+        match self.frames.recv_timeout(timeout) {
+            Ok(Ok(payload)) => Envelope::from_json_bytes(&payload).map_err(PluginError::Protocol),
+            Ok(Err(FrameError::Eof)) => Err(PluginError::HostClosed),
+            Ok(Err(error)) => Err(PluginError::Frame(error)),
+            Err(RecvTimeoutError::Timeout) => Err(PluginError::Timeout),
+            Err(RecvTimeoutError::Disconnected) => Err(PluginError::HostClosed),
+        }
+    }
+
+    fn stderr_excerpt(&self) -> String {
+        match self.stderr_tail.lock() {
+            Ok(tail) => String::from_utf8_lossy(tail.as_slice()).into_owned(),
+            Err(_) => String::new(),
+        }
+    }
+
+    fn kill(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+impl Drop for HostClient {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
+fn bounded_message(message: &str) -> String {
+    if message.len() <= MAX_HOST_ERROR_CHARS {
+        return message.to_string();
+    }
+    let mut cut = MAX_HOST_ERROR_CHARS;
+    while !message.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    format!("{}...", &message[..cut])
+}

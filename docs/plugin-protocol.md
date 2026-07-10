@@ -65,6 +65,15 @@ enough while the protocol evolves. Binary encodings such as CBOR or MessagePack
 may be considered only after the JSON protocol is stable and measured as a real
 problem.
 
+Serialization is hand-rolled, not serde (user decision 2026-07-10). The
+client parses untrusted host output, so the parser is part of the audited
+trusted computing base: the in-tree ~400-line JSON module with pre-parse
+frame caps and an explicit depth limit is preferred over adding the serde
+family (which would also outlive the ratatui removal as the sole keeper of
+its proc-macro dependency tree). Revisit only if role/payload complexity
+makes hand-written field mapping error-prone; switching later is a local
+refactor because the wire format stays JSON.
+
 ## Trust Classes
 
 Protocol compatibility is not a security claim. A host process can still do

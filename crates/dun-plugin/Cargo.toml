@@ -1,0 +1,9 @@
+[package]
+name = "dun-plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Host-neutral Dun Plugin Protocol client."
+
+[dependencies]
