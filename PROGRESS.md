@@ -968,3 +968,13 @@ This is an append-only progress log. Keep new entries dated and factual.
   cost of the client + wiring: Debian +81,920 bytes (702,848 total, margin
   345,728), macOS +78,392 (653,852). Render application of the cached spans
   is the next slice.
+- Completed the SyntaxHighlight role end to end (2026-07-11, 29c1d28): five
+  syntax palette slots across all themes including 16-color and mono
+  fallbacks, character-to-byte span conversion at cache time, frame mapping
+  through a body-span geometry helper shared with selection and search
+  (unwrapped, wrapped, horizontal-scroll clipping), and painting beneath
+  search and selection. Verified end to end in a real tmux session: a
+  configured fixture-host plugin colors "fn" with the msedit keyword color.
+  Render slice cost +4,096 bytes Debian; total protocol-client cost from
+  the pre-client baseline is 86,016 bytes (Debian 706,944, margin 341,632).
+  The protocol-client stage's First Applied Role section is closed.

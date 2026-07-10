@@ -263,6 +263,12 @@ host lifecycle, per-buffer highlight cache, configured policies):
 
 Matches the spike's ~76 KiB floor plus wiring. `--version`/`--dump-config`
 smoke and the full workspace suite passed on both platforms.
+
+The render slice (`29c1d28`: syntax palette slots, span conversion, frame
+mapping, painting) completed the SyntaxHighlight role end to end for
++4,112 macOS (657,964) / +4,096 Debian (706,944; margin 341,632). Full
+protocol-client cost from the pre-client baseline: 86,016 bytes Debian.
+End-to-end verified in a real tmux session against the fixture host.
 Each batch passed fmt/clippy, the workspace test suite (13 suites; the
 tmux 3.7 grid-harness failure recorded in TODO.md predates the slimming
 stage and reproduces at `b03192d`), and `--version`/`--dump-config` smoke

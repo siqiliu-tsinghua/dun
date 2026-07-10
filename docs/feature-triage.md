@@ -197,7 +197,7 @@ per-unit measurement was cancelled as unnecessary.
 | ID | Feature unit | Surface | Current | Hypothesis | Bytes | Decision |
 | --- | --- | --- | --- | --- | ---: | --- |
 | F47 | CLI contract: `--help`, `--version`, `--config`, `--no-config`, `--dump-config`, exit codes | `dun-cli` args | req | A | | |
-| F48 | Plugin protocol client | `dun-plugin` + `plugin.<id>.*` config + editor wiring | req | A | 81,920 | A — landed 2026-07-11 (`eb38c7b`); render application of highlight spans pending |
+| F48 | Plugin protocol client | `dun-plugin` + `plugin.<id>.*` config + wiring + syntax rendering | req | A | 86,016 | A — complete 2026-07-11 (`29c1d28`); SyntaxHighlight end-to-end verified in tmux |
 
 ## Removal Trail Checklist
 
