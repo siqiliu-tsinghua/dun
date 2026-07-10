@@ -1,4 +1,6 @@
-use crate::{ConfigError, FileDialogKeymapError, KeyParseError, KeymapError, LimitsError};
+use crate::{
+    ConfigError, FileDialogKeymapError, KeyParseError, KeymapError, LimitsError, PluginConfigError,
+};
 
 pub(crate) fn config_error_text(error: &ConfigError) -> String {
     match error {
@@ -10,6 +12,33 @@ pub(crate) fn config_error_text(error: &ConfigError) -> String {
             )
         }
         ConfigError::Limits(error) => format!("invalid limits: {}", limits_error_text(*error)),
+        ConfigError::Plugins(error) => {
+            format!("invalid plugin configuration: {}", plugin_error_text(error))
+        }
+    }
+}
+
+fn plugin_error_text(error: &PluginConfigError) -> String {
+    match error {
+        PluginConfigError::MissingCommand(id) => {
+            format!("plugin `{id}` requires a nonempty command")
+        }
+        PluginConfigError::MissingTrust(id) => {
+            format!("plugin `{id}` requires an explicit trust value")
+        }
+        PluginConfigError::MissingRoles(id) => {
+            format!("plugin `{id}` requires at least one role")
+        }
+        PluginConfigError::TimeoutZero(id) => {
+            format!("plugin `{id}` timeout must be greater than zero milliseconds")
+        }
+        PluginConfigError::MaxFrameBytesZero(id) => {
+            format!("plugin `{id}` frame byte limit must be greater than zero")
+        }
+        PluginConfigError::DuplicateRole { id, role } => format!(
+            "plugin `{id}` has duplicate role `{}`",
+            role.as_config_value()
+        ),
     }
 }
 

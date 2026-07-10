@@ -21,9 +21,9 @@ Explicit or environment-provided config paths must be readable and valid. A
 missing default config file is ignored.
 
 `dun --dump-config` prints the built-in default configuration grouped into
-appearance, terminal fallback, mouse, clipboard, file/display limits, global
-command bindings, and Open/Save As modal bindings, so it can be used as a
-starting point for a user config file.
+appearance, terminal fallback, mouse, clipboard, file/display limits,
+commented plugin-host examples, global command bindings, and Open/Save As
+modal bindings, so it can be used as a starting point for a user config file.
 
 ## Format
 
@@ -143,6 +143,40 @@ External copy is optional and disabled by default. When
 selection to the internal clipboard and emits an OSC 52 clipboard write if the
 UTF-8 payload is no larger than `clipboard.osc52.max_bytes`. `dun` does not
 query OSC 52 paste data or call platform clipboard commands.
+
+## Plugin hosts
+
+Plugin host entries use an identifier containing only lowercase ASCII letters,
+digits, and hyphens. Each host requires a command path, an explicit trust
+class, and at least one role:
+
+```text
+plugin.example.command = /path/to/plugin-host
+plugin.example.trust = user-trusted-external
+plugin.example.roles = syntax-highlight, log-filter
+plugin.example.timeout_ms = 2000
+plugin.example.max_frame_bytes = 256 KiB
+```
+
+The allowed trust classes are `pure-sandbox` and `user-trusted-external`.
+Use `pure-sandbox` only when the host runtime is separately known to prevent
+file, process, network, terminal, environment, and editor-state side effects.
+Speaking the Dun Plugin Protocol does not make an external program sandboxed;
+ordinary executables and scripts must be configured as
+`user-trusted-external`.
+
+The allowed roles are `syntax-highlight`, `log-filter`, `text-transform`, and
+`config-helper`. Roles are comma-separated, and repeating a role in one entry
+is an error. `timeout_ms` defaults to `2000`, and `max_frame_bytes` defaults to
+`256 KiB`; both must be greater than zero. Frame limits accept the same binary
+byte units as other byte-valued settings.
+
+Keys for one identifier accumulate into a single entry, and a later value for
+the same key replaces the earlier value. This also applies when overlaying
+configuration onto an already parsed `Config`. The command value is a path for
+the future process launcher to execute directly, without a shell. Parsing this
+section only builds and validates typed configuration; it does not launch a
+plugin host.
 
 ## Example
 

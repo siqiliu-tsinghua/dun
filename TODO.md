@@ -58,8 +58,10 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
   `unsupported-unsafe`.
 - [ ] Define `PluginPolicy`: max input bytes, max output bytes, timeout,
   diagnostic cap, allowed outputs, and whether user confirmation is required.
-- [ ] Define plugin manifest/config fields for id, command, runtime,
-  trust class, roles, and per-role policy overrides.
+- [x] Define plugin manifest/config fields (baseline 2026-07-10:
+  `plugin.<id>.command/trust/roles/timeout_ms/max_frame_bytes`, typed and
+  validated in dun-config without a dun-plugin dependency). Per-role policy
+  overrides and a runtime field remain open.
 - [ ] Reject unknown trust classes, unknown roles, missing command paths, and
   any direct filesystem/process/network/terminal/editor authority request.
 
@@ -95,14 +97,19 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 
 ### Fixture Hosts and Tests
 
-- [ ] Add a Rust fixture host for CI-grade protocol tests.
+- [x] Add a Rust fixture host for CI-grade protocol tests
+  (`crates/dun-plugin/src/bin/fixture-host.rs`, mode via argv or program
+  name).
 - [ ] Add optional Python fixture/examples only outside the required CI path.
-- [ ] Test handshake success and protocol-version rejection.
-- [ ] Test normal request/response for the first applied role.
-- [ ] Test malformed frame, malformed JSON, oversized frame, oversized output,
-  unknown role, forbidden output, timeout, cancellation, host crash, and stderr
-  diagnostics.
-- [ ] Test stale revision rejection leaves editor state unchanged.
+- [x] Test handshake success and protocol-version rejection.
+- [x] Test normal request/response for the highlight role (client-level;
+  editor application pending).
+- [x] Test malformed/truncated frames, oversized frame, span flood,
+  forbidden output (coords/style/request-id), timeout, host crash, and stderr
+  flooding (15-test matrix in `crates/dun-plugin/tests/protocol.rs`).
+  Explicit cancellation-path and malformed-JSON-frame cases remain open.
+- [x] Test stale revision rejection at the client level (editor-state
+  invariance is checked again at wiring).
 - [ ] Test that rejected plugin output cannot request file I/O, process spawn,
   terminal writes, direct buffer mutation, or raw control-byte rendering.
 

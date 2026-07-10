@@ -4,14 +4,22 @@ use std::str::FromStr;
 use dun_term::{ColorProfile, EncodingProfile, ThemeName};
 
 use crate::keys::normalize_token;
+use crate::plugins::{
+    PLUGIN_ROLE_VALUES, PLUGIN_TRUST_VALUES, PluginEntryDraft, PluginRole, PluginTrust,
+};
 use crate::validation::{config_error_text, key_parse_error_text};
-use crate::{Config, KeySequence, command_from_id, file_dialog_action_from_id};
+use crate::{Config, ConfigError, KeySequence, command_from_id, file_dialog_action_from_id};
 
 pub fn parse_config(input: &str) -> Result<Config, ConfigParseError> {
     parse_config_overlay(Config::default(), input)
 }
 
 pub fn parse_config_overlay(mut config: Config, input: &str) -> Result<Config, ConfigParseError> {
+    let mut plugin_entries = std::mem::take(&mut config.plugins)
+        .into_iter()
+        .map(PluginEntryDraft::from)
+        .collect::<Vec<_>>();
+
     for (index, raw_line) in input.lines().enumerate() {
         let line_number = index + 1;
         let line = strip_comment(raw_line).trim();
@@ -25,8 +33,20 @@ pub fn parse_config_overlay(mut config: Config, input: &str) -> Result<Config, C
                 "expected `key = value` entry",
             ));
         };
-        apply_config_entry(&mut config, raw_key.trim(), raw_value.trim(), line_number)?;
+        apply_config_entry(
+            &mut config,
+            &mut plugin_entries,
+            raw_key.trim(),
+            raw_value.trim(),
+            line_number,
+        )?;
     }
+
+    config.plugins = plugin_entries
+        .into_iter()
+        .map(PluginEntryDraft::into_entry)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| ConfigParseError::global(config_error_text(&ConfigError::from(error))))?;
 
     config
         .validate()
@@ -75,6 +95,7 @@ fn strip_comment(line: &str) -> &str {
 
 fn apply_config_entry(
     config: &mut Config,
+    plugin_entries: &mut Vec<PluginEntryDraft>,
     raw_key: &str,
     raw_value: &str,
     line_number: usize,
@@ -83,8 +104,14 @@ fn apply_config_entry(
         return Err(ConfigParseError::line(line_number, "empty config key"));
     }
 
-    let key = normalize_config_key(raw_key);
     let value = unquote_value(raw_value);
+
+    if let Some(plugin_key) = raw_key.strip_prefix("plugin.") {
+        apply_plugin_entry(plugin_entries, plugin_key, value, line_number)?;
+        return Ok(());
+    }
+
+    let key = normalize_config_key(raw_key);
 
     match key.as_str() {
         "theme" => {
@@ -158,6 +185,95 @@ fn apply_config_entry(
             return Err(ConfigParseError::line(
                 line_number,
                 format!("unknown config key `{raw_key}`"),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_plugin_entry(
+    entries: &mut Vec<PluginEntryDraft>,
+    plugin_key: &str,
+    value: &str,
+    line_number: usize,
+) -> Result<(), ConfigParseError> {
+    let Some((id, field)) = plugin_key.rsplit_once('.') else {
+        return Err(ConfigParseError::line(
+            line_number,
+            "expected `plugin.<id>.<field>` config key",
+        ));
+    };
+    if id.is_empty()
+        || !id
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    {
+        return Err(ConfigParseError::line(
+            line_number,
+            format!("invalid plugin id `{id}`; expected only `[a-z0-9-]` characters"),
+        ));
+    }
+
+    let entry = match entries.iter().position(|entry| entry.id == id) {
+        Some(index) => &mut entries[index],
+        None => {
+            entries.push(PluginEntryDraft::new(id.to_string()));
+            entries.last_mut().expect("plugin entry was just inserted")
+        }
+    };
+
+    match field {
+        "command" => entry.command = value.into(),
+        "trust" => {
+            entry.trust = Some(PluginTrust::from_config_value(value).ok_or_else(|| {
+                ConfigParseError::line(
+                    line_number,
+                    format!(
+                        "unknown plugin trust `{value}`; allowed values are {PLUGIN_TRUST_VALUES}"
+                    ),
+                )
+            })?);
+        }
+        "roles" => {
+            let roles = if value.is_empty() {
+                Vec::new()
+            } else {
+                value
+                    .split(',')
+                    .map(|raw_role| {
+                        let role = raw_role.trim();
+                        PluginRole::from_config_value(role).ok_or_else(|| {
+                            ConfigParseError::line(
+                                line_number,
+                                format!(
+                                    "unknown plugin role `{role}`; allowed values are {PLUGIN_ROLE_VALUES}"
+                                ),
+                            )
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+            entry.roles = roles;
+        }
+        "timeout_ms" => {
+            entry.timeout_ms = value.parse().map_err(|_| {
+                ConfigParseError::line(line_number, "expected a plugin timeout in milliseconds")
+            })?;
+        }
+        "max_frame_bytes" => {
+            let value = parse_byte_count(value, line_number)?;
+            entry.max_frame_bytes = usize::try_from(value).map_err(|_| {
+                ConfigParseError::line(
+                    line_number,
+                    "plugin frame byte limit does not fit this platform",
+                )
+            })?;
+        }
+        _ => {
+            return Err(ConfigParseError::line(
+                line_number,
+                format!("unknown plugin config field `{field}`"),
             ));
         }
     }

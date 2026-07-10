@@ -8,6 +8,7 @@ mod defaults;
 mod keys;
 mod limits;
 mod parser;
+mod plugins;
 mod validation;
 
 pub(crate) use commands::normalize_command_id;
@@ -23,6 +24,7 @@ pub use keys::{
 };
 pub use limits::{Limits, LimitsError};
 pub use parser::{ConfigParseError, parse_config, parse_config_overlay};
+pub use plugins::{PluginConfigError, PluginEntry, PluginRole, PluginTrust};
 
 #[cfg(test)]
 mod tests;

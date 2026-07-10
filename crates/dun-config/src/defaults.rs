@@ -44,6 +44,15 @@ pub fn default_config_text() -> String {
         config.limits.run_command_timeout_ms
     ));
 
+    out.push_str(
+        "\n# Plugin hosts\n\
+# plugin.example.command = /path/to/plugin-host\n\
+# plugin.example.trust = user-trusted-external\n\
+# plugin.example.roles = syntax-highlight, log-filter\n\
+# plugin.example.timeout_ms = 2000\n\
+# plugin.example.max_frame_bytes = 256 KiB\n",
+    );
+
     out.push_str("\n# Global editor command keybindings\n");
     let mut keybindings = config
         .keybindings

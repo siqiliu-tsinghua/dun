@@ -1,6 +1,8 @@
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme, ThemeName};
 
+use crate::plugins::validate_plugin_entries;
 use crate::{FileDialogKeymap, FileDialogKeymapError, Keymap, KeymapError, Limits, LimitsError};
+use crate::{PluginConfigError, PluginEntry};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
@@ -11,6 +13,7 @@ pub struct Config {
     pub keybindings: Keymap,
     pub file_dialog_keys: FileDialogKeymap,
     pub limits: Limits,
+    pub plugins: Vec<PluginEntry>,
 }
 
 impl Config {
@@ -18,6 +21,7 @@ impl Config {
         self.keybindings.validate()?;
         self.file_dialog_keys.validate()?;
         self.limits.validate()?;
+        validate_plugin_entries(&self.plugins)?;
         Ok(())
     }
 
@@ -40,6 +44,7 @@ impl Default for Config {
             keybindings: Keymap::default(),
             file_dialog_keys: FileDialogKeymap::default(),
             limits: Limits::default(),
+            plugins: Vec::new(),
         }
     }
 }
@@ -95,6 +100,7 @@ pub enum ConfigError {
     Keymap(KeymapError),
     FileDialogKeymap(FileDialogKeymapError),
     Limits(LimitsError),
+    Plugins(PluginConfigError),
 }
 
 impl From<KeymapError> for ConfigError {
@@ -112,5 +118,11 @@ impl From<FileDialogKeymapError> for ConfigError {
 impl From<LimitsError> for ConfigError {
     fn from(error: LimitsError) -> Self {
         Self::Limits(error)
+    }
+}
+
+impl From<PluginConfigError> for ConfigError {
+    fn from(error: PluginConfigError) -> Self {
+        Self::Plugins(error)
     }
 }
