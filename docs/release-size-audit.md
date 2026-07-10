@@ -215,6 +215,11 @@ Deltas are per whole batch (fat LTO makes per-item deltas non-additive).
 | 3 | `53fe7f8` | F12 bookmarks + F13 visible whitespace | 826,656 | 989,784 | −12,288 |
 
 Cumulative: −49,152 bytes (48.0 KiB) on Debian; margin is 58,792 bytes.
+
+The 2026-07-10 defect-fix commit (`06ed915`: panic terminal-restore hook,
+run-command timeout, dirty-check caching) measured 826,768 bytes on macOS
+(+112) and 997,976 bytes on Debian (+8,192 after page alignment); margin
+50,600 bytes.
 Each batch passed fmt/clippy, the workspace test suite (13 suites; the
 tmux 3.7 grid-harness failure recorded in TODO.md predates the slimming
 stage and reproduces at `b03192d`), and `--version`/`--dump-config` smoke

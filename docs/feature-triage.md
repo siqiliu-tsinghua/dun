@@ -20,8 +20,10 @@ future-feature reserve (target):      80–120 KiB
 required freed bytes:                150,104–191,064 bytes  (~147–187 KiB)
 
 freed by C/D batches 1–3 (2026-07-10):    49,152 bytes  (48.0 KiB)
-current binary (53fe7f8):                989,784 bytes  (58,792 under budget)
-still to free:                       ~100,952–141,912 bytes  (~99–139 KiB)
+defect-fix cost (06ed915):                +8,192 bytes  (safety fixes)
+current binary (06ed915):                997,976 bytes  (50,600 under budget)
+still to free:                       ~109,144–150,104 bytes  (~107–147 KiB)
+next lever: ratatui-replacement spike (est. 30–60 KiB, zero feature loss)
 ```
 
 The client cost comes from the `spike/plugin-client-size` branch
