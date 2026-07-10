@@ -25,9 +25,11 @@ use dun_core::{
     Selection, SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind, WindowState,
     Workspace, WorkspaceError, decode_file_text,
 };
-use dun_plugin::StyleSpan;
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
-use dun_ui::{BufferView, MenuSelection, UiMouseTarget, UiOverlay, UiShell};
+use dun_ui::{
+    BufferHighlightSpan, BufferView, HighlightClass, MenuSelection, UiMouseTarget, UiOverlay,
+    UiShell,
+};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};

@@ -10,9 +10,9 @@ mod surface;
 mod text;
 
 pub use model::{
-    BufferView, MenuBar, MenuEntry, MenuItem, MenuSelection, StatusBar, UiCursor, UiFrame,
-    UiGutterLine, UiHorizontalEdgeLine, UiMouseHit, UiMouseTarget, UiOverlay, UiScrollbar,
-    UiSearchMatchLine, UiSelectionLine, UiWindow,
+    BufferHighlightSpan, BufferView, HighlightClass, MenuBar, MenuEntry, MenuItem, MenuSelection,
+    StatusBar, UiCursor, UiFrame, UiGutterLine, UiHighlightLine, UiHorizontalEdgeLine, UiMouseHit,
+    UiMouseTarget, UiOverlay, UiScrollbar, UiSearchMatchLine, UiSelectionLine, UiWindow,
 };
 #[cfg(test)]
 pub(crate) use render::chrome::{vertical_overflow_down, vertical_overflow_up};

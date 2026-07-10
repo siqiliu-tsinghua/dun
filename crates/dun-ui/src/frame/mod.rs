@@ -93,6 +93,13 @@ impl UiShell {
         } else {
             Vec::new()
         };
+        let highlights = if !window.collapsed {
+            buffer
+                .map(|buffer| self.plugin_highlights_for_buffer(buffer, rect, gutter_width))
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let horizontal_edges = if !window.collapsed {
             buffer
                 .map(|buffer| self.horizontal_edges_for_buffer(buffer, rect, gutter_width))
@@ -132,6 +139,7 @@ impl UiShell {
             cursor,
             selection,
             search_matches,
+            highlights,
             horizontal_edges,
             scrollbar,
             body,

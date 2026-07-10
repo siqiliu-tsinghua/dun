@@ -10,8 +10,7 @@ pub(crate) struct BufferViewContext {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BufferHighlight {
     pub(crate) revision: u64,
-    pub(crate) first_line: usize,
-    pub(crate) spans: Vec<StyleSpan>,
+    pub(crate) spans: Vec<BufferHighlightSpan>,
 }
 
 pub(crate) struct BufferState {

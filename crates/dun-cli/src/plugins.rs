@@ -32,7 +32,6 @@ pub(crate) struct HighlightJob {
 pub(crate) struct HighlightOutcome {
     pub(crate) buffer_id: BufferId,
     pub(crate) revision: u64,
-    pub(crate) first_line: usize,
     pub(crate) result: Result<Vec<StyleSpan>, String>,
 }
 
@@ -154,7 +153,6 @@ fn highlight_worker(
                 let _ = outcomes.send(HighlightOutcome {
                     buffer_id: job.buffer_id,
                     revision: job.revision,
-                    first_line: job.first_line,
                     result: Ok(spans),
                 });
             }
@@ -173,7 +171,6 @@ fn failure_outcome(job: &HighlightJob, message: &str) -> HighlightOutcome {
     HighlightOutcome {
         buffer_id: job.buffer_id,
         revision: job.revision,
-        first_line: job.first_line,
         result: Err(message.to_string()),
     }
 }

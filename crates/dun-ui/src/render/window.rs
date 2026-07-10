@@ -8,8 +8,8 @@ use crate::render::chrome::{
     render_border, sanitize_chrome_text, sanitized_line_to_ratatui, to_ratatui_style,
 };
 use crate::{
-    UiCursor, UiGutterLine, UiHorizontalEdgeLine, UiScrollbar, UiSearchMatchLine, UiSelectionLine,
-    UiShell, UiWindow, fit_text_to_width,
+    HighlightClass, UiCursor, UiGutterLine, UiHighlightLine, UiHorizontalEdgeLine, UiScrollbar,
+    UiSearchMatchLine, UiSelectionLine, UiShell, UiWindow, fit_text_to_width,
 };
 
 pub(crate) fn render_window(
@@ -82,6 +82,7 @@ pub(crate) fn render_window(
         window.cursor,
         to_ratatui_style(shell.theme.palette.current_line),
     );
+    render_plugin_highlights(frame.buffer_mut(), area, shell, &window.highlights);
     render_search_matches(
         frame.buffer_mut(),
         area,
@@ -184,6 +185,35 @@ fn render_selection(
             continue;
         }
 
+        let start = window_area.x.saturating_add(line.start_x);
+        let end = window_area.x.saturating_add(line.end_x);
+        let right = window_area.x.saturating_add(window_area.width);
+        for x in start..end.min(right) {
+            buffer[(x, y)].set_style(style);
+        }
+    }
+}
+
+fn render_plugin_highlights(
+    buffer: &mut Buffer,
+    window_area: TuiRect,
+    shell: &UiShell,
+    highlights: &[UiHighlightLine],
+) {
+    for line in highlights {
+        let y = window_area.y.saturating_add(line.y);
+        if y >= window_area.y.saturating_add(window_area.height) {
+            continue;
+        }
+
+        let palette = &shell.theme.palette;
+        let style = to_ratatui_style(match line.class {
+            HighlightClass::Keyword => palette.syntax_keyword,
+            HighlightClass::Comment => palette.syntax_comment,
+            HighlightClass::StringLiteral => palette.syntax_string,
+            HighlightClass::Number => palette.syntax_number,
+            HighlightClass::Emphasis => palette.syntax_emphasis,
+        });
         let start = window_area.x.saturating_add(line.start_x);
         let end = window_area.x.saturating_add(line.end_x);
         let right = window_area.x.saturating_add(window_area.width);

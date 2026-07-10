@@ -96,6 +96,12 @@ lightweight right-border scrollbar thumb. Horizontally clipped lines show
 small edge indicators at the body boundary.
 Buffer text, pane titles, and status fields are sanitized before rendering so
 file content and file names cannot emit terminal control sequences.
+The host-neutral plugin protocol client is wired into the editor: hosts
+configured through `plugin.<id>.*` keys are launched as child processes on a
+worker thread (never blocking the event loop), and a `syntax-highlight` role
+host returns style spans that are validated, revision-guarded, and rendered
+through the theme's syntax palette; host failures surface as bounded status
+messages without touching editor state.
 By default, `F1` opens a read-only Help window with the active configured key
 reference, and `F2` opens a read-only Status History window with recent status
 and error messages. `F5` reloads the active configuration without restarting

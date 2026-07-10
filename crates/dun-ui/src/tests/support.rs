@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+pub(super) use crate::render::chrome::to_ratatui_style;
 pub(super) use crate::*;
 pub(super) use dun_config::{
     ColorProfile, Config, EncodingProfile, KeySequence, KeyStroke, TerminalOverrides,

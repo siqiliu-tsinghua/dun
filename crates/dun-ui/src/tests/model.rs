@@ -551,3 +551,103 @@ fn menu_mnemonics_are_unique_within_each_menu() {
         }
     }
 }
+
+#[test]
+fn frame_maps_plugin_highlight_spans_to_window_body() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "fn main() {}\nbody");
+    let highlights = [
+        BufferHighlightSpan {
+            line: 0,
+            start_column: 0,
+            end_column: 2,
+            class: HighlightClass::Keyword,
+        },
+        BufferHighlightSpan {
+            line: 5,
+            start_column: 0,
+            end_column: 1,
+            class: HighlightClass::Comment,
+        },
+    ];
+    let buffer_view = BufferView::new(BufferId(1), &buffer).with_highlight_spans(&highlights);
+
+    let frame =
+        UiShell::default().frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
+
+    assert_eq!(
+        frame.windows[0].highlights,
+        vec![UiHighlightLine {
+            y: 1,
+            start_x: 3,
+            end_x: 5,
+            class: HighlightClass::Keyword,
+        }],
+        "visible span maps beside the gutter; the off-screen line is dropped"
+    );
+}
+
+#[test]
+fn frame_clips_highlight_spans_to_horizontal_scroll() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdef");
+    let highlights = [BufferHighlightSpan {
+        line: 0,
+        start_column: 0,
+        end_column: 4,
+        class: HighlightClass::StringLiteral,
+    }];
+    let buffer_view =
+        BufferView::scrolled_xy(BufferId(1), &buffer, 0, 2).with_highlight_spans(&highlights);
+
+    let frame =
+        UiShell::default().frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
+
+    assert_eq!(
+        frame.windows[0].highlights,
+        vec![UiHighlightLine {
+            y: 1,
+            start_x: 3,
+            end_x: 5,
+            class: HighlightClass::StringLiteral,
+        }],
+        "columns before the horizontal scroll origin are clipped"
+    );
+}
+
+#[test]
+fn frame_maps_wrapped_highlight_spans_to_visual_rows() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcdefghijkl");
+    let highlights = [BufferHighlightSpan {
+        line: 0,
+        start_column: 6,
+        end_column: 10,
+        class: HighlightClass::Number,
+    }];
+    let buffer_view = BufferView::new(BufferId(1), &buffer)
+        .with_wrap(true)
+        .with_highlight_spans(&highlights);
+
+    let frame =
+        UiShell::default().frame_for_workspace(&workspace, Rect::new(0, 0, 12, 6), &[buffer_view]);
+
+    assert_eq!(
+        frame.windows[0].highlights,
+        vec![
+            UiHighlightLine {
+                y: 1,
+                start_x: 9,
+                end_x: 11,
+                class: HighlightClass::Number,
+            },
+            UiHighlightLine {
+                y: 2,
+                start_x: 3,
+                end_x: 5,
+                class: HighlightClass::Number,
+            },
+        ],
+        "a span crossing the wrap boundary produces one segment per visual row"
+    );
+}

@@ -37,4 +37,9 @@ pub struct Palette {
     pub control: Style,
     pub escape: Style,
     pub truncation: Style,
+    pub syntax_keyword: Style,
+    pub syntax_comment: Style,
+    pub syntax_string: Style,
+    pub syntax_number: Style,
+    pub syntax_emphasis: Style,
 }

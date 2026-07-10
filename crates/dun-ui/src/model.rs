@@ -11,6 +11,7 @@ pub struct BufferView<'a> {
     pub first_visual_row: usize,
     pub first_column: usize,
     pub search_matches: &'a [SearchMatch],
+    pub highlights: &'a [BufferHighlightSpan],
     pub active_search_match: Option<usize>,
     pub wrap: bool,
 }
@@ -24,6 +25,7 @@ impl<'a> BufferView<'a> {
             first_visual_row: 0,
             first_column: 0,
             search_matches: &[],
+            highlights: &[],
             active_search_match: None,
             wrap: false,
         }
@@ -37,6 +39,7 @@ impl<'a> BufferView<'a> {
             first_visual_row: 0,
             first_column: 0,
             search_matches: &[],
+            highlights: &[],
             active_search_match: None,
             wrap: false,
         }
@@ -55,6 +58,7 @@ impl<'a> BufferView<'a> {
             first_visual_row: 0,
             first_column,
             search_matches: &[],
+            highlights: &[],
             active_search_match: None,
             wrap: false,
         }
@@ -79,12 +83,47 @@ impl<'a> BufferView<'a> {
         self.wrap = wrap;
         self
     }
+
+    pub fn with_highlight_spans(mut self, highlights: &'a [BufferHighlightSpan]) -> Self {
+        self.highlights = highlights;
+        self
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UiScrollbar {
     pub y: u16,
     pub height: u16,
+}
+
+/// Style class for plugin-provided highlight spans; the renderer maps each
+/// class onto the theme's `syntax_*` palette slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HighlightClass {
+    Keyword,
+    Comment,
+    StringLiteral,
+    Number,
+    Emphasis,
+}
+
+/// A validated highlight span in buffer coordinates (byte columns, like
+/// selections and search matches). Produced by the plugin layer after
+/// converting the protocol's character columns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BufferHighlightSpan {
+    pub line: usize,
+    pub start_column: usize,
+    pub end_column: usize,
+    pub class: HighlightClass,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UiHighlightLine {
+    pub y: u16,
+    pub start_x: u16,
+    pub end_x: u16,
+    pub class: HighlightClass,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -294,6 +333,7 @@ pub struct UiWindow {
     pub cursor: Option<UiCursor>,
     pub selection: Vec<UiSelectionLine>,
     pub search_matches: Vec<UiSearchMatchLine>,
+    pub highlights: Vec<UiHighlightLine>,
     pub horizontal_edges: Vec<UiHorizontalEdgeLine>,
     pub scrollbar: Option<UiScrollbar>,
     pub body: Vec<SanitizedLine>,

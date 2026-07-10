@@ -277,3 +277,34 @@ fn ratatui_renderer_draws_viewport_polish_markers() {
     assert!(rendered.contains('‹'));
     assert!(rendered.contains('█'));
 }
+
+#[test]
+fn ratatui_renderer_paints_plugin_highlight_with_syntax_style() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "fn main() {}");
+    let highlights = [BufferHighlightSpan {
+        line: 0,
+        start_column: 0,
+        end_column: 2,
+        class: HighlightClass::Keyword,
+    }];
+    let buffer_view = BufferView::new(BufferId(1), &buffer).with_highlight_spans(&highlights);
+    let shell = UiShell::default();
+    let ui_frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 40, 8), &[buffer_view]);
+    let backend = TestBackend::new(40, 10);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal
+        .draw(|frame| shell.render(frame, &ui_frame))
+        .unwrap();
+
+    // Screen row 0 is the menu bar and row 1 the window border, so the
+    // first body row lands on screen row 2.
+    let expected = to_ratatui_style(shell.theme.palette.syntax_keyword);
+    let keyword_cell = &terminal.backend().buffer()[(3, 2)];
+    assert_eq!(keyword_cell.symbol(), "f");
+    assert_eq!(keyword_cell.style().fg, expected.fg);
+    let plain_cell = &terminal.backend().buffer()[(6, 2)];
+    assert_eq!(plain_cell.symbol(), "m");
+    assert_ne!(plain_cell.style().fg, expected.fg);
+}

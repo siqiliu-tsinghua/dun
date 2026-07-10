@@ -1,12 +1,13 @@
-use dun_plugin::StyleId;
+use dun_plugin::{StyleId, StyleSpan};
 
+use super::support::app_with_text;
 use crate::*;
 
-fn span(line: u32) -> StyleSpan {
+fn span(line: u32, start_col: u32, end_col: u32) -> StyleSpan {
     StyleSpan {
         line,
-        start_col: 0,
-        end_col: 1,
+        start_col,
+        end_col,
         style: StyleId::Keyword,
     }
 }
@@ -30,15 +31,14 @@ fn language_hint_uses_lowercased_extension() {
 
 #[test]
 fn highlight_outcome_applies_only_for_the_current_revision() {
-    let mut app = AppState::new();
+    let mut app = app_with_text("fn main");
 
     app.apply_highlight_outcome(
         "demo",
         HighlightOutcome {
             buffer_id: BufferId(1),
             revision: 0,
-            first_line: 0,
-            result: Ok(vec![span(0)]),
+            result: Ok(vec![span(0, 0, 2)]),
         },
     );
     let stored = app.buffer_state(BufferId(1)).unwrap().highlight.clone();
@@ -46,8 +46,12 @@ fn highlight_outcome_applies_only_for_the_current_revision() {
         stored,
         Some(BufferHighlight {
             revision: 0,
-            first_line: 0,
-            spans: vec![span(0)],
+            spans: vec![BufferHighlightSpan {
+                line: 0,
+                start_column: 0,
+                end_column: 2,
+                class: HighlightClass::Keyword,
+            }],
         })
     );
 
@@ -61,14 +65,45 @@ fn highlight_outcome_applies_only_for_the_current_revision() {
         HighlightOutcome {
             buffer_id: BufferId(1),
             revision: 0,
-            first_line: 0,
-            result: Ok(vec![span(0), span(0)]),
+            result: Ok(vec![span(0, 0, 1)]),
         },
     );
     assert_eq!(
         app.buffer_state(BufferId(1)).unwrap().highlight,
         stored,
         "stale outcome must not overwrite the cache"
+    );
+}
+
+#[test]
+fn highlight_conversion_maps_char_columns_to_byte_columns() {
+    // "a中b": char columns 1..2 cover 中, which is bytes 1..4.
+    let mut app = app_with_text("a\u{4e2d}b");
+
+    app.apply_highlight_outcome(
+        "demo",
+        HighlightOutcome {
+            buffer_id: BufferId(1),
+            revision: 0,
+            result: Ok(vec![span(0, 1, 2), span(0, 9, 10)]),
+        },
+    );
+
+    let highlight = app
+        .buffer_state(BufferId(1))
+        .unwrap()
+        .highlight
+        .clone()
+        .unwrap();
+    assert_eq!(
+        highlight.spans,
+        vec![BufferHighlightSpan {
+            line: 0,
+            start_column: 1,
+            end_column: 4,
+            class: HighlightClass::Keyword,
+        }],
+        "wide char widens to its byte range; the out-of-range span is dropped"
     );
 }
 
@@ -81,7 +116,6 @@ fn highlight_error_outcome_reports_plugin_status() {
         HighlightOutcome {
             buffer_id: BufferId(1),
             revision: 0,
-            first_line: 0,
             result: Err("plugin host timed out".to_string()),
         },
     );

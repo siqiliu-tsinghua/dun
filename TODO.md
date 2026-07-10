@@ -85,19 +85,21 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 
 ### First Applied Role
 
-- [ ] Implement one visible low-risk role end to end, preferably
-  `SyntaxHighlight`.
+- [x] Implement one visible low-risk role end to end (`SyntaxHighlight`;
+  verified in a real tmux session against the fixture host: spans render
+  with the theme syntax palette).
 - [x] Send bounded visible-window snapshots with buffer revision and a
   file-extension language hint (focused Edit pane, coalesced on the worker).
-- [ ] Validate returned style spans: known style ids, in-range line/column
-  coordinates, sorted or normalized ranges, bounded count, and matching
-  revision.
+- [x] Validate returned style spans: known style ids, in-range coordinates,
+  normalized ranges, bounded count, matching revision (client validation +
+  defensive re-checks at editor conversion).
 - [x] Discard stale results when the buffer revision has changed (client
   layer and again at cache application in the editor).
-- [ ] Apply validated results through existing UI highlight paths without
-  granting plugins access to UI or terminal APIs.
-- [ ] Keep plugin diagnostics sanitized and visible through existing status or
-  diagnostics surfaces.
+- [x] Apply validated results through the UI highlight pipeline (shared
+  body-span geometry with selection/search; syntax < search < selection
+  paint order) without granting plugins UI or terminal access.
+- [x] Keep plugin diagnostics sanitized and visible through the status
+  surface (bounded error text; status rendering is already sanitized).
 
 ### Fixture Hosts and Tests
 

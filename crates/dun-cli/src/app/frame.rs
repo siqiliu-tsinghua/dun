@@ -23,6 +23,14 @@ impl AppState {
                 .with_first_visual_row(buffer.first_visual_row)
                 .with_search(search_matches, active_search_match)
                 .with_wrap(buffer.word_wrap)
+                .with_highlight_spans(
+                    buffer
+                        .highlight
+                        .as_ref()
+                        .filter(|highlight| highlight.revision == buffer.buffer.revision())
+                        .map(|highlight| highlight.spans.as_slice())
+                        .unwrap_or(&[]),
+                )
             })
             .collect()
     }

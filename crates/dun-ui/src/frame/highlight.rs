@@ -1,7 +1,8 @@
 use dun_core::{Rect, TextRange};
 
 use crate::{
-    BufferView, UiSearchMatchLine, UiSelectionLine, UiShell, display_width, wrap_line_segments,
+    BufferView, UiHighlightLine, UiSearchMatchLine, UiSelectionLine, UiShell, display_width,
+    wrap_line_segments,
 };
 
 #[derive(Clone, Copy)]
@@ -82,6 +83,30 @@ impl UiShell {
         } else {
             line.len()
         };
+        let (y, start_x, end_x) = self.body_span_for_columns(
+            buffer,
+            line_index,
+            start_column,
+            end_column,
+            body_width,
+            gutter_width,
+        )?;
+        Some(UiSelectionLine { y, start_x, end_x })
+    }
+
+    /// Maps a byte-column range on one logical line to body-relative
+    /// window coordinates, clipped to the horizontal viewport. Shared by
+    /// selection, search-match, and plugin-highlight mapping.
+    fn body_span_for_columns(
+        &self,
+        buffer: &BufferView<'_>,
+        line_index: usize,
+        start_column: usize,
+        end_column: usize,
+        body_width: usize,
+        gutter_width: usize,
+    ) -> Option<(u16, u16, u16)> {
+        let line = buffer.buffer.line(line_index)?;
         if start_column >= end_column {
             return None;
         }
@@ -105,11 +130,115 @@ impl UiShell {
             return None;
         }
 
-        Some(UiSelectionLine {
-            y: 1 + (line_index - buffer.first_line) as u16,
-            start_x: 1 + start_x as u16 + gutter_width as u16,
-            end_x: 1 + end_x as u16 + gutter_width as u16,
-        })
+        Some((
+            1 + (line_index - buffer.first_line) as u16,
+            1 + start_x as u16 + gutter_width as u16,
+            1 + end_x as u16 + gutter_width as u16,
+        ))
+    }
+
+    pub(super) fn plugin_highlights_for_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        rect: Rect,
+        gutter_width: u16,
+    ) -> Vec<UiHighlightLine> {
+        if buffer.highlights.is_empty() {
+            return Vec::new();
+        }
+        let Some(inner_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
+            return Vec::new();
+        };
+        let gutter_width = gutter_width.min(inner_width as u16) as usize;
+        let body_width = inner_width.saturating_sub(gutter_width);
+        let Some(body_height) = rect.height.checked_sub(2).map(|height| height as usize) else {
+            return Vec::new();
+        };
+        if body_width == 0 || body_height == 0 {
+            return Vec::new();
+        }
+        if buffer.wrap {
+            return self.plugin_highlights_for_wrapped_buffer(
+                buffer,
+                body_width,
+                body_height,
+                gutter_width,
+            );
+        }
+
+        let visible_start = buffer.first_line;
+        let visible_end = buffer.first_line.saturating_add(body_height);
+        let mut lines = Vec::new();
+        for span in buffer.highlights {
+            if span.line < visible_start || span.line >= visible_end {
+                continue;
+            }
+            if let Some((y, start_x, end_x)) = self.body_span_for_columns(
+                buffer,
+                span.line,
+                span.start_column,
+                span.end_column,
+                body_width,
+                gutter_width,
+            ) {
+                lines.push(UiHighlightLine {
+                    y,
+                    start_x,
+                    end_x,
+                    class: span.class,
+                });
+            }
+        }
+
+        lines
+    }
+
+    fn plugin_highlights_for_wrapped_buffer(
+        &self,
+        buffer: &BufferView<'_>,
+        body_width: usize,
+        body_height: usize,
+        gutter_width: usize,
+    ) -> Vec<UiHighlightLine> {
+        let mut lines = Vec::new();
+        let mut visual_y = -(buffer.first_visual_row as isize);
+        for line_index in buffer.first_line..buffer.buffer.line_count() {
+            if visual_y >= body_height as isize {
+                break;
+            }
+            let visual_rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
+            let Some(line) = buffer.buffer.line(line_index) else {
+                visual_y = visual_y.saturating_add(visual_rows as isize);
+                continue;
+            };
+            for span in buffer
+                .highlights
+                .iter()
+                .filter(|span| span.line == line_index)
+            {
+                for (y, start_x, end_x) in self.wrapped_highlight_spans(
+                    line,
+                    span.start_column,
+                    span.end_column,
+                    WrappedLineLayout {
+                        visual_y,
+                        body_width,
+                        body_height,
+                        gutter_width,
+                    },
+                ) {
+                    lines.push(UiHighlightLine {
+                        y,
+                        start_x,
+                        end_x,
+                        class: span.class,
+                    });
+                }
+            }
+            visual_y = visual_y.saturating_add(visual_rows as isize);
+        }
+
+        lines
     }
 
     fn selection_for_wrapped_buffer(

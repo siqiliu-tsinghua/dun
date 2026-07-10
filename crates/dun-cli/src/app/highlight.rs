@@ -1,3 +1,5 @@
+use dun_plugin::{StyleId, StyleSpan};
+
 use crate::*;
 
 impl AppState {
@@ -37,9 +39,9 @@ impl AppState {
                 if buffer.buffer.revision() != outcome.revision {
                     return;
                 }
+                let spans = convert_highlight_spans(&buffer.buffer, &spans);
                 buffer.highlight = Some(BufferHighlight {
                     revision: outcome.revision,
-                    first_line: outcome.first_line,
                     spans,
                 });
             }
@@ -87,5 +89,64 @@ impl AppState {
         if let Some(highlighter) = self.highlighter.as_mut() {
             highlighter.schedule(job);
         }
+    }
+}
+
+/// Converts validated protocol spans (character columns, per
+/// docs/plugin-protocol.md) into buffer spans (byte columns, the unit used
+/// by selections and search matches). Spans that no longer fit the buffer
+/// are dropped defensively; validation already checked them against the
+/// snapshot the plugin saw.
+fn convert_highlight_spans(buffer: &TextBuffer, spans: &[StyleSpan]) -> Vec<BufferHighlightSpan> {
+    let mut converted = Vec::with_capacity(spans.len());
+    for span in spans {
+        let line_index = span.line as usize;
+        let Some(line) = buffer.line(line_index) else {
+            continue;
+        };
+        let Some(start_column) = byte_column_for_char_index(line, span.start_col as usize) else {
+            continue;
+        };
+        let Some(end_column) = byte_column_for_char_index(line, span.end_col as usize) else {
+            continue;
+        };
+        if start_column >= end_column {
+            continue;
+        }
+        converted.push(BufferHighlightSpan {
+            line: line_index,
+            start_column,
+            end_column,
+            class: highlight_class_for_style(span.style),
+        });
+    }
+    converted
+}
+
+fn byte_column_for_char_index(line: &str, char_index: usize) -> Option<usize> {
+    if char_index == 0 {
+        return Some(0);
+    }
+    let mut seen = 0usize;
+    for (byte_index, _) in line.char_indices() {
+        if seen == char_index {
+            return Some(byte_index);
+        }
+        seen += 1;
+    }
+    if seen == char_index {
+        Some(line.len())
+    } else {
+        None
+    }
+}
+
+const fn highlight_class_for_style(style: StyleId) -> HighlightClass {
+    match style {
+        StyleId::Keyword => HighlightClass::Keyword,
+        StyleId::Comment => HighlightClass::Comment,
+        StyleId::StringLiteral => HighlightClass::StringLiteral,
+        StyleId::Number => HighlightClass::Number,
+        StyleId::Emphasis => HighlightClass::Emphasis,
     }
 }

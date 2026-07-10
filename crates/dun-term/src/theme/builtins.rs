@@ -65,6 +65,15 @@ impl Theme {
                 control: Style::plain(TerminalColor::Indexed(214), editor_bg),
                 escape: Style::new(TerminalColor::Indexed(203), editor_bg, StyleAttrs::BOLD),
                 truncation: Style::new(TerminalColor::Indexed(245), editor_bg, StyleAttrs::BOLD),
+                syntax_keyword: Style::plain(TerminalColor::Indexed(117), editor_bg),
+                syntax_comment: Style::plain(TerminalColor::Indexed(245), editor_bg),
+                syntax_string: Style::plain(TerminalColor::Indexed(150), editor_bg),
+                syntax_number: Style::plain(TerminalColor::Indexed(176), editor_bg),
+                syntax_emphasis: Style::new(
+                    TerminalColor::Indexed(223),
+                    editor_bg,
+                    StyleAttrs::BOLD,
+                ),
             },
         }
     }
@@ -201,6 +210,21 @@ impl Theme {
                     editor_bg,
                     StyleAttrs::BOLD,
                 ),
+                syntax_keyword: Style::plain(TerminalColor::Ansi(AnsiColor::BrightCyan), editor_bg),
+                syntax_comment: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightBlack),
+                    editor_bg,
+                ),
+                syntax_string: Style::plain(TerminalColor::Ansi(AnsiColor::BrightGreen), editor_bg),
+                syntax_number: Style::plain(
+                    TerminalColor::Ansi(AnsiColor::BrightMagenta),
+                    editor_bg,
+                ),
+                syntax_emphasis: Style::new(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    editor_bg,
+                    StyleAttrs::BOLD,
+                ),
             },
         }
     }
@@ -282,6 +306,15 @@ impl Theme {
                 control: bold,
                 escape: bold,
                 truncation: bold,
+                syntax_keyword: bold,
+                syntax_comment: plain,
+                syntax_string: Style::new(
+                    TerminalColor::Default,
+                    TerminalColor::Default,
+                    StyleAttrs::UNDERLINE,
+                ),
+                syntax_number: plain,
+                syntax_emphasis: bold,
             },
         }
     }
@@ -413,6 +446,15 @@ impl Theme {
                     StyleAttrs::BOLD,
                 ),
                 truncation: Style::new(TerminalColor::Ansi(AnsiColor::White), bg, StyleAttrs::BOLD),
+                syntax_keyword: Style::plain(TerminalColor::Ansi(AnsiColor::BrightYellow), bg),
+                syntax_comment: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), bg),
+                syntax_string: Style::plain(TerminalColor::Ansi(AnsiColor::BrightCyan), bg),
+                syntax_number: Style::plain(TerminalColor::Ansi(AnsiColor::BrightGreen), bg),
+                syntax_emphasis: Style::new(
+                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    bg,
+                    StyleAttrs::BOLD,
+                ),
             },
         }
     }
@@ -504,6 +546,15 @@ impl Theme {
                 control: Style::plain(TerminalColor::Indexed(215), editor_bg),
                 escape: Style::new(warning, editor_bg, StyleAttrs::BOLD),
                 truncation: Style::new(TerminalColor::Indexed(245), editor_bg, StyleAttrs::BOLD),
+                syntax_keyword: Style::plain(TerminalColor::Indexed(111), editor_bg),
+                syntax_comment: Style::plain(TerminalColor::Indexed(244), editor_bg),
+                syntax_string: Style::plain(TerminalColor::Indexed(150), editor_bg),
+                syntax_number: Style::plain(TerminalColor::Indexed(176), editor_bg),
+                syntax_emphasis: Style::new(
+                    TerminalColor::Indexed(222),
+                    editor_bg,
+                    StyleAttrs::BOLD,
+                ),
             },
         }
     }
