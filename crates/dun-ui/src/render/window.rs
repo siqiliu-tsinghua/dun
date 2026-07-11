@@ -329,7 +329,7 @@ fn render_horizontal_edges(
     }
 }
 
-fn offset_rect(rect: Rect, origin: TuiRect) -> TuiRect {
+pub(crate) fn offset_rect(rect: Rect, origin: TuiRect) -> TuiRect {
     TuiRect::new(
         origin.x.saturating_add(rect.x),
         origin.y.saturating_add(rect.y),

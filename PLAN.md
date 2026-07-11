@@ -291,3 +291,51 @@ budget before broadening scope.
 Phase 11 is closed. New runtime work starts only through Phase 9's required
 plugin protocol client or through explicit release blockers under
 [docs/feature-budget.md](./docs/feature-budget.md).
+
+## Phase 12: Renderer Replacement (ratatui → Surface)
+
+Goal: remove the `ratatui` dependency by drawing directly onto the in-house
+`Surface` cell grid and emitting terminal bytes with the `surface_emit`
+diff encoder. Dependency hygiene, not size-critical; the budget margin is
+ample. Sliced small so each step is independently verifiable, most through
+Codex briefs (`docs/dev/codex/brief-00N-*`).
+
+Architecture decision (2026-07-11, entry-point prototype
+`render/surface_frame.rs`): the migration builds a **parallel** Surface
+render path rather than blitting a Surface back into a ratatui `Buffer`.
+`render_ui_frame_to_surface` mirrors `render_ui_frame` layer for layer and
+**returns** the focused cursor position instead of calling a Frame method —
+the Surface path has no terminal handle, so the dun-cli cutover appends the
+cursor CUP after the `emit_diff` stream. Both paths coexist and are held to
+cell-level parity by `tests/surface_parity.rs` until the cutover deletes the
+ratatui path.
+
+Parity contract: glyph, foreground, and background must match ratatui
+exactly (that is the emitted, user-visible output); text modifiers are
+asserted as `surface ⊆ ratatui`. ratatui's `Cell::set_style` patches
+modifiers (`insert(add); remove(sub)`) and `to_ratatui_style` never sets
+`sub_modifier`, so a modifier from one layer (e.g. a focused window border's
+BOLD) bleeds through every plain style painted over it. The Surface path
+replaces styles cleanly and carries only the intended modifier; per-layer
+`surface_layers` unit tests pin those exactly. The cutover therefore
+corrects a latent, effectively invisible modifier bleed rather than
+regressing.
+
+- [x] Surface cell grid (brief-002).
+- [x] `surface_emit` diff encoder: `emit_full`/`emit_diff` to CUP/SGR bytes
+  (brief-005).
+- [x] Surface restyle primitives `set_style`/`style_run` for the overlay
+  passes.
+- [x] Surface chrome primitives `draw_border`/`draw_overflow_indicators`
+  (brief-006).
+- [x] Surface status/menu layer drawing (brief-007).
+- [x] Surface entry-point prototype with the cursor-return contract and the
+  parity harness (menu/status/dropdown regions green).
+- [ ] Port the window layer (gutter, body text, current line, selection,
+  search, plugin highlights, scrollbar, horizontal edges) and the overlay
+  layer to Surface; extend parity to the full frame across the existing
+  rendering fixtures (slice 3c).
+- [ ] dun-cli cutover: draw into a `Surface`, emit with `emit_diff`, append
+  the returned cursor position, delete the ratatui render path and its
+  snapshot tests, drop the `ratatui` dependency. Gate with the tmux/PTY
+  suites and a dual-platform size re-audit.

@@ -5,6 +5,8 @@ pub(crate) mod status;
 #[allow(dead_code)]
 pub(crate) mod surface_draw;
 #[allow(dead_code)]
+pub(crate) mod surface_frame;
+#[allow(dead_code)]
 pub(crate) mod surface_layers;
 pub(crate) mod window;
 
