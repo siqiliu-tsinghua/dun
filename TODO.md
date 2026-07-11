@@ -114,9 +114,12 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 - [x] Test normal request/response for the highlight role (client-level;
   editor application pending).
 - [x] Test malformed/truncated frames, oversized frame, span flood,
-  forbidden output (coords/style/request-id), timeout, host crash, and stderr
-  flooding (15-test matrix in `crates/dun-plugin/tests/protocol.rs`).
-  Explicit cancellation-path and malformed-JSON-frame cases remain open.
+  forbidden output (coords/style/request-id), timeout, host crash, stderr
+  flooding, and a correctly framed non-JSON payload (16-test matrix in
+  `crates/dun-plugin/tests/protocol.rs`). The explicit cancellation-path case
+  is intentionally not added: cancellation only fires on timeout (a
+  best-effort `CancelRequest` immediately followed by kill), already covered
+  by the timeout test; a dedicated test would be racy with marginal value.
 - [x] Test stale revision rejection at the client level (editor-state
   invariance is checked again at wiring).
 - [ ] Test that rejected plugin output cannot request file I/O, process spawn,
