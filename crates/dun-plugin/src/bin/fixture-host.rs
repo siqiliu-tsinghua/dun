@@ -125,6 +125,13 @@ fn handle_request(message: &Json, request_id: u64, output: &mut impl Write) -> i
         _ => {}
     }
 
+    if language == "malformed-json-test" {
+        // A correctly framed payload that is not valid JSON: the client must
+        // reject it as a protocol error rather than panic or hang.
+        write_frame(output, b"{ not valid json")?;
+        return Ok(());
+    }
+
     if language == "diag-flood-test" {
         for _ in 0..DIAGNOSTIC_FLOOD_COUNT {
             let diagnostic = envelope(

@@ -176,6 +176,15 @@ fn oversized_frame_reports_frame_oversized() {
 }
 
 #[test]
+fn malformed_json_response_reports_protocol_error() {
+    let error = request_error("malformed-json-test", policy(Duration::from_secs(5)));
+    assert!(
+        matches!(error, PluginError::Protocol(_)),
+        "expected a protocol error, got {error:?}"
+    );
+}
+
+#[test]
 fn diagnostic_flood_reports_policy_violation() {
     let error = request_error("diag-flood-test", policy(Duration::from_secs(5)));
     assert!(matches!(error, PluginError::PolicyViolation(_)));
