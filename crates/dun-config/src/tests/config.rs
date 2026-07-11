@@ -4,7 +4,7 @@ use super::support::*;
 fn default_config_is_valid() {
     let config = Config::default();
 
-    assert_eq!(config.theme, ThemeName::MsEdit);
+    assert_eq!(config.theme, ThemeName::Dun);
     assert!(config.validate().is_ok());
     assert!(config.keybindings.bindings.len() > 10);
 }
@@ -50,7 +50,7 @@ fn default_config_text_lists_parseable_default_bindings() {
     assert!(text.contains("# Appearance"));
     assert!(text.contains("# Terminal fallback overrides"));
     assert!(text.contains("# File and display limits"));
-    assert!(text.contains("theme = msedit"));
+    assert!(text.contains("theme = dun"));
     assert!(text.contains("mouse.enabled = false"));
     assert!(text.contains("key.app.help = F1"));
     assert!(text.contains("key.file_dialog.toggle_hidden = Ctrl+H"));

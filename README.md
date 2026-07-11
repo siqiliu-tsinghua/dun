@@ -19,10 +19,13 @@ When the active keymap does not consume them, `Alt+F`, `Alt+E`, `Alt+V`, and
 executes the selected item, and `Esc` closes it. Long dropdowns scroll on
 short terminals so the selected entry remains visible, with overflow
 indicators and matching mouse hit testing.
-The default `msedit` theme now follows the local Microsoft Edit screenshots
-more closely: blue menu/status chrome, green active top-menu labels, gray
-dropdown/modal panels, a compact bracket-style status bar, a gutter separator,
-and a muted current-line highlight.
+The default `dun` theme is a restrained 256-color dark scheme with a cyan
+accent. Other builtins are `msedit` (a Microsoft Edit-style blue chrome with
+green active labels, gray dropdown/modal panels, a compact bracket status bar,
+and a muted current-line highlight), `dark`, `turbo`, `mono` for monochrome
+terminals, and a `solarized-dark` / `solarized-light` pair using Ethan
+Schoonover's Solarized palette (256-color terminals). Select one with
+`theme = <name>` in the config.
 It can open valid UTF-8 file paths supplied on the command line and save the
 focused buffer back to that path through a same-directory temp file and atomic
 rename. Stale atomic-save temp files are cleaned up, while newer recovery

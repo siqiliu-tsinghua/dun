@@ -190,6 +190,14 @@ limits.line_display_soft_limit_bytes = 5KiB
     );
     assert_eq!(parse_config("theme = dun").unwrap().theme, ThemeName::Dun);
     assert_eq!(
+        parse_config("theme = solarized-dark").unwrap().theme,
+        ThemeName::SolarizedDark
+    );
+    assert_eq!(
+        parse_config("theme = Solarized Light").unwrap().theme,
+        ThemeName::SolarizedLight
+    );
+    assert_eq!(
         parse_config("terminal.colors = 256-color")
             .unwrap()
             .terminal

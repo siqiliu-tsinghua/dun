@@ -22,7 +22,7 @@ fn shell_resolves_single_strokes_and_describes_workspace() {
     );
 
     let description = shell.describe_workspace(&Workspace::new_untitled());
-    assert!(description.contains("theme=msedit"));
+    assert!(description.contains("theme=dun"));
     assert!(description.contains("windows=1"));
     assert!(description.contains("border=┌──┐"));
 }

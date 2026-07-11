@@ -30,7 +30,8 @@ modal bindings, so it can be used as a starting point for a user config file.
 Supported scalar keys:
 
 ```text
-theme = msedit | turbo | dark | dun
+theme = dun | msedit | turbo | dark | solarized-dark | solarized-light
+        # dun is the default; solarized-* need a 256-color terminal
 terminal.encoding = utf8 | ascii
 terminal.colors = 256 | 16 | mono
 mouse.enabled = true | false
