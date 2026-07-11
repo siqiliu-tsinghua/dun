@@ -320,138 +320,83 @@ impl Theme {
     }
 
     pub const fn turbo_16() -> Self {
+        // The classic Borland Turbo Vision look: a blue editor desktop with
+        // light-gray body text, white reserved words, green types, magenta
+        // numbers; gray (light-gray) menu/status bars and dialogs with black
+        // text and red hotkeys. CGA names: LightGray = White, White =
+        // BrightWhite, DarkGray = BrightBlack, Light* = Bright*.
         let bg = TerminalColor::Ansi(AnsiColor::Blue);
+        let text = TerminalColor::Ansi(AnsiColor::White); // CGA light gray
+        let bright = TerminalColor::Ansi(AnsiColor::BrightWhite); // CGA white
+        let gray = TerminalColor::Ansi(AnsiColor::BrightBlack); // CGA dark gray
+        let bar = TerminalColor::Ansi(AnsiColor::White); // light-gray chrome
+        let black = TerminalColor::Ansi(AnsiColor::Black);
+        let red = TerminalColor::Ansi(AnsiColor::Red);
+        let green = TerminalColor::Ansi(AnsiColor::Green);
+        let cyan = TerminalColor::Ansi(AnsiColor::Cyan);
 
         Self {
             name: "turbo",
             theme: ThemeName::Turbo,
             colors: ColorProfile::Color16,
             palette: Palette {
-                editor: Style::plain(TerminalColor::Ansi(AnsiColor::BrightWhite), bg),
-                editor_text: Style::plain(TerminalColor::Ansi(AnsiColor::BrightWhite), bg),
-                menu_bar: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::Cyan),
-                ),
-                menu_text: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::Cyan),
-                ),
-                menu_hotkey: Style::new(
-                    TerminalColor::Ansi(AnsiColor::Red),
-                    TerminalColor::Ansi(AnsiColor::Cyan),
-                    StyleAttrs::BOLD,
-                ),
-                menu_active: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::Green),
-                ),
-                menu_active_hotkey: Style::new(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::Green),
-                    StyleAttrs::BOLD,
-                ),
-                menu_panel: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                    TerminalColor::Ansi(AnsiColor::BrightBlack),
-                ),
-                menu_panel_text: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                    TerminalColor::Ansi(AnsiColor::BrightBlack),
-                ),
-                menu_panel_hotkey: Style::new(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                    TerminalColor::Ansi(AnsiColor::BrightBlack),
-                    StyleAttrs::UNDERLINE,
-                ),
-                menu_panel_border: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                    TerminalColor::Ansi(AnsiColor::BrightBlack),
-                ),
-                status_bar: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::BrightCyan),
-                ),
-                status_text: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::BrightCyan),
-                ),
-                window_border: Style::plain(TerminalColor::Ansi(AnsiColor::White), bg),
-                window_border_focused: Style::new(
-                    TerminalColor::Ansi(AnsiColor::BrightYellow),
-                    bg,
-                    StyleAttrs::BOLD,
-                ),
-                title: Style::plain(TerminalColor::Ansi(AnsiColor::BrightWhite), bg),
-                title_focused: Style::new(
-                    TerminalColor::Ansi(AnsiColor::BrightYellow),
-                    bg,
-                    StyleAttrs::BOLD,
-                ),
-                gutter: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), bg),
-                gutter_separator: Style::plain(TerminalColor::Ansi(AnsiColor::White), bg),
-                current_line: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                    TerminalColor::Ansi(AnsiColor::BrightBlack),
-                ),
-                selection: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                ),
-                selection_text: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                ),
-                search_match: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::BrightYellow),
-                ),
+                editor: Style::plain(text, bg),
+                editor_text: Style::plain(text, bg),
+                menu_bar: Style::plain(black, bar),
+                menu_text: Style::plain(black, bar),
+                menu_hotkey: Style::new(red, bar, StyleAttrs::BOLD),
+                menu_active: Style::plain(black, green),
+                menu_active_hotkey: Style::new(red, green, StyleAttrs::BOLD),
+                menu_panel: Style::plain(black, bar),
+                menu_panel_text: Style::plain(black, bar),
+                menu_panel_hotkey: Style::new(red, bar, StyleAttrs::UNDERLINE),
+                menu_panel_border: Style::plain(gray, bar),
+                status_bar: Style::plain(black, bar),
+                status_text: Style::plain(black, bar),
+                window_border: Style::plain(text, bg),
+                window_border_focused: Style::new(bright, bg, StyleAttrs::BOLD),
+                title: Style::plain(text, bg),
+                title_focused: Style::new(bright, bg, StyleAttrs::BOLD),
+                gutter: Style::plain(gray, bg),
+                gutter_separator: Style::plain(text, bg),
+                current_line: Style::plain(bright, bg),
+                selection: Style::plain(black, cyan),
+                selection_text: Style::plain(black, cyan),
+                search_match: Style::plain(black, TerminalColor::Ansi(AnsiColor::BrightYellow)),
                 active_search_match: Style::new(
-                    TerminalColor::Ansi(AnsiColor::Black),
-                    TerminalColor::Ansi(AnsiColor::Yellow),
+                    black,
+                    TerminalColor::Ansi(AnsiColor::BrightRed),
                     StyleAttrs::BOLD,
                 ),
                 scrollbar_thumb: Style::new(
-                    TerminalColor::Ansi(AnsiColor::BrightYellow),
+                    TerminalColor::Ansi(AnsiColor::BrightCyan),
                     bg,
                     StyleAttrs::BOLD,
                 ),
-                modal_scrim: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), bg),
-                modal: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                    TerminalColor::Ansi(AnsiColor::BrightBlack),
-                ),
-                modal_text: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                    TerminalColor::Ansi(AnsiColor::BrightBlack),
-                ),
-                modal_border: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                    TerminalColor::Ansi(AnsiColor::BrightBlack),
-                ),
-                modal_input: Style::plain(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
-                    TerminalColor::Ansi(AnsiColor::Black),
-                ),
+                modal_scrim: Style::plain(gray, bg),
+                modal: Style::plain(black, bar),
+                modal_text: Style::plain(black, bar),
+                modal_border: Style::plain(gray, bar),
+                modal_input: Style::plain(black, cyan),
                 dirty: Style::new(
                     TerminalColor::Ansi(AnsiColor::BrightYellow),
                     bg,
                     StyleAttrs::BOLD,
                 ),
                 read_only: Style::plain(TerminalColor::Ansi(AnsiColor::BrightRed), bg),
-                control: Style::plain(TerminalColor::Ansi(AnsiColor::Yellow), bg),
+                control: Style::plain(TerminalColor::Ansi(AnsiColor::BrightYellow), bg),
                 escape: Style::new(
                     TerminalColor::Ansi(AnsiColor::BrightRed),
                     bg,
                     StyleAttrs::BOLD,
                 ),
-                truncation: Style::new(TerminalColor::Ansi(AnsiColor::White), bg, StyleAttrs::BOLD),
-                syntax_keyword: Style::plain(TerminalColor::Ansi(AnsiColor::BrightYellow), bg),
-                syntax_comment: Style::plain(TerminalColor::Ansi(AnsiColor::BrightBlack), bg),
-                syntax_string: Style::plain(TerminalColor::Ansi(AnsiColor::BrightCyan), bg),
-                syntax_number: Style::plain(TerminalColor::Ansi(AnsiColor::BrightGreen), bg),
+                truncation: Style::new(gray, bg, StyleAttrs::BOLD),
+                syntax_keyword: Style::new(bright, bg, StyleAttrs::BOLD),
+                syntax_comment: Style::plain(gray, bg),
+                syntax_string: Style::plain(TerminalColor::Ansi(AnsiColor::BrightRed), bg),
+                syntax_number: Style::plain(TerminalColor::Ansi(AnsiColor::BrightMagenta), bg),
                 syntax_emphasis: Style::new(
-                    TerminalColor::Ansi(AnsiColor::BrightWhite),
+                    TerminalColor::Ansi(AnsiColor::BrightGreen),
                     bg,
                     StyleAttrs::BOLD,
                 ),
@@ -546,9 +491,9 @@ impl Theme {
                 status_bar: Style::plain(emph, ground_hi),
                 status_text: Style::plain(emph, ground_hi),
                 window_border: Style::plain(dim, ground),
-                window_border_focused: Style::new(blue, ground, StyleAttrs::BOLD),
+                window_border_focused: Style::new(emph, ground, StyleAttrs::BOLD),
                 title: Style::plain(emph, ground),
-                title_focused: Style::new(blue, ground, StyleAttrs::BOLD),
+                title_focused: Style::new(emph, ground, StyleAttrs::BOLD),
                 gutter: Style::plain(dim, ground),
                 gutter_separator: Style::plain(faint, ground),
                 current_line: Style::plain(body, ground_hi),
@@ -556,7 +501,7 @@ impl Theme {
                 selection_text: Style::plain(ground, emph),
                 search_match: Style::plain(ground, yellow),
                 active_search_match: Style::new(ground, orange, StyleAttrs::BOLD),
-                scrollbar_thumb: Style::new(blue, ground, StyleAttrs::BOLD),
+                scrollbar_thumb: Style::new(dim, ground, StyleAttrs::BOLD),
                 modal_scrim: Style::plain(dim, ground),
                 modal: Style::plain(emph, ground_hi),
                 modal_text: Style::plain(emph, ground_hi),
