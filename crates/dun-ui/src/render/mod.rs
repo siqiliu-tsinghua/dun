@@ -8,6 +8,8 @@ pub(crate) mod surface_draw;
 pub(crate) mod surface_frame;
 #[allow(dead_code)]
 pub(crate) mod surface_layers;
+#[allow(dead_code)]
+pub(crate) mod surface_window;
 pub(crate) mod window;
 
 use ratatui::layout::Rect as TuiRect;

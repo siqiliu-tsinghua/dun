@@ -1,9 +1,9 @@
 use ratatui::layout::Rect as TuiRect;
 
 use crate::render::surface_layers::{draw_active_menu, draw_menu_bar, draw_status};
-use crate::render::window::offset_rect;
+use crate::render::surface_window::draw_window;
 use crate::surface::Surface;
-use crate::{UiFrame, UiShell, UiWindow};
+use crate::{UiFrame, UiShell};
 
 /// Renders a `UiFrame` onto a `Surface` and returns the terminal cursor
 /// position for the focused window, if any — the Surface twin of
@@ -11,10 +11,8 @@ use crate::{UiFrame, UiShell, UiWindow};
 ///
 /// The cursor is returned instead of written because the Surface path has no
 /// terminal handle: the caller (the dun-cli cutover slice) appends the CUP
-/// and cursor-visibility bytes after the `emit_diff` stream. Window bodies
-/// and overlays are the remaining unported layers (slice 3c); their absence
-/// does not affect the cursor contract, which is computed from the frame
-/// model alone.
+/// and cursor-visibility bytes after the `emit_diff` stream. The overlay is
+/// the remaining unported layer.
 pub(crate) fn render_ui_frame_to_surface(
     surface: &mut Surface,
     shell: &UiShell,
@@ -45,10 +43,9 @@ pub(crate) fn render_ui_frame_to_surface(
     let workspace = TuiRect::new(0, 1, width, height - 2);
     let mut cursor = None;
     for window in &ui_frame.windows {
-        // Slice 3c draws the window body here; the cursor contract is final:
-        // in window order, the last window reporting a cursor wins, matching
+        // In window order, the last window reporting a cursor wins, matching
         // the ratatui path's repeated set_cursor_position calls.
-        cursor = window_cursor_position(window, workspace).or(cursor);
+        cursor = draw_window(surface, shell, window, workspace).or(cursor);
     }
 
     draw_active_menu(
@@ -57,28 +54,9 @@ pub(crate) fn render_ui_frame_to_surface(
         &ui_frame.menu,
         TuiRect::new(0, 0, width, height),
     );
-    // Slice 3c: overlay drawing lands here, after the active menu.
+    // Slice 3d: overlay drawing lands here, after the active menu.
 
     cursor
-}
-
-/// Mirror of the cursor placement at the end of `render_window`: collapsed
-/// and degenerate windows never report a cursor, and the position must fall
-/// inside the window's clipped area.
-fn window_cursor_position(window: &UiWindow, workspace: TuiRect) -> Option<(u16, u16)> {
-    let area = offset_rect(window.rect, workspace);
-    if area.width == 0 || area.height == 0 {
-        return None;
-    }
-    if window.collapsed || area.width <= 2 || area.height <= 2 {
-        return None;
-    }
-
-    let cursor = window.cursor?;
-    let x = area.x.saturating_add(cursor.x);
-    let y = area.y.saturating_add(cursor.y);
-    let inside = x < area.x.saturating_add(area.width) && y < area.y.saturating_add(area.height);
-    inside.then_some((x, y))
 }
 
 #[cfg(test)]

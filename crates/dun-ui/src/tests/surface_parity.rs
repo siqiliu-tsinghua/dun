@@ -143,7 +143,7 @@ fn render_both(
 }
 
 #[test]
-fn menu_and_status_rows_match_ratatui() {
+fn plain_single_window_full_frame_matches_ratatui() {
     let workspace = Workspace::new_untitled();
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "hello\nworld");
     let buffer_view = BufferView::new(BufferId(1), &buffer);
@@ -152,39 +152,91 @@ fn menu_and_status_rows_match_ratatui() {
 
     let (surface, terminal, _) = render_both(&shell, &ui_frame, 60, 10);
 
-    let buffer = terminal.backend().buffer();
-    assert_region_matches(&surface, buffer, 0, 0, 60, 1);
-    assert_region_matches(&surface, buffer, 0, 9, 60, 1);
+    assert_region_matches(&surface, terminal.backend().buffer(), 0, 0, 60, 10);
 }
 
 #[test]
-fn active_dropdown_panel_matches_ratatui() {
+fn tiny_tiled_split_full_frame_matches_ratatui() {
+    let mut workspace = Workspace::new_untitled();
+    workspace.split_focused(Axis::Horizontal).unwrap();
+    let first = TextBuffer::from_text_with_kind(BufferKind::Untitled, "left");
+    let second = TextBuffer::from_text_with_kind(BufferKind::Untitled, "right");
+    let buffers = [
+        BufferView::new(BufferId(1), &first),
+        BufferView::new(BufferId(2), &second),
+    ];
+    let shell = UiShell::default();
+    let ui_frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 8, 2), &buffers);
+
+    let (surface, terminal, _) = render_both(&shell, &ui_frame, 8, 4);
+
+    assert_region_matches(&surface, terminal.backend().buffer(), 0, 0, 8, 4);
+}
+
+#[test]
+fn viewport_polish_full_frame_matches_ratatui() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(
+        BufferKind::Untitled,
+        "0123456789\nline2\nline3\nline4\nline5\nline6\nline7\nline8",
+    );
+    let buffer_view = BufferView::scrolled_xy(BufferId(1), &buffer, 2, 2);
+    let shell = UiShell::default();
+    let ui_frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 20, 6), &[buffer_view]);
+
+    let (surface, terminal, _) = render_both(&shell, &ui_frame, 20, 8);
+
+    assert_region_matches(&surface, terminal.backend().buffer(), 0, 0, 20, 8);
+}
+
+#[test]
+fn plugin_highlight_full_frame_matches_ratatui() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "fn main() {}");
+    let highlights = [BufferHighlightSpan {
+        line: 0,
+        start_column: 0,
+        end_column: 2,
+        class: HighlightClass::Keyword,
+    }];
+    let buffer_view = BufferView::new(BufferId(1), &buffer).with_highlight_spans(&highlights);
+    let shell = UiShell::default();
+    let ui_frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 40, 8), &[buffer_view]);
+
+    let (surface, terminal, _) = render_both(&shell, &ui_frame, 40, 10);
+
+    assert_region_matches(&surface, terminal.backend().buffer(), 0, 0, 40, 10);
+}
+
+#[test]
+fn menu_window_status_full_frame_matches_ratatui() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "alpha\nbeta");
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let shell = UiShell::default();
+    let ui_frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 40, 6), &[buffer_view]);
+
+    let (surface, terminal, _) = render_both(&shell, &ui_frame, 40, 8);
+
+    assert_region_matches(&surface, terminal.backend().buffer(), 0, 0, 40, 8);
+}
+
+#[test]
+fn active_dropdown_full_frame_matches_ratatui() {
     let workspace = Workspace::new_untitled();
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
     let buffer_view = BufferView::new(BufferId(1), &buffer);
     let shell = UiShell::default();
-    let ui_frame = shell.frame_for_workspace_with_menu_selection(
+    let ui_frame = shell.frame_for_workspace_with_menu(
         &workspace,
-        Rect::new(0, 0, 80, 10),
+        Rect::new(0, 0, 80, 12),
         &[buffer_view],
-        Some(MenuSelection::menu_only(0)),
+        Some(0),
     );
 
-    let (surface, terminal, _) = render_both(&shell, &ui_frame, 80, 12);
+    let (surface, terminal, _) = render_both(&shell, &ui_frame, 80, 14);
 
-    let rect = crate::render::menu::clamp_menu_rect(
-        crate::render::menu::dropdown_rect_for_menu(&shell, &ui_frame.menu, 0).unwrap(),
-        TuiRect::new(0, 0, 80, 12),
-    )
-    .unwrap();
-    assert_region_matches(
-        &surface,
-        terminal.backend().buffer(),
-        rect.x,
-        rect.y,
-        rect.width,
-        rect.height,
-    );
+    assert_region_matches(&surface, terminal.backend().buffer(), 0, 0, 80, 14);
 }
 
 #[test]
