@@ -30,9 +30,10 @@ use dun_ui::{
     BufferHighlightSpan, BufferView, HighlightClass, MenuSelection, UiMouseTarget, UiOverlay,
     UiShell,
 };
-use ratatui::Terminal;
-use ratatui::backend::CrosstermBackend;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
+#[cfg(test)]
+type Terminal<B> = ratatui::Terminal<B>;
 
 mod app;
 mod cli;
@@ -113,9 +114,10 @@ use plugins::{HighlightJob, HighlightOutcome, PluginHighlighter, language_hint};
 #[cfg(test)]
 use terminal::rewrite_16_color_sgr;
 use terminal::{
-    RuntimeAction, TerminalColorRewrite, TerminalGuard, TerminalWriter, command_run_status,
-    detect_terminal_profile, install_panic_terminal_restore, key_stroke_from_crossterm,
-    osc52_copy_sequence, run_command_capture, run_event_loop, text_input_from_crossterm,
+    RuntimeAction, SurfaceBackend, TerminalColorRewrite, TerminalGuard, TerminalWriter,
+    command_run_status, detect_terminal_profile, install_panic_terminal_restore,
+    key_stroke_from_crossterm, osc52_copy_sequence, run_command_capture, run_event_loop,
+    text_input_from_crossterm,
 };
 #[cfg(test)]
 use terminal::{handle_key_event, handle_mouse_event};
@@ -167,11 +169,11 @@ fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>)
     install_panic_terminal_restore();
     let mut guard = TerminalGuard::enter(app.mouse_enabled())?;
     let color_rewrite = TerminalColorRewrite::new(app.shell.profile);
-    let backend = CrosstermBackend::new(TerminalWriter::new(io::stdout(), color_rewrite.clone()));
-    let mut terminal = Terminal::new(backend)?;
+    let writer = TerminalWriter::new(io::stdout(), color_rewrite.clone());
+    let mut backend = SurfaceBackend::new(writer);
 
-    let result = run_event_loop(&mut terminal, &mut app, &mut guard, &color_rewrite);
-    terminal.show_cursor()?;
+    let result = run_event_loop(&mut backend, &mut app, &mut guard, &color_rewrite);
+    backend.show_cursor()?;
     result
 }
 

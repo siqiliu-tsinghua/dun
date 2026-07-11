@@ -6,6 +6,7 @@ mod lifecycle;
 mod profile;
 mod sgr;
 mod shell;
+mod surface_backend;
 
 pub(crate) use action::RuntimeAction;
 pub(crate) use clipboard::osc52_copy_sequence;
@@ -22,3 +23,4 @@ pub(crate) use shell::{
     command_run_status, duration_status_text, exit_status_text, handle_runtime_action,
     run_command_capture,
 };
+pub(crate) use surface_backend::SurfaceBackend;

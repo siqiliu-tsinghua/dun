@@ -4,21 +4,18 @@ use std::io::{self, Read, Write};
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
-use ratatui::Terminal;
-use ratatui::backend::CrosstermBackend;
-
-use super::{RuntimeAction, TerminalGuard, TerminalWriter};
+use super::{RuntimeAction, SurfaceBackend, TerminalGuard};
 use crate::app::AppState;
 use crate::command_output::{CapturedCommandStream, CommandRunResult};
 
 pub(crate) fn handle_runtime_action(
     action: RuntimeAction,
-    terminal: &mut Terminal<CrosstermBackend<TerminalWriter>>,
+    backend: &mut SurfaceBackend,
     app: &mut AppState,
     guard: &mut TerminalGuard,
 ) -> io::Result<()> {
     match action {
-        RuntimeAction::ShellEscape => run_shell_escape(terminal, app, guard),
+        RuntimeAction::ShellEscape => run_shell_escape(backend, app, guard),
         RuntimeAction::WriteTerminal(payload) => {
             let mut stdout = io::stdout();
             stdout.write_all(payload.as_bytes())?;
@@ -29,16 +26,16 @@ pub(crate) fn handle_runtime_action(
 }
 
 fn run_shell_escape(
-    terminal: &mut Terminal<CrosstermBackend<TerminalWriter>>,
+    backend: &mut SurfaceBackend,
     app: &mut AppState,
     guard: &mut TerminalGuard,
 ) -> io::Result<()> {
-    terminal.show_cursor()?;
+    backend.show_cursor()?;
     guard.suspend()?;
     let status = run_interactive_shell();
     let resume_result = guard.resume(app.mouse_enabled());
     if resume_result.is_ok() {
-        terminal.clear()?;
+        backend.clear()?;
     }
 
     match (status, resume_result) {
