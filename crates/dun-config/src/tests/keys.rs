@@ -19,10 +19,10 @@ fn parses_single_key_stroke_with_modifiers() {
 
 #[test]
 fn parses_key_sequence() {
-    let sequence = KeySequence::from_str("Ctrl+W, V").unwrap();
+    let sequence = KeySequence::from_str("Ctrl+X, V").unwrap();
 
     assert_eq!(sequence.strokes.len(), 2);
-    assert_eq!(sequence.strokes[0].key, Key::Char('w'));
+    assert_eq!(sequence.strokes[0].key, Key::Char('x'));
     assert_eq!(sequence.strokes[1].key, Key::Char('v'));
 }
 
@@ -73,7 +73,7 @@ fn keymap_finds_bound_command() {
         Some(&EditorCommand::Edit(EditCommand::ExtendSelectionPageDown))
     );
     assert_eq!(
-        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,]").unwrap()),
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,]").unwrap()),
         Some(&EditorCommand::Edit(EditCommand::ScrollRight))
     );
     assert_eq!(
@@ -89,7 +89,7 @@ fn keymap_finds_bound_command() {
         Some(&EditorCommand::Edit(EditCommand::ExtendSelectionWordLeft))
     );
     assert_eq!(
-        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,Ctrl+C").unwrap()),
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,Ctrl+C").unwrap()),
         Some(&EditorCommand::Edit(EditCommand::CopyExternal))
     );
     assert_eq!(
@@ -105,11 +105,11 @@ fn keymap_finds_bound_command() {
         Some(&EditorCommand::App(AppCommand::ConfigDiagnostics))
     );
     assert_eq!(
-        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,O").unwrap()),
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,O").unwrap()),
         Some(&EditorCommand::App(AppCommand::RunCommand))
     );
     assert_eq!(
-        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,S").unwrap()),
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,S").unwrap()),
         Some(&EditorCommand::App(AppCommand::ShellEscape))
     );
     assert_eq!(
@@ -123,7 +123,7 @@ fn default_keymap_has_mac_friendly_window_aliases() {
     let keymap = Keymap::default_editor();
 
     assert_eq!(
-        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,Left").unwrap()),
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,Left").unwrap()),
         Some(&EditorCommand::Window(WindowCommand::FocusLeft))
     );
     assert_eq!(
@@ -131,7 +131,7 @@ fn default_keymap_has_mac_friendly_window_aliases() {
         Some(&EditorCommand::Window(WindowCommand::FocusLeft))
     );
     assert_eq!(
-        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+W,Shift+Right").unwrap()),
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,Shift+Right").unwrap()),
         Some(&EditorCommand::Window(WindowCommand::ResizeRight))
     );
     assert_eq!(
@@ -140,7 +140,7 @@ fn default_keymap_has_mac_friendly_window_aliases() {
     );
     assert_eq!(
         keymap.sequence_for_command(&EditorCommand::Window(WindowCommand::FocusLeft)),
-        Some(&KeySequence::from_str("Ctrl+W,Left").unwrap())
+        Some(&KeySequence::from_str("Ctrl+X,Left").unwrap())
     );
 }
 
@@ -148,8 +148,8 @@ fn default_keymap_has_mac_friendly_window_aliases() {
 fn keymap_reports_sequence_prefixes() {
     let keymap = Keymap::default_editor();
 
-    assert!(keymap.has_sequence_prefix(&KeySequence::from_str("Ctrl+W").unwrap()));
-    assert!(!keymap.has_sequence_prefix(&KeySequence::from_str("Ctrl+W,H").unwrap()));
+    assert!(keymap.has_sequence_prefix(&KeySequence::from_str("Ctrl+X").unwrap()));
+    assert!(!keymap.has_sequence_prefix(&KeySequence::from_str("Ctrl+X,H").unwrap()));
     assert!(!keymap.has_sequence_prefix(&KeySequence::from_str("Alt+Left").unwrap()));
 }
 
@@ -212,8 +212,8 @@ fn file_dialog_keymap_rejects_duplicate_bindings() {
 #[test]
 fn key_sequences_have_stable_display_text() {
     assert_eq!(
-        KeySequence::from_str("Ctrl+W,H").unwrap().to_string(),
-        "Ctrl+W,H"
+        KeySequence::from_str("Ctrl+X,H").unwrap().to_string(),
+        "Ctrl+X,H"
     );
     assert_eq!(
         KeySequence::from_str("Alt+Shift+Left").unwrap().to_string(),

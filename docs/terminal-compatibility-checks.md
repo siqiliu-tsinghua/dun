@@ -165,12 +165,12 @@ SSH-INVALID-BYTES: pass
   the fallback state shown in the status bar.
 
 SSH-SHELL-ESCAPE: pass
-  Ctrl+W,S suspended the alternate-screen TUI, ran
+  Ctrl+X,S suspended the alternate-screen TUI, ran
   /tmp/dun-shell-escape-d2c832f.sh through SHELL, printed
   dun-shell-escape-ssh on the normal terminal, then resumed and redrew the TUI.
 
 SSH-RUN-COMMAND: pass
-  Ctrl+W,O opened the Run Command prompt. Submitting "printf ssh-run" opened a
+  Ctrl+X,O opened the Run Command prompt. Submitting "printf ssh-run" opened a
   read-only Command Output pane showing stdout, "Stdout: 7 bytes, complete",
   "Stderr: 0 bytes, complete", and "Truncated: no".
 ```
@@ -290,7 +290,7 @@ Editing:
 - Long editor lines scroll horizontally to keep the cursor visible; the status
   bar reports the visible line range and horizontal offset, and clipped rows
   show left/right edge indicators.
-- `Ctrl+W,[` and `Ctrl+W,]` scroll the focused editor viewport left/right when
+- `Ctrl+X,[` and `Ctrl+X,]` scroll the focused editor viewport left/right when
   the line is wider than the pane.
 - Long buffers display a lightweight right-border scrollbar thumb when there
   are more lines than fit in the pane.
@@ -338,10 +338,10 @@ Search and navigation:
 
 Process actions:
 
-- `Ctrl+W,S` should suspend the alternate-screen TUI, run the configured
+- `Ctrl+X,S` should suspend the alternate-screen TUI, run the configured
   `$SHELL` with normal terminal stdio, and return to a usable editor after the
   shell exits.
-- `Ctrl+W,O` should open the Run Command prompt. Submitting
+- `Ctrl+X,O` should open the Run Command prompt. Submitting
   `printf dun-run` should create or reuse a read-only Command Output pane with
   exit status, stdout/stderr byte counts, and truncation status.
 - Command prompt `output index`, `output summary`, `output status`,
@@ -362,20 +362,20 @@ Process actions:
 
 Tiling:
 
-- `Ctrl+W,H` and `Ctrl+W,V` split the workspace.
-- `Ctrl+W,Arrow` moves focus between panes.
-- `Ctrl+W,Shift+Arrow` resizes the nearest split where the terminal sends
+- `Ctrl+X,H` and `Ctrl+X,V` split the workspace.
+- `Ctrl+X,Arrow` moves focus between panes.
+- `Ctrl+X,Shift+Arrow` resizes the nearest split where the terminal sends
   shifted arrow keys.
 - `Alt+Arrow` focus movement works as a compatibility alias where the terminal
   sends Option/Meta keys.
 - `Alt+Shift+Arrow` resize works as a compatibility alias where available.
-- `Ctrl+W,C` collapses or expands the focused pane.
-- `Ctrl+W,X` closes the focused pane without leaking stale buffer state.
+- `Ctrl+X,C` collapses or expands the focused pane.
+- `Ctrl+X,X` closes the focused pane without leaking stale buffer state.
 
 Low-capability expectations:
 
 - If `Alt+Arrow` or `Alt+Shift+Arrow` is not delivered by a terminal,
-  `Ctrl+W,Arrow` focus movement and `Ctrl+W,Shift+Arrow` resize remain the
+  `Ctrl+X,Arrow` focus movement and `Ctrl+X,Shift+Arrow` resize remain the
   primary required path. Terminals that cannot deliver shifted arrows should
   record resize as a keybinding compatibility note, not an editor state
   failure.

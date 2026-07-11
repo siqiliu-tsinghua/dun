@@ -76,7 +76,7 @@ fn config_parser_reports_line_errors() {
     assert_eq!(error.line, Some(1));
     assert!(error.to_string().contains("unknown file dialog action"));
 
-    let error = parse_config("key.file_dialog.cancel = Ctrl+W,Q").unwrap_err();
+    let error = parse_config("key.file_dialog.cancel = Ctrl+X,Q").unwrap_err();
 
     assert_eq!(error.line, Some(1));
     assert!(error.to_string().contains("single key stroke"));
@@ -137,18 +137,18 @@ fn config_parser_rejects_duplicate_resulting_keybindings() {
 
 #[test]
 fn config_parser_replaces_all_default_aliases_for_command() {
-    let config = parse_config("key.window.focus_left = Ctrl+W,A").unwrap();
+    let config = parse_config("key.window.focus_left = Ctrl+X,A").unwrap();
 
     assert_eq!(
         config
             .keybindings
-            .command_for_sequence(&KeySequence::from_str("Ctrl+W,A").unwrap()),
+            .command_for_sequence(&KeySequence::from_str("Ctrl+X,A").unwrap()),
         Some(&EditorCommand::Window(WindowCommand::FocusLeft))
     );
     assert_eq!(
         config
             .keybindings
-            .command_for_sequence(&KeySequence::from_str("Ctrl+W,Left").unwrap()),
+            .command_for_sequence(&KeySequence::from_str("Ctrl+X,Left").unwrap()),
         None
     );
     assert_eq!(

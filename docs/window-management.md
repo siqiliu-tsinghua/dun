@@ -155,10 +155,10 @@ commands report visible status text for both success and failure cases.
 Final keybindings belong in configuration, but the default should feel familiar
 to terminal users:
 
-- `Ctrl+W,H` splits horizontally;
-- `Ctrl+W,V` splits vertically;
-- `Ctrl+W,Arrow` moves focus by direction;
-- `Ctrl+W,Shift+Arrow` resizes by direction;
+- `Ctrl+X,H` splits horizontally;
+- `Ctrl+X,V` splits vertically;
+- `Ctrl+X,Arrow` moves focus by direction;
+- `Ctrl+X,Shift+Arrow` resizes by direction;
 - close focused window;
 - collapse/expand focused window;
 - equalize layout;

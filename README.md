@@ -79,9 +79,10 @@ wrapped visual rows instead of only whole logical lines.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
 strokes are not consumed by the configured keymap, and `Ctrl+L` selects the
 current line, giving Cut/Copy a pure keyboard path without requiring mouse
-support. PageUp/PageDown move by the visible pane height, using wrapped visual
-rows when word-wrap is active, and `Ctrl+Home/End` jump to document
-start/end. `Ctrl+Left/Right`
+support. PageUp/PageDown — and `Ctrl+F`/`Ctrl+B` for keyboards without those
+keys — move by the visible pane height, using wrapped visual rows when
+word-wrap is active, and `Ctrl+Home/End` jump to document start/end. `Ctrl+W`
+opens Find. `Ctrl+Left/Right`
 move by UTF-8-safe word boundaries, `Ctrl+Backspace/Delete` delete by word, and
 `Ctrl+Shift+Left/Right` extends selection by word when the terminal delivers
 those modifiers. `Shift+PageUp` and `Shift+PageDown` extend selection by the
@@ -132,9 +133,9 @@ structure listing is planned to return as a plugin role.
 ambiguous candidates, shows ambiguous completion candidates in the prompt
 overlay, and completes path arguments for commands such as `open` and
 `save-as`.
-`Ctrl+W,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
+`Ctrl+X,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
 restores the normal terminal, runs the user's shell, then resumes and redraws
-after the shell exits. `Ctrl+W,O` opens a Run Command prompt for one-shot
+after the shell exits. `Ctrl+X,O` opens a Run Command prompt for one-shot
 non-interactive commands; stdout and stderr are captured with bounded memory
 and a configurable timeout (`limits.run_command_timeout_ms`, default 30s)
 after which the process is killed,
@@ -146,8 +147,8 @@ section/body jumps, stdout/stderr-only derived panes, and dedicated
 copy/save/clear commands) was removed in the 2026-07 slimming stage; the pane
 remains a normal read-only buffer, so ordinary selection, copy, and Find work
 inside it.
-Tiling defaults use `Ctrl+W,H`/`Ctrl+W,V` to split, `Ctrl+W,Arrow` to move
-focus, and `Ctrl+W,Shift+Arrow` to resize. `Alt+Arrow` and
+Tiling defaults use `Ctrl+X,H`/`Ctrl+X,V` to split, `Ctrl+X,Arrow` to move
+focus, and `Ctrl+X,Shift+Arrow` to resize. `Alt+Arrow` and
 `Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver
 Option/Meta keys, but the primary path does not depend on macOS Command, Fn,
 or Option-key terminal settings.

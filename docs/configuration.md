@@ -51,11 +51,13 @@ key.app.quit = Ctrl+Q
 key.app.reload_config = F5
 key.app.config_diagnostics = F6
 key.app.status_history = none
-key.edit.find = Ctrl+F
-key.edit.copy_external = Ctrl+W,Ctrl+C
-key.window.split_horizontal = Ctrl+W,H
-key.window.focus_left = Ctrl+W,Left
-key.window.resize_right = Ctrl+W,Shift+Right
+key.edit.find = Ctrl+W
+key.edit.move_page_down = Ctrl+F
+key.edit.move_page_up = Ctrl+B
+key.edit.copy_external = Ctrl+X,Ctrl+C
+key.window.split_horizontal = Ctrl+X,H
+key.window.focus_left = Ctrl+X,Left
+key.window.resize_right = Ctrl+X,Shift+Right
 ```
 
 Set a command to `none`, `disabled`, or `unbind` to remove its default binding:
@@ -65,7 +67,7 @@ key.edit.find = none
 ```
 
 Changing a command binding removes that command's default bindings first,
-including default aliases such as `Ctrl+W,Left` and `Alt+Left` for the same
+including default aliases such as `Ctrl+X,Left` and `Alt+Left` for the same
 window-focus command. If the new key sequence conflicts with another command,
 config validation fails.
 The runtime input path and the in-editor Help window both use the active
@@ -100,10 +102,13 @@ bindings may overlap global editor bindings because dialogs handle them before
 normal editor dispatch, but duplicate file-dialog strokes are rejected.
 
 The default window-management bindings prefer MacBook- and SSH-friendly
-`Ctrl+W` sequences because macOS Command and Fn are not generally delivered to
-terminal applications, and Option only appears as Alt/Meta when the terminal is
-configured to send it. `Alt+Arrow` and `Alt+Shift+Arrow` remain compatibility
-aliases where available.
+`Ctrl+X` chord sequences (an Emacs-style prefix) because macOS Command and Fn
+are not generally delivered to terminal applications, and Option only appears
+as Alt/Meta when the terminal is configured to send it. `Alt+Arrow` and
+`Alt+Shift+Arrow` remain compatibility aliases where available. For the same
+reason, paging and search use plain `Ctrl`+letter bindings that reach any
+terminal: `Ctrl+F`/`Ctrl+B` page down/up (in addition to PageDown/PageUp and
+Fn+Down/Up) and `Ctrl+W` opens Find, following the vi and nano conventions.
 Unbound `Shift+Arrow` and `Shift+Home/End` strokes extend the editor selection
 as a fallback after the active keymap is checked. Binding one of those strokes
 to a command gives the configured command priority.
@@ -111,7 +116,7 @@ Default editor movement also includes PageUp/PageDown for visible-page
 movement, using wrapped visual rows when word-wrap is active.
 `Shift+PageUp/PageDown` uses the same page model for selection,
 `Ctrl+Home/End` moves to the document start/end,
-`Ctrl+W,[`/`Ctrl+W,]` for explicit horizontal viewport scrolling,
+`Ctrl+X,[`/`Ctrl+X,]` for explicit horizontal viewport scrolling,
 `Ctrl+Left/Right` for word movement, `Ctrl+Shift+Left/Right` for word
 selection, `Ctrl+Backspace/Delete` for word deletion, and `Ctrl+L` for
 selecting the current line. These are ordinary command bindings and can be
@@ -193,14 +198,14 @@ limits.editable_file_soft_limit_bytes = 8 MiB
 key.app.quit = Ctrl+Q
 key.app.reload_config = F5
 key.app.config_diagnostics = F6
-key.edit.find = Ctrl+F
-key.edit.copy_external = Ctrl+W,Ctrl+C
-key.edit.scroll_left = Ctrl+W,[
-key.edit.scroll_right = Ctrl+W,]
-key.window.split_horizontal = Ctrl+W,H
-key.window.split_vertical = Ctrl+W,V
-key.window.focus_left = Ctrl+W,Left
-key.window.resize_right = Ctrl+W,Shift+Right
+key.edit.find = Ctrl+W
+key.edit.copy_external = Ctrl+X,Ctrl+C
+key.edit.scroll_left = Ctrl+X,[
+key.edit.scroll_right = Ctrl+X,]
+key.window.split_horizontal = Ctrl+X,H
+key.window.split_vertical = Ctrl+X,V
+key.window.focus_left = Ctrl+X,Left
+key.window.resize_right = Ctrl+X,Shift+Right
 key.file_dialog.toggle_hidden = F8
 ```
 

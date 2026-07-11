@@ -503,7 +503,7 @@ fn multi_stroke_key_sequence_applies_command() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('w'), CrosstermKeyModifiers::CONTROL),
+        CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::CONTROL),
     );
 
     assert_eq!(app.workspace.window_count(), 1);
@@ -522,7 +522,7 @@ fn invalid_pending_key_sequence_does_not_insert_text() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('w'), CrosstermKeyModifiers::CONTROL),
+        CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::CONTROL),
     );
     handle_key_event(
         &mut app,

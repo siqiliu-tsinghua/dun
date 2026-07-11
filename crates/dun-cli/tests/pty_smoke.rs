@@ -256,7 +256,7 @@ fn pty_smoke_shell_escape_suspends_and_resumes_terminal() -> io::Result<()> {
         case,
         &[],
         "Untitled",
-        b"\x17s\x11",
+        b"\x18s\x11",
         &[("SHELL", shell_path.as_os_str())],
     );
     let _ = fs::remove_file(&shell_path);
