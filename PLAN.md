@@ -343,9 +343,17 @@ regressing.
   interactive smoke; dual-platform size *dropped* (Debian 706,944 → 637,312)
   because LTO strips the now-unreachable ratatui render path. The `ratatui`
   dependency still stands until retirement.
-- [ ] ratatui retirement (slice 4b): delete the dun-ui ratatui render path
-  (`render_ui_frame` and the ratatui bodies of chrome/menu/status/window/
-  overlay), convert the parity/`TestBackend` snapshot tests to Surface golden
-  tests, remove the `#[cfg(test)] type Terminal` alias and the file_io ratatui
-  test usage, drop the `ratatui` dependency from both crates, and re-audit
-  size. Judgment-heavy and irreversible — done directly, not via Codex.
+- [x] ratatui retirement (slice 4b, `858e876`): deleted the dun-ui ratatui
+  render path, migrated the Surface path off `ratatui::layout::Rect` to
+  `dun_core::Rect`, converted the sanitization/ASCII-fallback tests to the
+  Surface backend (redundant ratatui snapshot suites deleted; coverage lives
+  in the surface_* unit tests and the tmux/PTY suite), removed the
+  `#[cfg(test)] type Terminal` alias and the file_io ratatui usage, and
+  dropped `ratatui` from both crates + the workspace + the lockfile. Binary
+  size -4 KiB both platforms (Debian 637,312 → 633,216); lockfile 76 → 42
+  packages. Done directly, not via Codex.
+
+Phase 12 is complete: `dun` renders entirely through the in-house Surface
+backend (Surface grid → layer draw → SurfaceRenderer/emit_diff →
+SurfaceBackend), with no `ratatui` dependency. Net size vs the pre-renderer
+baseline: Debian 706,944 → 633,216 (-73,728).

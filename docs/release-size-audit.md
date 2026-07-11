@@ -311,3 +311,24 @@ The ratatui-retirement slice (removing the dun-ui ratatui path and the
 dependency) is expected to yield little further binary size — most of the
 now-unreachable code is already stripped — but drops the dependency and
 its lock packages.
+
+## 2026-07-11 ratatui Retirement (slice 4b)
+
+`858e876` deletes the dead dun-ui ratatui render path, migrates the Surface
+path off `ratatui::layout::Rect` to `dun_core::Rect`, and drops the `ratatui`
+dependency from both crates, the workspace table, and the lockfile. Binary
+size barely moves (LTO already stripped the unreachable render path in 4a),
+but the dependency and its transitive tree are gone:
+
+| Platform | Before (4a) | After (4b) | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 592,172 | 588,060 | -4,112 | 460,516 |
+| Debian x86_64 | 637,312 | 633,216 | -4,096 | 415,360 |
+
+Lockfile packages: 76 → 42 (**-34**), removing ratatui and its transitive
+deps (cassowary, compact_str, castaway, darling, strum/strum_macros,
+itertools, lru, unicode-segmentation, unicode-truncate, and the
+syn/proc-macro2/quote proc-macro stack). Debian measured on a clean
+`git archive` of `858e876`; `--version`/`--dump-config` smoke passed. The
+full renderer-replacement line (Phase 12) is complete: `dun` renders through
+the in-house Surface backend with no ratatui.
