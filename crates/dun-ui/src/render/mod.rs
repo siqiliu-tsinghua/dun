@@ -2,6 +2,8 @@ pub(crate) mod chrome;
 pub(crate) mod menu;
 pub(crate) mod overlay;
 pub(crate) mod status;
+#[allow(dead_code)]
+pub(crate) mod surface_draw;
 pub(crate) mod window;
 
 use ratatui::layout::Rect as TuiRect;
