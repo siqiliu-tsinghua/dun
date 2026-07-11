@@ -331,11 +331,21 @@ regressing.
 - [x] Surface status/menu layer drawing (brief-007).
 - [x] Surface entry-point prototype with the cursor-return contract and the
   parity harness (menu/status/dropdown regions green).
-- [ ] Port the window layer (gutter, body text, current line, selection,
+- [x] Port the window layer (gutter, body text, current line, selection,
   search, plugin highlights, scrollbar, horizontal edges) and the overlay
-  layer to Surface; extend parity to the full frame across the existing
-  rendering fixtures (slice 3c).
-- [ ] dun-cli cutover: draw into a `Surface`, emit with `emit_diff`, append
-  the returned cursor position, delete the ratatui render path and its
-  snapshot tests, drop the `ratatui` dependency. Gate with the tmux/PTY
-  suites and a dual-platform size re-audit.
+  layer to Surface; parity extended to the full frame across the existing
+  rendering fixtures (slices 3c/3d, briefs 008/009).
+- [x] Expose `SurfaceRenderer` as dun-ui's public backend API (opaque over
+  Surface/emit; returns bytes + cursor).
+- [x] dun-cli cutover (slice 4a, brief-010): the event loop draws through
+  `SurfaceBackend` (SurfaceRenderer + emit_diff), appends the returned cursor,
+  clears+invalidates on resize. Verified by the tmux/PTY suites and an
+  interactive smoke; dual-platform size *dropped* (Debian 706,944 → 637,312)
+  because LTO strips the now-unreachable ratatui render path. The `ratatui`
+  dependency still stands until retirement.
+- [ ] ratatui retirement (slice 4b): delete the dun-ui ratatui render path
+  (`render_ui_frame` and the ratatui bodies of chrome/menu/status/window/
+  overlay), convert the parity/`TestBackend` snapshot tests to Surface golden
+  tests, remove the `#[cfg(test)] type Terminal` alias and the file_io ratatui
+  test usage, drop the `ratatui` dependency from both crates, and re-audit
+  size. Judgment-heavy and irreversible — done directly, not via Codex.

@@ -289,3 +289,25 @@ Debian measured on a clean `git archive` of `74f6576`; `--version` and
 `--dump-config` smoke passed. The integration slice (replacing the
 ratatui `Terminal` in `dun-cli`) is where the real size movement — the
 removal of the ratatui dependency — will show up.
+
+## 2026-07-11 dun-cli Surface Cutover (slice 4a)
+
+`9da0834` (brief-010) switches the dun-cli event loop from the ratatui
+`Terminal` to `SurfaceBackend` (SurfaceRenderer + emit_diff). The ratatui
+dependency still stands (dun-ui uses it), but the binary no longer reaches
+the ratatui render path, so fat LTO strips that machinery — a net size win
+despite adding the Surface renderer to the binary:
+
+| Platform | Before | After | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 657,964 | 592,172 | -65,792 | 456,404 |
+| Debian x86_64 | 706,944 | 637,312 | -69,632 | 411,264 |
+
+Debian measured on a clean `git archive` of `9da0834`; `--version` and
+`--dump-config` smoke passed. Verified on a real terminal via the
+tmux/PTY/terminal-grid suites plus an interactive tmux smoke (initial
+render, cursor tracking while typing, resize full-repaint, clean quit).
+The ratatui-retirement slice (removing the dun-ui ratatui path and the
+dependency) is expected to yield little further binary size — most of the
+now-unreachable code is already stripped — but drops the dependency and
+its lock packages.
