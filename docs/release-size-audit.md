@@ -273,3 +273,19 @@ Each batch passed fmt/clippy, the workspace test suite (13 suites; the
 tmux 3.7 grid-harness failure recorded in TODO.md predates the slimming
 stage and reproduces at `b03192d`), and `--version`/`--dump-config` smoke
 on both platforms.
+
+## 2026-07-11 Renderer Slice 2 (Surface diff emitter)
+
+`74f6576` (brief-005) adds the `surface_emit` module to `dun-ui` as
+`#[allow(dead_code)]` pending integration. Zero size delta on both
+platforms, confirming the unreferenced module is fully stripped:
+
+| Platform | Before | After | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 657,964 | 657,964 | 0 | 390,612 |
+| Debian x86_64 | 706,944 | 706,944 | 0 | 341,632 |
+
+Debian measured on a clean `git archive` of `74f6576`; `--version` and
+`--dump-config` smoke passed. The integration slice (replacing the
+ratatui `Terminal` in `dun-cli`) is where the real size movement — the
+removal of the ratatui dependency — will show up.
