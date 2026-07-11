@@ -27,6 +27,7 @@ impl AppState {
         let file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
         let clipboard = loaded_config.config.clipboard;
         let mouse_enabled = loaded_config.config.mouse.enabled;
+        let plugin_status = loaded_config.config.plugin_status;
 
         let highlighter = PluginHighlighter::from_entries(&loaded_config.config.plugins);
 
@@ -42,6 +43,7 @@ impl AppState {
             file_dialog_keys,
             clipboard,
             mouse_enabled,
+            plugin_status,
             mouse_drag: None,
             active_menu: None,
             active_menu_entry: None,

@@ -86,6 +86,15 @@ fn config_parser_reports_line_errors() {
     assert_eq!(error.line, Some(1));
     assert!(error.to_string().contains("expected true or false"));
 
+    let error = parse_config("plugins.idle_after_ms = eventually").unwrap_err();
+
+    assert_eq!(error.line, Some(1));
+    assert!(
+        error
+            .to_string()
+            .contains("expected an idle threshold in milliseconds")
+    );
+
     let error = parse_config("missing separator").unwrap_err();
 
     assert_eq!(error.line, Some(1));
@@ -120,6 +129,20 @@ fn config_parser_reports_line_errors() {
 
     assert_eq!(error.line, Some(1));
     assert!(error.to_string().contains("invalid key sequence"));
+}
+
+#[test]
+fn parses_plugin_status_indicator_settings() {
+    let config = parse_config(
+        "\
+plugins.status_bar = true
+plugins.idle_after_ms = 60000
+",
+    )
+    .unwrap();
+
+    assert!(config.plugin_status.status_bar);
+    assert_eq!(config.plugin_status.idle_after_ms, 60_000);
 }
 
 #[test]

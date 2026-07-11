@@ -47,6 +47,7 @@ pub(crate) fn run_event_loop(
             );
         }
         ui_frame.status.right = app.focused_file_status();
+        ui_frame.status.plugin = app.plugin_indicator();
         ui_frame.overlay = app.active_overlay();
         backend.draw(&app.shell, &ui_frame, width, height)?;
 

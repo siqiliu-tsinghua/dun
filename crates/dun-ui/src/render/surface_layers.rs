@@ -1,13 +1,14 @@
 use dun_core::Rect as TuiRect;
+use dun_term::Style;
 
-use crate::render::chrome::{vertical_overflow_down, vertical_overflow_up};
+use crate::render::chrome::{sanitize_chrome_text, vertical_overflow_down, vertical_overflow_up};
 use crate::render::menu::{
     clamp_menu_rect, dropdown_rect_for_menu, menu_entry_text, menu_visible_entry_range,
 };
 use crate::render::status::sanitized_status_text_for_width;
 use crate::render::surface_draw::{draw_border, draw_overflow_indicators};
 use crate::surface::Surface;
-use crate::{MenuBar, StatusBar, UiShell};
+use crate::{MenuBar, StatusBar, UiShell, display_width};
 
 pub(crate) fn draw_status(
     surface: &mut Surface,
@@ -16,10 +17,51 @@ pub(crate) fn draw_status(
     area: TuiRect,
 ) {
     let style = shell.theme.palette.status_bar;
-    let text = sanitized_status_text_for_width(shell, status, area.width as usize);
+    let width = area.width as usize;
+
+    let indicator = status
+        .plugin
+        .as_ref()
+        .map(|plugin| (sanitize_chrome_text(shell, &plugin.text), plugin.alert));
+    let indicator_width = indicator
+        .as_ref()
+        .map(|(text, _)| display_width(text))
+        .unwrap_or(0);
+    let reserved = if indicator_width == 0 || indicator_width.saturating_add(1) > width {
+        0
+    } else {
+        indicator_width.saturating_add(1)
+    };
+    let bar_width = width.saturating_sub(reserved);
 
     surface.fill_rect(area.x, area.y, area.width, area.height, ' ', style);
+    let text = sanitized_status_text_for_width(shell, status, bar_width);
     surface.set_text(area.x, area.y, &text, style);
+
+    if reserved > 0 {
+        let (text, alert) = indicator.expect("reserved implies an indicator");
+        let indicator_style = if alert {
+            alert_style(shell)
+        } else {
+            shell.theme.palette.status_text
+        };
+        let x = area
+            .x
+            .saturating_add(area.width.saturating_sub(indicator_width as u16));
+        surface.set_text(x, area.y, &text, indicator_style);
+    }
+}
+
+/// The theme's warning pair, swapped so the warning foreground becomes the
+/// chip background. In monochrome the bold chip still stands out against the
+/// reverse-video status bar.
+fn alert_style(shell: &UiShell) -> Style {
+    let warning = shell.theme.palette.warning;
+    Style {
+        fg: warning.bg,
+        bg: warning.fg,
+        attrs: warning.attrs,
+    }
 }
 
 pub(crate) fn draw_menu_bar(surface: &mut Surface, shell: &UiShell, menu: &MenuBar, area: TuiRect) {

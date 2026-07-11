@@ -1,7 +1,9 @@
+use std::time::{Duration, Instant};
+
 use dun_plugin::{StyleId, StyleSpan};
 
 use super::support::app_with_text;
-use crate::plugins::{WorkerMessage, next_worker_job_for_tests};
+use crate::plugins::{PluginActivity, WorkerMessage, next_worker_job_for_tests};
 use crate::*;
 
 fn span(line: u32, start_col: u32, end_col: u32) -> StyleSpan {
@@ -171,7 +173,7 @@ fn highlight_failure_leaves_buffer_and_prior_highlight_untouched() {
 
 #[test]
 fn schedule_dedupes_identical_snapshots_and_sends_changed_ones() {
-    let (mut highlighter, jobs) = PluginHighlighter::for_tests();
+    let (mut highlighter, jobs, _outcomes) = PluginHighlighter::for_tests();
 
     assert!(highlighter.schedule(job(0, 0, 3)));
     assert_eq!(jobs.try_recv().ok(), Some(WorkerMessage::Job(job(0, 0, 3))));
@@ -187,8 +189,52 @@ fn schedule_dedupes_identical_snapshots_and_sends_changed_ones() {
 }
 
 #[test]
+fn plugin_activity_tracks_jobs_failures_unload_and_disabled_idle_threshold() {
+    let (mut highlighter, _messages, outcomes) = PluginHighlighter::for_tests();
+
+    assert!(highlighter.schedule(job(0, 0, 3)));
+    let active_now = Instant::now();
+    assert_eq!(
+        highlighter.activity_at(active_now, Some(Duration::from_secs(10))),
+        PluginActivity::Active
+    );
+    assert_eq!(
+        highlighter.activity_at(
+            active_now + Duration::from_secs(11),
+            Some(Duration::from_secs(10))
+        ),
+        PluginActivity::Idle
+    );
+
+    outcomes
+        .send(HighlightOutcome {
+            buffer_id: BufferId(1),
+            revision: 0,
+            result: Err("failed".to_string()),
+        })
+        .unwrap();
+    assert_eq!(highlighter.poll().len(), 1);
+    assert_eq!(
+        highlighter.activity_at(Instant::now(), Some(Duration::from_secs(10))),
+        PluginActivity::Error
+    );
+
+    highlighter.unload();
+    assert_eq!(
+        highlighter.activity_at(Instant::now(), Some(Duration::from_secs(10))),
+        PluginActivity::Off
+    );
+
+    highlighter.load();
+    assert_eq!(
+        highlighter.activity_at(Instant::now() + Duration::from_secs(60), None),
+        PluginActivity::Active
+    );
+}
+
+#[test]
 fn unload_then_load_resets_dedupe_so_next_snapshot_resends() {
-    let (mut highlighter, messages) = PluginHighlighter::for_tests();
+    let (mut highlighter, messages, _outcomes) = PluginHighlighter::for_tests();
     let snapshot = job(7, 2, 4);
 
     assert!(highlighter.schedule(snapshot.clone()));
@@ -212,7 +258,7 @@ fn unload_then_load_resets_dedupe_so_next_snapshot_resends() {
 
 #[test]
 fn worker_unload_drops_jobs_until_load_reenables_them() {
-    let (mut highlighter, messages) = PluginHighlighter::for_tests();
+    let (mut highlighter, messages, _outcomes) = PluginHighlighter::for_tests();
     let snapshot = job(3, 0, 2);
     let mut worker_unloaded = false;
 
@@ -237,7 +283,7 @@ fn worker_unload_drops_jobs_until_load_reenables_them() {
 #[test]
 fn plugin_command_reports_and_controls_the_highlighter() {
     let mut app = AppState::new();
-    let (highlighter, messages) = PluginHighlighter::for_tests();
+    let (highlighter, messages, _outcomes) = PluginHighlighter::for_tests();
     app.highlighter = Some(highlighter);
 
     app.run_command_line("plugin");
@@ -271,6 +317,35 @@ fn plugin_command_reports_and_controls_the_highlighter() {
         app.status_message,
         Some("Usage: plugin [load|unload]".to_string())
     );
+}
+
+#[test]
+fn plugin_indicator_is_hidden_when_the_toggle_is_off() {
+    let mut app = AppState::new();
+    let (highlighter, _messages, _outcomes) = PluginHighlighter::for_tests();
+    app.highlighter = Some(highlighter);
+
+    assert_eq!(app.plugin_indicator(), None);
+}
+
+#[test]
+fn plugin_indicator_flags_an_idle_host_when_the_toggle_is_on() {
+    let config = Config {
+        plugin_status: dun_config::PluginStatusConfig {
+            status_bar: true,
+            idle_after_ms: 1_000,
+        },
+        ..Config::default()
+    };
+    let mut app = AppState::from_config(config);
+    let (mut highlighter, _messages, _outcomes) = PluginHighlighter::for_tests();
+    highlighter
+        .set_last_activity_for_tests(Instant::now().checked_sub(Duration::from_secs(2)).unwrap());
+    app.highlighter = Some(highlighter);
+
+    let indicator = app.plugin_indicator().unwrap();
+    assert!(indicator.alert);
+    assert!(indicator.text.ends_with("idle]"));
 }
 
 #[test]

@@ -11,8 +11,9 @@ mod text;
 
 pub use model::{
     BufferHighlightSpan, BufferView, HighlightClass, MenuBar, MenuEntry, MenuItem, MenuSelection,
-    StatusBar, UiCursor, UiFrame, UiGutterLine, UiHighlightLine, UiHorizontalEdgeLine, UiMouseHit,
-    UiMouseTarget, UiOverlay, UiScrollbar, UiSearchMatchLine, UiSelectionLine, UiWindow,
+    PluginIndicator, StatusBar, UiCursor, UiFrame, UiGutterLine, UiHighlightLine,
+    UiHorizontalEdgeLine, UiMouseHit, UiMouseTarget, UiOverlay, UiScrollbar, UiSearchMatchLine,
+    UiSelectionLine, UiWindow,
 };
 #[cfg(test)]
 pub(crate) use render::chrome::vertical_overflow_up;

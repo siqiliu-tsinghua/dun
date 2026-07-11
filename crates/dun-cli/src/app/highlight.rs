@@ -1,8 +1,34 @@
-use dun_plugin::{StyleId, StyleSpan};
+use std::time::{Duration, Instant};
 
+use dun_plugin::{StyleId, StyleSpan};
+use dun_ui::PluginIndicator;
+
+use crate::plugins::PluginActivity;
 use crate::*;
 
 impl AppState {
+    pub(crate) fn plugin_indicator(&self) -> Option<PluginIndicator> {
+        if !self.plugin_status.status_bar {
+            return None;
+        }
+        let highlighter = self.highlighter.as_ref()?;
+        let idle_after = match self.plugin_status.idle_after_ms {
+            0 => None,
+            ms => Some(Duration::from_millis(ms)),
+        };
+        let id = highlighter.plugin_id();
+        let (suffix, alert) = match highlighter.activity_at(Instant::now(), idle_after) {
+            PluginActivity::Off => (" off", false),
+            PluginActivity::Active => ("", false),
+            PluginActivity::Idle => (" idle", true),
+            PluginActivity::Error => (" error", true),
+        };
+        Some(PluginIndicator {
+            text: format!("[{id}{suffix}]"),
+            alert,
+        })
+    }
+
     /// One editor tick of plugin work: apply any finished highlight results,
     /// then request a snapshot for the focused buffer if its content or
     /// viewport changed. Called from the event loop; never blocks (host I/O

@@ -24,6 +24,7 @@ fn status_chrome_sanitizes_terminal_control_payloads() {
     let status = StatusBar {
         left: "Opened \x1b]0;owned\x07.log".to_string(),
         right: "Ln 1 \x1b[31mred\x1b[0m".to_string(),
+        plugin: None,
         focused_window: WindowId(1),
     };
 
@@ -62,6 +63,7 @@ fn ascii_chrome_sanitization_stays_ascii() {
     let status = StatusBar {
         left: "打开 \x1b[2J".to_string(),
         right: "\u{009b}31m".to_string(),
+        plugin: None,
         focused_window: WindowId(1),
     };
     let text = sanitized_status_text_for_width(&shell, &status, 80);

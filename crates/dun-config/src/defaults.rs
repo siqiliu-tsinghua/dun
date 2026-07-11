@@ -23,6 +23,16 @@ pub fn default_config_text() -> String {
     out.push_str("\n# Mouse\n");
     out.push_str(&format!("mouse.enabled = {}\n", config.mouse.enabled));
 
+    out.push_str("\n# Plugin status indicator\n");
+    out.push_str(&format!(
+        "plugins.status_bar = {}\n",
+        config.plugin_status.status_bar
+    ));
+    out.push_str(&format!(
+        "plugins.idle_after_ms = {}\n",
+        config.plugin_status.idle_after_ms
+    ));
+
     out.push_str("\n# Clipboard\n");
     out.push_str(&format!(
         "clipboard.osc52.enabled = {}\n",

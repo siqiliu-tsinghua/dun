@@ -196,6 +196,7 @@ impl AppState {
         self.file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
         self.clipboard = loaded_config.config.clipboard;
         self.mouse_enabled = loaded_config.config.mouse.enabled;
+        self.plugin_status = loaded_config.config.plugin_status;
         self.config_source = loaded_config.source;
         self.refresh_help_buffer();
         self.refresh_config_diagnostics_buffer();

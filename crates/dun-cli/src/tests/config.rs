@@ -168,6 +168,8 @@ fn reload_config_applies_updated_keymap_and_limits_without_resetting_buffers() {
         "\
 limits.editable_file_soft_limit_bytes = 8 KiB
 mouse.enabled = true
+plugins.status_bar = true
+plugins.idle_after_ms = 60000
 key.app.help = F10
 ",
     )
@@ -184,6 +186,8 @@ key.app.help = F10
     );
     assert_eq!(app.limits.editable_file_soft_limit_bytes, 8 * 1024);
     assert!(app.mouse_enabled());
+    assert!(app.plugin_status.status_bar);
+    assert_eq!(app.plugin_status.idle_after_ms, 60_000);
     assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "x");
 
     handle_key_event(

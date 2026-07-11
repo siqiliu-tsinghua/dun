@@ -7,6 +7,7 @@ impl UiShell {
         StatusBar {
             left: format!("{} window(s)", visible_windows),
             right: format!("theme={} colors={:?}", self.theme.name, self.profile.colors),
+            plugin: None,
             focused_window: workspace.focused,
         }
     }

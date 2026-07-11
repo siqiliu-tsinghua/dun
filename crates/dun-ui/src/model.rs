@@ -311,9 +311,16 @@ impl MenuEntry {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PluginIndicator {
+    pub text: String,
+    pub alert: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StatusBar {
     pub left: String,
     pub right: String,
+    pub plugin: Option<PluginIndicator>,
     pub focused_window: WindowId,
 }
 

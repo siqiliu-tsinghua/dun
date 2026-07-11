@@ -46,11 +46,21 @@ pub(crate) struct HighlightOutcome {
 /// avoid re-sending the same snapshot every tick.
 pub(crate) type HighlightRequestKey = (BufferId, u64, usize, usize);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PluginActivity {
+    Off,
+    Active,
+    Idle,
+    Error,
+}
+
 pub(crate) struct PluginHighlighter {
     plugin_id: String,
     jobs: mpsc::Sender<WorkerMessage>,
     outcomes: mpsc::Receiver<HighlightOutcome>,
     last_request: Option<HighlightRequestKey>,
+    last_activity: Instant,
+    failed: bool,
     unloaded: bool,
 }
 
@@ -86,6 +96,8 @@ impl PluginHighlighter {
             jobs: job_sender,
             outcomes: outcome_receiver,
             last_request: None,
+            last_activity: Instant::now(),
+            failed: false,
             unloaded: false,
         })
     }
@@ -102,12 +114,16 @@ impl PluginHighlighter {
         let _ = self.jobs.send(WorkerMessage::Unload);
         self.unloaded = true;
         self.last_request = None;
+        self.last_activity = Instant::now();
+        self.failed = false;
     }
 
     pub(crate) fn load(&mut self) {
         let _ = self.jobs.send(WorkerMessage::Load);
         self.unloaded = false;
         self.last_request = None;
+        self.last_activity = Instant::now();
+        self.failed = false;
     }
 
     /// Sends a job unless an identical snapshot (buffer, revision, window)
@@ -118,13 +134,34 @@ impl PluginHighlighter {
             return false;
         }
         self.last_request = Some(key);
+        self.last_activity = Instant::now();
         // A send error means the worker died; the next poll simply yields
         // nothing and the error was already reported as an outcome.
         self.jobs.send(WorkerMessage::Job(job)).is_ok()
     }
 
     pub(crate) fn poll(&mut self) -> Vec<HighlightOutcome> {
-        self.outcomes.try_iter().collect()
+        let outcomes = self.outcomes.try_iter().collect::<Vec<_>>();
+        if let Some(last) = outcomes.last() {
+            self.last_activity = Instant::now();
+            self.failed = last.result.is_err();
+        }
+        outcomes
+    }
+
+    pub(crate) fn activity_at(&self, now: Instant, idle_after: Option<Duration>) -> PluginActivity {
+        if !self.is_loaded() {
+            return PluginActivity::Off;
+        }
+        if self.failed {
+            return PluginActivity::Error;
+        }
+        match idle_after {
+            Some(threshold) if now.saturating_duration_since(self.last_activity) >= threshold => {
+                PluginActivity::Idle
+            }
+            _ => PluginActivity::Active,
+        }
     }
 }
 
@@ -246,20 +283,31 @@ pub(crate) fn language_hint(path: Option<&PathBuf>) -> String {
 #[cfg(test)]
 impl PluginHighlighter {
     /// Test constructor without a worker thread; returns the job receiver
-    /// so tests can observe what `schedule` actually sends.
-    pub(crate) fn for_tests() -> (Self, mpsc::Receiver<WorkerMessage>) {
+    /// and outcome sender so tests can observe jobs and inject results.
+    pub(crate) fn for_tests() -> (
+        Self,
+        mpsc::Receiver<WorkerMessage>,
+        mpsc::Sender<HighlightOutcome>,
+    ) {
         let (job_sender, job_receiver) = mpsc::channel::<WorkerMessage>();
-        let (_outcome_sender, outcome_receiver) = mpsc::channel::<HighlightOutcome>();
+        let (outcome_sender, outcome_receiver) = mpsc::channel::<HighlightOutcome>();
         (
             Self {
                 plugin_id: "test-plugin".to_string(),
                 jobs: job_sender,
                 outcomes: outcome_receiver,
                 last_request: None,
+                last_activity: Instant::now(),
+                failed: false,
                 unloaded: false,
             },
             job_receiver,
+            outcome_sender,
         )
+    }
+
+    pub(crate) fn set_last_activity_for_tests(&mut self, last_activity: Instant) {
+        self.last_activity = last_activity;
     }
 }
 

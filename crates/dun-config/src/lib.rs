@@ -16,7 +16,8 @@ pub use colors::ColorOverrides;
 pub(crate) use commands::normalize_command_id;
 pub use commands::{CommandParseError, command_from_id, command_id};
 pub use config::{
-    ClipboardConfig, Config, ConfigError, MouseConfig, Osc52Config, TerminalOverrides,
+    ClipboardConfig, Config, ConfigError, MouseConfig, Osc52Config, PluginStatusConfig,
+    TerminalOverrides,
 };
 pub use defaults::default_config_text;
 pub use keys::{

@@ -1,4 +1,5 @@
 use crate::*;
+use dun_config::PluginStatusConfig;
 
 pub(crate) struct AppState {
     pub(crate) workspace: Workspace,
@@ -11,6 +12,7 @@ pub(crate) struct AppState {
     pub(crate) file_dialog_keys: FileDialogKeymap,
     pub(crate) clipboard: ClipboardConfig,
     pub(crate) mouse_enabled: bool,
+    pub(crate) plugin_status: PluginStatusConfig,
     pub(crate) mouse_drag: Option<MouseDragState>,
     pub(crate) active_menu: Option<usize>,
     pub(crate) active_menu_entry: Option<usize>,

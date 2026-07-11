@@ -44,6 +44,14 @@ fn default_config_keeps_mouse_disabled() {
 }
 
 #[test]
+fn default_plugin_status_is_opt_in_with_a_five_minute_idle_threshold() {
+    let plugin_status = Config::default().plugin_status;
+
+    assert!(!plugin_status.status_bar);
+    assert_eq!(plugin_status.idle_after_ms, 300_000);
+}
+
+#[test]
 fn default_config_text_lists_parseable_default_bindings() {
     let text = default_config_text();
 
@@ -52,6 +60,8 @@ fn default_config_text_lists_parseable_default_bindings() {
     assert!(text.contains("# File and display limits"));
     assert!(text.contains("theme = dun"));
     assert!(text.contains("mouse.enabled = false"));
+    assert!(text.contains("plugins.status_bar = false"));
+    assert!(text.contains("plugins.idle_after_ms = 300000"));
     assert!(text.contains("key.app.help = F1"));
     assert!(text.contains("key.file_dialog.toggle_hidden = Ctrl+H"));
     parse_config(&text).unwrap().validate().unwrap();

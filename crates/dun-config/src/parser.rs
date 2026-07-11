@@ -133,6 +133,15 @@ fn apply_config_entry(
             config.mouse.enabled = parse_bool(value)
                 .ok_or_else(|| ConfigParseError::line(line_number, "expected true or false"))?;
         }
+        "plugins.status_bar" => {
+            config.plugin_status.status_bar = parse_bool(value)
+                .ok_or_else(|| ConfigParseError::line(line_number, "expected true or false"))?;
+        }
+        "plugins.idle_after_ms" => {
+            config.plugin_status.idle_after_ms = value.parse::<u64>().map_err(|_| {
+                ConfigParseError::line(line_number, "expected an idle threshold in milliseconds")
+            })?;
+        }
         "clipboard.osc52.enabled" | "clipboard.osc52" => {
             config.clipboard.osc52.enabled = parse_bool(value)
                 .ok_or_else(|| ConfigParseError::line(line_number, "expected true or false"))?;

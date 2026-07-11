@@ -11,6 +11,7 @@ pub struct Config {
     pub colors: ColorOverrides,
     pub terminal: TerminalOverrides,
     pub mouse: MouseConfig,
+    pub plugin_status: PluginStatusConfig,
     pub clipboard: ClipboardConfig,
     pub keybindings: Keymap,
     pub file_dialog_keys: FileDialogKeymap,
@@ -45,6 +46,7 @@ impl Default for Config {
             colors: ColorOverrides::default(),
             terminal: TerminalOverrides::default(),
             mouse: MouseConfig::default(),
+            plugin_status: PluginStatusConfig::default(),
             clipboard: ClipboardConfig::default(),
             keybindings: Keymap::default(),
             file_dialog_keys: FileDialogKeymap::default(),
@@ -78,6 +80,21 @@ impl TerminalOverrides {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MouseConfig {
     pub enabled: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PluginStatusConfig {
+    pub status_bar: bool,
+    pub idle_after_ms: u64,
+}
+
+impl Default for PluginStatusConfig {
+    fn default() -> Self {
+        Self {
+            status_bar: false,
+            idle_after_ms: 300_000,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
