@@ -192,7 +192,7 @@ fn menu_entry_width(shell: &UiShell, entry: &MenuEntry) -> usize {
     }
 }
 
-fn menu_entry_text(shell: &UiShell, entry: &MenuEntry, width: usize) -> String {
+pub(crate) fn menu_entry_text(shell: &UiShell, entry: &MenuEntry, width: usize) -> String {
     let shortcut = shell
         .keymap
         .sequence_for_command(&entry.command)
