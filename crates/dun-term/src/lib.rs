@@ -6,4 +6,6 @@ pub mod theme;
 
 pub use glyphs::{BorderGlyphs, GlyphSet, IndicatorGlyphs};
 pub use profile::{ColorProfile, EncodingProfile, TerminalProfile};
-pub use theme::{AnsiColor, Palette, Style, StyleAttrs, TerminalColor, Theme, ThemeName};
+pub use theme::{
+    AnsiColor, PALETTE_ROLE_IDS, Palette, Style, StyleAttrs, TerminalColor, Theme, ThemeName,
+};

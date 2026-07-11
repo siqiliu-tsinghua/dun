@@ -74,6 +74,7 @@ impl Theme {
                     editor_bg,
                     StyleAttrs::BOLD,
                 ),
+                warning: Style::new(TerminalColor::Indexed(214), editor_bg, StyleAttrs::BOLD),
             },
         }
     }
@@ -225,6 +226,11 @@ impl Theme {
                     editor_bg,
                     StyleAttrs::BOLD,
                 ),
+                warning: Style::new(
+                    TerminalColor::Ansi(AnsiColor::BrightYellow),
+                    editor_bg,
+                    StyleAttrs::BOLD,
+                ),
             },
         }
     }
@@ -315,6 +321,7 @@ impl Theme {
                 ),
                 syntax_number: plain,
                 syntax_emphasis: bold,
+                warning: bold,
             },
         }
     }
@@ -400,6 +407,11 @@ impl Theme {
                     bg,
                     StyleAttrs::BOLD,
                 ),
+                warning: Style::new(
+                    TerminalColor::Ansi(AnsiColor::BrightYellow),
+                    bg,
+                    StyleAttrs::BOLD,
+                ),
             },
         }
     }
@@ -477,6 +489,7 @@ impl Theme {
                 syntax_string: Style::plain(ltred, bg),
                 syntax_number: Style::plain(ltmagenta, bg),
                 syntax_emphasis: Style::new(ltgreen, bg, StyleAttrs::BOLD),
+                warning: Style::new(TerminalColor::Indexed(226), bg, StyleAttrs::BOLD),
             },
         }
     }
@@ -569,6 +582,7 @@ impl Theme {
                     editor_bg,
                     StyleAttrs::BOLD,
                 ),
+                warning: Style::new(warning, editor_bg, StyleAttrs::BOLD),
             },
         }
     }

@@ -79,3 +79,55 @@ fn color256_profile_allows_optional_dun_theme() {
     assert_eq!(theme.theme, ThemeName::Dun);
     assert_eq!(theme.colors, ColorProfile::Color256);
 }
+
+#[test]
+fn palette_role_ids_all_resolve() {
+    let palette = Theme::default().palette;
+
+    assert_eq!(PALETTE_ROLE_IDS.len(), 41);
+    for id in PALETTE_ROLE_IDS {
+        assert!(
+            palette.role(id).is_some(),
+            "palette role {id:?} must resolve"
+        );
+    }
+    assert!(palette.role("not_a_palette_role").is_none());
+}
+
+#[test]
+fn role_mut_overrides_a_single_field() {
+    let mut palette = Theme::default().palette;
+    let original = palette;
+    let replacement = Style::new(
+        TerminalColor::Ansi(AnsiColor::Red),
+        TerminalColor::Ansi(AnsiColor::Cyan),
+        StyleAttrs::UNDERLINE,
+    );
+
+    *palette.role_mut("warning").expect("warning role exists") = replacement;
+
+    for id in PALETTE_ROLE_IDS {
+        let expected = if *id == "warning" {
+            replacement
+        } else {
+            original.role(id).expect("listed role exists")
+        };
+        assert_eq!(
+            palette.role(id),
+            Some(expected),
+            "unexpected change to {id}"
+        );
+    }
+}
+
+#[test]
+fn themes_define_a_warning_color() {
+    assert_eq!(
+        Theme::dun_256().palette.warning.fg,
+        TerminalColor::Indexed(203)
+    );
+    assert_eq!(
+        Theme::dark_256().palette.warning.fg,
+        TerminalColor::Indexed(214)
+    );
+}

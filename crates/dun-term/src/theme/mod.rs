@@ -6,7 +6,7 @@ mod style;
 use crate::profile::ColorProfile;
 
 pub use color::{AnsiColor, TerminalColor};
-pub use palette::Palette;
+pub use palette::{PALETTE_ROLE_IDS, Palette};
 pub use style::{Style, StyleAttrs};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
