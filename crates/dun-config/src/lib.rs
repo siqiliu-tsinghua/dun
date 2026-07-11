@@ -2,6 +2,7 @@
 
 pub use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, ThemeName};
 
+mod colors;
 mod commands;
 mod config;
 mod defaults;
@@ -11,6 +12,7 @@ mod parser;
 mod plugins;
 mod validation;
 
+pub use colors::ColorOverrides;
 pub(crate) use commands::normalize_command_id;
 pub use commands::{CommandParseError, command_from_id, command_id};
 pub use config::{

@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use dun_term::{ColorProfile, EncodingProfile, ThemeName};
 
+use crate::colors::{canonical_role, parse_attrs, parse_color};
 use crate::keys::normalize_token;
 use crate::plugins::{
     PLUGIN_ROLE_VALUES, PLUGIN_TRUST_VALUES, PluginEntryDraft, PluginRole, PluginTrust,
@@ -159,6 +160,9 @@ fn apply_config_entry(
                 )
             })?;
         }
+        _ if key.starts_with("color.") => {
+            apply_color_override(config, &key["color.".len()..], value, line_number)?;
+        }
         _ if key.starts_with("key.file_dialog.") => {
             apply_file_dialog_key_binding(
                 config,
@@ -186,6 +190,79 @@ fn apply_config_entry(
                 line_number,
                 format!("unknown config key `{raw_key}`"),
             ));
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_color_override(
+    config: &mut Config,
+    rest: &str,
+    value: &str,
+    line_number: usize,
+) -> Result<(), ConfigParseError> {
+    match rest.rsplit_once('.') {
+        Some((role, comp @ ("fg" | "bg" | "attrs"))) => {
+            let role = canonical_role(role).ok_or_else(|| {
+                ConfigParseError::line(line_number, format!("unknown color role `{role}`"))
+            })?;
+            match comp {
+                "fg" => {
+                    let color = parse_color(value).ok_or_else(|| {
+                        ConfigParseError::line(line_number, format!("invalid color `{value}`"))
+                    })?;
+                    config.colors.set_fg(role, color);
+                }
+                "bg" => {
+                    let color = parse_color(value).ok_or_else(|| {
+                        ConfigParseError::line(line_number, format!("invalid color `{value}`"))
+                    })?;
+                    config.colors.set_bg(role, color);
+                }
+                "attrs" => {
+                    let attrs = parse_attrs(value).ok_or_else(|| {
+                        ConfigParseError::line(line_number, format!("invalid attrs `{value}`"))
+                    })?;
+                    config.colors.set_attrs(role, attrs);
+                }
+                _ => unreachable!("matched color component"),
+            }
+        }
+        Some((_, comp)) => {
+            return Err(ConfigParseError::line(
+                line_number,
+                format!("unknown color component `{comp}`; expected fg, bg, or attrs"),
+            ));
+        }
+        None => {
+            let role = canonical_role(rest).ok_or_else(|| {
+                ConfigParseError::line(line_number, format!("unknown color role `{rest}`"))
+            })?;
+            match value.split_once('/') {
+                Some((fg_spec, bg_spec)) => {
+                    let fg = parse_color(fg_spec).ok_or_else(|| {
+                        ConfigParseError::line(
+                            line_number,
+                            format!("invalid color `{}`", fg_spec.trim()),
+                        )
+                    })?;
+                    let bg = parse_color(bg_spec).ok_or_else(|| {
+                        ConfigParseError::line(
+                            line_number,
+                            format!("invalid color `{}`", bg_spec.trim()),
+                        )
+                    })?;
+                    config.colors.set_fg(role, fg);
+                    config.colors.set_bg(role, bg);
+                }
+                None => {
+                    let color = parse_color(value).ok_or_else(|| {
+                        ConfigParseError::line(line_number, format!("invalid color `{value}`"))
+                    })?;
+                    config.colors.set_fg(role, color);
+                }
+            }
         }
     }
 

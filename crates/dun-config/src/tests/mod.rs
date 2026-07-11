@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+mod colors;
 mod config;
 mod keys;
 mod parser;

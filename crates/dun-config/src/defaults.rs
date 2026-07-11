@@ -1,3 +1,6 @@
+use dun_term::{PALETTE_ROLE_IDS, StyleAttrs, TerminalProfile};
+
+use crate::colors::{format_attrs, format_color};
 use crate::{Config, command_id, file_dialog_action_id};
 
 pub fn default_config_text() -> String {
@@ -80,6 +83,28 @@ pub fn default_config_text() -> String {
     file_dialog_bindings.sort_by(|left, right| left.0.cmp(right.0));
     for (action, stroke) in file_dialog_bindings {
         out.push_str(&format!("key.{action} = {stroke}\n"));
+    }
+
+    let palette = config.resolved_theme(TerminalProfile::utf8_256()).palette;
+    out.push_str(
+        "\n# Color overrides (theme defaults shown; uncomment and edit)\n\
+# Shorthand `color.<role> = <fg> / <bg>`, or granular `color.<role>.fg`,\n\
+# `color.<role>.bg`, `color.<role>.attrs`. A color is a palette index 0-255,\n\
+# an ANSI name (red, bright_blue, …), or `default`. Attrs is a comma list of\n\
+# bold, underline, reverse, or none.\n",
+    );
+    for id in PALETTE_ROLE_IDS {
+        let style = palette.role(id).expect("listed role resolves");
+        let mut line = format!(
+            "# color.{id} = {} / {}",
+            format_color(style.fg),
+            format_color(style.bg)
+        );
+        if style.attrs != StyleAttrs::NONE {
+            line.push_str(&format!("  # attrs: {}", format_attrs(style.attrs)));
+        }
+        line.push('\n');
+        out.push_str(&line);
     }
 
     out

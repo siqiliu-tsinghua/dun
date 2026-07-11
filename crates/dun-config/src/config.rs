@@ -1,5 +1,6 @@
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme, ThemeName};
 
+use crate::colors::ColorOverrides;
 use crate::plugins::validate_plugin_entries;
 use crate::{FileDialogKeymap, FileDialogKeymapError, Keymap, KeymapError, Limits, LimitsError};
 use crate::{PluginConfigError, PluginEntry};
@@ -7,6 +8,7 @@ use crate::{PluginConfigError, PluginEntry};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     pub theme: ThemeName,
+    pub colors: ColorOverrides,
     pub terminal: TerminalOverrides,
     pub mouse: MouseConfig,
     pub clipboard: ClipboardConfig,
@@ -30,7 +32,9 @@ impl Config {
     }
 
     pub fn resolved_theme(&self, detected: TerminalProfile) -> Theme {
-        Theme::for_profile(self.theme, self.terminal_profile(detected))
+        let mut theme = Theme::for_profile(self.theme, self.terminal_profile(detected));
+        self.colors.apply_to(&mut theme.palette);
+        theme
     }
 }
 
@@ -38,6 +42,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             theme: ThemeName::Dun,
+            colors: ColorOverrides::default(),
             terminal: TerminalOverrides::default(),
             mouse: MouseConfig::default(),
             clipboard: ClipboardConfig::default(),
