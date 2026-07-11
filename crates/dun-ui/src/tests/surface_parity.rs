@@ -240,6 +240,82 @@ fn active_dropdown_full_frame_matches_ratatui() {
 }
 
 #[test]
+fn prompt_overlay_full_frame_matches_ratatui() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let shell = UiShell::default();
+    let mut ui_frame =
+        shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
+    ui_frame.overlay = Some(UiOverlay::prompt("Go To Line", "12", 2));
+
+    let (surface, mut terminal, cursor) = render_both(&shell, &ui_frame, 80, 12);
+
+    assert_region_matches(&surface, terminal.backend().buffer(), 0, 0, 80, 12);
+    let ratatui_cursor = terminal.get_cursor_position().unwrap();
+    assert_eq!(cursor, Some((ratatui_cursor.x, ratatui_cursor.y)));
+}
+
+#[test]
+fn file_dialog_overlay_full_frame_matches_ratatui() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let shell = UiShell::default();
+    let mut ui_frame =
+        shell.frame_for_workspace(&workspace, Rect::new(0, 0, 90, 14), &[buffer_view]);
+    ui_frame.overlay = Some(UiOverlay::file_dialog(
+        "Open",
+        vec![
+            "Directory: /tmp".to_string(),
+            "Select a file or type a path.".to_string(),
+        ],
+        "/tmp/al",
+        7,
+        vec!["[D] logs/".to_string(), "    alpha.log".to_string()],
+        Some(1),
+        vec!["Enter  Tab complete  Up/Down select  Esc cancel".to_string()],
+    ));
+
+    let (surface, mut terminal, cursor) = render_both(&shell, &ui_frame, 90, 16);
+
+    assert_region_matches(&surface, terminal.backend().buffer(), 0, 0, 90, 16);
+    let ratatui_cursor = terminal.get_cursor_position().unwrap();
+    assert_eq!(cursor, Some((ratatui_cursor.x, ratatui_cursor.y)));
+}
+
+#[test]
+fn modal_list_overflow_full_frame_matches_ratatui() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let shell = UiShell::default();
+    let mut ui_frame =
+        shell.frame_for_workspace(&workspace, Rect::new(0, 0, 60, 10), &[buffer_view]);
+    ui_frame.overlay = Some(
+        UiOverlay::message(
+            "Switch Buffer",
+            vec!["Showing 5-7 of 20".to_string()],
+            vec![],
+        )
+        .with_list(
+            vec![
+                "  buffer-05".to_string(),
+                "> buffer-06".to_string(),
+                "  buffer-07".to_string(),
+            ],
+            Some(1),
+            32,
+        )
+        .with_list_overflow(true, true),
+    );
+
+    let (surface, terminal, _) = render_both(&shell, &ui_frame, 60, 12);
+
+    assert_region_matches(&surface, terminal.backend().buffer(), 0, 0, 60, 12);
+}
+
+#[test]
 fn scrolled_dropdown_panel_matches_ratatui() {
     let workspace = Workspace::new_untitled();
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");

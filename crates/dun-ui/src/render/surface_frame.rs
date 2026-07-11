@@ -1,18 +1,18 @@
 use ratatui::layout::Rect as TuiRect;
 
 use crate::render::surface_layers::{draw_active_menu, draw_menu_bar, draw_status};
+use crate::render::surface_overlay::draw_overlay;
 use crate::render::surface_window::draw_window;
 use crate::surface::Surface;
 use crate::{UiFrame, UiShell};
 
 /// Renders a `UiFrame` onto a `Surface` and returns the terminal cursor
-/// position for the focused window, if any — the Surface twin of
-/// `render_ui_frame`, which is the layout contract both must satisfy.
+/// position, if any — the Surface twin of `render_ui_frame`, which is the
+/// layout contract both must satisfy.
 ///
 /// The cursor is returned instead of written because the Surface path has no
 /// terminal handle: the caller (the dun-cli cutover slice) appends the CUP
-/// and cursor-visibility bytes after the `emit_diff` stream. The overlay is
-/// the remaining unported layer.
+/// and cursor-visibility bytes after the `emit_diff` stream.
 pub(crate) fn render_ui_frame_to_surface(
     surface: &mut Surface,
     shell: &UiShell,
@@ -54,7 +54,10 @@ pub(crate) fn render_ui_frame_to_surface(
         &ui_frame.menu,
         TuiRect::new(0, 0, width, height),
     );
-    // Slice 3d: overlay drawing lands here, after the active menu.
+    if let Some(overlay) = &ui_frame.overlay {
+        cursor =
+            draw_overlay(surface, shell, overlay, TuiRect::new(0, 0, width, height)).or(cursor);
+    }
 
     cursor
 }

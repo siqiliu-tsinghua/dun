@@ -9,6 +9,8 @@ pub(crate) mod surface_frame;
 #[allow(dead_code)]
 pub(crate) mod surface_layers;
 #[allow(dead_code)]
+pub(crate) mod surface_overlay;
+#[allow(dead_code)]
 pub(crate) mod surface_window;
 pub(crate) mod window;
 
