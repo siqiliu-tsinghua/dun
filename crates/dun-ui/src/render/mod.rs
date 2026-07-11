@@ -2,15 +2,10 @@ pub(crate) mod chrome;
 pub(crate) mod menu;
 pub(crate) mod overlay;
 pub(crate) mod status;
-#[allow(dead_code)]
 pub(crate) mod surface_draw;
-#[allow(dead_code)]
 pub(crate) mod surface_frame;
-#[allow(dead_code)]
 pub(crate) mod surface_layers;
-#[allow(dead_code)]
 pub(crate) mod surface_overlay;
-#[allow(dead_code)]
 pub(crate) mod surface_window;
 pub(crate) mod window;
 

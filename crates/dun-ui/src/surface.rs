@@ -165,6 +165,7 @@ impl Surface {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn row_text(&self, y: u16) -> String {
         if y >= self.height {
             return String::new();

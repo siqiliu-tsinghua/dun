@@ -5,9 +5,7 @@ mod hit;
 mod model;
 mod render;
 mod shell;
-#[allow(dead_code)]
 mod surface;
-#[allow(dead_code)]
 mod surface_emit;
 mod text;
 
@@ -25,6 +23,7 @@ pub(crate) use render::overlay::overlay_layout;
 pub use render::render_ui_frame;
 #[cfg(test)]
 pub(crate) use render::status::sanitized_status_text_for_width;
+pub use render::surface_frame::{RenderedFrame, SurfaceRenderer};
 #[cfg(test)]
 pub(crate) use render::window::window_title_for_width;
 pub use shell::UiShell;
