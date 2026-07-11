@@ -20,13 +20,19 @@ executes the selected item, and `Esc` closes it. Long dropdowns scroll on
 short terminals so the selected entry remains visible, with overflow
 indicators and matching mouse hit testing.
 The default `dun` theme is a restrained 256-color dark scheme with a cyan
-accent. Other builtins are `msedit` (a Microsoft Edit-style blue chrome with
-green active labels, gray dropdown/modal panels, a compact bracket status bar,
-and a muted current-line highlight), `dark`, `turbo` (the classic Borland
-Turbo Vision deep-blue look, pinned to fixed 256-color indices), and `mono`
-for monochrome terminals. Select one with `theme = <name>` in the config, and
-override individual palette colors on top of it with `color.<role>` entries
-(see [docs/configuration.md](docs/configuration.md)).
+accent. The other selectable builtins are `msedit` (a Microsoft Edit-style blue
+chrome with green active labels, gray dropdown/modal panels, a compact bracket
+status bar, and a muted current-line highlight), `dark`, and `turbo` (the
+classic Borland Turbo Vision deep-blue look, pinned to fixed 256-color indices
+so it does not inherit the terminal's own ANSI palette). Select one with
+`theme = <name>` in the config, and override individual palette colors on top
+of it with `color.<role>` entries (see
+[docs/configuration.md](docs/configuration.md)).
+
+Each theme also carries 16-color and monochrome variants. Those are not
+selected by name — they are reached by capability fallback, either detected or
+forced with `terminal.colors = 16 | mono` (or `NO_COLOR`). The monochrome
+variant emits no color at all, only bold/underline/reverse.
 It can open valid UTF-8 file paths supplied on the command line and save the
 focused buffer back to that path through a same-directory temp file and atomic
 rename. Stale atomic-save temp files are cleaned up, while newer recovery
