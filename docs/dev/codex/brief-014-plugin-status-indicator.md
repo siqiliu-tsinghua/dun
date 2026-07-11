@@ -197,16 +197,27 @@ impl PluginHighlighter {
 }
 ```
 
-In `AppState` (add the method in the module that already owns plugin helpers,
-e.g. `app/highlight.rs`):
+`AppState` does NOT retain `Config`; it copies individual settings (see
+`limits`, `clipboard`, `mouse_enabled`). Follow that existing pattern:
+
+- Add field `pub(crate) plugin_status: PluginStatusConfig` to `AppState`
+  (`app/state.rs`).
+- Populate it in BOTH places that copy config settings:
+  - `app/bootstrap.rs::from_loaded_config` — next to `let mouse_enabled = …`;
+  - `app/commands.rs::apply_loaded_config` — next to
+    `self.mouse_enabled = loaded_config.config.mouse.enabled;`,
+    so `app.reload_config` (F5) picks the settings up live.
+
+Then add the query method in the module that already owns plugin helpers
+(`app/highlight.rs`):
 
 ```rust
 pub(crate) fn plugin_indicator(&self) -> Option<PluginIndicator> {
-    if !self.config.plugin_status.status_bar {
+    if !self.plugin_status.status_bar {
         return None;
     }
     let highlighter = self.highlighter.as_ref()?;
-    let idle_after = match self.config.plugin_status.idle_after_ms {
+    let idle_after = match self.plugin_status.idle_after_ms {
         0 => None,
         ms => Some(Duration::from_millis(ms)),
     };
@@ -238,7 +249,10 @@ ui_frame.status.plugin = app.plugin_indicator();
     `render/surface_layers.rs`;
   - `crates/dun-ui/src/tests/` (fix `StatusBar` literals; add render tests);
   - `crates/dun-cli/src/plugins.rs`, `crates/dun-cli/src/app/highlight.rs`,
-    `crates/dun-cli/src/app/state.rs` (only if a field/import is needed),
+    `crates/dun-cli/src/app/state.rs` (the new `plugin_status` field),
+    `crates/dun-cli/src/app/bootstrap.rs` and
+    `crates/dun-cli/src/app/commands.rs` (ONLY to populate `plugin_status`
+    where the other config settings are copied — no other change),
     `crates/dun-cli/src/terminal/event_loop.rs`;
   - `crates/dun-cli/src/tests/` (new indicator tests).
 - Files/areas you MUST NOT touch:
