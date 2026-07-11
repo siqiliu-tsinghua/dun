@@ -7,6 +7,8 @@ mod render;
 mod shell;
 #[allow(dead_code)]
 mod surface;
+#[allow(dead_code)]
+mod surface_emit;
 mod text;
 
 pub use model::{
