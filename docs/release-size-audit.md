@@ -345,3 +345,17 @@ prompt commands (on-demand host lifecycle for memory). Small runtime add:
 
 Debian measured on a clean `git archive` of `1d42229`; `--version`/
 `--dump-config` smoke passed.
+
+## 2026-07-11 Solarized themes + dun default (e61774a)
+
+Two new 256-color themes (solarized-dark/light) and the default theme switch
+to dun. Debian is unchanged (LTO folds the const theme builders); macOS moves
+slightly:
+
+| Platform | Before | After | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 592,180 | 596,284 | +4,104 | 452,292 |
+| Debian x86_64 | 637,312 | 637,312 | 0 | 411,264 |
+
+Debian measured on a clean `git archive` of `e61774a`; `--version` and
+`--dump-config` (now `theme = dun`) smoke passed.
