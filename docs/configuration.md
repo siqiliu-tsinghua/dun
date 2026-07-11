@@ -150,6 +150,43 @@ selection to the internal clipboard and emits an OSC 52 clipboard write if the
 UTF-8 payload is no larger than `clipboard.osc52.max_bytes`. `dun` does not
 query OSC 52 paste data or call platform clipboard commands.
 
+## Colors
+
+The active theme (`theme = …`) supplies a full compiled-in palette. Individual
+palette colors can be overridden on top of the selected theme without
+redefining the whole theme; unset components keep the theme's default, so a
+config can change just one background, one foreground, or one role's
+attributes.
+
+Each palette role is addressed by a stable snake_case id. Override a role with
+either the granular keys or the shorthand:
+
+```text
+# Granular: any subset of fg / bg / attrs
+color.editor.bg = 233
+color.warning.fg = bright_red
+color.title.attrs = bold, underline
+
+# Shorthand: foreground only, or `foreground / background`
+color.dirty = 208
+color.warning = 196 / 0
+```
+
+A color value is a palette index `0`–`255`, an ANSI color name, or `default`
+(the terminal's own default). ANSI names are `black`, `red`, `green`,
+`yellow`, `blue`, `magenta`, `cyan`, `white`, and their `bright_*` variants
+(`bright_black` … `bright_white`; `brightblack` and `bright-black` spellings
+are also accepted). Prefer palette indexes `16`–`255` when you need a color
+that is immune to the terminal's own ANSI (0–15) remapping.
+
+`attrs` is a comma- or space-separated list of `bold`, `underline`, `reverse`,
+or `none` (`none` clears all attributes and cannot be combined with others).
+
+Overrides are applied after terminal-profile fallback, so they still take
+effect when the palette degrades to 16-color or monochrome. Run
+`dun --dump-config` to list every overridable role with its current default
+value as commented, copy-ready `color.<role> = …` lines.
+
 ## Plugin hosts
 
 Plugin host entries use an identifier containing only lowercase ASCII letters,
