@@ -147,15 +147,25 @@ plugins.idle_after_ms = 60000
 
 #[test]
 fn config_parser_rejects_duplicate_resulting_keybindings() {
+    // Ctrl+S is the default for file.save; the message must name both
+    // claimants, not just the sequence, since the user never wrote file.save.
     let error = parse_config("key.app.quit = Ctrl+S").unwrap_err();
 
     assert_eq!(error.line, None);
-    assert!(error.to_string().contains("duplicate key sequence"));
+    assert_eq!(
+        error.to_string(),
+        "invalid keymap: `Ctrl+S` is bound to both `file.save` and `app.quit`; \
+         unbind one with `key.file.save = none`"
+    );
 
     let error = parse_config("key.file_dialog.cancel = Enter").unwrap_err();
 
     assert_eq!(error.line, None);
-    assert!(error.to_string().contains("duplicate key stroke"));
+    assert_eq!(
+        error.to_string(),
+        "invalid file dialog keymap: `Enter` is bound to both `file_dialog.submit` and \
+         `file_dialog.cancel`; unbind one with `key.file_dialog.submit = none`"
+    );
 }
 
 #[test]

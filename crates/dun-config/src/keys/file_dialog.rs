@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use super::KeyStroke;
@@ -39,11 +39,15 @@ impl FileDialogKeymap {
     }
 
     pub fn validate(&self) -> Result<(), FileDialogKeymapError> {
-        let mut seen = HashSet::new();
+        let mut seen: HashMap<KeyStroke, FileDialogAction> = HashMap::new();
 
         for binding in &self.bindings {
-            if !seen.insert(binding.stroke) {
-                return Err(FileDialogKeymapError::DuplicateBinding(binding.stroke));
+            if let Some(existing) = seen.insert(binding.stroke, binding.action) {
+                return Err(FileDialogKeymapError::DuplicateBinding {
+                    stroke: binding.stroke,
+                    bound: file_dialog_action_id(existing),
+                    rebound: file_dialog_action_id(binding.action),
+                });
             }
         }
 
@@ -114,7 +118,13 @@ pub enum FileDialogAction {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FileDialogKeymapError {
-    DuplicateBinding(KeyStroke),
+    /// One stroke claimed by two dialog actions. `bound` already held it,
+    /// `rebound` tried to take it.
+    DuplicateBinding {
+        stroke: KeyStroke,
+        bound: &'static str,
+        rebound: &'static str,
+    },
 }
 
 pub fn file_dialog_action_id(action: FileDialogAction) -> &'static str {

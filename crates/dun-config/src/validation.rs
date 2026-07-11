@@ -44,16 +44,28 @@ fn plugin_error_text(error: &PluginConfigError) -> String {
 
 fn keymap_error_text(error: &KeymapError) -> String {
     match error {
-        KeymapError::DuplicateBinding(sequence) => format!("duplicate key sequence `{sequence}`"),
+        KeymapError::DuplicateBinding {
+            sequence,
+            bound,
+            rebound,
+        } => format!(
+            "`{sequence}` is bound to both `{bound}` and `{rebound}`; \
+             unbind one with `key.{bound} = none`"
+        ),
         KeymapError::EmptySequence => "empty key sequence".to_string(),
     }
 }
 
 fn file_dialog_keymap_error_text(error: &FileDialogKeymapError) -> String {
     match error {
-        FileDialogKeymapError::DuplicateBinding(stroke) => {
-            format!("duplicate key stroke `{stroke}`")
-        }
+        FileDialogKeymapError::DuplicateBinding {
+            stroke,
+            bound,
+            rebound,
+        } => format!(
+            "`{stroke}` is bound to both `{bound}` and `{rebound}`; \
+             unbind one with `key.{bound} = none`"
+        ),
     }
 }
 

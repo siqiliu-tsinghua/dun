@@ -70,8 +70,28 @@ key.edit.find = none
 
 Changing a command binding removes that command's default bindings first,
 including default aliases such as `Ctrl+X,Left` and `Alt+Left` for the same
-window-focus command. If the new key sequence conflicts with another command,
-config validation fails.
+window-focus command.
+
+If the new key sequence is still claimed by another command, config validation
+fails and names both claimants — a conflict is usually a config binding landing
+on a default the user never wrote down:
+
+```text
+key.edit.find = Ctrl+K
+# dun: invalid keymap: `Ctrl+K` is bound to both `edit.delete_line` and
+# `edit.find`; unbind one with `key.edit.delete_line = none`
+```
+
+Because each command's own defaults are dropped before the new binding is
+applied, a mutual swap needs no unbinding and validates cleanly:
+
+```text
+key.edit.find = Ctrl+K          # was Ctrl+W
+key.edit.delete_line = Ctrl+W   # was Ctrl+K
+```
+
+Validation runs once after the whole file is read, so the order of entries does
+not matter. To take a key unilaterally, unbind its current owner first.
 The runtime input path and the in-editor Help window both use the active
 keymap. Custom bindings and unbound commands are reflected on startup and after
 `app.reload_config` reloads the active configuration.

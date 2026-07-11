@@ -15,10 +15,13 @@ fn limits_reject_zero_values() {
 #[test]
 fn validation_error_text_covers_config_error_variants() {
     assert_eq!(
-        crate::validation::config_error_text(&ConfigError::Keymap(KeymapError::DuplicateBinding(
-            KeySequence::from_str("Ctrl+S").unwrap()
-        ))),
-        "invalid keymap: duplicate key sequence `Ctrl+S`"
+        crate::validation::config_error_text(&ConfigError::Keymap(KeymapError::DuplicateBinding {
+            sequence: KeySequence::from_str("Ctrl+S").unwrap(),
+            bound: "file.save",
+            rebound: "file.save_as",
+        })),
+        "invalid keymap: `Ctrl+S` is bound to both `file.save` and `file.save_as`; \
+         unbind one with `key.file.save = none`"
     );
     assert_eq!(
         crate::validation::config_error_text(&ConfigError::Keymap(KeymapError::EmptySequence)),
@@ -26,9 +29,14 @@ fn validation_error_text_covers_config_error_variants() {
     );
     assert_eq!(
         crate::validation::config_error_text(&ConfigError::FileDialogKeymap(
-            FileDialogKeymapError::DuplicateBinding(KeyStroke::from_str("Enter").unwrap())
+            FileDialogKeymapError::DuplicateBinding {
+                stroke: KeyStroke::from_str("Enter").unwrap(),
+                bound: "file_dialog.submit",
+                rebound: "file_dialog.cancel",
+            }
         )),
-        "invalid file dialog keymap: duplicate key stroke `Enter`"
+        "invalid file dialog keymap: `Enter` is bound to both `file_dialog.submit` and \
+         `file_dialog.cancel`; unbind one with `key.file_dialog.submit = none`"
     );
     assert_eq!(
         crate::validation::config_error_text(&ConfigError::Limits(

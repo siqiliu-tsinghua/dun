@@ -164,9 +164,11 @@ fn keymap_rejects_duplicate_bindings() {
 
     assert_eq!(
         keymap.validate(),
-        Err(KeymapError::DuplicateBinding(
-            KeySequence::from_str("Ctrl+S").unwrap()
-        ))
+        Err(KeymapError::DuplicateBinding {
+            sequence: KeySequence::from_str("Ctrl+S").unwrap(),
+            bound: "file.save",
+            rebound: "file.save_as",
+        })
     );
 }
 
@@ -203,9 +205,11 @@ fn file_dialog_keymap_rejects_duplicate_bindings() {
 
     assert_eq!(
         keymap.validate(),
-        Err(FileDialogKeymapError::DuplicateBinding(
-            KeyStroke::from_str("Esc").unwrap()
-        ))
+        Err(FileDialogKeymapError::DuplicateBinding {
+            stroke: KeyStroke::from_str("Esc").unwrap(),
+            bound: "file_dialog.cancel",
+            rebound: "file_dialog.submit",
+        })
     );
 }
 

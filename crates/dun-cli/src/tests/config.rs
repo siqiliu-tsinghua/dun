@@ -52,7 +52,12 @@ fn load_startup_config_reports_keybinding_conflicts_with_path() {
 
     assert_eq!(error.kind(), io::ErrorKind::InvalidData);
     assert!(error.to_string().contains(path.to_string_lossy().as_ref()));
-    assert!(error.to_string().contains("duplicate key sequence"));
+    assert!(
+        error
+            .to_string()
+            .contains("`Ctrl+S` is bound to both `file.save` and `app.quit`")
+    );
+    assert!(error.to_string().contains("`key.file.save = none`"));
 
     let _ = std::fs::remove_file(path);
 }

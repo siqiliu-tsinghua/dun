@@ -1,9 +1,10 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use dun_core::{AppCommand, EditCommand, EditorCommand, FileCommand, WindowCommand};
 
 use super::{KeyParseError, KeySequence, KeyStroke};
+use crate::command_id;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Keymap {
@@ -196,15 +197,21 @@ impl Keymap {
     }
 
     pub fn validate(&self) -> Result<(), KeymapError> {
-        let mut seen = HashSet::new();
+        let mut seen: HashMap<&KeySequence, &EditorCommand> = HashMap::new();
 
         for binding in &self.bindings {
             if binding.sequence.strokes.is_empty() {
                 return Err(KeymapError::EmptySequence);
             }
 
-            if !seen.insert(binding.sequence.clone()) {
-                return Err(KeymapError::DuplicateBinding(binding.sequence.clone()));
+            // Report both claimants: a conflict is usually a config binding
+            // landing on a default the user never wrote down.
+            if let Some(existing) = seen.insert(&binding.sequence, &binding.command) {
+                return Err(KeymapError::DuplicateBinding {
+                    sequence: binding.sequence.clone(),
+                    bound: command_id(existing),
+                    rebound: command_id(&binding.command),
+                });
             }
         }
 
@@ -278,6 +285,12 @@ impl KeyBinding {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum KeymapError {
-    DuplicateBinding(KeySequence),
+    /// One key sequence claimed by two commands. `bound` already held it
+    /// (often a default the user never wrote), `rebound` tried to take it.
+    DuplicateBinding {
+        sequence: KeySequence,
+        bound: &'static str,
+        rebound: &'static str,
+    },
     EmptySequence,
 }
