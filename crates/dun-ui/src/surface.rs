@@ -139,6 +139,32 @@ impl Surface {
         }
     }
 
+    /// Restyle a single cell in place, preserving its glyph and its
+    /// wide-glyph role. Out-of-bounds coordinates are a no-op.
+    pub(crate) fn set_style(&mut self, x: u16, y: u16, style: dun_term::Style) {
+        if let Some(index) = self.index(x, y) {
+            if let Some(cell) = self.cells.get_mut(index) {
+                cell.style = style;
+            }
+        }
+    }
+
+    /// Restyle a horizontal run of `width` cells starting at (x, y),
+    /// preserving glyphs and clipping at the right edge. The overlay passes
+    /// (selection, current line, search matches, syntax highlights) recolor
+    /// already-painted body text without disturbing it. A run that partially
+    /// covers a wide glyph restyles only the covered columns, matching the
+    /// per-cell model this replaces.
+    pub(crate) fn style_run(&mut self, x: u16, y: u16, width: u16, style: dun_term::Style) {
+        if y >= self.height {
+            return;
+        }
+        let end = x.saturating_add(width).min(self.width);
+        for column in x..end {
+            self.set_style(column, y, style);
+        }
+    }
+
     pub(crate) fn row_text(&self, y: u16) -> String {
         if y >= self.height {
             return String::new();
@@ -321,6 +347,62 @@ mod tests {
         assert_eq!(surface.cell(2, 0), None);
         assert_eq!(surface.cell(0, 1), None);
         assert_eq!(surface.row_text(0), "  ");
+    }
+
+    #[test]
+    fn set_style_preserves_glyph_and_continuation() {
+        let mut surface = Surface::new(3, 1, FILL_STYLE);
+        assert_eq!(surface.set_text(0, 0, "界", TEXT_STYLE), 2);
+
+        surface.set_style(0, 0, FILL_STYLE);
+        surface.set_style(1, 0, FILL_STYLE);
+
+        assert_eq!(
+            surface.cell(0, 0),
+            Some(&SurfaceCell {
+                symbol: String::from("界"),
+                style: FILL_STYLE,
+                wide_continuation: false,
+            })
+        );
+        assert_eq!(
+            surface.cell(1, 0),
+            Some(&SurfaceCell {
+                symbol: String::new(),
+                style: FILL_STYLE,
+                wide_continuation: true,
+            })
+        );
+        assert_eq!(surface.row_text(0), "界 ");
+    }
+
+    #[test]
+    fn style_run_restyles_span_preserving_text() {
+        let mut surface = Surface::new(5, 1, FILL_STYLE);
+        assert_eq!(surface.set_text(0, 0, "abcde", FILL_STYLE), 5);
+
+        surface.style_run(1, 0, 3, TEXT_STYLE);
+
+        assert_eq!(surface.row_text(0), "abcde");
+        assert_eq!(surface.cell(0, 0).map(|cell| cell.style), Some(FILL_STYLE));
+        assert_eq!(surface.cell(1, 0).map(|cell| cell.style), Some(TEXT_STYLE));
+        assert_eq!(surface.cell(3, 0).map(|cell| cell.style), Some(TEXT_STYLE));
+        assert_eq!(surface.cell(4, 0).map(|cell| cell.style), Some(FILL_STYLE));
+    }
+
+    #[test]
+    fn style_run_clips_at_right_edge_and_ignores_out_of_bounds() {
+        let mut surface = Surface::new(3, 1, FILL_STYLE);
+        assert_eq!(surface.set_text(0, 0, "abc", FILL_STYLE), 3);
+
+        surface.style_run(2, 0, 10, TEXT_STYLE);
+        surface.style_run(0, 5, 3, TEXT_STYLE);
+        surface.set_style(9, 0, TEXT_STYLE);
+
+        assert_eq!(surface.cell(0, 0).map(|cell| cell.style), Some(FILL_STYLE));
+        assert_eq!(surface.cell(1, 0).map(|cell| cell.style), Some(FILL_STYLE));
+        assert_eq!(surface.cell(2, 0).map(|cell| cell.style), Some(TEXT_STYLE));
+        assert_eq!(surface.row_text(0), "abc");
     }
 
     #[test]
