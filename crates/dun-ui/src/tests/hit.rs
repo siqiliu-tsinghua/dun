@@ -249,11 +249,7 @@ fn scrolled_dropdown_hit_test_tracks_visible_entry_range() {
     let last_entry = shell.menu_entry_count(2).unwrap() - 1;
     let active = MenuSelection::with_entry(2, last_entry);
     let area = Rect::new(0, 0, 80, 10);
-    let rect = clamp_menu_rect(
-        dropdown_rect_for_menu(&shell, &menu, 2).unwrap(),
-        area,
-    )
-    .unwrap();
+    let rect = clamp_menu_rect(dropdown_rect_for_menu(&shell, &menu, 2).unwrap(), area).unwrap();
     let (start, _) =
         menu_visible_entry_range(last_entry + 1, active.entry_index, rect.height as usize - 2)
             .unwrap();

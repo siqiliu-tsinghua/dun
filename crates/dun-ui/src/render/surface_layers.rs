@@ -131,9 +131,9 @@ pub(crate) fn draw_active_menu(
 
 #[cfg(test)]
 mod tests {
+    use dun_core::Rect as TuiRect;
     use dun_core::{BufferId, BufferKind, Rect, TextBuffer, Workspace};
     use dun_term::{Style, StyleAttrs, TerminalColor};
-    use dun_core::Rect as TuiRect;
 
     use super::{draw_active_menu, draw_menu_bar, draw_status};
     use crate::render::menu::{clamp_menu_rect, dropdown_rect_for_menu};

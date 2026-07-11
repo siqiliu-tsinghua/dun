@@ -49,7 +49,6 @@ impl UiShell {
             self.glyphs.border.top_right,
         )
     }
-
 }
 
 impl Default for UiShell {

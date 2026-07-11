@@ -19,7 +19,11 @@ pub(crate) fn menu_item_column_range(menu: &MenuBar, index: usize) -> Option<(u1
     None
 }
 
-pub(crate) fn dropdown_rect_for_menu(shell: &UiShell, menu: &MenuBar, index: usize) -> Option<Rect> {
+pub(crate) fn dropdown_rect_for_menu(
+    shell: &UiShell,
+    menu: &MenuBar,
+    index: usize,
+) -> Option<Rect> {
     let item = menu.items.get(index)?;
     let (start, _) = menu_item_column_range(menu, index)?;
     let content_width = item
