@@ -1,4 +1,4 @@
-use ratatui::layout::Rect as TuiRect;
+use dun_core::Rect as TuiRect;
 
 use crate::render::chrome::{sanitize_chrome_text, vertical_overflow_down, vertical_overflow_up};
 use crate::render::overlay::overlay_layout;

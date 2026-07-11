@@ -32,9 +32,6 @@ use dun_ui::{
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-#[cfg(test)]
-type Terminal<B> = ratatui::Terminal<B>;
-
 mod app;
 mod cli;
 mod command_line;

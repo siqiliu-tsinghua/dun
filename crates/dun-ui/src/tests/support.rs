@@ -1,6 +1,5 @@
 #![allow(unused_imports)]
 
-pub(super) use crate::render::chrome::to_ratatui_style;
 pub(super) use crate::*;
 pub(super) use dun_config::{
     ColorProfile, Config, EncodingProfile, KeySequence, KeyStroke, TerminalOverrides,
@@ -10,23 +9,26 @@ pub(super) use dun_core::{
     WindowId, Workspace,
 };
 pub(super) use dun_term::{GlyphSet, TerminalProfile};
-pub(super) use ratatui::Terminal;
-pub(super) use ratatui::backend::TestBackend;
-pub(super) use ratatui::buffer::Buffer;
-pub(super) use ratatui::layout::Rect as TuiRect;
 pub(super) use std::str::FromStr;
 
-pub(super) fn terminal_text_snapshot(buffer: &Buffer, width: u16, height: u16) -> String {
-    let mut out = String::new();
-    for y in 0..height {
-        for x in 0..width {
-            out.push_str(buffer[(x, y)].symbol());
-        }
-        if y + 1 < height {
-            out.push('\n');
-        }
-    }
-    out
+use crate::render::surface_frame::render_ui_frame_to_surface;
+use crate::surface::Surface;
+
+/// Render a frame through the Surface backend and join the cell text row by
+/// row — the Surface equivalent of the old ratatui `terminal_text_snapshot`,
+/// used to assert on the glyphs that actually reach the screen.
+pub(super) fn render_frame_text(
+    shell: &UiShell,
+    ui_frame: &UiFrame,
+    width: u16,
+    height: u16,
+) -> String {
+    let mut surface = Surface::new(width, height, shell.theme.palette.editor);
+    render_ui_frame_to_surface(&mut surface, shell, ui_frame);
+    // Concatenate rows without separators: the security check rejects every
+    // control character, newlines included, and the callers only assert on
+    // glyph presence/absence, not row structure.
+    (0..height).map(|y| surface.row_text(y)).collect()
 }
 
 pub(super) fn assert_no_raw_controls(text: &str) {

@@ -2,7 +2,6 @@
 
 pub(super) use crate::*;
 pub(super) use dun_core::TextRange;
-pub(super) use ratatui::backend::TestBackend;
 pub(super) use std::ffi::OsString;
 pub(super) use std::io::Write;
 pub(super) use std::path::{Path, PathBuf};

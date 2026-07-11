@@ -1,5 +1,4 @@
 use dun_core::{EditorCommand, Position, Rect, Workspace};
-use ratatui::layout::Rect as TuiRect;
 
 use crate::{BufferView, MenuSelection, UiMouseHit, UiMouseTarget, UiOverlay, UiShell, UiWindow};
 
@@ -35,11 +34,7 @@ impl UiShell {
         x: u16,
         y: u16,
     ) -> Option<usize> {
-        let layout = super::overlay_layout(
-            self,
-            overlay,
-            TuiRect::new(area.x, area.y, area.width, area.height),
-        )?;
+        let layout = super::overlay_layout(self, overlay, area)?;
         let content_start = layout.rect.x.saturating_add(2);
         let content_end = layout
             .rect
@@ -94,10 +89,7 @@ impl UiShell {
         let menu = self.menu_bar(None);
         let item = menu.items.get(active.menu_index)?;
         let dropdown = super::dropdown_rect_for_menu(self, &menu, active.menu_index)?;
-        let dropdown = super::clamp_menu_rect(
-            dropdown,
-            TuiRect::new(area.x, area.y, area.width, area.height),
-        )?;
+        let dropdown = super::clamp_menu_rect(dropdown, area)?;
         if column <= dropdown.x
             || column >= dropdown.x.saturating_add(dropdown.width).saturating_sub(1)
             || row <= dropdown.y

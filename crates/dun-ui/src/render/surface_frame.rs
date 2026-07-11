@@ -1,4 +1,4 @@
-use ratatui::layout::Rect as TuiRect;
+use dun_core::Rect as TuiRect;
 
 use crate::render::surface_layers::{draw_active_menu, draw_menu_bar, draw_status};
 use crate::render::surface_overlay::draw_overlay;
@@ -18,7 +18,7 @@ pub struct RenderedFrame {
 /// The public rendering entry point for the in-house Surface backend. It owns
 /// the previously emitted frame and produces a minimal diff against it; the
 /// `Surface` grid and the SGR encoder stay private to `dun-ui`. This is the
-/// backend the dun-cli event loop drives instead of a ratatui `Terminal`.
+/// backend the dun-cli event loop drives each frame.
 #[derive(Default)]
 pub struct SurfaceRenderer {
     previous: Option<Surface>,
@@ -63,11 +63,10 @@ impl SurfaceRenderer {
 }
 
 /// Renders a `UiFrame` onto a `Surface` and returns the terminal cursor
-/// position, if any — the Surface twin of `render_ui_frame`, which is the
-/// layout contract both must satisfy.
+/// position, if any.
 ///
 /// The cursor is returned instead of written because the Surface path has no
-/// terminal handle: the caller (the dun-cli cutover slice) appends the CUP
+/// terminal handle: the caller (`SurfaceBackend` in dun-cli) appends the CUP
 /// and cursor-visibility bytes after the `emit_diff` stream.
 pub(crate) fn render_ui_frame_to_surface(
     surface: &mut Surface,
@@ -99,8 +98,7 @@ pub(crate) fn render_ui_frame_to_surface(
     let workspace = TuiRect::new(0, 1, width, height - 2);
     let mut cursor = None;
     for window in &ui_frame.windows {
-        // In window order, the last window reporting a cursor wins, matching
-        // the ratatui path's repeated set_cursor_position calls.
+        // In window order, the last window reporting a cursor wins.
         cursor = draw_window(surface, shell, window, workspace).or(cursor);
     }
 

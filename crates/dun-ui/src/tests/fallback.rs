@@ -95,14 +95,8 @@ fn ascii_renderer_keeps_menu_dialog_scrollbar_and_edges_ascii() {
             .with_list(vec!["a".to_string(), "b".to_string()], Some(0), 16)
             .with_list_overflow(true, true),
     );
-    let backend = TestBackend::new(24, 10);
-    let mut terminal = Terminal::new(backend).unwrap();
 
-    terminal
-        .draw(|frame| shell.render(frame, &ui_frame))
-        .unwrap();
-
-    let snapshot = terminal_text_snapshot(terminal.backend().buffer(), 24, 10);
+    let snapshot = render_frame_text(&shell, &ui_frame, 24, 10);
     assert!(snapshot.is_ascii());
     assert!(snapshot.contains('^'));
     assert!(snapshot.contains('v'));
@@ -114,7 +108,7 @@ fn ascii_renderer_keeps_menu_dialog_scrollbar_and_edges_ascii() {
 }
 
 #[test]
-fn ratatui_renderer_does_not_emit_raw_controls_from_untrusted_text() {
+fn surface_renderer_does_not_emit_raw_controls_from_untrusted_text() {
     let mut workspace = Workspace::new_untitled();
     workspace.window_mut(WindowId(1)).unwrap().title = "title\x1b]0;owned\x07".to_string();
     let buffer = TextBuffer::from_text_with_kind(
@@ -127,20 +121,8 @@ fn ratatui_renderer_does_not_emit_raw_controls_from_untrusted_text() {
         shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 8), &[buffer_view]);
     ui_frame.status.left = "Opened \x1b]52;c;SGVsbG8=\x07".to_string();
     ui_frame.status.right = "Ln \x1b[2J".to_string();
-    let backend = TestBackend::new(80, 10);
-    let mut terminal = Terminal::new(backend).unwrap();
 
-    terminal
-        .draw(|frame| shell.render(frame, &ui_frame))
-        .unwrap();
-
-    let rendered = terminal
-        .backend()
-        .buffer()
-        .content()
-        .iter()
-        .map(|cell| cell.symbol())
-        .collect::<String>();
+    let rendered = render_frame_text(&shell, &ui_frame, 80, 10);
     assert_no_raw_controls(&rendered);
     assert!(rendered.contains("␛]0;owned␇"));
     assert!(rendered.contains("␛[31mred␛[0m"));

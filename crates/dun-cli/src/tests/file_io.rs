@@ -743,12 +743,9 @@ fn large_file_perf_baseline_open_search_scroll_and_render() {
     });
     assert!(!ui_frame.windows[0].body.is_empty());
 
-    let backend = TestBackend::new(120, 42);
-    let mut terminal = Terminal::new(backend).unwrap();
-    measure_large_file_perf("ratatui_draw_visible_window", || {
-        terminal
-            .draw(|frame| app.shell.render(frame, &ui_frame))
-            .unwrap();
+    let mut renderer = dun_ui::SurfaceRenderer::new();
+    measure_large_file_perf("surface_draw_visible_window", || {
+        let _ = renderer.render(&app.shell, &ui_frame, 120, 42);
     });
 
     let _ = std::fs::remove_file(&path);
@@ -775,11 +772,8 @@ fn large_file_perf_long_line_display_cap() {
         Limits::default().line_display_soft_limit_bytes
     );
 
-    let backend = TestBackend::new(120, 10);
-    let mut terminal = Terminal::new(backend).unwrap();
-    measure_large_file_perf("ratatui_draw_long_line_display_cap", || {
-        terminal
-            .draw(|frame| shell.render(frame, &ui_frame))
-            .unwrap();
+    let mut renderer = dun_ui::SurfaceRenderer::new();
+    measure_large_file_perf("surface_draw_long_line_display_cap", || {
+        let _ = renderer.render(&shell, &ui_frame, 120, 10);
     });
 }

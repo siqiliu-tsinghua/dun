@@ -1,6 +1,6 @@
 use dun_core::{DisplayClass, SanitizedLine};
 use dun_term::Style;
-use ratatui::layout::Rect as TuiRect;
+use dun_core::Rect as TuiRect;
 use unicode_width::UnicodeWidthChar;
 
 use crate::render::surface_draw::draw_border;

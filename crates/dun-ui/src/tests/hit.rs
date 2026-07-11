@@ -251,7 +251,7 @@ fn scrolled_dropdown_hit_test_tracks_visible_entry_range() {
     let area = Rect::new(0, 0, 80, 10);
     let rect = clamp_menu_rect(
         dropdown_rect_for_menu(&shell, &menu, 2).unwrap(),
-        TuiRect::new(area.x, area.y, area.width, area.height),
+        area,
     )
     .unwrap();
     let (start, _) =

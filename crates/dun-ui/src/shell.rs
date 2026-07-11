@@ -1,9 +1,6 @@
 use dun_config::{Config, KeySequence, KeyStroke, Keymap};
 use dun_core::{DisplaySanitizer, EditorCommand, Workspace};
 use dun_term::{EncodingProfile, GlyphSet, TerminalProfile, Theme};
-use ratatui::prelude::Frame;
-
-use crate::{UiFrame, render_ui_frame};
 
 #[derive(Clone, Debug)]
 pub struct UiShell {
@@ -53,9 +50,6 @@ impl UiShell {
         )
     }
 
-    pub fn render(&self, frame: &mut Frame<'_>, ui_frame: &UiFrame) {
-        render_ui_frame(frame, self, ui_frame);
-    }
 }
 
 impl Default for UiShell {
