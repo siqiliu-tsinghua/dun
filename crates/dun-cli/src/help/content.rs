@@ -24,6 +24,9 @@ pub(crate) fn help_text(keymap: &Keymap, file_dialog_keys: &FileDialogKeymap) ->
         "\nPrompts\n  Enter           Submit prompt\n  Esc             Cancel prompt\n  Backspace       Edit prompt input\n  Up/Down         Command history\n\n",
     );
     out.push_str(
+        "Command Prompt\n  plugin          Report syntax-highlight plugin state\n  plugin load     Enable lazy launch on the next edit\n  plugin unload   Stop and disable the highlight host\n\n",
+    );
+    out.push_str(
         "Selection\n  Shift+Arrow       Extend selection by character or line\n  Shift+Home/End    Extend selection to line edge\n  Shift+PageUp/Down Extend selection by visible page\n  Ctrl+Shift+Arrow  Extend selection by word when delivered\n\n",
     );
     out.push_str(

@@ -1,6 +1,7 @@
 use dun_plugin::{StyleId, StyleSpan};
 
 use super::support::app_with_text;
+use crate::plugins::{WorkerMessage, next_worker_job_for_tests};
 use crate::*;
 
 fn span(line: u32, start_col: u32, end_col: u32) -> StyleSpan {
@@ -173,14 +174,114 @@ fn schedule_dedupes_identical_snapshots_and_sends_changed_ones() {
     let (mut highlighter, jobs) = PluginHighlighter::for_tests();
 
     assert!(highlighter.schedule(job(0, 0, 3)));
-    assert_eq!(jobs.try_recv().ok(), Some(job(0, 0, 3)));
+    assert_eq!(jobs.try_recv().ok(), Some(WorkerMessage::Job(job(0, 0, 3))));
 
     assert!(!highlighter.schedule(job(0, 0, 3)));
     assert!(jobs.try_recv().is_err());
 
     assert!(highlighter.schedule(job(1, 0, 3)));
-    assert_eq!(jobs.try_recv().ok(), Some(job(1, 0, 3)));
+    assert_eq!(jobs.try_recv().ok(), Some(WorkerMessage::Job(job(1, 0, 3))));
 
     assert!(highlighter.schedule(job(1, 5, 3)));
-    assert_eq!(jobs.try_recv().ok(), Some(job(1, 5, 3)));
+    assert_eq!(jobs.try_recv().ok(), Some(WorkerMessage::Job(job(1, 5, 3))));
+}
+
+#[test]
+fn unload_then_load_resets_dedupe_so_next_snapshot_resends() {
+    let (mut highlighter, messages) = PluginHighlighter::for_tests();
+    let snapshot = job(7, 2, 4);
+
+    assert!(highlighter.schedule(snapshot.clone()));
+    assert_eq!(
+        messages.try_recv().ok(),
+        Some(WorkerMessage::Job(snapshot.clone()))
+    );
+    assert!(!highlighter.schedule(snapshot.clone()));
+
+    highlighter.unload();
+    assert!(!highlighter.is_loaded());
+    assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Unload));
+
+    highlighter.load();
+    assert!(highlighter.is_loaded());
+    assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Load));
+
+    assert!(highlighter.schedule(snapshot.clone()));
+    assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Job(snapshot)));
+}
+
+#[test]
+fn worker_unload_drops_jobs_until_load_reenables_them() {
+    let (mut highlighter, messages) = PluginHighlighter::for_tests();
+    let snapshot = job(3, 0, 2);
+    let mut worker_unloaded = false;
+
+    highlighter.unload();
+    assert!(highlighter.schedule(snapshot.clone()));
+    assert_eq!(
+        next_worker_job_for_tests(&messages, &mut worker_unloaded).unwrap(),
+        None,
+        "an unloaded worker must not return a job to the launch/request path"
+    );
+    assert!(worker_unloaded);
+
+    highlighter.load();
+    assert!(highlighter.schedule(snapshot.clone()));
+    assert_eq!(
+        next_worker_job_for_tests(&messages, &mut worker_unloaded).unwrap(),
+        Some(snapshot)
+    );
+    assert!(!worker_unloaded);
+}
+
+#[test]
+fn plugin_command_reports_and_controls_the_highlighter() {
+    let mut app = AppState::new();
+    let (highlighter, messages) = PluginHighlighter::for_tests();
+    app.highlighter = Some(highlighter);
+
+    app.run_command_line("plugin");
+    assert_eq!(
+        app.status_message,
+        Some("Plugin test-plugin is loaded".to_string())
+    );
+
+    app.run_command_line("plugin unload");
+    assert_eq!(
+        app.status_message,
+        Some("Plugin test-plugin unloaded".to_string())
+    );
+    assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Unload));
+
+    app.run_command_line("plugin");
+    assert_eq!(
+        app.status_message,
+        Some("Plugin test-plugin is unloaded".to_string())
+    );
+
+    app.run_command_line("plugin load");
+    assert_eq!(
+        app.status_message,
+        Some("Plugin test-plugin loaded (starts on the next edit)".to_string())
+    );
+    assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Load));
+
+    app.run_command_line("plugin restart");
+    assert_eq!(
+        app.status_message,
+        Some("Usage: plugin [load|unload]".to_string())
+    );
+}
+
+#[test]
+fn plugin_command_reports_when_no_highlighter_is_configured() {
+    let mut app = AppState::new();
+
+    for command in ["plugin", "plugin load", "plugin unload"] {
+        app.run_command_line(command);
+        assert_eq!(
+            app.status_message,
+            Some("No syntax-highlight plugin configured".to_string())
+        );
+    }
 }

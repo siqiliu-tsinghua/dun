@@ -25,6 +25,7 @@ impl AppState {
             "reload" | "reloadconfig" => self.reload_config(),
             "status" | "statushistory" => self.open_status_history_screen(),
             "theme" => self.run_theme_command(args),
+            "plugin" => self.run_plugin_command(args),
             "quit" | "q" => self.handle_app_command(&AppCommand::Quit),
             "shell" | "sh" => {
                 self.run_no_arg_command(args, EditorCommand::App(AppCommand::ShellEscape))
@@ -73,6 +74,44 @@ impl AppState {
                 )),
             },
             _ => self.set_status("Command failed: theme expects zero or one theme name"),
+        }
+    }
+
+    fn run_plugin_command(&mut self, args: &[String]) {
+        match args {
+            [] => {
+                let Some(highlighter) = self.highlighter.as_ref() else {
+                    self.set_status("No syntax-highlight plugin configured");
+                    return;
+                };
+                let state = if highlighter.is_loaded() {
+                    "loaded"
+                } else {
+                    "unloaded"
+                };
+                self.set_status(format!("Plugin {} is {state}", highlighter.plugin_id()));
+            }
+            [action] if action == "unload" => {
+                let Some(highlighter) = self.highlighter.as_mut() else {
+                    self.set_status("No syntax-highlight plugin configured");
+                    return;
+                };
+                let plugin_id = highlighter.plugin_id().to_string();
+                highlighter.unload();
+                self.set_status(format!("Plugin {plugin_id} unloaded"));
+            }
+            [action] if action == "load" => {
+                let Some(highlighter) = self.highlighter.as_mut() else {
+                    self.set_status("No syntax-highlight plugin configured");
+                    return;
+                };
+                let plugin_id = highlighter.plugin_id().to_string();
+                highlighter.load();
+                self.set_status(format!(
+                    "Plugin {plugin_id} loaded (starts on the next edit)"
+                ));
+            }
+            _ => self.set_status("Usage: plugin [load|unload]"),
         }
     }
 

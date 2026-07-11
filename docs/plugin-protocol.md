@@ -109,6 +109,11 @@ For `user-trusted-external` fixture and development hosts:
 These controls do not make the host sandboxed. They protect `dun`'s own state,
 terminal, memory budget, and UI responsiveness.
 
+A configured `syntax-highlight` host launches lazily when its first job
+arrives. From the command prompt, `plugin unload` gracefully shuts it down and
+suppresses relaunches to free memory; `plugin load` re-enables lazy launch on
+the next edit, and `plugin` reports the current state.
+
 ## Message Families
 
 The first protocol version should include these families:

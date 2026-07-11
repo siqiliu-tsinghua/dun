@@ -28,6 +28,13 @@ pub(crate) struct HighlightJob {
     pub(crate) lines: Vec<String>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum WorkerMessage {
+    Job(HighlightJob),
+    Load,
+    Unload,
+}
+
 #[derive(Debug)]
 pub(crate) struct HighlightOutcome {
     pub(crate) buffer_id: BufferId,
@@ -41,9 +48,10 @@ pub(crate) type HighlightRequestKey = (BufferId, u64, usize, usize);
 
 pub(crate) struct PluginHighlighter {
     plugin_id: String,
-    jobs: mpsc::Sender<HighlightJob>,
+    jobs: mpsc::Sender<WorkerMessage>,
     outcomes: mpsc::Receiver<HighlightOutcome>,
     last_request: Option<HighlightRequestKey>,
+    unloaded: bool,
 }
 
 impl PluginHighlighter {
@@ -58,7 +66,7 @@ impl PluginHighlighter {
             max_frame_bytes: entry.max_frame_bytes,
             ..Policy::default()
         };
-        let (job_sender, job_receiver) = mpsc::channel::<HighlightJob>();
+        let (job_sender, job_receiver) = mpsc::channel::<WorkerMessage>();
         let (outcome_sender, outcome_receiver) = mpsc::channel::<HighlightOutcome>();
         let command = entry.command.clone();
         let plugin_id = entry.id.clone();
@@ -78,11 +86,28 @@ impl PluginHighlighter {
             jobs: job_sender,
             outcomes: outcome_receiver,
             last_request: None,
+            unloaded: false,
         })
     }
 
     pub(crate) fn plugin_id(&self) -> &str {
         &self.plugin_id
+    }
+
+    pub(crate) fn is_loaded(&self) -> bool {
+        !self.unloaded
+    }
+
+    pub(crate) fn unload(&mut self) {
+        let _ = self.jobs.send(WorkerMessage::Unload);
+        self.unloaded = true;
+        self.last_request = None;
+    }
+
+    pub(crate) fn load(&mut self) {
+        let _ = self.jobs.send(WorkerMessage::Load);
+        self.unloaded = false;
+        self.last_request = None;
     }
 
     /// Sends a job unless an identical snapshot (buffer, revision, window)
@@ -95,7 +120,7 @@ impl PluginHighlighter {
         self.last_request = Some(key);
         // A send error means the worker died; the next poll simply yields
         // nothing and the error was already reported as an outcome.
-        self.jobs.send(job).is_ok()
+        self.jobs.send(WorkerMessage::Job(job)).is_ok()
     }
 
     pub(crate) fn poll(&mut self) -> Vec<HighlightOutcome> {
@@ -107,18 +132,19 @@ fn highlight_worker(
     command: &Path,
     plugin_id: &str,
     policy: Policy,
-    jobs: &mpsc::Receiver<HighlightJob>,
+    messages: &mpsc::Receiver<WorkerMessage>,
     outcomes: &mpsc::Sender<HighlightOutcome>,
 ) {
     let mut client: Option<HostClient> = None;
     let mut last_failure: Option<Instant> = None;
+    let mut unloaded = false;
 
-    while let Ok(mut job) = jobs.recv() {
-        // Coalesce to the newest pending job; intermediate snapshots are
-        // stale by construction.
-        while let Ok(newer) = jobs.try_recv() {
-            job = newer;
-        }
+    loop {
+        let job = match next_worker_job(messages, &mut client, &mut unloaded) {
+            Ok(Some(job)) => job,
+            Ok(None) => continue,
+            Err(_) => break,
+        };
 
         if client.is_none() {
             if last_failure.is_some_and(|failed| failed.elapsed() < RELAUNCH_COOLDOWN) {
@@ -167,6 +193,38 @@ fn highlight_worker(
     }
 }
 
+fn next_worker_job(
+    messages: &mpsc::Receiver<WorkerMessage>,
+    client: &mut Option<HostClient>,
+    unloaded: &mut bool,
+) -> Result<Option<HighlightJob>, mpsc::RecvError> {
+    let mut newest_job = None;
+    apply_worker_message(messages.recv()?, client, unloaded, &mut newest_job);
+    while let Ok(message) = messages.try_recv() {
+        apply_worker_message(message, client, unloaded, &mut newest_job);
+    }
+
+    if *unloaded { Ok(None) } else { Ok(newest_job) }
+}
+
+fn apply_worker_message(
+    message: WorkerMessage,
+    client: &mut Option<HostClient>,
+    unloaded: &mut bool,
+    newest_job: &mut Option<HighlightJob>,
+) {
+    match message {
+        WorkerMessage::Job(job) => *newest_job = Some(job),
+        WorkerMessage::Load => *unloaded = false,
+        WorkerMessage::Unload => {
+            if let Some(active) = client.take() {
+                let _ = active.shutdown();
+            }
+            *unloaded = true;
+        }
+    }
+}
+
 fn failure_outcome(job: &HighlightJob, message: &str) -> HighlightOutcome {
     HighlightOutcome {
         buffer_id: job.buffer_id,
@@ -189,8 +247,8 @@ pub(crate) fn language_hint(path: Option<&PathBuf>) -> String {
 impl PluginHighlighter {
     /// Test constructor without a worker thread; returns the job receiver
     /// so tests can observe what `schedule` actually sends.
-    pub(crate) fn for_tests() -> (Self, mpsc::Receiver<HighlightJob>) {
-        let (job_sender, job_receiver) = mpsc::channel::<HighlightJob>();
+    pub(crate) fn for_tests() -> (Self, mpsc::Receiver<WorkerMessage>) {
+        let (job_sender, job_receiver) = mpsc::channel::<WorkerMessage>();
         let (_outcome_sender, outcome_receiver) = mpsc::channel::<HighlightOutcome>();
         (
             Self {
@@ -198,8 +256,18 @@ impl PluginHighlighter {
                 jobs: job_sender,
                 outcomes: outcome_receiver,
                 last_request: None,
+                unloaded: false,
             },
             job_receiver,
         )
     }
+}
+
+#[cfg(test)]
+pub(crate) fn next_worker_job_for_tests(
+    messages: &mpsc::Receiver<WorkerMessage>,
+    unloaded: &mut bool,
+) -> Result<Option<HighlightJob>, mpsc::RecvError> {
+    let mut client = None;
+    next_worker_job(messages, &mut client, unloaded)
 }

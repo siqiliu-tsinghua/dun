@@ -104,6 +104,12 @@ through the theme's syntax palette; host failures surface as bounded status
 messages without touching editor state. Reference host implementations in
 Rust (syntect), Python (Pygments), and dependency-free Lua live in
 [hosts/](./hosts/) with a language-agnostic conformance checker.
+
+The configured highlight host launches lazily on its first job. In the command
+prompt, `plugin` reports its state, `plugin unload` stops it and suppresses
+relaunches to free memory, and `plugin load` re-enables lazy launch on the next
+edit.
+
 By default, `F1` opens a read-only Help window with the active configured key
 reference, and `F2` opens a read-only Status History window with recent status
 and error messages. `F5` reloads the active configuration without restarting
