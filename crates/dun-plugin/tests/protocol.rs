@@ -184,6 +184,69 @@ fn malformed_json_response_reports_protocol_error() {
     );
 }
 
+/// Diagnostic for the handshake-latency-spike investigation. Measures full
+/// `HostClient::launch` (spawn + reader threads + hello/hello-ack) latency
+/// sequentially and then with a burst of concurrent launches, to attribute
+/// the spikes seen under `cargo test` parallelism. Not a gate — run with
+/// `cargo test -p dun-plugin --ignored -- --nocapture measure_handshake`.
+#[test]
+#[ignore]
+fn measure_handshake_latency_sequential_vs_parallel() {
+    use std::thread;
+
+    const N: usize = 24;
+    let host = Path::new(FIXTURE_HOST);
+    // Warm up so the first-exec scan / page-cache fill is not charged to the
+    // first measured launch.
+    drop(HostClient::launch(host, "highlight", policy(Duration::from_secs(5))).unwrap());
+
+    let time_one = || {
+        let start = Instant::now();
+        let client = HostClient::launch(host, "highlight", policy(Duration::from_secs(5))).unwrap();
+        let elapsed = start.elapsed();
+        drop(client);
+        elapsed
+    };
+
+    let mut sequential: Vec<Duration> = (0..N).map(|_| time_one()).collect();
+
+    let parallel: Vec<Duration> = {
+        let handles: Vec<_> = (0..N)
+            .map(|_| {
+                thread::spawn(move || {
+                    let start = Instant::now();
+                    let client =
+                        HostClient::launch(host, "highlight", policy(Duration::from_secs(5)))
+                            .unwrap();
+                    let elapsed = start.elapsed();
+                    drop(client);
+                    elapsed
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    };
+
+    let summarize = |label: &str, samples: &mut Vec<Duration>| {
+        samples.sort_unstable();
+        let ms = |d: Duration| d.as_secs_f64() * 1000.0;
+        let median = samples[samples.len() / 2];
+        let max = *samples.last().unwrap();
+        let min = *samples.first().unwrap();
+        println!(
+            "{label:12} n={} min={:.1}ms median={:.1}ms max={:.1}ms",
+            samples.len(),
+            ms(min),
+            ms(median),
+            ms(max)
+        );
+    };
+
+    let mut parallel = parallel;
+    summarize("sequential", &mut sequential);
+    summarize("parallel", &mut parallel);
+}
+
 #[test]
 fn diagnostic_flood_reports_policy_violation() {
     let error = request_error("diag-flood-test", policy(Duration::from_secs(5)));

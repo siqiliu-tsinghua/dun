@@ -136,12 +136,18 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 
 ### Open Investigations
 
-- [ ] Handshake latency spikes: under parallel test load, HostClient launch
-  handshakes intermittently exceeded 500 ms while raw spawn+reply latency
-  measures 6-14 ms; the protocol test suite now uses generous fuse timeouts
-  (assertions are event-driven), but the mechanism is unexplained. Instrument
-  handshake timing before relying on tight per-host timeouts in the wiring
-  stage.
+- [x] Handshake latency spikes (resolved 2026-07-11): the >500 ms spikes were
+  the macOS first-exec malware scan on the old shebang-script launchers — each
+  run created fresh scripts (fresh inodes), each triggering a hundreds-of-ms
+  scan. The hard-linked launcher fix (brief-003) reuses the already-scanned
+  fixture inode and removed the cause. Re-measured with the `#[ignore]`
+  `measure_handshake_latency_sequential_vs_parallel` diagnostic: launch
+  (spawn + reader threads + hello/hello-ack) is ~3 ms sequential and ~16 ms
+  worst-case at 24-way parallelism, in debug, even with the full protocol
+  suite running concurrently — modest scheduler contention, not a protocol
+  bug. Tight per-host timeouts are safe in production, where a host does not
+  compete with dozens of concurrent test spawns. The diagnostic stays in
+  `protocol.rs` for re-measurement if spikes ever recur on other hardware.
 
 ### Release Gates for This Stage
 
