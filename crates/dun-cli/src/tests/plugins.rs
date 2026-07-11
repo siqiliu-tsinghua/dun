@@ -127,6 +127,48 @@ fn highlight_error_outcome_reports_plugin_status() {
 }
 
 #[test]
+fn highlight_failure_leaves_buffer_and_prior_highlight_untouched() {
+    let mut app = app_with_text("fn main");
+    app.apply_highlight_outcome(
+        "demo",
+        HighlightOutcome {
+            buffer_id: BufferId(1),
+            revision: 0,
+            result: Ok(vec![span(0, 0, 2)]),
+        },
+    );
+    let highlight_before = app.buffer_state(BufferId(1)).unwrap().highlight.clone();
+    let revision_before = app.buffer_state(BufferId(1)).unwrap().buffer.revision();
+    assert!(highlight_before.is_some());
+
+    // A later failure for the same buffer must be inert beyond the status
+    // line: it never touches buffer text, revision, or the valid highlight.
+    app.apply_highlight_outcome(
+        "demo",
+        HighlightOutcome {
+            buffer_id: BufferId(1),
+            revision: 0,
+            result: Err("plugin host crashed".to_string()),
+        },
+    );
+
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().highlight,
+        highlight_before,
+        "a plugin failure must not clear the existing highlight"
+    );
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.revision(),
+        revision_before,
+        "a plugin failure must not mutate the buffer"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Plugin demo failed: plugin host crashed".to_string())
+    );
+}
+
+#[test]
 fn schedule_dedupes_identical_snapshots_and_sends_changed_ones() {
     let (mut highlighter, jobs) = PluginHighlighter::for_tests();
 

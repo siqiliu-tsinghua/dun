@@ -78,10 +78,15 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
   `Diagnostic`, `CancelRequest`, `Error`, and `Shutdown` paths.
 - [x] Add per-request timeout and cancellation (configured
   `plugin.<id>.timeout_ms` maps onto the client policy).
-- [ ] Kill or quarantine a host after malformed frames, oversized output,
-  timeout, failed cancellation, EOF during frame, or process crash.
-- [ ] Ensure plugin host failure never corrupts buffers, file state, terminal
-  state, or workspace layout.
+- [x] Kill or quarantine a host after malformed frames, oversized output,
+  timeout, failed cancellation, EOF during frame, or process crash. Every
+  error path in `request_highlight`/`handshake` calls `HostClient::kill`
+  (`child.kill()` + `child.wait()`, reaping the process), and `Drop` does the
+  same; the failure matrix exercises each path.
+- [x] Ensure plugin host failure never corrupts buffers, file state, terminal
+  state, or workspace layout. The wiring `Err` branch only sets a bounded
+  status message and never touches buffer state; pinned by
+  `highlight_failure_leaves_buffer_and_prior_highlight_untouched`.
 
 ### First Applied Role
 
@@ -122,8 +127,12 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
   by the timeout test; a dedicated test would be racy with marginal value.
 - [x] Test stale revision rejection at the client level (editor-state
   invariance is checked again at wiring).
-- [ ] Test that rejected plugin output cannot request file I/O, process spawn,
-  terminal writes, direct buffer mutation, or raw control-byte rendering.
+- [x] Rejected plugin output cannot request file I/O, process spawn, terminal
+  writes, direct buffer mutation, or raw control-byte rendering. Guaranteed by
+  construction: `request_highlight` returns only a validated
+  `Vec<StyleSpan>` (or an `Err`), so a host has no channel to those effects;
+  applied spans are re-sanitized at render. No behavioral test can exercise a
+  capability the type does not expose.
 
 ### Open Investigations
 
