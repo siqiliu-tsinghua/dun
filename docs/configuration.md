@@ -35,6 +35,8 @@ theme = dun | msedit | turbo | dark
 terminal.encoding = utf8 | ascii
 terminal.colors = 256 | 16 | mono
 mouse.enabled = true | false
+plugins.status_bar = true | false
+plugins.idle_after_ms = 300000
 clipboard.osc52.enabled = true | false
 clipboard.osc52.max_bytes = 16 KiB
 limits.editable_file_soft_limit_bytes = 16 MiB
@@ -149,6 +151,33 @@ External copy is optional and disabled by default. When
 selection to the internal clipboard and emits an OSC 52 clipboard write if the
 UTF-8 payload is no larger than `clipboard.osc52.max_bytes`. `dun` does not
 query OSC 52 paste data or call platform clipboard commands.
+
+## Plugin status indicator
+
+A plugin host is a resident process. `plugins.status_bar = true` shows the
+loaded host at the right edge of the status bar so an idle one can be spotted
+and unloaded (`plugin unload`) — useful on a small remote box. It is off by
+default. The indicator has four states:
+
+```text
+[pyg]          loaded, recently active
+[pyg idle]     loaded but no activity for plugins.idle_after_ms   (highlighted)
+[pyg error]    the host's last request failed                     (highlighted)
+[pyg off]      unloaded via `plugin unload`
+```
+
+`plugins.idle_after_ms` defaults to `300000` (5 minutes); `0` disables idle
+flagging entirely, leaving only the error state highlighted. The threshold is
+deliberately generous: a syntax-highlight host is idle whenever you stop
+typing, so a short threshold reports noise rather than signal.
+
+Highlighted states are drawn in the active theme's `warning` color (see
+[Colors](#colors)) — specifically the theme's warning pair swapped, so the
+warning color becomes the chip background against a foreground the theme
+already guarantees contrasts with it. Nothing is hardcoded, and the indicator
+stays legible under 16-color and monochrome fallback. `dun` does not measure
+the host's memory: reading that needs per-OS code, so "resident and idle" is
+the proxy the indicator reports.
 
 ## Colors
 
