@@ -17,35 +17,23 @@ fn default_theme_is_dun_256() {
 }
 
 #[test]
-fn solarized_themes_use_the_solarized_256_palette() {
-    let dark = Theme::solarized_dark();
-    assert_eq!(dark.name, "solarized-dark");
-    assert_eq!(dark.theme, ThemeName::SolarizedDark);
-    assert_eq!(dark.colors, ColorProfile::Color256);
-    assert_eq!(dark.palette.editor.bg, TerminalColor::Indexed(234)); // base03
-    assert_eq!(dark.palette.editor.fg, TerminalColor::Indexed(244)); // base0
-    assert_eq!(dark.palette.syntax_string.fg, TerminalColor::Indexed(37)); // cyan
-    assert_eq!(dark.palette.syntax_keyword.fg, TerminalColor::Indexed(64)); // green
+fn turbo_256_pins_the_cga_blue_desktop() {
+    // 256-color terminals get fixed indices so the deep-blue desktop does not
+    // inherit the terminal's ANSI-blue mapping; 16-color falls back to ANSI.
+    let theme = Theme::for_profile(ThemeName::Turbo, TerminalProfile::default());
+    assert_eq!(theme.name, "turbo");
+    assert_eq!(theme.colors, ColorProfile::Color256);
+    assert_eq!(theme.palette.editor.bg, TerminalColor::Indexed(19)); // CGA blue
+    assert_eq!(theme.palette.editor.fg, TerminalColor::Indexed(250)); // light gray
 
-    let light = Theme::solarized_light();
-    assert_eq!(light.name, "solarized-light");
-    assert_eq!(light.theme, ThemeName::SolarizedLight);
-    assert_eq!(light.palette.editor.bg, TerminalColor::Indexed(230)); // base3
-    assert_eq!(light.palette.editor.fg, TerminalColor::Indexed(241)); // base00
-    // Accents are shared across both variants.
-    assert_eq!(light.palette.syntax_string.fg, TerminalColor::Indexed(37)); // cyan
-}
-
-#[test]
-fn for_profile_selects_solarized_variants() {
-    let profile = TerminalProfile::default();
-    assert_eq!(
-        Theme::for_profile(ThemeName::SolarizedDark, profile).name,
-        "solarized-dark"
+    let fallback = Theme::for_profile(
+        ThemeName::Turbo,
+        TerminalProfile::new(EncodingProfile::Utf8, ColorProfile::Color16),
     );
+    assert_eq!(fallback.colors, ColorProfile::Color16);
     assert_eq!(
-        Theme::for_profile(ThemeName::SolarizedLight, profile).name,
-        "solarized-light"
+        fallback.palette.editor.bg,
+        TerminalColor::Ansi(AnsiColor::Blue)
     );
 }
 

@@ -412,111 +412,71 @@ impl Theme {
         Self::with_256_darkish("dun", ThemeName::Dun, 235, 252, 44, 203)
     }
 
-    pub const fn solarized_dark() -> Self {
-        // Ethan Schoonover's Solarized, xterm-256 degraded palette. Dark
-        // variant: base03/base02 grounds, base0/base1 content, base01/base00
-        // dim/secondary.
-        Self::solarized(
-            "solarized-dark",
-            ThemeName::SolarizedDark,
-            234,
-            235,
-            244,
-            245,
-            240,
-            241,
-        )
-    }
-
-    pub const fn solarized_light() -> Self {
-        // Light variant: the base tones mirror around the midpoint —
-        // base3/base2 grounds, base00/base01 content, base1/base0 dim.
-        Self::solarized(
-            "solarized-light",
-            ThemeName::SolarizedLight,
-            230,
-            254,
-            241,
-            240,
-            245,
-            244,
-        )
-    }
-
-    /// Solarized palette built from six role tones (`bg` darkest/lightest
-    /// ground, `bg2` ground highlight, `body` text, `emph` emphasized text,
-    /// `dim` comments/secondary, `faint` tertiary) plus the fixed accent set.
-    /// The two variants pass mirrored base tones; the accents are shared.
-    #[allow(clippy::too_many_arguments)]
-    const fn solarized(
-        name: &'static str,
-        theme: ThemeName,
-        bg: u8,
-        bg2: u8,
-        body: u8,
-        emph: u8,
-        dim: u8,
-        faint: u8,
-    ) -> Self {
-        let ground = TerminalColor::Indexed(bg);
-        let ground_hi = TerminalColor::Indexed(bg2);
-        let body = TerminalColor::Indexed(body);
-        let emph = TerminalColor::Indexed(emph);
-        let dim = TerminalColor::Indexed(dim);
-        let faint = TerminalColor::Indexed(faint);
-        let yellow = TerminalColor::Indexed(136);
-        let orange = TerminalColor::Indexed(166);
-        let red = TerminalColor::Indexed(160);
-        let magenta = TerminalColor::Indexed(125);
-        let blue = TerminalColor::Indexed(33);
+    /// The Borland Turbo Vision look pinned to fixed xterm-256 indices that
+    /// track the CGA palette, so the deep-blue desktop renders consistently
+    /// instead of inheriting whatever the terminal maps ANSI "blue" to. Used
+    /// on 256-color terminals; `turbo_16` is the 16-color fallback.
+    pub const fn turbo_256() -> Self {
+        let bg = TerminalColor::Indexed(19); // CGA blue (#0000af)
+        let text = TerminalColor::Indexed(250); // light gray
+        let white = TerminalColor::Indexed(231);
+        let gray = TerminalColor::Indexed(240); // dark gray
+        let bar = TerminalColor::Indexed(250); // light-gray chrome
+        let black = TerminalColor::Indexed(16);
+        let red = TerminalColor::Indexed(196);
+        let green = TerminalColor::Indexed(40);
         let cyan = TerminalColor::Indexed(37);
-        let green = TerminalColor::Indexed(64);
+        let ltcyan = TerminalColor::Indexed(87);
+        let ltred = TerminalColor::Indexed(203);
+        let ltmagenta = TerminalColor::Indexed(207);
+        let ltgreen = TerminalColor::Indexed(83);
+        let yellow = TerminalColor::Indexed(226);
 
         Self {
-            name,
-            theme,
+            name: "turbo",
+            theme: ThemeName::Turbo,
             colors: ColorProfile::Color256,
             palette: Palette {
-                editor: Style::plain(body, ground),
-                editor_text: Style::plain(body, ground),
-                menu_bar: Style::plain(emph, ground_hi),
-                menu_text: Style::plain(emph, ground_hi),
-                menu_hotkey: Style::new(blue, ground_hi, StyleAttrs::BOLD),
-                menu_active: Style::plain(ground, blue),
-                menu_active_hotkey: Style::new(ground, blue, StyleAttrs::BOLD),
-                menu_panel: Style::plain(emph, ground_hi),
-                menu_panel_text: Style::plain(emph, ground_hi),
-                menu_panel_hotkey: Style::new(emph, ground_hi, StyleAttrs::UNDERLINE),
-                menu_panel_border: Style::plain(dim, ground_hi),
-                status_bar: Style::plain(emph, ground_hi),
-                status_text: Style::plain(emph, ground_hi),
-                window_border: Style::plain(dim, ground),
-                window_border_focused: Style::new(emph, ground, StyleAttrs::BOLD),
-                title: Style::plain(emph, ground),
-                title_focused: Style::new(emph, ground, StyleAttrs::BOLD),
-                gutter: Style::plain(dim, ground),
-                gutter_separator: Style::plain(faint, ground),
-                current_line: Style::plain(body, ground_hi),
-                selection: Style::plain(ground, emph),
-                selection_text: Style::plain(ground, emph),
-                search_match: Style::plain(ground, yellow),
-                active_search_match: Style::new(ground, orange, StyleAttrs::BOLD),
-                scrollbar_thumb: Style::new(dim, ground, StyleAttrs::BOLD),
-                modal_scrim: Style::plain(dim, ground),
-                modal: Style::plain(emph, ground_hi),
-                modal_text: Style::plain(emph, ground_hi),
-                modal_border: Style::plain(dim, ground_hi),
-                modal_input: Style::plain(body, ground),
-                dirty: Style::new(orange, ground, StyleAttrs::BOLD),
-                read_only: Style::plain(red, ground),
-                control: Style::plain(orange, ground),
-                escape: Style::new(red, ground, StyleAttrs::BOLD),
-                truncation: Style::new(dim, ground, StyleAttrs::BOLD),
-                syntax_keyword: Style::plain(green, ground),
-                syntax_comment: Style::plain(dim, ground),
-                syntax_string: Style::plain(cyan, ground),
-                syntax_number: Style::plain(magenta, ground),
-                syntax_emphasis: Style::new(yellow, ground, StyleAttrs::BOLD),
+                editor: Style::plain(text, bg),
+                editor_text: Style::plain(text, bg),
+                menu_bar: Style::plain(black, bar),
+                menu_text: Style::plain(black, bar),
+                menu_hotkey: Style::new(red, bar, StyleAttrs::BOLD),
+                menu_active: Style::plain(black, green),
+                menu_active_hotkey: Style::new(red, green, StyleAttrs::BOLD),
+                menu_panel: Style::plain(black, bar),
+                menu_panel_text: Style::plain(black, bar),
+                menu_panel_hotkey: Style::new(red, bar, StyleAttrs::UNDERLINE),
+                menu_panel_border: Style::plain(gray, bar),
+                status_bar: Style::plain(black, bar),
+                status_text: Style::plain(black, bar),
+                window_border: Style::plain(text, bg),
+                window_border_focused: Style::new(white, bg, StyleAttrs::BOLD),
+                title: Style::plain(text, bg),
+                title_focused: Style::new(white, bg, StyleAttrs::BOLD),
+                gutter: Style::plain(gray, bg),
+                gutter_separator: Style::plain(text, bg),
+                current_line: Style::plain(white, bg),
+                selection: Style::plain(black, cyan),
+                selection_text: Style::plain(black, cyan),
+                search_match: Style::plain(black, yellow),
+                active_search_match: Style::new(black, ltred, StyleAttrs::BOLD),
+                scrollbar_thumb: Style::new(ltcyan, bg, StyleAttrs::BOLD),
+                modal_scrim: Style::plain(gray, bg),
+                modal: Style::plain(black, bar),
+                modal_text: Style::plain(black, bar),
+                modal_border: Style::plain(gray, bar),
+                modal_input: Style::plain(black, cyan),
+                dirty: Style::new(yellow, bg, StyleAttrs::BOLD),
+                read_only: Style::plain(ltred, bg),
+                control: Style::plain(yellow, bg),
+                escape: Style::new(ltred, bg, StyleAttrs::BOLD),
+                truncation: Style::new(gray, bg, StyleAttrs::BOLD),
+                syntax_keyword: Style::new(white, bg, StyleAttrs::BOLD),
+                syntax_comment: Style::plain(gray, bg),
+                syntax_string: Style::plain(ltred, bg),
+                syntax_number: Style::plain(ltmagenta, bg),
+                syntax_emphasis: Style::new(ltgreen, bg, StyleAttrs::BOLD),
             },
         }
     }
@@ -525,11 +485,9 @@ impl Theme {
         match profile.colors {
             ColorProfile::Color256 => match theme {
                 ThemeName::MsEdit => Self::msedit_256(),
-                ThemeName::Turbo => Self::turbo_16(),
+                ThemeName::Turbo => Self::turbo_256(),
                 ThemeName::Dark => Self::dark_256(),
                 ThemeName::Dun => Self::dun_256(),
-                ThemeName::SolarizedDark => Self::solarized_dark(),
-                ThemeName::SolarizedLight => Self::solarized_light(),
             },
             ColorProfile::Color16 => match theme {
                 ThemeName::Turbo => Self::turbo_16(),

@@ -22,10 +22,9 @@ indicators and matching mouse hit testing.
 The default `dun` theme is a restrained 256-color dark scheme with a cyan
 accent. Other builtins are `msedit` (a Microsoft Edit-style blue chrome with
 green active labels, gray dropdown/modal panels, a compact bracket status bar,
-and a muted current-line highlight), `dark`, `turbo`, `mono` for monochrome
-terminals, and a `solarized-dark` / `solarized-light` pair using Ethan
-Schoonover's Solarized palette (256-color terminals). Select one with
-`theme = <name>` in the config.
+and a muted current-line highlight), `dark`, `turbo` (the classic Borland
+Turbo Vision deep-blue look, pinned to fixed 256-color indices), and `mono`
+for monochrome terminals. Select one with `theme = <name>` in the config.
 It can open valid UTF-8 file paths supplied on the command line and save the
 focused buffer back to that path through a same-directory temp file and atomic
 rename. Stale atomic-save temp files are cleaned up, while newer recovery

@@ -15,8 +15,6 @@ pub enum ThemeName {
     Turbo,
     Dark,
     Dun,
-    SolarizedDark,
-    SolarizedLight,
 }
 
 impl ThemeName {
@@ -26,8 +24,6 @@ impl ThemeName {
             Self::Turbo => "turbo",
             Self::Dark => "dark",
             Self::Dun => "dun",
-            Self::SolarizedDark => "solarized-dark",
-            Self::SolarizedLight => "solarized-light",
         }
     }
 }

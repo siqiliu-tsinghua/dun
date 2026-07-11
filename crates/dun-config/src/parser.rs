@@ -372,8 +372,6 @@ fn parse_theme_name(input: &str) -> Option<ThemeName> {
         "turbo" | "turbovision" => Some(ThemeName::Turbo),
         "dark" => Some(ThemeName::Dark),
         "dun" => Some(ThemeName::Dun),
-        "solarizeddark" => Some(ThemeName::SolarizedDark),
-        "solarizedlight" => Some(ThemeName::SolarizedLight),
         _ => None,
     }
 }
