@@ -332,3 +332,16 @@ syn/proc-macro2/quote proc-macro stack). Debian measured on a clean
 `git archive` of `858e876`; `--version`/`--dump-config` smoke passed. The
 full renderer-replacement line (Phase 12) is complete: `dun` renders through
 the in-house Surface backend with no ratatui.
+
+## 2026-07-11 Plugin load/unload commands (brief-011)
+
+`1d42229` adds the WorkerMessage control channel and `plugin load`/`unload`
+prompt commands (on-demand host lifecycle for memory). Small runtime add:
+
+| Platform | Before | After | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 588,060 | 592,180 | +4,120 | 456,396 |
+| Debian x86_64 | 633,216 | 637,312 | +4,096 | 411,264 |
+
+Debian measured on a clean `git archive` of `1d42229`; `--version`/
+`--dump-config` smoke passed.
