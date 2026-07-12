@@ -109,6 +109,37 @@ impl AppState {
         self.set_status(success_status);
     }
 
+    /// `file.close`: close the focused *file*, which is what a File menu's
+    /// "Close" means everywhere else. This is not `window.close` -- that closes
+    /// a pane and refuses on the last window, which left File > Close dead in
+    /// the single-window case, the common one.
+    pub(crate) fn close_focused_file(&mut self) {
+        if self.confirm_focused_dirty(PendingAction::CloseFile) {
+            return;
+        }
+        self.close_focused_file_unchecked();
+    }
+
+    pub(crate) fn close_focused_file_unchecked(&mut self) {
+        let name = self
+            .workspace
+            .focused_window()
+            .ok()
+            .map(|window| window.title.clone())
+            .unwrap_or_default();
+
+        if self.workspace.window_count() > 1 {
+            // Other panes remain, so drop this view; the buffer itself goes
+            // once nothing references it.
+            self.close_focused_window_unchecked();
+        } else {
+            // Closing the only file leaves an empty editor rather than
+            // refusing, the way msedit and Notepad behave.
+            self.reset_focused_to_untitled();
+        }
+        self.set_status(format!("Closed {name}"));
+    }
+
     pub(crate) fn close_focused_window_unchecked(&mut self) {
         let focused = self.workspace.focused_window().ok().cloned();
         let closing_buffer_id = focused.as_ref().map(|window| window.buffer_id);

@@ -145,6 +145,7 @@ impl AppState {
                     self.set_status(format!("Reload failed: {error}"));
                 }
             }
+            PendingAction::CloseFile => self.close_focused_file_unchecked(),
             PendingAction::CloseWindow => self.close_focused_window_unchecked(),
         }
     }

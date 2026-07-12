@@ -515,6 +515,7 @@ impl AppState {
                 PendingAction::New
                 | PendingAction::OpenPrompt
                 | PendingAction::ReloadBuffer
+                | PendingAction::CloseFile
                 | PendingAction::CloseWindow => "Save(s) Discard(d) Cancel(c)",
             };
             return Some(format!(
@@ -535,6 +536,7 @@ impl AppState {
                 PendingAction::New
                 | PendingAction::OpenPrompt
                 | PendingAction::ReloadBuffer
+                | PendingAction::CloseFile
                 | PendingAction::CloseWindow => "[Save(s)] [Discard(d)] [Cancel(c)]",
             };
             return Some(UiOverlay::message(

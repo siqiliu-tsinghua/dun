@@ -22,6 +22,10 @@ pub(crate) enum PendingAction {
     New,
     OpenPrompt,
     ReloadBuffer,
+    /// `file.close` — close the focused *file*. Never refuses: the last window
+    /// falls back to an empty untitled buffer.
+    CloseFile,
+    /// `window.close` — close the focused *pane*. Refuses on the last window.
     CloseWindow,
 }
 

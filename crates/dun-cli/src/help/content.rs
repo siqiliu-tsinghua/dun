@@ -282,7 +282,7 @@ const HELP_SECTIONS: &[HelpSection] = &[
             },
             HelpCommand {
                 command: EditorCommand::File(FileCommand::Close),
-                description: "Close focused file/window",
+                description: "Close the focused file",
             },
         ],
     },

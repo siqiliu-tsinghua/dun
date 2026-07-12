@@ -242,7 +242,7 @@ impl AppState {
                 }
             }
             FileCommand::Close => {
-                self.handle_window_command(&WindowCommand::Close);
+                self.close_focused_file();
             }
         }
     }

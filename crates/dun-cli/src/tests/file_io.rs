@@ -777,3 +777,86 @@ fn large_file_perf_long_line_display_cap() {
         let _ = renderer.render(&shell, &ui_frame, 120, 10);
     });
 }
+
+/// File > Close means "close the file" everywhere a File menu exists. It used
+/// to be a bare alias for window.close, which refuses on the last window -- so
+/// in the single-window case, the common one, the menu entry could only ever
+/// fail. Closing the only file now leaves an empty editor instead.
+#[test]
+fn closing_the_only_file_leaves_an_empty_untitled_buffer() {
+    let path = temp_file_path("close-only-file.txt");
+    std::fs::write(&path, "content").unwrap();
+    let mut app = AppState::new();
+    app.open_file_path(path.clone()).unwrap();
+    assert_eq!(app.workspace.window_count(), 1);
+
+    app.handle_command(&EditorCommand::File(FileCommand::Close));
+
+    assert_eq!(
+        app.workspace.window_count(),
+        1,
+        "the editor stays open rather than refusing"
+    );
+    let focused = app
+        .focused_buffer_id()
+        .and_then(|id| app.buffer_state(id))
+        .expect("a focused buffer");
+    assert_eq!(focused.buffer.to_text(), "");
+    assert_eq!(
+        app.workspace.focused_window().unwrap().title,
+        "Untitled",
+        "the file is gone and an empty buffer took its place"
+    );
+
+    let _ = std::fs::remove_file(path);
+}
+
+/// With other panes open, closing the file drops this view of it; window.close
+/// keeps its own pane semantics.
+#[test]
+fn closing_a_file_with_other_windows_open_drops_that_pane() {
+    let mut app = AppState::new();
+    app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    assert_eq!(app.workspace.window_count(), 2);
+    assert_eq!(app.buffers.len(), 2);
+
+    app.handle_command(&EditorCommand::File(FileCommand::Close));
+
+    assert_eq!(app.workspace.window_count(), 1);
+    assert_eq!(app.buffers.len(), 1, "the closed file's buffer is dropped");
+}
+
+/// A dirty file still asks before it is thrown away.
+#[test]
+fn closing_a_dirty_file_asks_first() {
+    let mut app = AppState::new();
+    send_text(&mut app, "unsaved");
+
+    app.handle_command(&EditorCommand::File(FileCommand::Close));
+
+    assert!(
+        app.confirm.is_some(),
+        "closing a dirty file must confirm, not discard silently"
+    );
+    let focused = app
+        .focused_buffer_id()
+        .and_then(|id| app.buffer_state(id))
+        .expect("a focused buffer");
+    assert_eq!(focused.buffer.to_text(), "unsaved", "nothing was discarded");
+}
+
+/// window.close stays a window operation: it still refuses on the last pane.
+#[test]
+fn window_close_still_refuses_on_the_last_window() {
+    let mut app = AppState::new();
+    app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+
+    assert_eq!(app.workspace.window_count(), 1);
+    assert_eq!(
+        app.status_message.as_deref(),
+        Some("Close failed: cannot close the last window")
+    );
+}
