@@ -363,10 +363,12 @@ impl FileDialogState {
 
     pub(crate) fn submit(&mut self) -> FileDialogSubmit {
         let input = self.input.as_str().trim().to_string();
-        if input.is_empty() {
-            return FileDialogSubmit::Cancel;
-        }
 
+        // The list selection is checked before the empty-input bail: picking a
+        // file with the arrows leaves the name field empty, so bailing first
+        // meant Enter on an arrow-selected file cancelled the dialog instead of
+        // opening it, and the branch below was unreachable in the one case it
+        // exists for.
         if self.kind == FileDialogKind::Open {
             if let Some(index) = self
                 .selected_index
@@ -386,6 +388,10 @@ impl FileDialogState {
                 }
             }
 
+            if input.is_empty() {
+                return FileDialogSubmit::Cancel;
+            }
+
             let path = expand_user_path(&input);
             if path.is_dir() {
                 self.input
@@ -394,6 +400,10 @@ impl FileDialogState {
                 return FileDialogSubmit::ContinueEditing;
             }
             return FileDialogSubmit::Path(path);
+        }
+
+        if input.is_empty() {
+            return FileDialogSubmit::Cancel;
         }
 
         let path = expand_user_path(&input);

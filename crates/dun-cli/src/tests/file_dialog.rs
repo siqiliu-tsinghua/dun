@@ -542,3 +542,121 @@ fn save_as_dialog_tab_completes_directory_before_save() {
     let _ = std::fs::remove_dir(directory);
     let _ = std::fs::remove_dir(parent);
 }
+
+/// Picking a file with the arrow keys leaves the name field empty -- a fresh
+/// Open dialog starts with no text at all and simply lists the working
+/// directory. `submit` used to bail on an empty input *before* it looked at the
+/// list selection, so Enter on an arrow-selected file cancelled the dialog, and
+/// the selection branch underneath was unreachable in the one case it exists
+/// for. Reproduce that state exactly: entries listed, selection moved, input
+/// still empty.
+#[test]
+fn submitting_an_arrow_selected_file_with_an_empty_name_field_opens_it() {
+    let directory = temp_file_path("open-dialog-empty-input");
+    std::fs::create_dir(&directory).unwrap();
+    let target = directory.join("bbb.txt");
+    std::fs::write(directory.join("aaa.txt"), "AAA").unwrap();
+    std::fs::write(&target, "BBB").unwrap();
+
+    // List the directory, then clear the name field the way a fresh dialog is,
+    // keeping the entries and moving the selection onto bbb.txt.
+    let mut dialog = FileDialogState::new(
+        FileDialogKind::Open,
+        format!("{}/", directory.display()),
+        None,
+    );
+    dialog.input.set_text(String::new());
+    dialog.move_selection(1);
+    dialog.move_selection(1);
+
+    let selected = dialog.entries[dialog.selected_index.unwrap()].clone();
+    assert_eq!(selected.name, "bbb.txt", "the arrows landed on bbb.txt");
+    assert!(dialog.input.as_str().is_empty(), "the name field is empty");
+
+    match dialog.submit() {
+        FileDialogSubmit::Path(path) => assert_eq!(path, target),
+        other => panic!("expected the selected file, got {other:?}"),
+    }
+
+    let _ = std::fs::remove_file(directory.join("aaa.txt"));
+    let _ = std::fs::remove_file(target);
+    let _ = std::fs::remove_dir(directory);
+}
+
+/// The same path must still navigate into a directory rather than "opening" it.
+#[test]
+fn submitting_an_arrow_selected_directory_navigates_into_it() {
+    let directory = temp_file_path("open-dialog-empty-input-dir");
+    let nested = directory.join("sub");
+    std::fs::create_dir(&directory).unwrap();
+    std::fs::create_dir(&nested).unwrap();
+
+    let mut dialog = FileDialogState::new(
+        FileDialogKind::Open,
+        format!("{}/", directory.display()),
+        None,
+    );
+    dialog.input.set_text(String::new());
+    dialog.move_selection(1);
+
+    assert!(matches!(dialog.submit(), FileDialogSubmit::ContinueEditing));
+
+    let _ = std::fs::remove_dir(nested);
+    let _ = std::fs::remove_dir(directory);
+}
+
+/// Enter with nothing typed and nothing selected still dismisses the dialog.
+#[test]
+fn submitting_an_untouched_empty_dialog_still_cancels() {
+    let directory = temp_file_path("open-dialog-untouched");
+    std::fs::create_dir(&directory).unwrap();
+    std::fs::write(directory.join("aaa.txt"), "AAA").unwrap();
+
+    let mut dialog = FileDialogState::new(
+        FileDialogKind::Open,
+        format!("{}/", directory.display()),
+        None,
+    );
+    dialog.input.set_text(String::new());
+
+    assert!(matches!(dialog.submit(), FileDialogSubmit::Cancel));
+
+    let _ = std::fs::remove_file(directory.join("aaa.txt"));
+    let _ = std::fs::remove_dir(directory);
+}
+
+/// The end-to-end path through the key handler, with a directory typed in.
+#[test]
+fn arrow_selecting_a_file_and_pressing_enter_opens_it() {
+    let directory = temp_file_path("open-dialog-arrow-select");
+    std::fs::create_dir(&directory).unwrap();
+    let target = directory.join("bbb.txt");
+    std::fs::write(directory.join("aaa.txt"), "AAA").unwrap();
+    std::fs::write(&target, "BBB").unwrap();
+
+    let mut app = AppState::new();
+    app.handle_command(&EditorCommand::File(FileCommand::Open));
+    send_text(&mut app, &format!("{}/", directory.display()));
+
+    for _ in 0..2 {
+        handle_key_event(
+            &mut app,
+            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        );
+    }
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+    );
+
+    assert!(app.file_dialog.is_none(), "the dialog closed");
+    let focused = app
+        .focused_buffer_id()
+        .and_then(|id| app.buffer_state(id))
+        .expect("a focused buffer");
+    assert_eq!(focused.buffer.to_text(), "BBB");
+
+    let _ = std::fs::remove_file(directory.join("aaa.txt"));
+    let _ = std::fs::remove_file(target);
+    let _ = std::fs::remove_dir(directory);
+}
