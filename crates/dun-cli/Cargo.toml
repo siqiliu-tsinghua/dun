@@ -10,6 +10,9 @@ description = "Command-line entry point for dun."
 name = "dun"
 path = "src/main.rs"
 
+[features]
+test-panic-hook = []
+
 [dependencies]
 crossterm.workspace = true
 dun-config.workspace = true

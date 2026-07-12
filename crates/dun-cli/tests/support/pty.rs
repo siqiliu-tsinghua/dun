@@ -209,6 +209,9 @@ expect {{
 }}
 set wait_result [wait]
 set exit_code [lindex $wait_result 3]
+if {{[lindex $wait_result 4] eq \"CHILDKILLED\"}} {{
+    exec kill -s [lindex $wait_result 5] [pid]
+}}
 if {{$exit_code eq \"\"}} {{
     exit 1
 }}

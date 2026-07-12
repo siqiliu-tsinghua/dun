@@ -52,7 +52,7 @@ pub(crate) fn run_event_loop(
         ui_frame.overlay = app.active_overlay();
         backend.draw(&app.shell, &ui_frame, width, height)?;
 
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, feature = "test-panic-hook"))]
         if std::env::var_os("DUN_TEST_PANIC").is_some() {
             panic!("DUN_TEST_PANIC");
         }

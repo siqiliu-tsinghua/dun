@@ -14,10 +14,24 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo test -p dun-cli --test tmux_grid
 cargo test -p dun-cli --test msedit_diff
+cargo test --release --features test-panic-hook -p dun-cli --test pty_smoke
 scripts/release-build.sh
 target/<host-triple>/release/dun --version
 target/<host-triple>/release/dun --dump-config
+strings target/<host-triple>/release/dun | grep -c DUN_TEST_PANIC   # must print 0
 ```
+
+The `--release --features test-panic-hook` run is the only one that exercises
+the panic path users actually get. `[profile.release]` sets `panic = "abort"`,
+so `TerminalGuard::drop` never runs on a crash and the panic hook is the *only*
+thing that hands the terminal back — a panic without it strands a remote user on
+the alternate screen in raw mode until they `reset`. `cargo test --workspace`
+builds a debug binary, where panics unwind and `Drop` restores the terminal by
+itself, so it cannot see a broken hook.
+
+`test-panic-hook` is not a default feature and the shipped `scripts/release-build.sh`
+binary never enables it: the `strings` line above is the check that no panic
+trigger reached a binary anyone runs.
 
 `scripts/release-build.sh` is the budget build (build-std contract, decided
 2026-07-10); it prints the binary path and byte size. Plain

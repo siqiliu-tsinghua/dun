@@ -5,6 +5,8 @@ use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::os::unix::fs::PermissionsExt;
+#[cfg(feature = "test-panic-hook")]
+use std::os::unix::process::ExitStatusExt;
 
 mod support;
 
@@ -280,6 +282,48 @@ fn pty_smoke_restores_the_terminal_when_it_panics() -> io::Result<()> {
     assert_output_contains(&run.output, "[?2004l", case.name);
     assert_output_contains(&run.output, "DUN_TEST_PANIC", case.name);
     assert_restore_precedes_panic_message(&run.output, case.name);
+
+    Ok(())
+}
+
+#[cfg(feature = "test-panic-hook")]
+#[test]
+fn pty_smoke_restores_the_terminal_when_a_release_build_aborts() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    let case = TerminalCase::new(
+        "xterm-256color release abort restore",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
+    let run = run_dun_in_pty_with_env(
+        &expect,
+        case,
+        &[],
+        "Untitled",
+        b"",
+        &[("DUN_TEST_PANIC", OsStr::new("1"))],
+    )?;
+
+    assert_eq!(
+        run.status.signal(),
+        Some(6),
+        "{} did not abort with SIGABRT\n{}",
+        case.name,
+        run.output
+    );
+    assert_output_contains(&run.output, "[?1049l", case.name);
+    assert_output_contains(&run.output, "[?2004l", case.name);
+    assert_output_contains(&run.output, "DUN_TEST_PANIC", case.name);
+    // An abort cannot run TerminalGuard::drop, so the restore sequences are
+    // present only if the panic hook ran; ordering adds nothing to this test.
 
     Ok(())
 }
