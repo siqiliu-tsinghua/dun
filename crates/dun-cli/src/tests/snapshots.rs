@@ -30,7 +30,7 @@ UNDERLAY row 20: modal backgrounds must erase every one of these glyphs complete
 
 /// Compare `actual` against `src/tests/snapshots/<name>.txt`.
 /// With `UPDATE_SNAPSHOTS=1` set, rewrite the file instead of asserting.
-fn assert_snapshot(name: &str, actual: &str) {
+pub(super) fn assert_snapshot(name: &str, actual: &str) {
     assert!(
         !name.is_empty()
             && name
