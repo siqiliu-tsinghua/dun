@@ -39,6 +39,26 @@ fn dun_and_dark_are_visibly_different_themes() {
     assert_ne!(dun.editor.fg, dark.editor.fg);
 }
 
+/// dun is a landscape, not a single hue: sky at the top of the screen, earth
+/// at the bottom, and cool/warm carrying the window focus state. Without this
+/// the palette drifts back into an all-warm monotone.
+#[test]
+fn dun_places_its_cool_notes_where_they_carry_meaning() {
+    let p = Theme::dun_256().palette;
+
+    // The menu bar is sky with cloud-white labels; the status bar is buckskin
+    // earth. Top and bottom of the screen are deliberately opposite.
+    assert_eq!(p.menu_bar.bg, TerminalColor::Indexed(24)); // sky
+    assert_eq!(p.menu_bar.fg, TerminalColor::Indexed(255)); // cloud
+    assert_eq!(p.status_bar.bg, TerminalColor::Indexed(180)); // buckskin
+
+    // An unfocused window recedes into cool haze; the focused one is lit warm.
+    assert_eq!(p.window_border.fg, TerminalColor::Indexed(66)); // haze
+    assert_eq!(p.window_border_focused.fg, TerminalColor::Indexed(180));
+    assert_eq!(p.title.fg, TerminalColor::Indexed(66));
+    assert_eq!(p.title_focused.fg, TerminalColor::Indexed(223)); // sunlight
+}
+
 /// A dun terminal that only does 16 colors must not fall back into msedit's
 /// blue desktop; it gets dun's own black-and-sand fallback.
 #[test]

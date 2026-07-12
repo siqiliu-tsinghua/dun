@@ -424,18 +424,29 @@ impl Theme {
     /// points, dark dorsal stripe. xterm-256 cannot express a dark brown at
     /// all (the color cube's channels step 0 -> 95, so the only dark entries
     /// are black, dark red, dark olive, dark blue/green/purple and gray), so
-    /// the warmth lives in the ink rather than the ground: sand and buckskin
-    /// on deep shadow. `dun_16` is the 16-color fallback.
+    /// the warmth lives in the ink rather than the ground.
+    ///
+    /// The palette is a landscape rather than a single hue: the menu bar at
+    /// the top of the screen is sky with cloud-white labels, the status bar at
+    /// the bottom is the buckskin earth, and the text field between them is
+    /// sand on shadow. Cool notes are placed where they mean something rather
+    /// than sprinkled — an unfocused window recedes into haze while the
+    /// focused one stands in sunlight, so the warm/cool split carries the
+    /// focus state. `dun_16` is the 16-color fallback.
     pub const fn dun_256() -> Self {
         let shadow = TerminalColor::Indexed(234); // #1c1c1c — the ground
         let band = TerminalColor::Indexed(236); // #303030 — current line
-        let scrub = TerminalColor::Indexed(58); // #5f5f00 — the one warm dark
+        let scrub = TerminalColor::Indexed(58); // #5f5f00 — dry steppe grass
         let panel = TerminalColor::Indexed(237); // #3a3a3a — panels and modals
         let sand = TerminalColor::Indexed(187); // #d7d7af — body text
         let buckskin = TerminalColor::Indexed(180); // #d7af87 — the coat: accent
         let hide = TerminalColor::Indexed(137); // #af875f — muted tan
         let dust = TerminalColor::Indexed(245); // #8a8a8a — dim gray
-        let cream = TerminalColor::Indexed(223); // #ffd7af — emphasis
+        let cream = TerminalColor::Indexed(223); // #ffd7af — sunlight
+        let sky = TerminalColor::Indexed(24); // #005f87 — the menu bar
+        let cloud = TerminalColor::Indexed(255); // #eeeeee — labels on the sky
+        let haze = TerminalColor::Indexed(66); // #5f8787 — distant, unfocused
+        let slate = TerminalColor::Indexed(67); // #5f87af — comments
         let rust = TerminalColor::Indexed(173); // #d7875f — keywords
         let sage = TerminalColor::Indexed(107); // #87af5f — strings
         let mauve = TerminalColor::Indexed(139); // #af87af — numbers
@@ -450,9 +461,10 @@ impl Theme {
             palette: Palette {
                 editor: Style::plain(sand, shadow),
                 editor_text: Style::plain(sand, shadow),
-                menu_bar: Style::plain(sand, band),
-                menu_text: Style::plain(sand, band),
-                menu_hotkey: Style::new(buckskin, band, StyleAttrs::BOLD),
+                // Sky at the top of the screen, earth at the bottom.
+                menu_bar: Style::plain(cloud, sky),
+                menu_text: Style::plain(cloud, sky),
+                menu_hotkey: Style::new(cream, sky, StyleAttrs::BOLD),
                 menu_active: Style::plain(shadow, buckskin),
                 menu_active_hotkey: Style::new(shadow, buckskin, StyleAttrs::BOLD),
                 menu_panel: Style::plain(sand, panel),
@@ -461,12 +473,13 @@ impl Theme {
                 menu_panel_border: Style::plain(hide, panel),
                 status_bar: Style::plain(shadow, buckskin),
                 status_text: Style::plain(shadow, buckskin),
-                window_border: Style::plain(hide, shadow),
+                // Unfocused windows recede into haze; the focused one is lit.
+                window_border: Style::plain(haze, shadow),
                 window_border_focused: Style::new(buckskin, shadow, StyleAttrs::BOLD),
-                title: Style::plain(hide, shadow),
+                title: Style::plain(haze, shadow),
                 title_focused: Style::new(cream, shadow, StyleAttrs::BOLD),
                 gutter: Style::plain(hide, shadow),
-                gutter_separator: Style::plain(panel, shadow),
+                gutter_separator: Style::plain(haze, shadow),
                 current_line: Style::plain(sand, band),
                 selection: Style::plain(cream, scrub),
                 selection_text: Style::plain(cream, scrub),
@@ -484,7 +497,7 @@ impl Theme {
                 escape: Style::new(coral, shadow, StyleAttrs::BOLD),
                 truncation: Style::new(dust, shadow, StyleAttrs::BOLD),
                 syntax_keyword: Style::plain(rust, shadow),
-                syntax_comment: Style::plain(dust, shadow),
+                syntax_comment: Style::plain(slate, shadow),
                 syntax_string: Style::plain(sage, shadow),
                 syntax_number: Style::plain(mauve, shadow),
                 syntax_emphasis: Style::new(cream, shadow, StyleAttrs::BOLD),
@@ -499,9 +512,11 @@ impl Theme {
     pub const fn dun_16() -> Self {
         let shadow = TerminalColor::Ansi(AnsiColor::Black);
         let sand = TerminalColor::Ansi(AnsiColor::White);
-        let bright = TerminalColor::Ansi(AnsiColor::BrightWhite);
+        let cloud = TerminalColor::Ansi(AnsiColor::BrightWhite);
         let buckskin = TerminalColor::Ansi(AnsiColor::Yellow);
         let cream = TerminalColor::Ansi(AnsiColor::BrightYellow);
+        let sky = TerminalColor::Ansi(AnsiColor::Blue);
+        let haze = TerminalColor::Ansi(AnsiColor::Cyan);
         let dust = TerminalColor::Ansi(AnsiColor::BrightBlack);
         let sage = TerminalColor::Ansi(AnsiColor::Green);
         let mauve = TerminalColor::Ansi(AnsiColor::Magenta);
@@ -514,32 +529,32 @@ impl Theme {
             palette: Palette {
                 editor: Style::plain(sand, shadow),
                 editor_text: Style::plain(sand, shadow),
-                menu_bar: Style::plain(shadow, sand),
-                menu_text: Style::plain(shadow, sand),
-                menu_hotkey: Style::new(shadow, sand, StyleAttrs::BOLD),
+                menu_bar: Style::plain(cloud, sky),
+                menu_text: Style::plain(cloud, sky),
+                menu_hotkey: Style::new(cream, sky, StyleAttrs::BOLD),
                 menu_active: Style::plain(shadow, buckskin),
                 menu_active_hotkey: Style::new(shadow, buckskin, StyleAttrs::BOLD),
-                menu_panel: Style::plain(bright, dust),
-                menu_panel_text: Style::plain(bright, dust),
+                menu_panel: Style::plain(cloud, dust),
+                menu_panel_text: Style::plain(cloud, dust),
                 menu_panel_hotkey: Style::new(cream, dust, StyleAttrs::UNDERLINE),
                 menu_panel_border: Style::plain(sand, dust),
                 status_bar: Style::plain(shadow, buckskin),
                 status_text: Style::plain(shadow, buckskin),
-                window_border: Style::plain(dust, shadow),
+                window_border: Style::plain(haze, shadow),
                 window_border_focused: Style::new(cream, shadow, StyleAttrs::BOLD),
-                title: Style::plain(sand, shadow),
+                title: Style::plain(haze, shadow),
                 title_focused: Style::new(cream, shadow, StyleAttrs::BOLD),
                 gutter: Style::plain(dust, shadow),
-                gutter_separator: Style::plain(dust, shadow),
-                current_line: Style::new(bright, shadow, StyleAttrs::BOLD),
+                gutter_separator: Style::plain(haze, shadow),
+                current_line: Style::new(cloud, shadow, StyleAttrs::BOLD),
                 selection: Style::plain(shadow, sand),
                 selection_text: Style::plain(shadow, sand),
                 search_match: Style::plain(shadow, cream),
                 active_search_match: Style::new(shadow, buckskin, StyleAttrs::BOLD),
                 scrollbar_thumb: Style::new(cream, shadow, StyleAttrs::BOLD),
                 modal_scrim: Style::plain(dust, shadow),
-                modal: Style::plain(bright, dust),
-                modal_text: Style::plain(bright, dust),
+                modal: Style::plain(cloud, dust),
+                modal_text: Style::plain(cloud, dust),
                 modal_border: Style::plain(sand, dust),
                 modal_input: Style::plain(cream, shadow),
                 dirty: Style::new(cream, shadow, StyleAttrs::BOLD),
@@ -548,10 +563,10 @@ impl Theme {
                 escape: Style::new(coral, shadow, StyleAttrs::BOLD),
                 truncation: Style::new(dust, shadow, StyleAttrs::BOLD),
                 syntax_keyword: Style::new(cream, shadow, StyleAttrs::BOLD),
-                syntax_comment: Style::plain(dust, shadow),
+                syntax_comment: Style::plain(haze, shadow),
                 syntax_string: Style::plain(sage, shadow),
                 syntax_number: Style::plain(mauve, shadow),
-                syntax_emphasis: Style::new(bright, shadow, StyleAttrs::BOLD),
+                syntax_emphasis: Style::new(cloud, shadow, StyleAttrs::BOLD),
                 warning: Style::new(coral, shadow, StyleAttrs::BOLD),
             },
         }

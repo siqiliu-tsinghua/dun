@@ -127,14 +127,15 @@ fn tmux_grid_normalizes_cursor_and_sgr_attributes() -> io::Result<()> {
     // With the pinned xterm-256color environment the default dun theme paints
     // the menu bar with indexed colors; this also exercises 38;5;n/48;5;n
     // extended-color parsing in the captured grid.
+    // dun paints the menu bar as sky (24) with cloud-white labels (255).
     let padding = grid.cell(0, 0).expect("menu padding cell");
-    assert_eq!(padding.style.fg, TerminalColor::Indexed(187)); // dun sand
-    assert_eq!(padding.style.bg, TerminalColor::Indexed(236));
+    assert_eq!(padding.style.fg, TerminalColor::Indexed(255));
+    assert_eq!(padding.style.bg, TerminalColor::Indexed(24));
     assert!(!padding.style.reverse);
     let file_hotkey = grid.cell(0, 2).expect("File hotkey cell");
     assert_eq!(file_hotkey.ch, 'F');
     assert!(file_hotkey.style.bold);
-    assert_eq!(file_hotkey.style.bg, TerminalColor::Indexed(236));
+    assert_eq!(file_hotkey.style.bg, TerminalColor::Indexed(24));
     assert_eq!(grid.cell(2, 1).expect("gutter number").ch, '1');
 
     Ok(())

@@ -21,9 +21,13 @@ short terminals so the selected entry remains visible, with overflow
 indicators and matching mouse hit testing.
 The default `dun` theme takes its name literally: *dun* is the dull greyish-
 brown of a horse's coat, so the palette is pale sand text and a buckskin accent
-on deep shadow, with rust keywords and a gold search highlight. (xterm-256 has
-no dark brown at all -- the color cube steps each channel 0 -> 95 with nothing
-between -- so the warmth is carried by the ink rather than the ground.)
+on deep shadow. (xterm-256 has no dark brown at all -- the color cube steps each
+channel 0 -> 95 with nothing between -- so the warmth is carried by the ink
+rather than the ground.) It is built as a landscape: the menu bar at the top of
+the screen is sky with cloud-white labels, the status bar at the bottom is the
+buckskin earth, and an unfocused window recedes into cool haze while the focused
+one stands in sunlight -- so the warm/cool split carries the focus state rather
+than merely decorating.
 
 The other selectable builtins are `msedit` (a Microsoft Edit-style blue
 chrome with green active labels, gray dropdown/modal panels, a compact bracket
