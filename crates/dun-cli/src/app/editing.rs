@@ -584,8 +584,34 @@ impl AppState {
     }
 
     pub(crate) fn handle_text_input(&mut self, ch: char) {
+        if self.refuse_edit_in_collapsed_pane() {
+            return;
+        }
         if let Some(buffer) = self.focused_buffer_mut() {
             let _ = buffer.buffer.insert_char(ch);
         }
+    }
+
+    /// A collapsed pane draws no body, so nothing may be edited through it.
+    /// Without this, keystrokes kept editing the buffer behind the empty box:
+    /// the user blind-typed into a file they could not see, and the dirty
+    /// marker in the title was the only hint. The menu behaviour matrix caught
+    /// it. Looking is still allowed, and so are the window commands -- expand
+    /// is how you get out.
+    pub(crate) fn refuse_edit_in_collapsed_pane(&mut self) -> bool {
+        if !self.workspace.focused_is_collapsed() {
+            return false;
+        }
+
+        // Name the key the user actually has bound, not the default: a message
+        // that hardcodes `Ctrl+X,P` lies to anyone who remapped it.
+        let expand = self
+            .shell
+            .keymap
+            .sequence_for_command(&EditorCommand::Window(WindowCommand::Expand))
+            .map(|sequence| format!(" ({sequence})"))
+            .unwrap_or_default();
+        self.set_status(format!("Pane is collapsed; expand it to edit{expand}"));
+        true
     }
 }

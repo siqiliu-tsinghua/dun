@@ -465,7 +465,9 @@ fn frame_uses_tiled_workspace_rectangles() {
 #[test]
 fn collapsed_window_has_no_body_lines() {
     let mut workspace = Workspace::new_untitled();
-    workspace.collapse_focused().unwrap();
+    // Set the flag directly: this test is about how a collapsed pane renders,
+    // not about the policy that refuses to collapse the only window.
+    workspace.windows[0].collapsed = true;
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "hidden");
     let buffer_view = BufferView::new(BufferId(1), &buffer);
 

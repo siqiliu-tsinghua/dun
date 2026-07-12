@@ -76,6 +76,10 @@ struct MatrixRow {
 }
 
 impl MatrixRow {
+    /// `status` goes last on purpose. Column widths are computed from the
+    /// longest cell, so a status in the middle makes one reworded message
+    /// reflow the whole table -- and the point of the matrix is that a
+    /// behaviour change is a one-line diff.
     fn cells(&self) -> [&str; 9] {
         [
             &self.menu,
@@ -84,9 +88,9 @@ impl MatrixRow {
             &self.windows,
             &self.buffers,
             &self.modal,
-            &self.status,
             self.quit,
             &self.runtime,
+            &self.status,
         ]
     }
 }
@@ -199,7 +203,7 @@ fn modal_name(app: &AppState) -> String {
 
 fn format_table(rows: &[MatrixRow]) -> String {
     let headers = [
-        "menu", "entry", "command", "win", "buf", "modal", "status", "quit", "runtime",
+        "menu", "entry", "command", "win", "buf", "modal", "quit", "runtime", "status",
     ];
     let mut widths = headers.map(str::len);
     for row in rows {

@@ -497,3 +497,52 @@ fn close_dirty_window_can_be_cancelled() {
         Some("Unsaved changes cancelled".to_string())
     );
 }
+
+/// A collapsed pane draws no body. Keystrokes used to keep editing the buffer
+/// behind the empty box, so the user blind-typed into a file they could not
+/// see and the dirty marker in the title was the only hint. The menu behaviour
+/// matrix caught the single-window half of this; this pins the rest.
+#[test]
+fn a_collapsed_pane_cannot_be_edited_through() {
+    let mut app = AppState::new();
+    app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    app.handle_command(&EditorCommand::Window(WindowCommand::Collapse));
+    assert!(app.workspace.focused_is_collapsed());
+
+    let before = app
+        .focused_buffer()
+        .expect("a focused buffer")
+        .buffer
+        .to_text();
+
+    send_text(&mut app, "blind");
+    app.handle_command(&EditorCommand::Edit(EditCommand::DeleteLine));
+    app.handle_paste("pasted");
+
+    let after = app
+        .focused_buffer()
+        .expect("a focused buffer")
+        .buffer
+        .to_text();
+    assert_eq!(after, before, "an invisible pane must not be editable");
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.starts_with("Pane is collapsed")),
+        "and the refusal must say why: {:?}",
+        app.status_message
+    );
+
+    // Expanding hands the pane back.
+    app.handle_command(&EditorCommand::Window(WindowCommand::Expand));
+    send_text(&mut app, "ok");
+    assert!(
+        app.focused_buffer()
+            .unwrap()
+            .buffer
+            .to_text()
+            .contains("ok"),
+        "an expanded pane edits normally again"
+    );
+}

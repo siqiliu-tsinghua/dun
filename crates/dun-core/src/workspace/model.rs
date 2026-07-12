@@ -155,6 +155,9 @@ pub(super) enum SplitPathStep {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WorkspaceError {
     CannotCloseLastWindow,
+    /// Collapsing the only window would hide the editor body while keystrokes
+    /// kept editing the buffer behind it.
+    CannotCollapseLastWindow,
     FocusMissing,
     NoNeighbor,
     NoResizableSplit,

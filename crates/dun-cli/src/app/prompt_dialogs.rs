@@ -153,6 +153,9 @@ impl AppState {
         }
 
         self.clear_active_menu();
+        if self.refuse_edit_in_collapsed_pane() {
+            return;
+        }
         let Some(buffer) = self.focused_buffer_mut() else {
             return;
         };

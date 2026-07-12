@@ -287,7 +287,6 @@ fn only_focused_keeps_the_focused_window_and_returns_the_others() {
 #[test]
 fn only_focused_leaves_a_single_window_workspace_unchanged() {
     let mut workspace = Workspace::new_untitled();
-    workspace.collapse_focused().unwrap();
     let before = workspace.clone();
 
     assert_eq!(workspace.only_focused(), Ok(Vec::new()));
@@ -297,6 +296,8 @@ fn only_focused_leaves_a_single_window_workspace_unchanged() {
 #[test]
 fn collapse_expand_and_toggle_update_focused_window_state() {
     let mut workspace = Workspace::new_untitled();
+    // Collapsing needs somewhere for the room to go: the only window refuses.
+    workspace.split_focused(Axis::Horizontal).unwrap();
 
     workspace.collapse_focused().unwrap();
     assert!(workspace.focused_window().unwrap().collapsed);
@@ -361,4 +362,23 @@ fn resolved_layout_keeps_split_children_visible_when_possible() {
             .rect,
         Rect::new(1, 0, 2, 2)
     );
+}
+
+/// Collapsing the only window hid the editor body while keystrokes kept editing
+/// the buffer behind it -- the user blind-typed into a file they could not see.
+/// Collapsing exists to give room to the other panes; with none, it only takes.
+#[test]
+fn the_only_window_cannot_be_collapsed() {
+    let mut workspace = Workspace::new_untitled();
+
+    assert_eq!(
+        workspace.collapse_focused(),
+        Err(WorkspaceError::CannotCollapseLastWindow)
+    );
+    assert_eq!(
+        workspace.toggle_focused_collapse(),
+        Err(WorkspaceError::CannotCollapseLastWindow)
+    );
+    assert!(!workspace.focused_window().unwrap().collapsed);
+    assert!(!workspace.focused_is_collapsed());
 }

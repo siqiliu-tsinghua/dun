@@ -5,7 +5,12 @@ impl AppState {
         self.clear_active_menu();
         match command {
             EditorCommand::App(command) => self.handle_app_command(command),
-            EditorCommand::Edit(command) => self.handle_edit_command(command),
+            EditorCommand::Edit(command) => {
+                if self.refuse_edit_in_collapsed_pane() {
+                    return;
+                }
+                self.handle_edit_command(command);
+            }
             EditorCommand::Window(command) => self.handle_window_command(command),
             EditorCommand::File(command) => self.handle_file_command(command),
         }

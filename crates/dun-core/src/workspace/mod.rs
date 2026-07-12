@@ -54,7 +54,20 @@ impl Workspace {
             .ok_or(WorkspaceError::WindowMissing)
     }
 
+    /// Collapse the focused pane to its title bar.
+    ///
+    /// Refuses on the only window. Collapsing exists to give room to the other
+    /// panes; with none there is nothing to give it to, and all it achieves is
+    /// to make the editor body vanish.
+    ///
+    /// A collapsed pane shows no body, so nothing may be *edited* through it —
+    /// see `AppState::focused_pane_is_collapsed`. The pane stays focusable so
+    /// that `expand` and `toggle_collapse` have something to act on.
     pub fn collapse_focused(&mut self) -> Result<(), WorkspaceError> {
+        if self.windows.len() <= 1 {
+            return Err(WorkspaceError::CannotCollapseLastWindow);
+        }
+
         self.window_mut(self.focused)?.collapsed = true;
         Ok(())
     }
@@ -65,9 +78,19 @@ impl Workspace {
     }
 
     pub fn toggle_focused_collapse(&mut self) -> Result<bool, WorkspaceError> {
-        let window = self.window_mut(self.focused)?;
-        window.collapsed = !window.collapsed;
-        Ok(window.collapsed)
+        if self.window(self.focused)?.collapsed {
+            self.expand_focused()?;
+            return Ok(false);
+        }
+
+        self.collapse_focused()?;
+        Ok(true)
+    }
+
+    pub fn focused_is_collapsed(&self) -> bool {
+        self.window(self.focused)
+            .map(|window| window.collapsed)
+            .unwrap_or(false)
     }
 }
 

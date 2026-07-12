@@ -143,6 +143,7 @@ pub(crate) const fn buffer_error_text(error: BufferError) -> &'static str {
 pub(crate) const fn workspace_error_text(error: WorkspaceError) -> &'static str {
     match error {
         WorkspaceError::CannotCloseLastWindow => "cannot close the last window",
+        WorkspaceError::CannotCollapseLastWindow => "cannot collapse the only window",
         WorkspaceError::FocusMissing => "focused window is missing",
         WorkspaceError::NoNeighbor => "no neighboring pane",
         WorkspaceError::NoResizableSplit => "no matching split",

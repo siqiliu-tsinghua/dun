@@ -54,6 +54,8 @@ fn the_mnemonic_is_case_insensitive_and_ignores_unmatched_keys() {
 #[test]
 fn collapse_and_expand_are_reachable_from_view_menu_mnemonics() {
     let mut app = AppState::new();
+    // The only window refuses to collapse, so give the room somewhere to go.
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
 
     handle_key_event(&mut app, alt('v'));
     handle_key_event(&mut app, key(CrosstermKeyCode::Char('m')));
@@ -67,6 +69,8 @@ fn collapse_and_expand_are_reachable_from_view_menu_mnemonics() {
 #[test]
 fn collapse_and_expand_are_reachable_from_default_keybindings() {
     let mut app = AppState::new();
+    // The only window refuses to collapse, so give the room somewhere to go.
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
 
     handle_key_event(&mut app, ctrl('x'));
     handle_key_event(&mut app, key(CrosstermKeyCode::Char('m')));
