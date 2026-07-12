@@ -107,7 +107,7 @@ to the VM, locked release build, `stat`/`file`/`ldd`, `--version` and
 `--dump-config` smoke). Use dated scratch dirs on the VM and delete them
 after recording results.
 
-## Active Plan (decided 2026-07-10)
+## Active Plan (decided 2026-07-10; resequenced 2026-07-13)
 
 Positioning: `dun` is a lightweight TUI editor in its own right. Embedding
 `rum` in the runtime is dead; plugin support is protocol-first with external
@@ -121,10 +121,21 @@ Sequencing (stages 1–2 completed 2026-07-10):
 2. ~~Feature triage + trim~~ — done: C/D batches 1-3 (-48 KiB) plus the
    decisive build-std contract (spike A; all remaining B features KEPT).
    Outcome in [docs/feature-triage.md](./docs/feature-triage.md).
-3. **Land the real plugin protocol client** (ACTIVE — TODO.md "Plugin
-   Protocol Client" stage). Margin is ample; keep the client hand-rolled
-   JSON, no serde.
-4. **Re-audit** both platforms after the client lands.
+3. ~~Land the real plugin protocol client~~ — functionally complete
+   (SyntaxHighlight end to end, load/unload, 16-case failure matrix;
+   TODO reconciled 2026-07-13). Remaining: Debian size gate + release smoke
+   at the next VM session, which doubles as the post-client re-audit.
+4. **UI text i18n** (NEXT — TODO.md "UI Text Internationalization" stage,
+   decided 2026-07-11): hybrid model — English compiled in as the
+   `&'static` fallback, other languages from external `i18n/<lang>.toml`
+   resource files for common languages (zh-CN first), loaded at runtime by
+   locale. Menu + help first; status `format!` churn last.
+5. **Distinctive plugins** (TODO.md "Distinctive Plugins" stage): a small
+   set of Python/Lua hosts beyond syntax highlight; extend protocol/roles
+   as real implementation needs surface (new Role variants, per-role
+   policy, protocol-level LoadPlugin only if multi-plugin hosts become
+   real). Everything else (F12/F13 restoration review, OSC 52 paste, rum
+   evaluation) stays deferred behind these.
 
 Parallel line: renderer replacement (drop ratatui for the in-house Surface
 backend) as dependency hygiene, sliced into small Codex briefs (brief-002

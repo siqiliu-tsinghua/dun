@@ -5,9 +5,12 @@
 //! Framed stdio transport, hand-rolled JSON (a deliberate trusted-computing-
 //! base decision — see the protocol doc), envelope/role/policy types, output
 //! validation, and timeout/cancel/crash handling. Grown from the measured
-//! `spike/plugin-client-size` prototype. Not yet wired into `dun-cli`;
-//! config integration and role application land with the protocol-client
-//! stage. LoadPlugin/UnloadPlugin message kinds are still pending.
+//! `spike/plugin-client-size` prototype; wired into `dun-cli` via the
+//! worker-thread host lifecycle in `crates/dun-cli/src/plugins.rs`.
+//! Protocol v0 has no LoadPlugin/UnloadPlugin message kinds by design: one
+//! plugin per host process, so host lifecycle is plugin lifecycle (the
+//! editor-level `plugin load`/`unload` commands manage it). Revisit only if
+//! multi-plugin hosts become a real need.
 
 pub mod client;
 pub mod frame;

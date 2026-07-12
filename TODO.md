@@ -40,42 +40,70 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 
 ### Protocol Specification
 
-- [ ] Freeze protocol v0 message envelope: protocol version, `request_id`,
-  `plugin_id`, `role`, optional buffer/stream `revision`, and payload.
-- [ ] Define length-prefixed stdio framing:
-  `u32 little-endian payload_length` plus UTF-8 JSON payload.
-- [ ] Define frame and payload caps before allocation.
-- [ ] Define structured protocol errors for malformed frame, unsupported
+Reconciled against the implementation 2026-07-13; these were built with the
+client but never checked off.
+
+- [x] Freeze protocol v0 message envelope: protocol version, `request_id`,
+  `plugin_id`, `role`, optional buffer/stream `revision`, and payload
+  (`PROTOCOL_VERSION = 0` and `Envelope` in `crates/dun-plugin/src/proto.rs`;
+  version mismatch is a structured rejection).
+- [x] Define length-prefixed stdio framing:
+  `u32 little-endian payload_length` plus UTF-8 JSON payload
+  (`crates/dun-plugin/src/frame.rs`).
+- [x] Define frame and payload caps before allocation (`read_frame` checks
+  the cap before allocating; per-plugin `Policy::max_frame_bytes`).
+- [x] Define structured protocol errors for malformed frame, unsupported
   version, unknown role, policy rejection, timeout, cancellation, host crash,
-  oversized output, and stale revision.
-- [ ] Define stderr handling as bounded human diagnostics, never protocol.
+  oversized output, and stale revision (`FrameError` + `ProtocolError` +
+  `PluginError`; cancellation surfaces as the timeout path that triggers it).
+- [x] Define stderr handling as bounded human diagnostics, never protocol
+  (reader thread caps the tail at `Policy::max_stderr_bytes`; stderr is
+  never parsed as frames).
 
 ### Role and Policy Model
 
-- [ ] Define `PluginRole` with at least `SyntaxHighlight`, `LogFilter`,
-  `TextTransform`, and `ConfigHelper` variants.
-- [ ] Define `TrustClass`: `pure-sandbox`, `user-trusted-external`, and
-  `unsupported-unsafe`.
-- [ ] Define `PluginPolicy`: max input bytes, max output bytes, timeout,
-  diagnostic cap, allowed outputs, and whether user confirmation is required.
+- [x] Define `PluginRole` — v0 ships `SyntaxHighlight` only (plan decision
+  2026-07-13): additional variants (`LogFilter`, `TextTransform`,
+  `ConfigHelper`, …) land with the "Distinctive Plugins" stage below, driven
+  by real hosts rather than speculatively. The envelope carries the role as
+  a string id, so new variants are a local change.
+- [x] Define `TrustClass`: `pure-sandbox` and `user-trusted-external`;
+  `unsupported-unsafe` is deliberately not modeled — unknown trust classes
+  are rejected at config parse and handshake instead (documented on the type
+  in `proto.rs`).
+- [x] Define `PluginPolicy` (`Policy`: max frame/snapshot-lines/spans/stderr/
+  diagnostics caps + timeout). Allowed outputs are enforced by construction —
+  validated `StyleSpan`s are the only output channel — and user confirmation
+  is the explicit `plugin.<id>.trust` opt-in in config. Revisit both when
+  new roles land.
 - [x] Define plugin manifest/config fields (baseline 2026-07-10:
   `plugin.<id>.command/trust/roles/timeout_ms/max_frame_bytes`, typed and
   validated in dun-config without a dun-plugin dependency). Per-role policy
   overrides and a runtime field remain open.
-- [ ] Reject unknown trust classes, unknown roles, missing command paths, and
-  any direct filesystem/process/network/terminal/editor authority request.
+- [x] Reject unknown trust classes, unknown roles, missing command paths, and
+  any direct filesystem/process/network/terminal/editor authority request
+  (config parser rejects unknown trust/role values and unknown fields with
+  tests; `validate_plugin_entries` requires command/trust/roles; the protocol
+  has no authority-request fields, so there is nothing to grant by
+  construction).
 
 ### Transport and Host Lifecycle
 
-- [ ] Add a small Rust-owned protocol client module or crate without adding
-  `rum` or heavy runtime dependencies.
+- [x] Add a small Rust-owned protocol client module or crate without adding
+  `rum` or heavy runtime dependencies (`crates/dun-plugin`: hand-rolled JSON,
+  no external dependencies).
 - [x] Launch configured external hosts directly, not through a shell
   (worker-thread lifecycle in `crates/dun-cli/src/plugins.rs`; lazy launch,
   failure cooldown, relaunch on next request).
 - [x] Pass only stdin/stdout/stderr plus a minimal environment or explicit
   whitelist (env is cleared in `HostClient::launch`).
-- [ ] Implement `Hello`/`HelloAck`, `LoadPlugin`, role `Request`/`Response`,
-  `Diagnostic`, `CancelRequest`, `Error`, and `Shutdown` paths.
+- [x] Implement `Hello`/`HelloAck`, role `Request`/`Response`, `Diagnostic`,
+  `CancelRequest`, `Error`, and `Shutdown` paths. `LoadPlugin`/`UnloadPlugin`
+  message kinds are deliberately absent from v0: the model is one plugin per
+  host process, so host lifecycle is plugin lifecycle (editor-level
+  `plugin load`/`unload` commands, brief-011). Protocol-level load messages
+  return only if the Distinctive Plugins stage produces a real multi-plugin
+  host need.
 - [x] Add per-request timeout and cancellation (configured
   `plugin.<id>.timeout_ms` maps onto the client policy).
 - [x] Kill or quarantine a host after malformed frames, oversized output,
@@ -151,11 +179,17 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 
 ### Release Gates for This Stage
 
-- [ ] `cargo fmt --all -- --check`.
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings`.
-- [ ] `cargo test --workspace`.
+Local gates re-run at the 2026-07-13 reconciliation; the Debian measurement
+and release smoke close out with the next VM session (they also serve as the
+post-client re-audit before i18n runtime work starts).
+
+- [x] `cargo fmt --all -- --check` (clean, 2026-07-13).
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` (clean,
+  2026-07-13).
+- [x] `cargo test --workspace` (587 passed / 0 failed, 2026-07-13).
 - [ ] Release smoke checklist passes.
-- [ ] macOS `scripts/release-build.sh` binary stays within `1,048,576` bytes.
+- [x] macOS `scripts/release-build.sh` binary stays within `1,048,576` bytes
+  (612,716 bytes, 2026-07-13).
 - [ ] Debian VM `scripts/release-build.sh` binary stays within `1,048,576`
   bytes.
 - [ ] If either binary exceeds budget, consult
@@ -164,6 +198,66 @@ Implementation reference: [docs/plugin-protocol.md](./docs/plugin-protocol.md).
 
 Do not add runtime features while either audited release binary exceeds the
 1 MiB budget.
+
+## Next Stage: UI Text Internationalization (i18n)
+
+Not started. Approach decided 2026-07-11 (user decision): do NOT compile all
+translations into the binary. English stays compiled in as the `&'static`
+fallback so the single binary keeps working on any remote host with no
+resource directory; other languages load at runtime from optional external
+per-language resource files (key → string) selected by `LC_MESSAGES`/`LANG`.
+Only the mechanism plus English count against the size budget. Starts after
+the plugin-client stage closes (release gates + dual-platform re-audit).
+
+- [ ] Define the i18n key model and the `i18n/<lang>.toml` resource format,
+  including lookup order (`LC_MESSAGES`/`LANG` → English fallback) and where
+  the editor searches for resource directories.
+- [ ] Extract user-visible UI text to keys: menus, help, dialogs, prompts,
+  and status templates. Menu + help text is the first slice; the scattered
+  `format!` status messages are the largest churn (parameterized templates
+  per language) and come last.
+- [ ] Change UI label types from `&'static str` to `Cow<'static, str>`
+  (`MenuItem`/`MenuEntry` in `crates/dun-ui/src/model.rs` and equivalents)
+  so the built-in language stays zero-cost while loaded translations are
+  owned strings.
+- [ ] Load resource files with bounded file size, and pass every loaded
+  string through the display sanitizer: translation files are untrusted
+  input and must not be able to smuggle control bytes into UI chrome.
+- [ ] Fall back to English on ASCII terminals (`EncodingProfile::Ascii`):
+  non-ASCII translated text would only be sanitizer-escaped there. Wide/CJK
+  display itself already works (Surface + unicode-width).
+- [ ] Ship an `i18n/` directory of resource files for common languages
+  (zh-CN first, then e.g. ja/de/fr/es), loaded at runtime by locale, and
+  document the resource format for translators.
+- [ ] Measure the size delta per batch; the mechanism must stay lean since
+  hand-rolled parsing (no serde) remains the rule.
+
+## Planned Stage: Distinctive Plugins (Python/Lua Hosts)
+
+Plan decided 2026-07-13. With `SyntaxHighlight` proven end to end, add a
+small set of distinctive plugins implemented as external Python or Lua hosts
+(`hosts/` already carries Python and Lua syntax-highlight reference hosts
+plus `hosts/check-host.py` for conformance). Implementation is expected to
+surface protocol gaps; enhance the protocol as they appear rather than
+speculatively — new `Role` variants (`LogFilter`, `TextTransform`,
+`ConfigHelper`, `DocumentStructure`, …), per-role policy overrides, and
+protocol-level `LoadPlugin` (only if a multi-plugin host becomes real) all
+live here.
+
+- [ ] Pick the first distinctive plugin set. Candidates recorded during
+  feature triage: `LogFilter` over Run Command output (the removed F46
+  family's plugin-territory successor), `DocumentStructure` (the removed F20
+  Outline's recorded return path), and `TextTransform` (sort/dedup/table
+  alignment style edits).
+- [ ] Implement each as a Python or Lua host under `hosts/`, passing
+  `hosts/check-host.py`, with the fixture-host protocol tests extended per
+  new role.
+- [ ] Extend `Role`/payload validation per role: every new role needs typed
+  output validation as strict as `StyleSpan` (bounded counts, in-range
+  coordinates, revision matching) — a host must never gain a capability the
+  validated type does not expose.
+- [ ] Record protocol enhancements discovered during implementation in
+  docs/plugin-protocol.md as they land.
 
 ## Completed Stage: v0.1 Release Hardening
 
