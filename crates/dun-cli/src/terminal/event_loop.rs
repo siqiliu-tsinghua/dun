@@ -52,6 +52,11 @@ pub(crate) fn run_event_loop(
         ui_frame.overlay = app.active_overlay();
         backend.draw(&app.shell, &ui_frame, width, height)?;
 
+        #[cfg(debug_assertions)]
+        if std::env::var_os("DUN_TEST_PANIC").is_some() {
+            panic!("DUN_TEST_PANIC");
+        }
+
         if event::poll(Duration::from_millis(250))? {
             match event::read()? {
                 Event::Key(event) => handle_key_event(app, event),

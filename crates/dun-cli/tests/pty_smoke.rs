@@ -227,6 +227,130 @@ fn pty_smoke_quits_cleanly_with_mouse_capture_enabled() -> io::Result<()> {
 }
 
 #[test]
+fn pty_smoke_restores_the_terminal_when_it_panics() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    // CARGO_BIN_EXE_dun is a debug build, where panics unwind; the release build
+    // aborts. That difference matters more than it looks: under unwind,
+    // `TerminalGuard::drop` runs and restores the terminal all by itself, so
+    // merely asserting the restore sequences are present proves nothing about
+    // the hook -- the test passes with the hook removed entirely.
+    //
+    // What separates them is ORDER. The hook restores and *then* chains to the
+    // default hook, which prints the panic message; `Drop` only runs afterwards,
+    // as the stack unwinds. So:
+    //
+    //   hook installed:  ...[?1049l... panicked at ...
+    //   hook removed:    ...panicked at ... [?1049l...
+    //
+    // Asserting the restore precedes the message is therefore the only thing
+    // here that actually tests the hook. Verified by removing the
+    // `install_panic_terminal_restore()` call: this assertion fails, the rest
+    // still pass. The release abort path -- where the hook is not merely first
+    // but the *only* restorer -- is still not covered by any test.
+    let case = TerminalCase::new(
+        "xterm-256color panic restore",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
+    let run = run_dun_in_pty_with_env(
+        &expect,
+        case,
+        &[],
+        "Untitled",
+        b"",
+        &[("DUN_TEST_PANIC", OsStr::new("1"))],
+    )?;
+
+    assert!(
+        !run.status.success(),
+        "{} unexpectedly succeeded\n{}",
+        case.name,
+        run.output
+    );
+    assert_output_contains(&run.output, "Untitled", case.name);
+    assert_output_contains(&run.output, "[?1049l", case.name);
+    assert_output_contains(&run.output, "[?2004l", case.name);
+    assert_output_contains(&run.output, "DUN_TEST_PANIC", case.name);
+    assert_restore_precedes_panic_message(&run.output, case.name);
+
+    Ok(())
+}
+
+/// The panic hook restores the terminal and only then lets the default hook
+/// print the message. If the terminal is restored *after* the message, the hook
+/// did not run and `TerminalGuard::drop` picked up the pieces on the way out --
+/// which the release profile (`panic = "abort"`) would never do.
+fn assert_restore_precedes_panic_message(output: &str, case: &str) {
+    let restore = output
+        .find("[?1049l")
+        .unwrap_or_else(|| panic!("{case}: the terminal was never restored\n{output}"));
+    let message = output
+        .find("panicked")
+        .unwrap_or_else(|| panic!("{case}: the panic message never reached the user\n{output}"));
+
+    assert!(
+        restore < message,
+        "{case}: the terminal was restored at {restore}, after the panic message at {message} -- \
+         the panic hook did not run, only TerminalGuard::drop did, and a release build would have \
+         aborted before reaching it\n{output}"
+    );
+}
+
+#[test]
+fn pty_smoke_restores_mouse_capture_when_it_panics() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    let config_path = temp_path("dun-pty-panic-mouse-config", "conf");
+    fs::write(&config_path, "mouse.enabled = true\n")?;
+    let case = TerminalCase::new(
+        "xterm-256color mouse panic restore",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
+    let run = run_dun_in_pty_with_env(
+        &expect,
+        case,
+        &[OsStr::new("--config"), config_path.as_os_str()],
+        "Untitled",
+        b"",
+        &[("DUN_TEST_PANIC", OsStr::new("1"))],
+    );
+    let _ = fs::remove_file(&config_path);
+    let run = run?;
+
+    assert!(
+        !run.status.success(),
+        "{} unexpectedly succeeded\n{}",
+        case.name,
+        run.output
+    );
+    assert_output_contains(&run.output, "Untitled", case.name);
+    assert_output_contains(&run.output, "[?1049l", case.name);
+    assert_output_contains(&run.output, "[?2004l", case.name);
+    assert_output_contains(&run.output, "DUN_TEST_PANIC", case.name);
+    for sequence in ["[?1006l", "[?1015l", "[?1003l", "[?1002l", "[?1000l"] {
+        assert_output_contains(&run.output, sequence, case.name);
+    }
+
+    Ok(())
+}
+
+#[test]
 fn pty_smoke_shell_escape_suspends_and_resumes_terminal() -> io::Result<()> {
     let _guard = pty_test_guard();
     let Some(expect) = command_on_path("expect") else {
