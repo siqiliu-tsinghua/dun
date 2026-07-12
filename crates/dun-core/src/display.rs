@@ -120,7 +120,7 @@ impl DisplaySanitizer {
                 DisplayClass::Control
             };
             push_segment(segments, class, render_control(ch, self.ascii_only));
-        } else if is_bidi_formatting(ch) {
+        } else if is_deceptive_invisible(ch) {
             push_segment(
                 segments,
                 DisplayClass::Escape,
@@ -180,6 +180,51 @@ const BIDI_FORMATTING: [char; 12] = [
 
 pub fn is_bidi_formatting(ch: char) -> bool {
     BIDI_FORMATTING.contains(&ch)
+}
+
+/// Format characters that occupy no cell and draw nothing.
+///
+/// A zero-width space inside an identifier makes `ad\u{200b}min` read as
+/// `admin`; a BOM hides at the head of a line; the tag block can smuggle a
+/// whole ASCII string past the eye. None of it is visible, and all of it
+/// changes what the bytes mean.
+///
+/// Verified against vim, which escapes U+180E, U+200B..U+200D, U+2060, U+2062
+/// and U+FEFF exactly like this — and which **misses** U+00AD SOFT HYPHEN and
+/// the tag block, both of which are just as invisible. Those look like
+/// oversights rather than decisions, so they are escaped here too.
+///
+/// Combining marks are deliberately **not** here. They modify a base glyph that
+/// the reader can see (`A` + U+0301 renders `Á`), so they are ordinary text,
+/// not a disguise — which is also where vim draws the line.
+const ZERO_WIDTH_FORMATTING: [char; 11] = [
+    '\u{00ad}', // SOFT HYPHEN
+    '\u{180e}', // MONGOLIAN VOWEL SEPARATOR
+    '\u{200b}', // ZERO WIDTH SPACE
+    '\u{200c}', // ZERO WIDTH NON-JOINER
+    '\u{200d}', // ZERO WIDTH JOINER
+    '\u{2060}', // WORD JOINER
+    '\u{2061}', // FUNCTION APPLICATION
+    '\u{2062}', // INVISIBLE TIMES
+    '\u{2063}', // INVISIBLE SEPARATOR
+    '\u{2064}', // INVISIBLE PLUS
+    '\u{feff}', // ZERO WIDTH NO-BREAK SPACE (BOM)
+];
+
+/// The Unicode tag block. Every character in it is invisible, and together they
+/// encode arbitrary ASCII — a ready-made channel for hiding a payload inside
+/// text that looks clean. Its only sanctioned use is the subdivision flags
+/// (🏴󠁧󠁢󠁳󠁣󠁴󠁿), which an editor showing you the bytes can afford to spell out.
+const TAG_BLOCK: std::ops::RangeInclusive<char> = '\u{e0000}'..='\u{e007f}';
+
+pub fn is_zero_width_formatting(ch: char) -> bool {
+    ZERO_WIDTH_FORMATTING.contains(&ch) || TAG_BLOCK.contains(&ch)
+}
+
+/// Every invisible character that changes what the text means without showing
+/// the reader anything. An editor must not lie about the bytes.
+pub fn is_deceptive_invisible(ch: char) -> bool {
+    is_bidi_formatting(ch) || is_zero_width_formatting(ch)
 }
 
 fn render_control(ch: char, ascii_only: bool) -> String {
@@ -415,6 +460,22 @@ mod tests {
         assert!(sanitized.truncated);
     }
 
+    /// The oracle, spelled out independently of the implementation.
+    ///
+    /// This must NOT call `is_deceptive_invisible`: that is the predicate
+    /// `push_char` uses to decide what to escape, so a test asking it whether
+    /// the output is safe is asking the implementation to mark its own homework
+    /// -- weaken the predicate and the assertion weakens with it, in lockstep,
+    /// and the test can never fail. A mutation run caught exactly that.
+    fn is_unsafe_on_a_terminal(ch: char) -> bool {
+        let code = u32::from(ch);
+        ch.is_control()                            // C0 and DEL
+            || (0x80..=0x9f).contains(&code)       // C1, including the ESC-less CSI
+            || matches!(code, 0x061c | 0x200e | 0x200f | 0x202a..=0x202e | 0x2066..=0x2069) // bidi
+            || matches!(code, 0x00ad | 0x180e | 0x200b..=0x200d | 0x2060..=0x2064 | 0xfeff) // zero width
+            || (0xe0000..=0xe007f).contains(&code) // tag block
+    }
+
     #[test]
     fn every_unicode_scalar_is_safe_in_every_sanitizer_profile() {
         let profiles = [
@@ -429,17 +490,7 @@ mod tests {
                 let mut encoded = [0; 4];
                 let input = ch.encode_utf8(&mut encoded);
                 let output = sanitizer.sanitize_line(input).as_plain_text();
-                // Control characters are the obvious danger. Bidi formatting
-                // characters are the one that got through: they are Cf, not
-                // control, so a check for `is_control` alone waves U+202E
-                // straight past -- which is exactly what this test used to do,
-                // and why the hole had to be found end to end instead.
-                let unsafe_output = output.chars().any(|output_ch| {
-                    output_ch.is_control()
-                        || output_ch == '\u{1b}'
-                        || ('\u{80}'..='\u{9f}').contains(&output_ch)
-                        || is_bidi_formatting(output_ch)
-                });
+                let unsafe_output = output.chars().any(is_unsafe_on_a_terminal);
 
                 assert!(
                     !unsafe_output,

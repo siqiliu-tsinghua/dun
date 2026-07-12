@@ -13,6 +13,17 @@ const CONTROL_ATTACKS: [&str; 8] = [
     "\r\u{8}",
 ];
 const RTL_OVERRIDE: &str = "\u{202e}";
+
+/// Invisible format characters. A zero-width space inside an identifier makes
+/// `ad\u{200b}min` read as `admin`; the tag block smuggles arbitrary ASCII past
+/// the eye. They draw nothing, so only the emitted bytes can prove they are gone.
+const ZERO_WIDTH_ATTACKS: [&str; 5] = [
+    "\u{200b}",  // ZERO WIDTH SPACE
+    "\u{200d}",  // ZERO WIDTH JOINER
+    "\u{feff}",  // BOM
+    "\u{00ad}",  // SOFT HYPHEN -- vim misses this one
+    "\u{e0067}", // TAG LATIN SMALL LETTER G -- vim misses these too
+];
 const POISONED_FIELDS: [&str; 10] = [
     "BUFFER_BODY",
     "WINDOW_TITLE",
@@ -33,6 +44,9 @@ fn poison(field: &str) -> String {
         text.push('|');
     }
     text.push_str(RTL_OVERRIDE);
+    for attack in ZERO_WIDTH_ATTACKS {
+        text.push_str(attack);
+    }
     text.push_str(&format!(":{field}_END"));
     text
 }
@@ -192,4 +206,23 @@ fn poisoned_frame_emits_no_rtl_override() {
         vulnerable_fields.is_empty(),
         "U+202E RTL override reached terminal from fields {vulnerable_fields:?}"
     );
+}
+
+/// The zero-width half of the same hole. U+202E was found first because it
+/// reorders what you see; these draw nothing at all, which is worse -- there is
+/// no visual tell whatsoever. vim escapes most of them and misses SOFT HYPHEN
+/// and the tag block; dun escapes all of them, so none may reach the terminal.
+#[test]
+fn poisoned_frame_emits_no_zero_width_formatting() {
+    let emitted = emitted_poisoned_frame();
+    assert_every_field_reached_emitter(&emitted);
+
+    for attack in ZERO_WIDTH_ATTACKS {
+        let vulnerable_fields = fields_containing(&emitted, attack);
+        assert!(
+            vulnerable_fields.is_empty(),
+            "U+{:04X} reached the terminal from fields {vulnerable_fields:?}",
+            attack.chars().next().map(u32::from).unwrap_or_default()
+        );
+    }
 }

@@ -121,7 +121,14 @@ characters and so slip past a naive filter: a right-to-left override makes
 rendered text read in an order the bytes do not have, which in an editor is the
 Trojan Source attack (CVE-2021-42574) -- a reviewer trusting their eyes sees
 code that is not the code that will run -- and in the Open dialog disguises a
-file name. They are shown as `<U+202E>` and the like instead.
+file name. They are shown as `<U+202E>` and the like instead, as are the zero-width format
+characters -- a zero-width space inside an identifier makes `ad<U+200B>min` read
+as `admin`, and the Unicode tag block encodes arbitrary ASCII in characters that
+draw nothing at all. `vim` does the same, and the cost is the same: a ZWJ emoji
+sequence renders as its parts (`family <family emoji parts><U+200D>...`). For an
+editor whose job is to show you the bytes, that is the correct answer rather
+than a regression. Combining marks are left alone: they modify a base glyph the
+reader can see, so they are ordinary text, not a disguise.
 The host-neutral plugin protocol client is wired into the editor: hosts
 configured through `plugin.<id>.*` keys are launched as child processes on a
 worker thread (never blocking the event loop), and a `syntax-highlight` role
