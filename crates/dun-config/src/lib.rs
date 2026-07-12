@@ -14,7 +14,7 @@ mod validation;
 
 pub use colors::ColorOverrides;
 pub(crate) use commands::normalize_command_id;
-pub use commands::{CommandParseError, command_from_id, command_id};
+pub use commands::{ALL_COMMAND_IDS, CommandParseError, command_from_id, command_id};
 pub use config::{
     ClipboardConfig, Config, ConfigError, MouseConfig, Osc52Config, PluginStatusConfig,
     TerminalOverrides,

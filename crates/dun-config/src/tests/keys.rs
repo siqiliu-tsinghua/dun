@@ -118,6 +118,22 @@ fn keymap_finds_bound_command() {
     );
 }
 
+/// The dead menu mnemonics showed that a declared shortcut can silently name
+/// nothing runnable; every compiled-in binding must stay on the command surface.
+#[test]
+fn every_default_keybinding_names_a_real_command() {
+    let keymap = Keymap::default_editor();
+
+    for binding in &keymap.bindings {
+        let id = command_id(&binding.command);
+        assert!(
+            ALL_COMMAND_IDS.contains(&id),
+            "default binding `{}` names unlisted command `{id}`",
+            binding.sequence
+        );
+    }
+}
+
 #[test]
 fn default_keymap_has_mac_friendly_window_aliases() {
     let keymap = Keymap::default_editor();
@@ -225,13 +241,36 @@ fn key_sequences_have_stable_display_text() {
     );
 }
 
+/// `file.close` was once an alias for `window.close`; exhaustive canonical
+/// round-tripping catches two ids that parse to the same command.
 #[test]
-fn command_ids_round_trip() {
-    let command = EditorCommand::Window(WindowCommand::ToggleCollapse);
-    let id = command_id(&command);
+fn all_command_ids_round_trip() {
+    const EDITOR_COMMAND_VARIANT_COUNT: usize = 7 + 44 + 17 + 18;
 
-    assert_eq!(id, "window.toggle_collapse");
-    assert_eq!(command_from_id(id), Ok(command));
+    assert_eq!(ALL_COMMAND_IDS.len(), EDITOR_COMMAND_VARIANT_COUNT);
+
+    let mut unique_ids = ALL_COMMAND_IDS.to_vec();
+    unique_ids.sort_unstable();
+    unique_ids.dedup();
+    assert_eq!(
+        unique_ids.len(),
+        ALL_COMMAND_IDS.len(),
+        "ALL_COMMAND_IDS contains duplicates"
+    );
+
+    for &id in ALL_COMMAND_IDS {
+        let command = command_from_id(id)
+            .unwrap_or_else(|error| panic!("listed command id `{id}` does not parse: {error:?}"));
+        assert_eq!(
+            command_id(&command),
+            id,
+            "listed command id `{id}` parses to a different canonical command"
+        );
+    }
+}
+
+#[test]
+fn command_id_aliases_and_unknown_ids_are_preserved() {
     assert_eq!(
         command_from_id("app.reload_config"),
         Ok(EditorCommand::App(AppCommand::ReloadConfig))

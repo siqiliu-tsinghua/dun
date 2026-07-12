@@ -127,6 +127,17 @@ impl UiShell {
         Some(self.menu_bar(None).items.get(menu_index)?.entries.len())
     }
 
+    pub fn menu_entry_mnemonic(&self, menu_index: usize, entry_index: usize) -> Option<char> {
+        let label = self
+            .menu_bar(None)
+            .items
+            .get(menu_index)?
+            .entries
+            .get(entry_index)?
+            .label;
+        entry_mnemonic(label)
+    }
+
     pub fn menu_count(&self) -> usize {
         self.menu_bar(None).items.len()
     }

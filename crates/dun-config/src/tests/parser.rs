@@ -259,6 +259,48 @@ limits.line_display_soft_limit_bytes = 5KiB
     );
 }
 
+/// The README once advertised `mono` as a theme even though the parser rejected
+/// it; every primary `ThemeName` spelling must be declared consistently.
+#[test]
+fn every_theme_name_round_trips_through_parser() {
+    let primary_themes = [
+        ("msedit", ThemeName::MsEdit),
+        ("turbo", ThemeName::Turbo),
+        ("dark", ThemeName::Dark),
+        ("dun", ThemeName::Dun),
+    ];
+
+    let parser_primary_names = primary_themes
+        .iter()
+        .map(|(name, _)| *name)
+        .collect::<std::collections::BTreeSet<_>>();
+    let variant_primary_names = primary_themes
+        .iter()
+        .map(|(_, theme)| theme.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(parser_primary_names, variant_primary_names);
+
+    for (name, theme) in primary_themes {
+        assert_eq!(theme.as_str(), name);
+        assert_eq!(
+            parse_config(&format!("theme = {name}")).unwrap().theme,
+            theme
+        );
+    }
+}
+
+#[test]
+fn theme_name_aliases_remain_accepted() {
+    assert_eq!(
+        parse_config("theme = microsoftedit").unwrap().theme,
+        ThemeName::MsEdit
+    );
+    assert_eq!(
+        parse_config("theme = turbovision").unwrap().theme,
+        ThemeName::Turbo
+    );
+}
+
 #[test]
 fn config_parser_reports_byte_count_errors() {
     let error = parse_config("clipboard.osc52.max_bytes = bytes").unwrap_err();

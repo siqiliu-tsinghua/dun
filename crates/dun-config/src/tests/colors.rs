@@ -181,11 +181,36 @@ fn unknown_role_and_component_are_line_errors() {
     );
 }
 
+/// A palette role missing from the config dump is the same declaration drift
+/// that left the advertised `mono` theme unparseable; both sides must agree.
 #[test]
-fn dump_lists_color_roles() {
+fn palette_roles_and_dumped_config_agree() {
     let text = default_config_text();
+    let dumped_roles = text
+        .lines()
+        .filter_map(|line| {
+            let declaration = line.strip_prefix("# color.")?;
+            declaration.split_once(" = ").map(|(role, _)| role)
+        })
+        .collect::<Vec<_>>();
 
     assert!(text.contains("# Color overrides"));
-    assert!(text.contains("# color.editor = "));
+    assert_eq!(dumped_roles.len(), dun_term::PALETTE_ROLE_IDS.len());
+    for &role in dun_term::PALETTE_ROLE_IDS {
+        assert_eq!(
+            dumped_roles
+                .iter()
+                .filter(|dumped| **dumped == role)
+                .count(),
+            1,
+            "palette role `{role}` must appear exactly once in the config dump"
+        );
+    }
+    for &role in &dumped_roles {
+        assert!(
+            dun_term::PALETTE_ROLE_IDS.contains(&role),
+            "config dump contains unknown palette role `{role}`"
+        );
+    }
     parse_config(&text).unwrap().validate().unwrap();
 }

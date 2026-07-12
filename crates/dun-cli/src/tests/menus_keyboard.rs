@@ -47,43 +47,87 @@ fn the_mnemonic_is_case_insensitive_and_ignores_unmatched_keys() {
     assert_eq!(app.workspace.window_count(), 2, "the split ran");
 }
 
-/// Mnemonics have to be unique within a menu, or a letter would be ambiguous
-/// and the later entry unreachable from the keyboard. Resolving each expected
-/// letter back through the lookup proves both that it exists and that it wins.
+/// The 40 dead menu keys were declarations the runtime never honoured; deriving
+/// from the labels also catches a missing or ambiguous declaration itself.
 #[test]
 fn every_menu_entry_has_a_unique_mnemonic() {
     let shell = UiShell::default();
-    assert_eq!(shell.menu_count(), MENU_MNEMONICS.len());
 
-    for (menu_index, mnemonics) in MENU_MNEMONICS.iter().enumerate() {
-        assert_eq!(
-            shell.menu_entry_count(menu_index),
-            Some(mnemonics.len()),
-            "menu {menu_index} gained or lost entries without updating its mnemonics"
-        );
+    for menu_index in 0..shell.menu_count() {
+        let entry_count = shell
+            .menu_entry_count(menu_index)
+            .expect("an enumerated menu must exist");
+        let mut seen_mnemonics = Vec::new();
 
-        for (entry_index, mnemonic) in mnemonics.iter().enumerate() {
-            let resolved = shell
-                .menu_entry_index_for_mnemonic(menu_index, *mnemonic)
-                .unwrap_or_else(|| panic!("menu {menu_index}: no entry advertises `{mnemonic}`"));
+        for entry_index in 0..entry_count {
+            let mnemonic = shell
+                .menu_entry_mnemonic(menu_index, entry_index)
+                .unwrap_or_else(|| {
+                    panic!("menu {menu_index} entry {entry_index} has no derivable mnemonic")
+                });
+            assert!(
+                !seen_mnemonics
+                    .iter()
+                    .any(|seen: &char| seen.eq_ignore_ascii_case(&mnemonic)),
+                "menu {menu_index} entry {entry_index} duplicates mnemonic `{mnemonic}`"
+            );
+            seen_mnemonics.push(mnemonic);
+        }
+    }
+}
+
+/// Bare letters once ignored all 40 advertised mnemonics; every derived letter
+/// must resolve to the exact entry that declares it. The two tests above keep
+/// the dispatch path covered end to end without executing Quit or Shell Escape.
+#[test]
+fn every_menu_mnemonic_dispatches_its_own_entry() {
+    let shell = UiShell::default();
+
+    for menu_index in 0..shell.menu_count() {
+        let entry_count = shell
+            .menu_entry_count(menu_index)
+            .expect("an enumerated menu must exist");
+        for entry_index in 0..entry_count {
+            let mnemonic = shell
+                .menu_entry_mnemonic(menu_index, entry_index)
+                .expect("the mnemonic declaration contract is checked separately");
             assert_eq!(
-                resolved, entry_index,
-                "menu {menu_index}: `{mnemonic}` resolves to entry {resolved}, not the entry \
-                 that advertises it ({entry_index}) -- duplicate mnemonic"
+                shell.menu_entry_index_for_mnemonic(menu_index, mnemonic),
+                Some(entry_index),
+                "menu {menu_index} mnemonic `{mnemonic}` does not dispatch entry {entry_index}"
             );
         }
     }
 }
 
-/// The mnemonics as written in `dun-ui`'s menu labels.
-const MENU_MNEMONICS: [&[char]; 4] = [
-    &['N', 'O', 'B', 'S', 'A', 'E', 'C', 'R', 'H', 'Q'],
-    &[
-        'U', 'R', 'T', 'C', 'X', 'P', 'A', 'L', 'Y', 'K', 'I', 'O', 'W', 'F', 'N', 'B', 'G',
-    ],
-    &['H', 'V', 'E', 'C', 'Z', '[', ']', 'X', 'W', 'S', 'D', 'R'],
-    &['H'],
-];
+/// `file.close` used to dispatch `window.close`, leaving one command listed
+/// twice and the file-close command absent; menu commands must be one-to-one.
+#[test]
+fn no_two_menu_entries_dispatch_the_same_command() {
+    let shell = UiShell::default();
+    let mut commands = Vec::new();
+
+    for menu_index in 0..shell.menu_count() {
+        let entry_count = shell
+            .menu_entry_count(menu_index)
+            .expect("an enumerated menu must exist");
+        for entry_index in 0..entry_count {
+            let command = shell
+                .menu_entry_command(menu_index, entry_index)
+                .expect("an enumerated menu entry must have a command");
+            for (seen_menu, seen_entry, seen_command) in &commands {
+                assert_ne!(
+                    seen_command,
+                    &command,
+                    "menu {seen_menu} entry {seen_entry} and menu {menu_index} entry \
+                     {entry_index} both dispatch `{}`",
+                    command_id(&command)
+                );
+            }
+            commands.push((menu_index, entry_index, command));
+        }
+    }
+}
 
 /// Status messages were written into the frame and then unconditionally
 /// overwritten by the buffer readout whenever no modal was open, so every

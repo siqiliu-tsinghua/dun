@@ -4,6 +4,7 @@ mod cli_args;
 mod command_line;
 mod command_output;
 mod config;
+mod contracts;
 mod editing;
 mod file_dialog;
 mod file_io;
