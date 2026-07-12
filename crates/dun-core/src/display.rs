@@ -373,4 +373,76 @@ mod tests {
         assert!(sanitized.as_plain_text().is_ascii());
         assert!(sanitized.truncated);
     }
+
+    #[test]
+    fn every_unicode_scalar_is_safe_in_every_sanitizer_profile() {
+        let profiles = [
+            ("UTF-8", DisplaySanitizer::unlimited_utf8()),
+            ("ASCII-only", DisplaySanitizer::unlimited_ascii()),
+            ("one-byte UTF-8", DisplaySanitizer::utf8(1)),
+            ("one-byte ASCII-only", DisplaySanitizer::ascii(1)),
+        ];
+
+        for (profile, sanitizer) in profiles {
+            for ch in '\u{0}'..='\u{10ffff}' {
+                let mut encoded = [0; 4];
+                let input = ch.encode_utf8(&mut encoded);
+                let output = sanitizer.sanitize_line(input).as_plain_text();
+                let emitted_control = output.chars().any(|output_ch| {
+                    output_ch.is_control()
+                        || output_ch == '\u{1b}'
+                        || ('\u{80}'..='\u{9f}').contains(&output_ch)
+                });
+
+                assert!(
+                    !emitted_control,
+                    "{profile} sanitizer let U+{:04X} produce terminal control text {output:?}",
+                    u32::from(ch)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn sanitization_composes_character_by_character_for_short_strings() {
+        let profiles = [
+            ("UTF-8", DisplaySanitizer::unlimited_utf8()),
+            ("ASCII-only", DisplaySanitizer::unlimited_ascii()),
+        ];
+        let cases = [
+            ("multi-byte", "café Ω"),
+            ("combining marks", "e\u{301} o\u{308}"),
+            ("wide CJK", "漢字界"),
+            ("emoji", "🙂👩\u{200d}💻"),
+            (
+                "mixed control and printable",
+                "A\u{1b}[2J中\u{301}🙂\u{9b}\rZ",
+            ),
+        ];
+
+        for (profile, sanitizer) in profiles {
+            for (case, input) in cases {
+                let sanitized = sanitizer.sanitize_line(input);
+                assert!(
+                    !sanitized.truncated,
+                    "{profile} unexpectedly truncated {case} input {input:?}"
+                );
+                let whole = sanitized.as_plain_text();
+                let mut per_character = String::new();
+                for ch in input.chars() {
+                    let mut encoded = [0; 4];
+                    per_character.push_str(
+                        &sanitizer
+                            .sanitize_line(ch.encode_utf8(&mut encoded))
+                            .as_plain_text(),
+                    );
+                }
+
+                assert_eq!(
+                    whole, per_character,
+                    "{profile} sanitization did not compose for {case} input {input:?}"
+                );
+            }
+        }
+    }
 }
