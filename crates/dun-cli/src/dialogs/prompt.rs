@@ -143,12 +143,16 @@ impl PromptKind {
         }
     }
 
+    /// The prefix a prompt's status messages carry, e.g. "Find: no matches for
+    /// foo". It is not drawn in the modal — the modal has a title — so it has
+    /// to read as a sentence opener on its own. "Replace Find:" did not: the
+    /// status line said "Replace Find: type to search", which is not English.
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::CommandLine => "Command: ",
             Self::Find => "Find: ",
-            Self::ReplaceFind => "Replace Find: ",
-            Self::ReplaceWith => "Replace With: ",
+            Self::ReplaceFind => "Find to replace: ",
+            Self::ReplaceWith => "Replace with: ",
             Self::GoToLine => "Go To Line: ",
             Self::RunCommand => "Run Command: ",
         }

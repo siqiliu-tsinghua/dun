@@ -2,7 +2,7 @@ menu  entry                   command                        win  buf  modal    
 File  New (N)                 file.new                         1    1  -            -     -            "New untitled buffer"
 File  Open... (O)             file.open                        1    1  Open         -     -            -
 File  Switch Buffer (B)       file.switch_buffer               1    1  -            -     -            "Buffer switcher: only one buffer"
-File  Save (S)                file.save                        1    1  -            -     -            "Saved <FIXTURE>/menu-matrix.txt"
+File  Save (S)                file.save                        1    1  -            -     -            "No changes to save in <FIXTURE>/menu-matrix.txt"
 File  Save As... (A)          file.save_as                     1    1  Save As      -     -            -
 File  Reload (E)              file.reload                      1    1  -            -     -            "Reloaded <FIXTURE>/menu-matrix.txt"
 File  Close (C)               file.close                       1    1  -            -     -            "Closed menu-matrix.txt"
@@ -24,7 +24,7 @@ Edit  Outdent Line (O)        edit.outdent_line                1    1  -        
 Edit  Trim Whitespace (W)     edit.trim_trailing_whitespace    1    1  -            -     -            "Trim: no trailing whitespace"
 Edit  Find (F)                edit.find                        1    1  Find         -     -            "Find: type to search"
 Edit  Find Next (N)           edit.find_next                   1    1  -            -     -            "Find: no query"
-Edit  Replace (B)             edit.replace                     1    1  Replace      -     -            "Replace Find: type to search"
+Edit  Replace (B)             edit.replace                     1    1  Replace      -     -            "Find to replace: type to search"
 Edit  Go To Line (G)          edit.go_to_line                  1    1  Go To Line   -     -            -
 View  Split Horizontal (H)    window.split_horizontal          2    2  -            -     -            "Split horizontally"
 View  Split Vertical (V)      window.split_vertical            2    2  -            -     -            "Split vertically"

@@ -177,14 +177,17 @@ fn replace_command_prompts_and_replaces_next_match() {
     let mut app = app_with_text("one two one");
 
     app.handle_command(&EditorCommand::Edit(EditCommand::Replace));
-    assert_eq!(app.prompt_status_text(), Some("Replace Find: ".to_string()));
+    assert_eq!(
+        app.prompt_status_text(),
+        Some("Find to replace: ".to_string())
+    );
 
     send_text(&mut app, "one");
     handle_key_event(
         &mut app,
         CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
     );
-    assert_eq!(app.prompt_status_text(), Some("Replace With: ".to_string()));
+    assert_eq!(app.prompt_status_text(), Some("Replace with: ".to_string()));
 
     send_text(&mut app, "uno");
     handle_key_event(
@@ -309,7 +312,7 @@ fn replace_prefers_current_selected_match() {
     app.handle_command(&EditorCommand::Edit(EditCommand::Replace));
     assert_eq!(
         app.prompt_status_text(),
-        Some("Replace Find: one".to_string())
+        Some("Find to replace: one".to_string())
     );
     handle_key_event(
         &mut app,

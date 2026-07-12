@@ -87,6 +87,24 @@ impl AppState {
                     "focused buffer has no file path",
                 )
             })?;
+
+            // Saving an unmodified buffer used to rewrite the file anyway. The
+            // atomic save writes a temp file and renames it over the original,
+            // so every idle Ctrl+S replaced the inode and bumped the mtime for
+            // nothing -- a pointless write on the remote boxes this editor is
+            // for, and a lie to anything watching the file.
+            //
+            // This sits *after* the read-only, encoding and no-path refusals:
+            // those carry a reason the user needs, and answering a read-only
+            // buffer with "no changes to save" would swap it for a misleading
+            // one. It also cannot lose a rescue path -- validate_save_snapshot
+            // already refuses a plain Save when the file vanished from under a
+            // clean buffer, so there was nothing to rescue.
+            if !buffer.buffer.is_dirty() {
+                self.set_status(format!("No changes to save in {}", path.display()));
+                return Ok(path);
+            }
+
             validate_save_snapshot(buffer.file_snapshot, &path)?;
             (path, buffer.buffer.to_text())
         };

@@ -860,3 +860,44 @@ fn window_close_still_refuses_on_the_last_window() {
         Some("Close failed: cannot close the last window")
     );
 }
+
+/// Saving an unmodified buffer used to rewrite the file anyway. The atomic save
+/// writes a temp file and renames it over the original, so every idle Ctrl+S
+/// replaced the inode and bumped the mtime for nothing. Assert on the file's
+/// metadata, not just the status text: a message that says nothing happened
+/// while the file is quietly rewritten is the bug, not the fix.
+#[test]
+fn saving_an_unmodified_buffer_does_not_rewrite_the_file() {
+    let path = temp_file_path("save-clean.txt");
+    std::fs::write(&path, "unchanged\n").unwrap();
+    let before = std::fs::metadata(&path).unwrap().modified().unwrap();
+
+    let mut app = AppState::new();
+    app.open_file_path(path.clone()).unwrap();
+    assert!(!app.focused_buffer().unwrap().buffer.is_dirty());
+
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    app.handle_command(&EditorCommand::File(FileCommand::Save));
+
+    let after = std::fs::metadata(&path).unwrap().modified().unwrap();
+    assert_eq!(after, before, "a clean save must not touch the file");
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.starts_with("No changes to save")),
+        "and it must say so: {:?}",
+        app.status_message
+    );
+
+    // A real edit still saves.
+    send_text(&mut app, "x");
+    app.handle_command(&EditorCommand::File(FileCommand::Save));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "xunchanged\n");
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.starts_with("Saved")),
+    );
+
+    let _ = std::fs::remove_file(path);
+}
