@@ -63,6 +63,30 @@ same change.
   large logs.
 - Add tests with the feature being implemented. For broad editor behavior,
   prefer focused core tests before UI tests.
+- Prove a test load-bearing before trusting it. A test that passes against a
+  broken implementation protects nothing, and this repo has shipped two such
+  tests that only mutation caught: a panic-restore test that `TerminalGuard::drop`
+  satisfied without the hook, and a sanitizer test that asked the implementation
+  to mark its own homework. Whenever you add or change a test that guards a
+  correctness or safety invariant — anything under [AUDIT.md](./AUDIT.md), plus
+  terminal restore, atomic save, dirty confirmation, and display sanitization —
+  break the code it covers on purpose, confirm the test fails and names the
+  fault, then restore. State that you did this. Two failure shapes to watch:
+  a test whose oracle calls the same predicate the implementation uses (weaken
+  one and both move together), and a test that asserts an escape sequence is
+  *present* while some other mechanism, not the code under test, is what put it
+  there.
+- Prefer an oracle that is independent of the implementation: hardcode the
+  expected bytes/strings in the test rather than deriving them from a function
+  the implementation also calls. When an invariant is exhaustible (a per-item
+  check over a small closed input space, e.g. every Unicode scalar), exhaust it
+  rather than sampling — it is stronger than a property test and needs no
+  dependency.
+- Verify against reality before reasoning from memory: drive the real binary
+  (tmux/PTY), read the actual source of a dependency, or measure the actual
+  value, rather than asserting how something behaves. Terminal, rendering, and
+  Unicode behavior in particular have repeatedly turned out otherwise than
+  assumed.
 - Do not introduce native dynamic plugin loading in the initial line.
 - Follow [docs/code-organization-guidelines.md](./docs/code-organization-guidelines.md).
   Implementation files should stay under about `10k` characters when

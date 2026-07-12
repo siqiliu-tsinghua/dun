@@ -74,10 +74,17 @@ verbatim evidence — it never commits, branches, or pushes.
   only the MAY-modify list; (2) `cargo fmt --all -- --check`, clippy
   `-D warnings`, `cargo test --workspace --no-fail-fast` reproduced by me;
   (3) for runtime-code briefs, the dual-platform size gate and release smoke;
-  (4) I reproduce claimed evidence myself before committing.
+  (4) I reproduce claimed evidence myself before committing; (5) for any test
+  guarding a correctness or safety invariant, I mutate the implementation and
+  confirm the test fails (see AGENTS.md "Prove a test load-bearing"). Two
+  Codex-authored A-level tests this session passed against a broken
+  implementation and only mutation caught them — a brief saying "verified" is
+  not the same as a test that can fail.
 - Watch Codex's recurring failure modes in review: fixing at the wrong
-  layer, masking symptoms instead of causes, and drive-by edits outside
-  scope.
+  layer, masking symptoms instead of causes, drive-by edits outside scope,
+  and vacuous tests (an oracle that reuses the implementation's own predicate;
+  asserting an escape sequence is present when something other than the code
+  under test emitted it).
 - Known dispatch failures around a new codex release (tree stays clean in
   both; re-dispatch after the user updates codex interactively): (a) log
   stalls forever at "Reading additional input from stdin..." — pending

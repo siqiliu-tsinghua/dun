@@ -222,9 +222,27 @@ Required controls:
 - do not emit C0/C1 control bytes directly to the terminal;
 - never emit `ESC` or OSC sequences from buffer content;
 - render controls using visible notation such as `^[`, `^G`, `^@`, and `^?`;
+- neutralize invisible characters that change meaning without drawing anything:
+  the bidirectional formatting characters (the Trojan Source class,
+  CVE-2021-42574 — a right-to-left override makes rendered text read in an order
+  the bytes do not have, so a reviewer trusting their eyes sees code that is not
+  the code that will run, and a hostile file name is disguised), the zero-width
+  format characters (a zero-width space inside an identifier reads as a normal
+  identifier), and the Unicode tag block (encodes arbitrary ASCII in characters
+  that draw nothing). These are `Cf`, not control characters, so a check for
+  `char::is_control` alone does not see them. Combining marks are deliberately
+  exempt: they modify a base glyph the reader can see, so they are ordinary text
+  rather than a disguise;
 - cap display work for very long lines;
 - keep original bytes separate from display cells;
 - make lossy or read-only fallback decoding visible to the user.
+
+The sanitizer is proven by exhaustion over every Unicode scalar value in each
+profile, plus an end-to-end test that poisons every attacker-influenceable text
+field (buffer body, file name, window title, both status halves, plugin
+indicator, and every part of a modal) and asserts against the bytes the surface
+emitter actually writes — because a perfect sanitizer is worthless if a field
+never reaches it.
 
 Saving must not silently corrupt files opened through a fallback or lossy path.
 Editable saves use host-owned same-directory temporary files followed by
@@ -358,6 +376,10 @@ Add tests for:
 - huge log records;
 - invalid UTF-8 handling strategy;
 - buffer text containing `ESC`, OSC, BEL, NUL, DEL, CR, and backspace;
+- buffer text containing the C1 single-byte CSI (`U+009B`), bidirectional
+  overrides (`U+202E` and the rest), zero-width format characters, and the tag
+  block — including the end-to-end check that every text field reaches the
+  sanitizer, asserted on the emitted bytes;
 - save behavior for lossy/fallback opened files;
 - large-file threshold behavior;
 - external SSH and low-capability terminal release matrix results;
