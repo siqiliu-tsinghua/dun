@@ -94,6 +94,12 @@ impl AppState {
         let mut app = Self::from_loaded_config(config_request, loaded_config);
         if let Some(path) = path {
             app.open_file_path(path)?;
+            // Open reports itself, but on startup there is no user action to
+            // report: the file is plainly on screen and its path is already in
+            // the title and the right of the status bar. Start at rest so the
+            // first frame shows the buffer readout rather than a truncated
+            // "Opened /very/long/path". The message stays in the history.
+            app.status_message = None;
         }
         Ok(app)
     }

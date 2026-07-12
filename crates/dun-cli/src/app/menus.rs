@@ -77,6 +77,23 @@ impl AppState {
             return false;
         };
         let entry_index = self.active_menu_entry.unwrap_or(0);
+        self.dispatch_menu_entry(menu_index, entry_index)
+    }
+
+    /// Runs the open dropdown's entry whose label advertises `ch` in trailing
+    /// parens ("Open... (O)"). Returns false when nothing matches, so an
+    /// unrelated key leaves the menu open instead of silently closing it.
+    pub(crate) fn dispatch_active_menu_mnemonic(&mut self, ch: char) -> bool {
+        let Some(menu_index) = self.active_menu else {
+            return false;
+        };
+        let Some(entry_index) = self.shell.menu_entry_index_for_mnemonic(menu_index, ch) else {
+            return false;
+        };
+        self.dispatch_menu_entry(menu_index, entry_index)
+    }
+
+    fn dispatch_menu_entry(&mut self, menu_index: usize, entry_index: usize) -> bool {
         let Some(command) = self.shell.menu_entry_command(menu_index, entry_index) else {
             return false;
         };

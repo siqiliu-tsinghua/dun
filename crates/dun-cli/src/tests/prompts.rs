@@ -12,13 +12,18 @@ fn prompt_cancel_restores_editor_input() {
         &mut app,
         CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
     );
+
+    // Cancelling reports it, and the message stands until the next keypress.
+    assert_eq!(app.status_message, Some("Open cancelled".to_string()));
+
     handle_key_event(
         &mut app,
         CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::NONE),
     );
 
+    // That keypress both hands the status line back and reaches the buffer.
+    assert_eq!(app.status_message, None);
     let state = app.buffer_state(BufferId(1)).unwrap();
-    assert_eq!(app.status_message, Some("Open cancelled".to_string()));
     assert_eq!(state.buffer.to_text(), "x");
 }
 

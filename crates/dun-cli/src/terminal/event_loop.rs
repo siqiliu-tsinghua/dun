@@ -29,23 +29,24 @@ pub(crate) fn run_event_loop(
             &buffer_views,
             app.menu_selection(),
         );
-        if let Some(message) = &app.status_message {
-            ui_frame.status.left = message.clone();
-        } else {
-            ui_frame.status.left = app.focused_buffer_status();
-        }
-        if app.prompt.is_none()
-            && app.file_dialog.is_none()
-            && app.buffer_switcher.is_none()
-            && app.confirm.is_none()
-            && app.replace_confirm.is_none()
-        {
-            ui_frame.status.left = format!(
+        // A status message outranks the idle buffer readout. It used to be
+        // written here and then unconditionally overwritten below, so every
+        // command's feedback -- "only one buffer", "Config reloaded", "Theme
+        // failed" -- was set, recorded in the history, and never shown.
+        let modal_open = app.prompt.is_some()
+            || app.file_dialog.is_some()
+            || app.buffer_switcher.is_some()
+            || app.confirm.is_some()
+            || app.replace_confirm.is_some();
+        ui_frame.status.left = match &app.status_message {
+            Some(message) => message.clone(),
+            None if modal_open => app.focused_buffer_status(),
+            None => format!(
                 "{} {}",
                 app.focused_buffer_status(),
                 app.focused_detail_status()
-            );
-        }
+            ),
+        };
         ui_frame.status.right = app.focused_file_status();
         ui_frame.status.plugin = app.plugin_indicator();
         ui_frame.overlay = app.active_overlay();

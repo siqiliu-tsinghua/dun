@@ -138,6 +138,21 @@ impl UiShell {
             .position(|item| mnemonic_matches(item.label, ch))
     }
 
+    /// The entry an open dropdown should run for a bare letter key. Entries
+    /// advertise the letter in trailing parens ("Open... (O)"), so failing to
+    /// dispatch it leaves the label promising a key that does nothing.
+    pub fn menu_entry_index_for_mnemonic(&self, menu_index: usize, ch: char) -> Option<usize> {
+        self.menu_bar(None)
+            .items
+            .get(menu_index)?
+            .entries
+            .iter()
+            .position(|entry| {
+                entry_mnemonic(entry.label)
+                    .is_some_and(|mnemonic| mnemonic.eq_ignore_ascii_case(&ch) || mnemonic == ch)
+            })
+    }
+
     fn hit_target_for_window(
         &self,
         window: &UiWindow,
@@ -248,4 +263,16 @@ fn mnemonic_matches(label: &str, ch: char) -> bool {
         .chars()
         .next()
         .is_some_and(|mnemonic| mnemonic.eq_ignore_ascii_case(&ch))
+}
+
+/// Menu-bar items take their mnemonic from the first letter ("File" -> F), but
+/// dropdown entries carry it in trailing parens: "Open... (O)", "Scroll Left
+/// ([)". Anything else in the parens is not a mnemonic.
+pub(crate) fn entry_mnemonic(label: &str) -> Option<char> {
+    let open = label.rfind('(')?;
+    let rest = &label[open + 1..];
+    let close = rest.find(')')?;
+    let mut chars = rest[..close].chars();
+    let mnemonic = chars.next()?;
+    chars.next().is_none().then_some(mnemonic)
 }

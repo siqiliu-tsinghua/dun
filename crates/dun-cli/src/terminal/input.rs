@@ -94,6 +94,12 @@ pub(crate) fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
         return;
     }
 
+    // A status message lives until the next keypress: the frame drawn right
+    // after the command that set it shows it, and then the user's next key
+    // hands the status line back to the buffer readout. Without an expiry the
+    // message would pin the status line permanently.
+    app.status_message = None;
+
     if app.active_menu.is_some() {
         handle_active_menu_key_event(app, event);
         return;
@@ -170,6 +176,11 @@ fn handle_active_menu_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
             if let Some(menu_index) = app.shell.menu_index_for_mnemonic(ch) {
                 app.open_keyboard_menu(menu_index);
             }
+        }
+        // A bare letter runs the entry that advertises it in its label
+        // ("Open... (O)"), the way every other menu-driven editor behaves.
+        CrosstermKeyCode::Char(ch) if !event.modifiers.contains(CrosstermKeyModifiers::CONTROL) => {
+            app.dispatch_active_menu_mnemonic(ch);
         }
         _ => {}
     }

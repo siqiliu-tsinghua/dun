@@ -8,6 +8,7 @@ mod editing;
 mod file_dialog;
 mod file_io;
 mod helper_panes;
+mod menus_keyboard;
 mod menus_mouse;
 mod plugins;
 mod prompts;
