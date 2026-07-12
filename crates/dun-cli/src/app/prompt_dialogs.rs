@@ -516,7 +516,8 @@ impl AppState {
                 | PendingAction::OpenPrompt
                 | PendingAction::ReloadBuffer
                 | PendingAction::CloseFile
-                | PendingAction::CloseWindow => "Save(s) Discard(d) Cancel(c)",
+                | PendingAction::CloseWindow
+                | PendingAction::OnlyWindow(_) => "Save(s) Discard(d) Cancel(c)",
             };
             return Some(format!(
                 "Unsaved changes in {}: {action}",
@@ -537,7 +538,8 @@ impl AppState {
                 | PendingAction::OpenPrompt
                 | PendingAction::ReloadBuffer
                 | PendingAction::CloseFile
-                | PendingAction::CloseWindow => "[Save(s)] [Discard(d)] [Cancel(c)]",
+                | PendingAction::CloseWindow
+                | PendingAction::OnlyWindow(_) => "[Save(s)] [Discard(d)] [Cancel(c)]",
             };
             return Some(UiOverlay::message(
                 "Unsaved Changes",

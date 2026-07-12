@@ -27,6 +27,9 @@ pub(crate) enum PendingAction {
     CloseFile,
     /// `window.close` — close the focused *pane*. Refuses on the last window.
     CloseWindow,
+    /// `window.only` — close every other window, keeping this one. Carries the
+    /// target because the confirm dialog refocuses the dirty buffer's window.
+    OnlyWindow(WindowId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

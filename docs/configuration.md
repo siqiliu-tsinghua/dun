@@ -60,6 +60,9 @@ key.edit.copy_external = Ctrl+X,Ctrl+C
 key.window.split_horizontal = Ctrl+X,H
 key.window.focus_left = Ctrl+X,Left
 key.window.resize_right = Ctrl+X,Shift+Right
+key.window.only = Ctrl+X,1
+key.window.collapse = Ctrl+X,M
+key.window.expand = Ctrl+X,P
 ```
 
 Set a command to `none`, `disabled`, or `unbind` to remove its default binding:

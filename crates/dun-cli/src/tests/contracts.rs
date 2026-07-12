@@ -32,12 +32,6 @@ fn every_help_entry_names_a_real_command() {
 }
 
 const PROMPT_ONLY_COMMANDS: &[&str] = &[
-    // The one-way collapse action has no default binding or menu entry.
-    "window.collapse",
-    // The one-way expand action has no default binding or menu entry.
-    "window.expand",
-    // The close-other-windows action has no default binding or menu entry.
-    "window.only",
     // Clipboard diagnostics are exposed only through the command prompt.
     "app.config_diagnostics_clipboard",
     // File-dialog keymap diagnostics are exposed only through the command prompt.

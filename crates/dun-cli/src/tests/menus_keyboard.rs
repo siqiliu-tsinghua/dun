@@ -10,6 +10,10 @@ fn alt(ch: char) -> CrosstermKeyEvent {
     CrosstermKeyEvent::new(CrosstermKeyCode::Char(ch), CrosstermKeyModifiers::ALT)
 }
 
+fn ctrl(ch: char) -> CrosstermKeyEvent {
+    CrosstermKeyEvent::new(CrosstermKeyCode::Char(ch), CrosstermKeyModifiers::CONTROL)
+}
+
 /// Every dropdown entry advertises a mnemonic in its label ("Open... (O)"), so
 /// a bare letter must run it. The runtime used to handle only Esc, the arrows,
 /// Enter, and Alt+letter while a menu was open, which left every one of those
@@ -45,6 +49,32 @@ fn the_mnemonic_is_case_insensitive_and_ignores_unmatched_keys() {
     handle_key_event(&mut app, key(CrosstermKeyCode::Char('H')));
     assert!(app.active_menu.is_none());
     assert_eq!(app.workspace.window_count(), 2, "the split ran");
+}
+
+#[test]
+fn collapse_and_expand_are_reachable_from_view_menu_mnemonics() {
+    let mut app = AppState::new();
+
+    handle_key_event(&mut app, alt('v'));
+    handle_key_event(&mut app, key(CrosstermKeyCode::Char('m')));
+    assert!(app.workspace.focused_window().unwrap().collapsed);
+
+    handle_key_event(&mut app, alt('v'));
+    handle_key_event(&mut app, key(CrosstermKeyCode::Char('p')));
+    assert!(!app.workspace.focused_window().unwrap().collapsed);
+}
+
+#[test]
+fn collapse_and_expand_are_reachable_from_default_keybindings() {
+    let mut app = AppState::new();
+
+    handle_key_event(&mut app, ctrl('x'));
+    handle_key_event(&mut app, key(CrosstermKeyCode::Char('m')));
+    assert!(app.workspace.focused_window().unwrap().collapsed);
+
+    handle_key_event(&mut app, ctrl('x'));
+    handle_key_event(&mut app, key(CrosstermKeyCode::Char('p')));
+    assert!(!app.workspace.focused_window().unwrap().collapsed);
 }
 
 /// The 40 dead menu keys were declarations the runtime never honoured; deriving

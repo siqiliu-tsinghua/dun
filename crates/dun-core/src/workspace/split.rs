@@ -42,6 +42,26 @@ impl Workspace {
         Ok(next_focus)
     }
 
+    /// Make the focused window the only window. Returns the windows that were
+    /// removed, so the caller can drop their buffers.
+    pub fn only_focused(&mut self) -> Result<Vec<WindowState>, WorkspaceError> {
+        let focused = self.focused;
+        let Some(focused_index) = self.windows.iter().position(|window| window.id == focused)
+        else {
+            return Err(WorkspaceError::FocusMissing);
+        };
+
+        if self.windows.len() == 1 {
+            return Ok(Vec::new());
+        }
+
+        let mut survivor = self.windows.remove(focused_index);
+        survivor.collapsed = false;
+        let removed = std::mem::replace(&mut self.windows, vec![survivor]);
+        self.root = LayoutNode::Leaf(focused);
+        Ok(removed)
+    }
+
     pub fn resolved_layout(&self, area: Rect) -> Vec<WindowLayout> {
         let mut out = Vec::with_capacity(self.windows.len());
         self.root.resolved(area, &mut out);

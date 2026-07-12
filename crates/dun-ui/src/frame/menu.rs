@@ -132,8 +132,20 @@ impl UiShell {
                             EditorCommand::Window(dun_core::WindowCommand::Equalize),
                         ),
                         MenuEntry::new(
+                            "Only Window (O)",
+                            EditorCommand::Window(dun_core::WindowCommand::Only),
+                        ),
+                        MenuEntry::new(
                             "Toggle Collapse (C)",
                             EditorCommand::Window(dun_core::WindowCommand::ToggleCollapse),
+                        ),
+                        MenuEntry::new(
+                            "Collapse (M)",
+                            EditorCommand::Window(dun_core::WindowCommand::Collapse),
+                        ),
+                        MenuEntry::new(
+                            "Expand (P)",
+                            EditorCommand::Window(dun_core::WindowCommand::Expand),
                         ),
                         MenuEntry::new(
                             "Word Wrap (Z)",

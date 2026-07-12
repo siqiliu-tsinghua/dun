@@ -519,8 +519,20 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Rotate focused split",
             },
             HelpCommand {
+                command: EditorCommand::Window(WindowCommand::Only),
+                description: "Close every window except the focused one",
+            },
+            HelpCommand {
                 command: EditorCommand::Window(WindowCommand::ToggleCollapse),
                 description: "Collapse or expand focused pane",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::Collapse),
+                description: "Collapse focused pane",
+            },
+            HelpCommand {
+                command: EditorCommand::Window(WindowCommand::Expand),
+                description: "Expand focused pane",
             },
             HelpCommand {
                 command: EditorCommand::Window(WindowCommand::Close),

@@ -66,6 +66,33 @@ impl AppState {
         true
     }
 
+    pub(crate) fn confirm_dirty_buffer_losing_its_last_window(&mut self, target: WindowId) -> bool {
+        let Some(buffer_id) = self
+            .buffers
+            .iter()
+            .find(|buffer| {
+                buffer.buffer.is_dirty()
+                    && self
+                        .workspace
+                        .windows
+                        .iter()
+                        .any(|window| window.id != target && window.buffer_id == buffer.id)
+                    && !self
+                        .workspace
+                        .windows
+                        .iter()
+                        .any(|window| window.id == target && window.buffer_id == buffer.id)
+            })
+            .map(|buffer| buffer.id)
+        else {
+            return false;
+        };
+
+        self.focus_window_for_buffer(buffer_id);
+        self.start_confirm(PendingAction::OnlyWindow(target), buffer_id);
+        true
+    }
+
     pub(crate) fn handle_confirm_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
         if self.confirm.is_none() {
             return false;
@@ -122,6 +149,10 @@ impl AppState {
 
         match confirm.action {
             PendingAction::Quit => self.should_quit = true,
+            PendingAction::OnlyWindow(target) => {
+                self.workspace.focused = target;
+                self.only_focused_window_unchecked(target);
+            }
             action => {
                 self.focus_window_for_buffer(confirm.buffer_id);
                 self.continue_pending_action(action);
@@ -147,6 +178,10 @@ impl AppState {
             }
             PendingAction::CloseFile => self.close_focused_file_unchecked(),
             PendingAction::CloseWindow => self.close_focused_window_unchecked(),
+            PendingAction::OnlyWindow(target) => {
+                self.workspace.focused = target;
+                self.only_focused_window();
+            }
         }
     }
 

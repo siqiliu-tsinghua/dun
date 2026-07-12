@@ -2,6 +2,17 @@
 
 use super::support::*;
 
+fn split_with_dirty_first_window(app: &mut AppState) -> (WindowId, BufferId) {
+    let first = app.workspace.focused;
+    let dirty_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    let target = app.workspace.focused;
+    app.workspace.focused = first;
+    app.handle_text_input('x');
+    app.workspace.focused = target;
+    (target, dirty_buffer_id)
+}
+
 #[test]
 fn window_command_creates_focused_buffer_for_split() {
     let mut app = AppState::new();
@@ -71,12 +82,163 @@ fn window_layout_commands_report_status() {
 
     app.handle_command(&EditorCommand::Window(WindowCommand::Equalize));
     assert_eq!(app.status_message, Some("Equalized splits".to_string()));
+}
+
+#[test]
+fn window_only_closes_other_windows_and_keeps_the_focused_one() {
+    let mut app = AppState::new();
+    let first_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    let target = app.workspace.focused;
+    let target_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitVertical));
+    let third_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    app.workspace.focused = target;
 
     app.handle_command(&EditorCommand::Window(WindowCommand::Only));
+
+    assert_eq!(app.workspace.window_count(), 1);
+    assert_eq!(app.workspace.focused, target);
+    assert_eq!(
+        app.workspace.focused_window().unwrap().buffer_id,
+        target_buffer_id
+    );
+    assert_eq!(app.buffers.len(), 1);
+    assert!(app.buffer_state(target_buffer_id).is_some());
+    assert!(app.buffer_state(first_buffer_id).is_none());
+    assert!(app.buffer_state(third_buffer_id).is_none());
     assert_eq!(
         app.status_message,
-        Some("Only window is not implemented yet".to_string())
+        Some("Closed 2 other window(s)".to_string())
     );
+}
+
+#[test]
+fn window_only_reports_a_single_window_no_op() {
+    let mut app = AppState::new();
+    let before = app.workspace.clone();
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Only));
+
+    assert_eq!(app.workspace, before);
+    assert_eq!(
+        app.status_message,
+        Some("Already the only window".to_string())
+    );
+}
+
+#[test]
+fn window_only_cancel_keeps_every_window_and_dirty_buffer() {
+    let mut app = AppState::new();
+    let (target, dirty_buffer_id) = split_with_dirty_first_window(&mut app);
+    let dirty_text = app.buffer_state(dirty_buffer_id).unwrap().buffer.to_text();
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Only));
+
+    assert_eq!(app.workspace.window_count(), 2);
+    assert_ne!(app.workspace.focused, target);
+    assert!(app.confirm.is_some());
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+    );
+
+    assert_eq!(app.workspace.window_count(), 2);
+    assert!(app.workspace.window(target).is_ok());
+    assert!(app.confirm.is_none());
+    let dirty = app.buffer_state(dirty_buffer_id).unwrap();
+    assert_eq!(dirty.buffer.to_text(), dirty_text);
+    assert!(dirty.buffer.is_dirty());
+}
+
+#[test]
+fn window_only_save_writes_the_dirty_buffer_and_restores_the_target() {
+    let path = temp_file_path("window-only-save.txt");
+    std::fs::write(&path, "old").unwrap();
+    let mut app = AppState::from_path(Some(path.clone())).unwrap();
+    let (target, dirty_buffer_id) = split_with_dirty_first_window(&mut app);
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Only));
+    assert_ne!(app.workspace.focused, target);
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Char('s'), CrosstermKeyModifiers::NONE),
+    );
+
+    assert_eq!(app.workspace.window_count(), 1);
+    assert_eq!(app.workspace.focused, target);
+    assert!(app.confirm.is_none());
+    assert!(app.buffer_state(dirty_buffer_id).is_none());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "xold");
+
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn window_only_discard_closes_once_without_saving_and_restores_the_target() {
+    let mut app = AppState::new();
+    let (target, dirty_buffer_id) = split_with_dirty_first_window(&mut app);
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Only));
+    assert!(app.confirm.is_some());
+    assert_ne!(app.workspace.focused, target);
+
+    handle_key_event(
+        &mut app,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Char('d'), CrosstermKeyModifiers::NONE),
+    );
+
+    assert_eq!(app.workspace.window_count(), 1);
+    assert_eq!(app.workspace.focused, target);
+    assert!(app.confirm.is_none());
+    assert!(app.file_dialog.is_none());
+    assert!(app.buffer_state(dirty_buffer_id).is_none());
+    assert_eq!(
+        app.status_message,
+        Some("Closed 1 other window(s)".to_string())
+    );
+}
+
+#[test]
+fn window_only_does_not_prompt_for_a_dirty_buffer_shown_in_the_target() {
+    let mut app = AppState::new();
+    let first = app.workspace.focused;
+    let shared_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    let target = app.workspace.focused;
+    let unused_buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    app.workspace.window_mut(target).unwrap().buffer_id = shared_buffer_id;
+    app.buffers.retain(|buffer| buffer.id != unused_buffer_id);
+    app.workspace.focused = first;
+    app.handle_text_input('x');
+    app.workspace.focused = target;
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Only));
+
+    assert_eq!(app.workspace.window_count(), 1);
+    assert_eq!(app.workspace.focused, target);
+    assert!(app.confirm.is_none());
+    assert!(
+        app.buffer_state(shared_buffer_id)
+            .unwrap()
+            .buffer
+            .is_dirty()
+    );
+}
+
+#[test]
+fn window_only_expands_the_collapsed_survivor() {
+    let mut app = AppState::new();
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    app.handle_command(&EditorCommand::Window(WindowCommand::Collapse));
+    assert!(app.workspace.focused_window().unwrap().collapsed);
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Only));
+
+    assert_eq!(app.workspace.window_count(), 1);
+    assert!(!app.workspace.focused_window().unwrap().collapsed);
 }
 
 #[test]

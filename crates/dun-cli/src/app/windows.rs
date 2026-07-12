@@ -56,7 +56,7 @@ impl AppState {
                 }
                 self.close_focused_window_unchecked();
             }
-            WindowCommand::Only => self.set_status("Only window is not implemented yet"),
+            WindowCommand::Only => self.only_focused_window(),
         }
     }
 
@@ -158,6 +158,38 @@ impl AppState {
             }
             Err(error) => {
                 self.set_status(format!("Close failed: {}", workspace_error_text(error)));
+            }
+        }
+    }
+
+    pub(crate) fn only_focused_window(&mut self) {
+        if self.workspace.window_count() <= 1 {
+            self.set_status("Already the only window");
+            return;
+        }
+
+        let target = self.workspace.focused;
+        if self.confirm_dirty_buffer_losing_its_last_window(target) {
+            return;
+        }
+        self.only_focused_window_unchecked(target);
+    }
+
+    pub(crate) fn only_focused_window_unchecked(&mut self, target: WindowId) {
+        self.workspace.focused = target;
+        match self.workspace.only_focused() {
+            Ok(removed) => {
+                let closed = removed.len();
+                for window in removed {
+                    self.drop_buffer_if_unreferenced(window.buffer_id);
+                }
+                self.set_status(format!("Closed {closed} other window(s)"));
+            }
+            Err(error) => {
+                self.set_status(format!(
+                    "Only window failed: {}",
+                    workspace_error_text(error)
+                ));
             }
         }
     }

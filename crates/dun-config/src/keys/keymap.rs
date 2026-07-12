@@ -191,6 +191,9 @@ impl Keymap {
                     "Ctrl+X,C",
                     EditorCommand::Window(WindowCommand::ToggleCollapse),
                 ),
+                KeyBinding::new("Ctrl+X,1", EditorCommand::Window(WindowCommand::Only)),
+                KeyBinding::new("Ctrl+X,M", EditorCommand::Window(WindowCommand::Collapse)),
+                KeyBinding::new("Ctrl+X,P", EditorCommand::Window(WindowCommand::Expand)),
                 KeyBinding::new("Ctrl+X,X", EditorCommand::Window(WindowCommand::Close)),
             ],
         }

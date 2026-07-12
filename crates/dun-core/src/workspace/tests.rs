@@ -218,6 +218,7 @@ fn workspace_reports_focus_missing_for_corrupt_focus() {
         Err(WorkspaceError::FocusMissing)
     );
     assert_eq!(workspace.close_focused(), Err(WorkspaceError::FocusMissing));
+    assert_eq!(workspace.only_focused(), Err(WorkspaceError::FocusMissing));
 }
 
 #[test]
@@ -259,6 +260,38 @@ fn close_nested_window_promotes_sibling_subtree() {
     assert_eq!(workspace.focused, right);
     assert_eq!(layout_rect(&workspace, left), Rect::new(0, 0, 50, 40));
     assert_eq!(layout_rect(&workspace, right), Rect::new(50, 0, 50, 40));
+}
+
+#[test]
+fn only_focused_keeps_the_focused_window_and_returns_the_others() {
+    let mut workspace = Workspace::new_untitled();
+    let first = workspace.focused;
+    let second = workspace.split_focused(Axis::Horizontal).unwrap();
+    let third = workspace.split_focused(Axis::Vertical).unwrap();
+    workspace.focused = second;
+    workspace.collapse_focused().unwrap();
+
+    let removed = workspace.only_focused().unwrap();
+
+    assert_eq!(workspace.window_count(), 1);
+    assert_eq!(workspace.focused, second);
+    assert_eq!(workspace.windows[0].id, second);
+    assert_eq!(workspace.root, LayoutNode::Leaf(second));
+    assert!(!workspace.focused_window().unwrap().collapsed);
+    assert_eq!(
+        removed.iter().map(|window| window.id).collect::<Vec<_>>(),
+        vec![first, third]
+    );
+}
+
+#[test]
+fn only_focused_leaves_a_single_window_workspace_unchanged() {
+    let mut workspace = Workspace::new_untitled();
+    workspace.collapse_focused().unwrap();
+    let before = workspace.clone();
+
+    assert_eq!(workspace.only_focused(), Ok(Vec::new()));
+    assert_eq!(workspace, before);
 }
 
 #[test]
