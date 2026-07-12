@@ -34,8 +34,10 @@ fn config_resolves_theme_after_terminal_overrides() {
 
     let theme = config.resolved_theme(TerminalProfile::utf8_256());
 
+    // The default theme is dun, and forcing 16 colors keeps it dun: the theme
+    // carries its own 16-color variant rather than degrading into msedit.
     assert_eq!(theme.colors, ColorProfile::Color16);
-    assert_eq!(theme.name, "msedit");
+    assert_eq!(theme.name, "dun");
 }
 
 #[test]

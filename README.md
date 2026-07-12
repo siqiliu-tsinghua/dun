@@ -19,15 +19,20 @@ When the active keymap does not consume them, `Alt+F`, `Alt+E`, `Alt+V`, and
 executes the selected item, and `Esc` closes it. Long dropdowns scroll on
 short terminals so the selected entry remains visible, with overflow
 indicators and matching mouse hit testing.
-The default `dun` theme is a restrained 256-color dark scheme with a cyan
-accent. The other selectable builtins are `msedit` (a Microsoft Edit-style blue
+The default `dun` theme takes its name literally: *dun* is the dull greyish-
+brown of a horse's coat, so the palette is pale sand text and a buckskin accent
+on deep shadow, with rust keywords and a gold search highlight. (xterm-256 has
+no dark brown at all -- the color cube steps each channel 0 -> 95 with nothing
+between -- so the warmth is carried by the ink rather than the ground.)
+
+The other selectable builtins are `msedit` (a Microsoft Edit-style blue
 chrome with green active labels, gray dropdown/modal panels, a compact bracket
-status bar, and a muted current-line highlight), `dark`, and `turbo` (the
-classic Borland Turbo Vision deep-blue look, pinned to fixed 256-color indices
-so it does not inherit the terminal's own ANSI palette). Select one with
-`theme = <name>` in the config, and override individual palette colors on top
-of it with `color.<role>` entries (see
-[docs/configuration.md](docs/configuration.md)).
+status bar, and a muted current-line highlight), `dark` (a neutral dark scheme
+with a cool cyan accent), and `turbo` (the classic Borland Turbo Vision
+deep-blue look, pinned to fixed 256-color indices so it does not inherit the
+terminal's own ANSI palette). Select one with `theme = <name>` in the config,
+and override individual palette colors on top of it with `color.<role>` entries
+(see [docs/configuration.md](docs/configuration.md)).
 
 Each theme also carries 16-color and monochrome variants. Those are not
 selected by name — they are reached by capability fallback, either detected or

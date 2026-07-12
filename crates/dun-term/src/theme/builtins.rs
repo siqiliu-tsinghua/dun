@@ -420,8 +420,141 @@ impl Theme {
         Self::with_256_darkish("dark", ThemeName::Dark, 234, 252, 38, 214)
     }
 
+    /// "Dun": the dull grayish-brown of a horse's coat — buckskin body, dark
+    /// points, dark dorsal stripe. xterm-256 cannot express a dark brown at
+    /// all (the color cube's channels step 0 -> 95, so the only dark entries
+    /// are black, dark red, dark olive, dark blue/green/purple and gray), so
+    /// the warmth lives in the ink rather than the ground: sand and buckskin
+    /// on deep shadow. `dun_16` is the 16-color fallback.
     pub const fn dun_256() -> Self {
-        Self::with_256_darkish("dun", ThemeName::Dun, 235, 252, 44, 203)
+        let shadow = TerminalColor::Indexed(234); // #1c1c1c — the ground
+        let band = TerminalColor::Indexed(236); // #303030 — current line
+        let scrub = TerminalColor::Indexed(58); // #5f5f00 — the one warm dark
+        let panel = TerminalColor::Indexed(237); // #3a3a3a — panels and modals
+        let sand = TerminalColor::Indexed(187); // #d7d7af — body text
+        let buckskin = TerminalColor::Indexed(180); // #d7af87 — the coat: accent
+        let hide = TerminalColor::Indexed(137); // #af875f — muted tan
+        let dust = TerminalColor::Indexed(245); // #8a8a8a — dim gray
+        let cream = TerminalColor::Indexed(223); // #ffd7af — emphasis
+        let rust = TerminalColor::Indexed(173); // #d7875f — keywords
+        let sage = TerminalColor::Indexed(107); // #87af5f — strings
+        let mauve = TerminalColor::Indexed(139); // #af87af — numbers
+        let gold = TerminalColor::Indexed(179); // #d7af5f — search
+        let amber = TerminalColor::Indexed(214); // #ffaf00 — control glyphs
+        let coral = TerminalColor::Indexed(203); // #ff5f5f — alarm
+
+        Self {
+            name: "dun",
+            theme: ThemeName::Dun,
+            colors: ColorProfile::Color256,
+            palette: Palette {
+                editor: Style::plain(sand, shadow),
+                editor_text: Style::plain(sand, shadow),
+                menu_bar: Style::plain(sand, band),
+                menu_text: Style::plain(sand, band),
+                menu_hotkey: Style::new(buckskin, band, StyleAttrs::BOLD),
+                menu_active: Style::plain(shadow, buckskin),
+                menu_active_hotkey: Style::new(shadow, buckskin, StyleAttrs::BOLD),
+                menu_panel: Style::plain(sand, panel),
+                menu_panel_text: Style::plain(sand, panel),
+                menu_panel_hotkey: Style::new(cream, panel, StyleAttrs::UNDERLINE),
+                menu_panel_border: Style::plain(hide, panel),
+                status_bar: Style::plain(shadow, buckskin),
+                status_text: Style::plain(shadow, buckskin),
+                window_border: Style::plain(hide, shadow),
+                window_border_focused: Style::new(buckskin, shadow, StyleAttrs::BOLD),
+                title: Style::plain(hide, shadow),
+                title_focused: Style::new(cream, shadow, StyleAttrs::BOLD),
+                gutter: Style::plain(hide, shadow),
+                gutter_separator: Style::plain(panel, shadow),
+                current_line: Style::plain(sand, band),
+                selection: Style::plain(cream, scrub),
+                selection_text: Style::plain(cream, scrub),
+                search_match: Style::plain(shadow, gold),
+                active_search_match: Style::new(shadow, amber, StyleAttrs::BOLD),
+                scrollbar_thumb: Style::new(buckskin, shadow, StyleAttrs::BOLD),
+                modal_scrim: Style::plain(dust, shadow),
+                modal: Style::plain(sand, panel),
+                modal_text: Style::plain(sand, panel),
+                modal_border: Style::plain(hide, panel),
+                modal_input: Style::plain(cream, shadow),
+                dirty: Style::new(amber, shadow, StyleAttrs::BOLD),
+                read_only: Style::plain(coral, shadow),
+                control: Style::plain(amber, shadow),
+                escape: Style::new(coral, shadow, StyleAttrs::BOLD),
+                truncation: Style::new(dust, shadow, StyleAttrs::BOLD),
+                syntax_keyword: Style::plain(rust, shadow),
+                syntax_comment: Style::plain(dust, shadow),
+                syntax_string: Style::plain(sage, shadow),
+                syntax_number: Style::plain(mauve, shadow),
+                syntax_emphasis: Style::new(cream, shadow, StyleAttrs::BOLD),
+                warning: Style::new(coral, shadow, StyleAttrs::BOLD),
+            },
+        }
+    }
+
+    /// 16-color fallback for `dun`: black ground, yellow/white ink. Without
+    /// this, `dun` degraded into `msedit_16`'s blue desktop, which reads as a
+    /// different theme entirely.
+    pub const fn dun_16() -> Self {
+        let shadow = TerminalColor::Ansi(AnsiColor::Black);
+        let sand = TerminalColor::Ansi(AnsiColor::White);
+        let bright = TerminalColor::Ansi(AnsiColor::BrightWhite);
+        let buckskin = TerminalColor::Ansi(AnsiColor::Yellow);
+        let cream = TerminalColor::Ansi(AnsiColor::BrightYellow);
+        let dust = TerminalColor::Ansi(AnsiColor::BrightBlack);
+        let sage = TerminalColor::Ansi(AnsiColor::Green);
+        let mauve = TerminalColor::Ansi(AnsiColor::Magenta);
+        let coral = TerminalColor::Ansi(AnsiColor::BrightRed);
+
+        Self {
+            name: "dun",
+            theme: ThemeName::Dun,
+            colors: ColorProfile::Color16,
+            palette: Palette {
+                editor: Style::plain(sand, shadow),
+                editor_text: Style::plain(sand, shadow),
+                menu_bar: Style::plain(shadow, sand),
+                menu_text: Style::plain(shadow, sand),
+                menu_hotkey: Style::new(shadow, sand, StyleAttrs::BOLD),
+                menu_active: Style::plain(shadow, buckskin),
+                menu_active_hotkey: Style::new(shadow, buckskin, StyleAttrs::BOLD),
+                menu_panel: Style::plain(bright, dust),
+                menu_panel_text: Style::plain(bright, dust),
+                menu_panel_hotkey: Style::new(cream, dust, StyleAttrs::UNDERLINE),
+                menu_panel_border: Style::plain(sand, dust),
+                status_bar: Style::plain(shadow, buckskin),
+                status_text: Style::plain(shadow, buckskin),
+                window_border: Style::plain(dust, shadow),
+                window_border_focused: Style::new(cream, shadow, StyleAttrs::BOLD),
+                title: Style::plain(sand, shadow),
+                title_focused: Style::new(cream, shadow, StyleAttrs::BOLD),
+                gutter: Style::plain(dust, shadow),
+                gutter_separator: Style::plain(dust, shadow),
+                current_line: Style::new(bright, shadow, StyleAttrs::BOLD),
+                selection: Style::plain(shadow, sand),
+                selection_text: Style::plain(shadow, sand),
+                search_match: Style::plain(shadow, cream),
+                active_search_match: Style::new(shadow, buckskin, StyleAttrs::BOLD),
+                scrollbar_thumb: Style::new(cream, shadow, StyleAttrs::BOLD),
+                modal_scrim: Style::plain(dust, shadow),
+                modal: Style::plain(bright, dust),
+                modal_text: Style::plain(bright, dust),
+                modal_border: Style::plain(sand, dust),
+                modal_input: Style::plain(cream, shadow),
+                dirty: Style::new(cream, shadow, StyleAttrs::BOLD),
+                read_only: Style::plain(coral, shadow),
+                control: Style::plain(cream, shadow),
+                escape: Style::new(coral, shadow, StyleAttrs::BOLD),
+                truncation: Style::new(dust, shadow, StyleAttrs::BOLD),
+                syntax_keyword: Style::new(cream, shadow, StyleAttrs::BOLD),
+                syntax_comment: Style::plain(dust, shadow),
+                syntax_string: Style::plain(sage, shadow),
+                syntax_number: Style::plain(mauve, shadow),
+                syntax_emphasis: Style::new(bright, shadow, StyleAttrs::BOLD),
+                warning: Style::new(coral, shadow, StyleAttrs::BOLD),
+            },
+        }
     }
 
     /// The Borland Turbo Vision look pinned to fixed xterm-256 indices that
@@ -504,6 +637,7 @@ impl Theme {
             },
             ColorProfile::Color16 => match theme {
                 ThemeName::Turbo => Self::turbo_16(),
+                ThemeName::Dun => Self::dun_16(),
                 _ => Self::msedit_16(),
             },
             ColorProfile::Mono => Self::mono(),

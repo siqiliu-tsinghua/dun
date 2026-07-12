@@ -128,7 +128,7 @@ fn tmux_grid_normalizes_cursor_and_sgr_attributes() -> io::Result<()> {
     // the menu bar with indexed colors; this also exercises 38;5;n/48;5;n
     // extended-color parsing in the captured grid.
     let padding = grid.cell(0, 0).expect("menu padding cell");
-    assert_eq!(padding.style.fg, TerminalColor::Indexed(252));
+    assert_eq!(padding.style.fg, TerminalColor::Indexed(187)); // dun sand
     assert_eq!(padding.style.bg, TerminalColor::Indexed(236));
     assert!(!padding.style.reverse);
     let file_hotkey = grid.cell(0, 2).expect("File hotkey cell");
