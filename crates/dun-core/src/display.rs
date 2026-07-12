@@ -120,6 +120,12 @@ impl DisplaySanitizer {
                 DisplayClass::Control
             };
             push_segment(segments, class, render_control(ch, self.ascii_only));
+        } else if is_bidi_formatting(ch) {
+            push_segment(
+                segments,
+                DisplayClass::Escape,
+                render_control(ch, self.ascii_only),
+            );
         } else if self.ascii_only && !ch.is_ascii() {
             push_segment(segments, DisplayClass::Escape, render_non_ascii(ch));
         } else {
@@ -139,6 +145,41 @@ fn push_segment(segments: &mut Vec<DisplaySegment>, class: DisplayClass, text: S
     }
 
     segments.push(DisplaySegment::new(class, text));
+}
+
+/// The Unicode bidirectional formatting characters.
+///
+/// They are **not** `char::is_control()` — they are Cf format characters — so
+/// the control check above could not see them, and U+202E RIGHT-TO-LEFT
+/// OVERRIDE reached the terminal from every text field the editor draws: buffer
+/// body, file name, window title, both halves of the status line, and every
+/// part of a modal.
+///
+/// A bidi override makes rendered text read in an order the underlying bytes do
+/// not have. In an editor that is the Trojan Source attack (CVE-2021-42574) —
+/// a reviewer trusting their eyes sees code that is not the code that will run.
+/// In the Open dialog it disguises a file name. Neither has any legitimate use
+/// in a monospace terminal grid, which does not implement bidi anyway.
+///
+/// This is the same set rustc's `text_direction_codepoint_in_literal` lint
+/// rejects.
+const BIDI_FORMATTING: [char; 12] = [
+    '\u{061c}', // ARABIC LETTER MARK
+    '\u{200e}', // LEFT-TO-RIGHT MARK
+    '\u{200f}', // RIGHT-TO-LEFT MARK
+    '\u{202a}', // LEFT-TO-RIGHT EMBEDDING
+    '\u{202b}', // RIGHT-TO-LEFT EMBEDDING
+    '\u{202c}', // POP DIRECTIONAL FORMATTING
+    '\u{202d}', // LEFT-TO-RIGHT OVERRIDE
+    '\u{202e}', // RIGHT-TO-LEFT OVERRIDE
+    '\u{2066}', // LEFT-TO-RIGHT ISOLATE
+    '\u{2067}', // RIGHT-TO-LEFT ISOLATE
+    '\u{2068}', // FIRST STRONG ISOLATE
+    '\u{2069}', // POP DIRECTIONAL ISOLATE
+];
+
+pub fn is_bidi_formatting(ch: char) -> bool {
+    BIDI_FORMATTING.contains(&ch)
 }
 
 fn render_control(ch: char, ascii_only: bool) -> String {
@@ -388,15 +429,21 @@ mod tests {
                 let mut encoded = [0; 4];
                 let input = ch.encode_utf8(&mut encoded);
                 let output = sanitizer.sanitize_line(input).as_plain_text();
-                let emitted_control = output.chars().any(|output_ch| {
+                // Control characters are the obvious danger. Bidi formatting
+                // characters are the one that got through: they are Cf, not
+                // control, so a check for `is_control` alone waves U+202E
+                // straight past -- which is exactly what this test used to do,
+                // and why the hole had to be found end to end instead.
+                let unsafe_output = output.chars().any(|output_ch| {
                     output_ch.is_control()
                         || output_ch == '\u{1b}'
                         || ('\u{80}'..='\u{9f}').contains(&output_ch)
+                        || is_bidi_formatting(output_ch)
                 });
 
                 assert!(
-                    !emitted_control,
-                    "{profile} sanitizer let U+{:04X} produce terminal control text {output:?}",
+                    !unsafe_output,
+                    "{profile} sanitizer let U+{:04X} reach the terminal as {output:?}",
                     u32::from(ch)
                 );
             }

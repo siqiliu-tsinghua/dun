@@ -115,7 +115,13 @@ scroll horizontally to keep the focused cursor visible. `edit.scroll_left` and
 lightweight right-border scrollbar thumb. Horizontally clipped lines show
 small edge indicators at the body boundary.
 Buffer text, pane titles, and status fields are sanitized before rendering so
-file content and file names cannot emit terminal control sequences.
+file content and file names cannot emit terminal control sequences. That
+includes the Unicode bidirectional formatting characters, which are not control
+characters and so slip past a naive filter: a right-to-left override makes
+rendered text read in an order the bytes do not have, which in an editor is the
+Trojan Source attack (CVE-2021-42574) -- a reviewer trusting their eyes sees
+code that is not the code that will run -- and in the Open dialog disguises a
+file name. They are shown as `<U+202E>` and the like instead.
 The host-neutral plugin protocol client is wired into the editor: hosts
 configured through `plugin.<id>.*` keys are launched as child processes on a
 worker thread (never blocking the event loop), and a `syntax-highlight` role

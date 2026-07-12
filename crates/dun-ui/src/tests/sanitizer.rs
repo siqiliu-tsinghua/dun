@@ -183,7 +183,6 @@ fn poisoned_frame_emits_no_attacker_control_sequences() {
 // Known hole: UTF-8 sanitization currently passes the bidi-formatting scalar
 // U+202E through every text path below, so a hostile name can disguise text.
 #[test]
-#[ignore = "known hole: U+202E RTL override survives every poisoned frame text field"]
 fn poisoned_frame_emits_no_rtl_override() {
     let emitted = emitted_poisoned_frame();
     assert_every_field_reached_emitter(&emitted);
