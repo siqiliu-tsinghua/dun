@@ -3,5 +3,6 @@
 mod fallback;
 mod hit;
 mod model;
+mod overlay;
 mod status;
 mod support;

@@ -42,9 +42,17 @@ pub(crate) fn draw_overlay(
         .collect::<Vec<_>>();
     let rect = overlay_layout(shell, overlay, area)?.rect;
 
-    for row in rect.y..rect.y.saturating_add(rect.height) {
-        surface.style_run(rect.x, row, rect.width, shell.theme.palette.modal);
-    }
+    // The modal body must blank what is underneath it. `style_run` only
+    // restyles cells, so the editor text below would keep showing through
+    // wherever the modal's own text does not reach.
+    surface.fill_rect(
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+        ' ',
+        shell.theme.palette.modal,
+    );
     draw_border(
         surface,
         rect.x,
