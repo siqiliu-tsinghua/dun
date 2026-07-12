@@ -28,11 +28,11 @@ Edit  Replace (B)             edit.replace                     1    1  Replace  
 Edit  Go To Line (G)          edit.go_to_line                  1    1  Go To Line   -     -            -
 View  Split Horizontal (H)    window.split_horizontal          2    2  -            -     -            "Split horizontally"
 View  Split Vertical (V)      window.split_vertical            2    2  -            -     -            "Split vertically"
-View  Equalize (E)            window.equalize                  1    1  -            -     -            "Equalized splits"
+View  Equalize (E)            window.equalize                  1    1  -            -     -            "Splits are already even"
 View  Only Window (O)         window.only                      1    1  -            -     -            "Already the only window"
 View  Toggle Collapse (C)     window.toggle_collapse           1    1  -            -     -            "Toggle collapse failed: cannot collapse the only window"
 View  Collapse (M)            window.collapse                  1    1  -            -     -            "Collapse failed: cannot collapse the only window"
-View  Expand (P)              window.expand                    1    1  -            -     -            "Expanded pane"
+View  Expand (P)              window.expand                    1    1  -            -     -            "Pane is already expanded"
 View  Word Wrap (Z)           edit.toggle_word_wrap            1    1  -            -     -            "Word wrap on"
 View  Scroll Left ([)         edit.scroll_left                 1    1  -            -     -            "Already at left edge"
 View  Scroll Right (])        edit.scroll_right                1    1  -            -     -            "Already at right edge"

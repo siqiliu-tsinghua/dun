@@ -15,10 +15,10 @@ impl AppState {
             WindowCommand::ResizeRight => self.resize_window_direction(Direction::Right, "right"),
             WindowCommand::ResizeUp => self.resize_window_direction(Direction::Up, "up"),
             WindowCommand::ResizeDown => self.resize_window_direction(Direction::Down, "down"),
-            WindowCommand::Equalize => {
-                self.workspace.equalize();
-                self.set_status("Equalized splits");
-            }
+            WindowCommand::Equalize => match self.workspace.equalize() {
+                0 => self.set_status("Splits are already even"),
+                count => self.set_status(format!("Equalized {count} split(s)")),
+            },
             WindowCommand::RotateSplit => match self.workspace.rotate_focused_split() {
                 Ok(axis) => {
                     self.set_status(format!("Rotated focused split to {}", axis_name(axis)))
@@ -35,7 +35,8 @@ impl AppState {
                 }
             },
             WindowCommand::Expand => match self.workspace.expand_focused() {
-                Ok(()) => self.set_status("Expanded pane"),
+                Ok(true) => self.set_status("Expanded pane"),
+                Ok(false) => self.set_status("Pane is already expanded"),
                 Err(error) => {
                     self.set_status(format!("Expand failed: {}", workspace_error_text(error)))
                 }

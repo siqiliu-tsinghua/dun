@@ -21,8 +21,12 @@ impl Workspace {
         }
     }
 
-    pub fn equalize(&mut self) {
-        equalize_node(&mut self.root);
+    /// Reset every split to an even share. Returns how many splits were
+    /// actually off-balance, so the caller does not announce work it did not
+    /// do: a single window has no splits, and evenly-split panes are already
+    /// equal.
+    pub fn equalize(&mut self) -> usize {
+        equalize_node(&mut self.root)
     }
 
     pub fn rotate_focused_split(&mut self) -> Result<Axis, WorkspaceError> {
@@ -113,18 +117,19 @@ fn resize_at_split(
     SearchOutcome::Applied(*ratio)
 }
 
-fn equalize_node(node: &mut LayoutNode) {
+/// Returns the number of splits that were not already even.
+fn equalize_node(node: &mut LayoutNode) -> usize {
     match node {
-        LayoutNode::Leaf(_) => {}
+        LayoutNode::Leaf(_) => 0,
         LayoutNode::Split {
             ratio,
             first,
             second,
             ..
         } => {
+            let changed = usize::from(*ratio != DEFAULT_SPLIT_RATIO);
             *ratio = DEFAULT_SPLIT_RATIO;
-            equalize_node(first);
-            equalize_node(second);
+            changed + equalize_node(first) + equalize_node(second)
         }
     }
 }

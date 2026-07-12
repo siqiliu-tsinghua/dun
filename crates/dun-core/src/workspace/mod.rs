@@ -72,9 +72,14 @@ impl Workspace {
         Ok(())
     }
 
-    pub fn expand_focused(&mut self) -> Result<(), WorkspaceError> {
-        self.window_mut(self.focused)?.collapsed = false;
-        Ok(())
+    /// Expand the focused pane. Reports whether it was actually collapsed, so
+    /// the caller does not announce work it did not do -- the pane that was
+    /// already open has nothing to expand.
+    pub fn expand_focused(&mut self) -> Result<bool, WorkspaceError> {
+        let window = self.window_mut(self.focused)?;
+        let was_collapsed = window.collapsed;
+        window.collapsed = false;
+        Ok(was_collapsed)
     }
 
     pub fn toggle_focused_collapse(&mut self) -> Result<bool, WorkspaceError> {

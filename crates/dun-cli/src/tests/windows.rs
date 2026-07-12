@@ -80,8 +80,57 @@ fn window_layout_commands_report_status() {
     assert!(!app.workspace.focused_window().unwrap().collapsed);
     assert_eq!(app.status_message, Some("Expanded pane".to_string()));
 
+    // A fresh split is already even, so there is nothing to equalize -- and the
+    // command must say so rather than claim work it did not do.
     app.handle_command(&EditorCommand::Window(WindowCommand::Equalize));
-    assert_eq!(app.status_message, Some("Equalized splits".to_string()));
+    assert_eq!(
+        app.status_message,
+        Some("Splits are already even".to_string())
+    );
+}
+
+/// Both commands used to report success on a no-op: Equalize announced
+/// "Equalized splits" with a single window and no splits at all, and Expand
+/// announced "Expanded pane" at a pane that was never collapsed. That is the
+/// same lie as the Save that rewrote an unchanged file -- and the rest of this
+/// codebase already reports no-ops honestly ("Already at left edge", "Already
+/// the only window", "Outdent: nothing changed").
+#[test]
+fn equalize_and_expand_do_not_claim_work_they_did_not_do() {
+    let mut app = AppState::new();
+    app.sync_view_for_area(Rect::new(0, 0, 80, 20));
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Equalize));
+    assert_eq!(
+        app.status_message,
+        Some("Splits are already even".to_string()),
+        "a single window has no splits to equalize"
+    );
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Expand));
+    assert_eq!(
+        app.status_message,
+        Some("Pane is already expanded".to_string()),
+        "a pane that was never collapsed has nothing to expand"
+    );
+
+    // And when there is real work, it is reported as real work.
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    app.handle_command(&EditorCommand::Window(WindowCommand::Equalize));
+    assert_eq!(
+        app.status_message,
+        Some("Splits are already even".to_string()),
+        "a fresh split is already even"
+    );
+
+    // The split lands focus on the right pane, which has no split to its right;
+    // move left first so the resize has something to grab.
+    app.handle_command(&EditorCommand::Window(WindowCommand::FocusLeft));
+    app.handle_command(&EditorCommand::Window(WindowCommand::ResizeRight));
+    assert_eq!(app.status_message, Some("Resized right".to_string()));
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::Equalize));
+    assert_eq!(app.status_message, Some("Equalized 1 split(s)".to_string()));
 }
 
 #[test]
