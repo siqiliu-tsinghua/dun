@@ -7,3 +7,7 @@
 !/vm-test/vm-common.sh
 !/vm-test/vm-run
 !/vm-test/vm-sync
+
+# Coverage instrumentation output (cargo llvm-cov)
+*.profraw
+*.profdata
