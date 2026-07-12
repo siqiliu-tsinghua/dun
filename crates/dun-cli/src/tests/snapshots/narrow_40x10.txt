@@ -1,0 +1,38 @@
+size: 40x10  theme: dun  colors: Color256
+cursor: 31,2
+
+text:
+0|  File  Edit  View  Help                
+1|┌─ Untitled ───────┐┌─ Unti…─┐┌─ ◆ Un…─┐
+2|│1│wide pane       ││1│      ││narrow ›█
+3|│2│keeps context   ││        ││narrow ›│
+4|│                  ││        ││narrow ›│
+5|│                  ││        ││narrow ›│
+6|│                  ││        ││narrow ›│
+7|│                  ││        ││narrow ›│
+8|└──────────────────┘└────────┘└────────┘
+9|[Plain Text] [LF] [UTF-8] … [Untitled-3]
+
+style:
+0|AABAAAAABAAAAABAAAAABAAAAAAAAAAAAAAAAAAA
+1|CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDEEEEEEDD
+2|CFCGGGGGGGGGGGGGGGGCCFCGGGGGGCDHHHHHHHID
+3|CFCGGGGGGGGGGGGGGGGCCGGGGGGGGCDGGGGGGGID
+4|CGGGGGGGGGGGGGGGGGGCCGGGGGGGGCDGGGGGGGID
+5|CGGGGGGGGGGGGGGGGGGCCGGGGGGGGCDGGGGGGGID
+6|CGGGGGGGGGGGGGGGGGGCCGGGGGGGGCDGGGGGGGID
+7|CGGGGGGGGGGGGGGGGGGCCGGGGGGGGCDGGGGGGGID
+8|CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDD
+9|JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ
+
+legend:
+A = 255/24
+B = 223/24 b
+C = 66/234
+D = 180/234 b
+E = 223/234 b
+F = 137/234
+G = 187/234
+H = 187/236
+I = 245/234 b
+J = 234/180

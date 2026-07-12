@@ -5,6 +5,7 @@ mod hit;
 mod model;
 mod render;
 mod shell;
+mod snapshot;
 mod surface;
 mod surface_emit;
 mod text;
@@ -27,6 +28,7 @@ pub use render::surface_frame::{RenderedFrame, SurfaceRenderer};
 #[cfg(test)]
 pub(crate) use render::window::window_title_for_width;
 pub use shell::UiShell;
+pub use snapshot::frame_snapshot;
 pub(crate) use text::{
     buffer_end_position, decimal_digits, display_width, fit_text_to_width, status_text_for_width,
     wrap_line_segments,

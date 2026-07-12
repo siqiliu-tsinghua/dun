@@ -1,0 +1,67 @@
+size: 80x24  theme: dun  colors: Color256
+cursor: 43,2
+
+text:
+ 0|  File  Edit  View  Help                                                        
+ 1|┌─ Untitled ───────────────────────────┐┌─ ◆ Search Results ■ ─────────────────┐
+ 2|│1│alpha                               ││1│Dun Search Results                  │
+ 3|│2│beta alpha                          ││2│                                    │
+ 4|│3│gamma                               ││3│Source: Untitled                    │
+ 5|│4│                                    ││4│Query: alpha                        │
+ 6|│                                      ││5│Matches: 2                          │
+ 7|│                                      ││6│                                    │
+ 8|│                                      ││7│  1. L1:C1 alpha                    │
+ 9|│                                      ││8│  2. L2:C6 beta alpha               │
+10|│                                      ││9│                                    │
+11|│                                      ││                                      │
+12|│                                      ││                                      │
+13|│                                      ││                                      │
+14|│                                      ││                                      │
+15|│                                      ││                                      │
+16|│                                      ││                                      │
+17|│                                      ││                                      │
+18|│                                      ││                                      │
+19|│                                      ││                                      │
+20|│                                      ││                                      │
+21|│                                      ││                                      │
+22|└──────────────────────────────────────┘└──────────────────────────────────────┘
+23|Search Results: 2 match(es)                                     [Search Results]
+
+style:
+ 0|AABAAAAABAAAAABAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+ 1|CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDEEEEEEEEEEEEEEEEEEEEDDDDDDDDDDDDDDDDDD
+ 2|CFCGGGGGHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDFCIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIID
+ 3|CFCHHHHHJJJJJHHHHHHHHHHHHHHHHHHHHHHHHHHCDFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+ 4|CFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+ 5|CFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+ 6|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+ 7|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+ 8|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+ 9|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+10|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDFCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+11|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+12|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+13|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+14|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+15|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+16|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+17|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+18|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+19|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+20|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+21|CHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHCDHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHD
+22|CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+23|KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK
+
+legend:
+A = 255/24
+B = 223/24 b
+C = 66/234
+D = 180/234 b
+E = 223/234 b
+F = 137/234
+G = 223/58
+H = 187/234
+I = 187/236
+J = 234/179
+K = 234/180

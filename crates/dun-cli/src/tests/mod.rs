@@ -14,6 +14,7 @@ mod menus_mouse;
 mod plugins;
 mod prompts;
 mod search_replace;
+mod snapshots;
 mod support;
 mod terminal_io;
 mod windows;
