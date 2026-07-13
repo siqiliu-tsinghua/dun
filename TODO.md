@@ -179,22 +179,21 @@ client but never checked off.
 
 ### Release Gates for This Stage
 
-Local gates re-run at the 2026-07-13 reconciliation; the Debian measurement
-and release smoke close out with the next VM session (they also serve as the
-post-client re-audit before i18n runtime work starts).
+All gates closed 2026-07-13 at `fd31719`; the Debian run doubled as the
+post-client re-audit (docs/release-size-audit.md "Post-client re-audit").
 
 - [x] `cargo fmt --all -- --check` (clean, 2026-07-13).
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` (clean,
   2026-07-13).
-- [x] `cargo test --workspace` (587 passed / 0 failed, 2026-07-13).
-- [ ] Release smoke checklist passes.
+- [x] `cargo test --workspace` (606 passed / 0 failed, 2026-07-13).
+- [x] Release smoke checklist passes (2026-07-13: tmux_grid, msedit_diff,
+  release `test-panic-hook` pty_smoke, `strings` panic-trigger check 0,
+  `--version`/`--dump-config` on both platforms).
 - [x] macOS `scripts/release-build.sh` binary stays within `1,048,576` bytes
-  (612,716 bytes, 2026-07-13).
-- [ ] Debian VM `scripts/release-build.sh` binary stays within `1,048,576`
-  bytes.
-- [ ] If either binary exceeds budget, consult
-  [docs/feature-triage.md](./docs/feature-triage.md) and record the result
-  before continuing.
+  (625,060 bytes at fd31719, 2026-07-13).
+- [x] Debian VM `scripts/release-build.sh` binary stays within `1,048,576`
+  bytes (670,080 bytes at fd31719, margin 378,496, 2026-07-13).
+- [x] Neither binary exceeds budget; no triage consultation needed.
 
 Do not add runtime features while either audited release binary exceeds the
 1 MiB budget.
@@ -245,8 +244,10 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
 - [ ] Extend `i18n/` to more common languages (ja/de/fr/es) once the
   extraction slices settle the key set.
 - [ ] Measure the size delta per batch; the mechanism must stay lean since
-  hand-rolled parsing (no serde) remains the rule. Slice 1 measured on
-  macOS locally; Debian binding measurement at the next VM session.
+  hand-rolled parsing (no serde) remains the rule. Slice 1 measured both
+  platforms at `fd31719`: macOS +12,344 (625,060); Debian span including
+  briefs 012-021 lands at 670,080, margin 378,496
+  (docs/release-size-audit.md 2026-07-13).
 
 ## Planned Stage: Distinctive Plugins (Python/Lua Hosts)
 

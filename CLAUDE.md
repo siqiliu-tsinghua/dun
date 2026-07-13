@@ -45,16 +45,16 @@ and the size gate below.
 ## Hard Size Budget (the binding constraint)
 
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
-x86_64 AND Debian x86_64. Baseline 2026-07-10 (`b2510a3`, build-std
-contract):
+x86_64 AND Debian x86_64. Current 2026-07-13 (`fd31719`, plugin client +
+i18n slice 1 landed):
 
-- macOS: 575,460 bytes (`target/x86_64-apple-darwin/release/dun`)
-- Debian: 620,928 bytes — **binding platform**, margin 427,648 bytes
+- macOS: 625,060 bytes (`target/x86_64-apple-darwin/release/dun`)
+- Debian: 670,080 bytes — **binding platform**, margin 378,496 bytes
 
-Reserve plan on the margin: plugin client ~76 KiB + future-feature reserve
-120 KiB still leaves ~230 KiB. Decisive measurements happen on the Debian
-VM; macOS deltas are proxies (~1.25x rule of thumb). With `opt-level = "z"`
-+ fat LTO, size deltas are non-additive — measure per batch.
+The plugin client is in these numbers; the margin is future-feature
+reserve. Decisive measurements happen on the Debian VM; macOS deltas are
+proxies (~1.1-1.25x rule of thumb). With `opt-level = "z"` + fat LTO, size
+deltas are non-additive — measure per batch.
 
 ## Codex Delegation (grunt-work packages)
 
@@ -121,10 +121,9 @@ Sequencing (stages 1–2 completed 2026-07-10):
 2. ~~Feature triage + trim~~ — done: C/D batches 1-3 (-48 KiB) plus the
    decisive build-std contract (spike A; all remaining B features KEPT).
    Outcome in [docs/feature-triage.md](./docs/feature-triage.md).
-3. ~~Land the real plugin protocol client~~ — functionally complete
-   (SyntaxHighlight end to end, load/unload, 16-case failure matrix;
-   TODO reconciled 2026-07-13). Remaining: Debian size gate + release smoke
-   at the next VM session, which doubles as the post-client re-audit.
+3. ~~Land the real plugin protocol client~~ — DONE, stage closed
+   2026-07-13: all release gates passed at `fd31719`; Debian re-audit
+   recorded (670,080 bytes, margin 378,496).
 4. **UI text i18n** (ACTIVE — TODO.md "UI Text Internationalization" stage,
    decided 2026-07-11, design in docs/i18n.md): hybrid model — English
    compiled in as the `&'static` fallback, other languages from external

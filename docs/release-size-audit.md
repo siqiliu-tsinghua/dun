@@ -359,3 +359,29 @@ slightly:
 
 Debian measured on a clean `git archive` of `e61774a`; `--version` and
 `--dump-config` (now `theme = dun`) smoke passed.
+
+## 2026-07-13 Post-client re-audit + i18n slice 1 (fd31719)
+
+One recorded span from `e61774a` (the last measured commit) to `fd31719`,
+covering briefs 012-021 (palette warning role, config color overrides,
+plugin status indicator, contract tests, panic restore tests, window.only,
+screen snapshots, menu behaviour matrix), the dun/Solarized theme redesign,
+sanitizer bidi/zero-width hardening, save/menu/dialog fixes, and i18n
+slice 1 (mechanism + menus + zh-CN). This closes the plugin-protocol-client
+stage's release gates and is the re-audit the plan required after the
+client landed.
+
+| Platform | e61774a | fd31719 | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 596,284 | 625,060 | +28,776 | 423,516 |
+| Debian x86_64 | 637,312 | 670,080 | +32,768 | 378,496 |
+
+Of the span, i18n slice 1 alone measured +12,344 on macOS
+(612,716 -> 625,060); the earlier commits were not individually measured
+(the unmeasured stretch this re-audit pays off). Debian measured on a clean
+`vm-test/vm-sync` archive of `fd31719`; `--version`/`--dump-config` smoke
+passed, `ldd` unchanged (libgcc/libm/libc only), and the release binary
+rendered the zh-CN menus correctly under tmux on the VM with
+`LANG=zh_CN.UTF-8`. Local smoke: tmux_grid 5 passed, msedit_diff 1 passed,
+release `test-panic-hook` pty_smoke 10 passed, `strings | grep -c
+DUN_TEST_PANIC` printed 0 on the budget binary.
