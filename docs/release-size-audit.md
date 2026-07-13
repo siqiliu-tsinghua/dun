@@ -414,3 +414,18 @@ binary nothing; the delta is the catalog lookups and table restructuring.
 
 Debian measured on a clean `vm-test/vm-sync` archive of `28d0c97`;
 `--version` smoke passed; VM scratch directory removed after recording.
+
+## 2026-07-13 i18n slice 3: dialog chrome (89cd9e4)
+
+Dialog/overlay chrome extraction (48 keys in ui_text.rs, the `{}` template
+mechanism with mismatch fallback, zh-CN translations) plus the help-window
+slice's follow-on. Cost per slice is tracking steady at ~8 KiB Debian per
+extraction batch:
+
+| Platform | Before | After | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 629,164 | 633,284 | +4,120 | 415,292 |
+| Debian x86_64 | 678,272 | 686,464 | +8,192 | 362,112 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `89cd9e4`;
+`--version` smoke passed; VM scratch directory removed after recording.
