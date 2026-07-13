@@ -77,3 +77,99 @@ fn every_menu_key_in_the_reference_translation_exists() {
         }
     }
 }
+
+#[test]
+fn translated_menus_never_overflow_a_narrow_terminal() {
+    // Translated labels are often wider than English ("新建" costs four
+    // cells before its mnemonic) and a translation value can be far longer
+    // than the English label ever suggested. Nothing may leak past the
+    // terminal edge, and the cut must land on display-width boundaries
+    // (user-raised risk 2026-07-13).
+    let shell = UiShell {
+        catalog: parse_catalog(
+            "menu.file = 文件\nmenu.file.new = 新建一个非常非常非常非常长的空缓冲区\nmenu.view = 视图与窗口管理\n",
+            "zh-CN",
+        )
+        .expect("parses"),
+        ..UiShell::default()
+    };
+    let (width, height) = (34u16, 12u16);
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let frame = shell.frame_for_workspace_with_menu_selection(
+        &workspace,
+        Rect::new(0, 0, width, height),
+        &[buffer_view],
+        Some(MenuSelection::menu_only(0)),
+    );
+    let mut surface = crate::surface::Surface::new(width, height, shell.theme.palette.editor);
+    crate::render::surface_frame::render_ui_frame_to_surface(&mut surface, &shell, &frame);
+
+    for y in 0..height {
+        let row = surface.row_text(y);
+        assert!(
+            display_width(row.trim_end()) <= width as usize,
+            "row {y} overflows {width} cols: {row:?}"
+        );
+    }
+    let all: String = (0..height).map(|y| surface.row_text(y)).collect();
+    let truncation = shell.glyphs.indicators.truncation;
+    assert!(
+        all.contains(truncation),
+        "an over-long label must truncate visibly"
+    );
+    assert!(
+        all.contains("新建一个"),
+        "the truncated label must keep its head"
+    );
+}
+
+#[test]
+fn rightmost_translated_menu_shifts_on_screen_instead_of_vanishing() {
+    // At 26 columns the translated menu bar cuts off before 帮助, but its
+    // mnemonic still opens it; the dropdown must shift left onto the screen
+    // rather than being clamped into nothing.
+    let text = include_str!("../../../../i18n/zh-CN.conf");
+    let shell = UiShell {
+        catalog: parse_catalog(text, "zh-CN").expect("shipped file parses"),
+        ..UiShell::default()
+    };
+    let area = Rect::new(0, 0, 26, 10);
+    let menu = shell.menu_bar(Some(MenuSelection::menu_only(3)));
+    let rect = clamp_menu_rect(dropdown_rect_for_menu(&shell, &menu, 3).unwrap(), area)
+        .expect("the dropdown must survive clamping");
+    assert!(
+        rect.x.saturating_add(rect.width) <= area.width,
+        "dropdown {rect:?} must sit fully inside {area:?}"
+    );
+
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "body");
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let frame = shell.frame_for_workspace_with_menu_selection(
+        &workspace,
+        area,
+        &[buffer_view],
+        Some(MenuSelection::menu_only(3)),
+    );
+    let mut surface = crate::surface::Surface::new(26, 10, shell.theme.palette.editor);
+    crate::render::surface_frame::render_ui_frame_to_surface(&mut surface, &shell, &frame);
+    let dropdown_rows: String = (1..10).map(|y| surface.row_text(y)).collect();
+    assert!(
+        dropdown_rows.contains("帮助 ("),
+        "the shifted dropdown must actually render its entry"
+    );
+
+    // Hit testing shares the shifted geometry: a click inside the visible
+    // dropdown runs the entry.
+    assert_eq!(
+        shell.menu_entry_command_at_in_area(
+            MenuSelection::menu_only(3),
+            rect.x + 2,
+            rect.y + 1,
+            area
+        ),
+        Some(EditorCommand::App(AppCommand::Help))
+    );
+}

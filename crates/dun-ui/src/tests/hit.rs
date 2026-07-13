@@ -288,3 +288,35 @@ fn overlay_hit_test_respects_file_dialog_list_boundaries() {
     assert_eq!(shell.hit_test_overlay_list(&overlay, area, 17, 9), Some(1));
     assert_eq!(shell.hit_test_overlay_list(&overlay, area, 17, 10), None);
 }
+
+#[test]
+fn dropdown_near_the_right_edge_shifts_left_instead_of_shrinking() {
+    let area = Rect::new(0, 0, 80, 24);
+
+    // Fits at its own x: untouched.
+    assert_eq!(
+        clamp_menu_rect(Rect::new(10, 1, 20, 8), area),
+        Some(Rect::new(10, 1, 20, 8))
+    );
+    // Would stick out on the right: same width, shifted left to the edge.
+    assert_eq!(
+        clamp_menu_rect(Rect::new(70, 1, 20, 8), area),
+        Some(Rect::new(60, 1, 20, 8))
+    );
+    // Opens entirely past the right edge (menu-bar item scrolled off a
+    // narrow terminal): still comes back fully on screen.
+    assert_eq!(
+        clamp_menu_rect(Rect::new(90, 1, 20, 8), area),
+        Some(Rect::new(60, 1, 20, 8))
+    );
+    // Wider than the whole area: pinned to the left edge at full area width.
+    assert_eq!(
+        clamp_menu_rect(Rect::new(10, 1, 100, 8), area),
+        Some(Rect::new(0, 1, 80, 8))
+    );
+    // Too small to hold a bordered panel at all.
+    assert_eq!(
+        clamp_menu_rect(Rect::new(0, 1, 20, 8), Rect::new(0, 0, 2, 24)),
+        None
+    );
+}

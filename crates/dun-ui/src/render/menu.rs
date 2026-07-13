@@ -39,20 +39,23 @@ pub(crate) fn dropdown_rect_for_menu(
     Some(Rect::new(start, 1, width.max(3), height.max(3)))
 }
 
+/// Keep a dropdown fully on screen. A panel that would stick out on the
+/// right shifts left instead of being shrunk away — translated labels widen
+/// menus, and msedit keeps the panel visible rather than punishing the
+/// rightmost menu. Height still shrinks in place; entry scrolling covers it.
 pub(crate) fn clamp_menu_rect(rect: Rect, area: Rect) -> Option<Rect> {
     if area.width == 0 || area.height <= 1 {
         return None;
     }
 
+    let width = rect.width.min(area.width);
     let x = rect
         .x
-        .min(area.x.saturating_add(area.width).saturating_sub(1));
+        .min(area.x.saturating_add(area.width).saturating_sub(width))
+        .max(area.x);
     let y = rect
         .y
         .min(area.y.saturating_add(area.height).saturating_sub(1));
-    let width = rect
-        .width
-        .min(area.x.saturating_add(area.width).saturating_sub(x));
     let height = rect
         .height
         .min(area.y.saturating_add(area.height).saturating_sub(y));
