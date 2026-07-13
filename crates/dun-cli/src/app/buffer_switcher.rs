@@ -3,7 +3,9 @@ use crate::*;
 impl AppState {
     pub(crate) fn start_buffer_switcher(&mut self) {
         if self.buffers.len() <= 1 {
-            self.set_status("Buffer switcher: only one buffer");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_SWITCHER_ONLY_ONE).to_string(),
+            );
             return;
         }
 
@@ -14,7 +16,9 @@ impl AppState {
         self.clear_active_menu();
         self.pending_keys.clear();
         self.buffer_switcher = Some(BufferSwitcherState::new(selected, self.buffers.len()));
-        self.set_status("Switch buffer");
+        self.set_status(
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_SWITCHER_OPENED).to_string(),
+        );
     }
 
     pub(crate) fn handle_buffer_switcher_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
@@ -39,7 +43,9 @@ impl AppState {
 
     fn cancel_buffer_switcher(&mut self) {
         self.buffer_switcher = None;
-        self.set_status("Switch buffer cancelled");
+        self.set_status(
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_SWITCHER_CANCELLED).to_string(),
+        );
     }
 
     pub(crate) fn move_buffer_switcher_selection(&mut self, delta: isize) {
@@ -75,7 +81,9 @@ impl AppState {
             return;
         };
         let Some(index) = switcher.selected_index(self.buffers.len()) else {
-            self.set_status("Switch buffer failed: no buffers");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_SWITCHER_NO_BUFFERS).to_string(),
+            );
             return;
         };
         self.switch_to_buffer_index(index);
@@ -94,16 +102,25 @@ impl AppState {
 
     fn switch_to_buffer_index(&mut self, index: usize) {
         let Some(buffer) = self.buffers.get(index) else {
-            self.set_status("Switch buffer failed: buffer is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_SWITCHER_BUFFER_MISSING)
+                    .to_string(),
+            );
             return;
         };
         let buffer_id = buffer.id;
         let display_name = self.buffer_display_name(buffer_id);
         if self.focus_window_for_buffer(buffer_id) {
-            self.set_status(format!("Switched to {display_name}"));
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_SWITCHER_SWITCHED,
+                &[&display_name],
+            ));
         } else {
-            self.set_status(format!(
-                "Switch buffer failed: {display_name} has no window"
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_SWITCHER_NO_WINDOW,
+                &[&display_name],
             ));
         }
     }

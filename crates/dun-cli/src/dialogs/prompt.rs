@@ -28,7 +28,15 @@ impl PromptState {
 
     #[cfg(test)]
     pub(crate) fn status_text(&self) -> String {
-        format!("{}{}", self.kind.label(), self.input.as_str())
+        let label = match self.kind {
+            PromptKind::CommandLine => "Command: ",
+            PromptKind::Find => "Find: ",
+            PromptKind::ReplaceFind => "Find to replace: ",
+            PromptKind::ReplaceWith => "Replace with: ",
+            PromptKind::GoToLine => "Go To Line: ",
+            PromptKind::RunCommand => "Run Command: ",
+        };
+        format!("{label}{}", self.input.as_str())
     }
 
     pub(crate) fn detach_history(&mut self) {
@@ -147,25 +155,27 @@ impl PromptKind {
     /// foo". It is not drawn in the modal — the modal has a title — so it has
     /// to read as a sentence opener on its own. "Replace Find:" did not: the
     /// status line said "Replace Find: type to search", which is not English.
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::CommandLine => "Command: ",
-            Self::Find => "Find: ",
-            Self::ReplaceFind => "Find to replace: ",
-            Self::ReplaceWith => "Replace with: ",
-            Self::GoToLine => "Go To Line: ",
-            Self::RunCommand => "Run Command: ",
-        }
+    pub(crate) fn label(self, catalog: &TextCatalog) -> &str {
+        let key = match self {
+            Self::CommandLine => ui_text::PROMPT_COMMAND_LABEL,
+            Self::Find => ui_text::PROMPT_FIND_LABEL,
+            Self::ReplaceFind => ui_text::PROMPT_REPLACE_FIND_LABEL,
+            Self::ReplaceWith => ui_text::PROMPT_REPLACE_WITH_LABEL,
+            Self::GoToLine => ui_text::PROMPT_GO_TO_LINE_LABEL,
+            Self::RunCommand => ui_text::PROMPT_RUN_COMMAND_LABEL,
+        };
+        ui_text::tr(catalog, key)
     }
 
-    pub(crate) const fn name(self) -> &'static str {
-        match self {
-            Self::CommandLine => "Command",
-            Self::Find => "Find",
-            Self::ReplaceFind | Self::ReplaceWith => "Replace",
-            Self::GoToLine => "Go To Line",
-            Self::RunCommand => "Run Command",
-        }
+    pub(crate) fn name(self, catalog: &TextCatalog) -> &str {
+        let key = match self {
+            Self::CommandLine => ui_text::PROMPT_COMMAND_NAME,
+            Self::Find => ui_text::PROMPT_FIND_NAME,
+            Self::ReplaceFind | Self::ReplaceWith => ui_text::PROMPT_REPLACE_TITLE,
+            Self::GoToLine => ui_text::PROMPT_GO_TO_LINE_NAME,
+            Self::RunCommand => ui_text::PROMPT_RUN_COMMAND_NAME,
+        };
+        ui_text::tr(catalog, key)
     }
 
     pub(crate) const fn is_replace(self) -> bool {

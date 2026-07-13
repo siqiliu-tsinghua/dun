@@ -13,7 +13,9 @@ impl AppState {
             }
         };
         let Some((command, args)) = tokens.split_first() else {
-            self.set_status("Command cancelled");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMMAND_CANCELLED).to_string(),
+            );
             return;
         };
 
@@ -55,7 +57,11 @@ impl AppState {
     fn run_command_id_command(&mut self, command: &str, args: &[String]) {
         match command_from_id(command) {
             Ok(command) => self.run_no_arg_command(args, command),
-            Err(_) => self.set_status(format!("Unknown command: {command}")),
+            Err(_) => self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_COMMAND_UNKNOWN,
+                &[command],
+            )),
         }
     }
 
@@ -73,7 +79,9 @@ impl AppState {
                     theme_command_values()
                 )),
             },
-            _ => self.set_status("Command failed: theme expects zero or one theme name"),
+            _ => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMMAND_THEME_ARITY).to_string(),
+            ),
         }
     }
 
@@ -81,37 +89,55 @@ impl AppState {
         match args {
             [] => {
                 let Some(highlighter) = self.highlighter.as_ref() else {
-                    self.set_status("No syntax-highlight plugin configured");
+                    self.set_status(
+                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_NOT_CONFIGURED)
+                            .to_string(),
+                    );
                     return;
                 };
-                let state = if highlighter.is_loaded() {
-                    "loaded"
+                let plugin_id = highlighter.plugin_id().to_string();
+                let key = if highlighter.is_loaded() {
+                    ui_text::STATUS_PLUGIN_IS_LOADED
                 } else {
-                    "unloaded"
+                    ui_text::STATUS_PLUGIN_IS_UNLOADED
                 };
-                self.set_status(format!("Plugin {} is {state}", highlighter.plugin_id()));
+                self.set_status(ui_text::tr_fmt(&self.shell.catalog, key, &[&plugin_id]));
             }
             [action] if action == "unload" => {
                 let Some(highlighter) = self.highlighter.as_mut() else {
-                    self.set_status("No syntax-highlight plugin configured");
+                    self.set_status(
+                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_NOT_CONFIGURED)
+                            .to_string(),
+                    );
                     return;
                 };
                 let plugin_id = highlighter.plugin_id().to_string();
                 highlighter.unload();
-                self.set_status(format!("Plugin {plugin_id} unloaded"));
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_PLUGIN_UNLOADED,
+                    &[&plugin_id],
+                ));
             }
             [action] if action == "load" => {
                 let Some(highlighter) = self.highlighter.as_mut() else {
-                    self.set_status("No syntax-highlight plugin configured");
+                    self.set_status(
+                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_NOT_CONFIGURED)
+                            .to_string(),
+                    );
                     return;
                 };
                 let plugin_id = highlighter.plugin_id().to_string();
                 highlighter.load();
-                self.set_status(format!(
-                    "Plugin {plugin_id} loaded (starts on the next edit)"
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_PLUGIN_LOADED,
+                    &[&plugin_id],
                 ));
             }
-            _ => self.set_status("Usage: plugin [load|unload]"),
+            _ => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_USAGE).to_string(),
+            ),
         }
     }
 
@@ -119,7 +145,9 @@ impl AppState {
         match args {
             [] => self.handle_app_command(&AppCommand::RunCommand),
             [command] => self.run_external_command_to_buffer(command),
-            _ => self.set_status("Command failed: run expects zero args or one quoted command"),
+            _ => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMMAND_RUN_ARITY).to_string(),
+            ),
         }
     }
 
@@ -144,14 +172,20 @@ impl AppState {
         match args {
             [] => self.open_search_results_screen(),
             [index] => self.jump_search_result(index),
-            _ => self.set_status("Command failed: results expects zero args or one match number"),
+            _ => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMMAND_RESULTS_ARITY).to_string(),
+            ),
         }
     }
 
     fn set_runtime_theme(&mut self, theme: ThemeName) {
         self.shell.theme = Theme::for_profile(theme, self.shell.profile);
         self.refresh_config_diagnostics_buffer();
-        self.set_status(format!("Theme: {}", theme.as_str()));
+        self.set_status(ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::STATUS_THEME_CHANGED,
+            &[theme.as_str()],
+        ));
     }
 
     pub(crate) fn run_open_command(&mut self, args: &[String]) {
@@ -159,14 +193,22 @@ impl AppState {
             [] => self.handle_file_command(&FileCommand::Open),
             [path] => {
                 if self.focused_buffer_is_dirty() {
-                    self.set_status("Open failed: focused buffer has unsaved changes");
+                    self.set_status(
+                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_OPEN_DIRTY).to_string(),
+                    );
                     return;
                 }
                 if let Err(error) = self.open_file_path(PathBuf::from(path)) {
-                    self.set_status(format!("Open failed: {error}"));
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_OPEN_FAILED,
+                        &[&error.to_string()],
+                    ));
                 }
             }
-            _ => self.set_status("Command failed: open expects zero or one path"),
+            _ => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMMAND_OPEN_ARITY).to_string(),
+            ),
         }
     }
 
@@ -175,10 +217,16 @@ impl AppState {
             [] => self.handle_file_command(&FileCommand::Save),
             [path] => {
                 if let Err(error) = self.save_focused_buffer_as(PathBuf::from(path)) {
-                    self.set_status(format!("Save As failed: {error}"));
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_SAVE_AS_FAILED,
+                        &[&error.to_string()],
+                    ));
                 }
             }
-            _ => self.set_status("Command failed: save expects zero or one path"),
+            _ => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMMAND_SAVE_ARITY).to_string(),
+            ),
         }
     }
 
@@ -187,18 +235,25 @@ impl AppState {
             [] => self.handle_file_command(&FileCommand::SaveAs),
             [path] => {
                 if let Err(error) = self.save_focused_buffer_as(PathBuf::from(path)) {
-                    self.set_status(format!("Save As failed: {error}"));
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_SAVE_AS_FAILED,
+                        &[&error.to_string()],
+                    ));
                 }
             }
-            _ => self.set_status("Command failed: save-as expects zero or one path"),
+            _ => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMMAND_SAVE_AS_ARITY).to_string(),
+            ),
         }
     }
 
     fn run_no_arg_command(&mut self, args: &[String], command: EditorCommand) {
         if !args.is_empty() {
-            self.set_status(format!(
-                "Command failed: {} expects no arguments",
-                command_id(&command)
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_COMMAND_NO_ARGUMENTS,
+                &[command_id(&command)],
             ));
             return;
         }
@@ -213,7 +268,9 @@ impl AppState {
                 self.last_find_query = Some(query.clone());
                 self.find_in_focused_buffer(SearchSpec::parse(query), SearchDirection::Forward);
             }
-            _ => self.set_status("Command failed: find expects zero or one query"),
+            _ => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMMAND_FIND_ARITY).to_string(),
+            ),
         }
     }
 
@@ -229,7 +286,7 @@ impl AppState {
                 self.replace_in_focused_buffer(SearchSpec::parse(query), replacement);
             }
             _ => self.set_status(
-                "Command failed: replace expects query and replacement, or all query replacement",
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMMAND_REPLACE_ARITY).to_string(),
             ),
         }
     }
@@ -238,7 +295,13 @@ impl AppState {
         match args {
             [] => self.handle_edit_command(&EditCommand::GoToLine),
             [line] => self.go_to_line(line),
-            _ => self.set_status("Command failed: go-to-line expects one line number"),
+            _ => self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_COMMAND_GO_TO_LINE_ARITY,
+                )
+                .to_string(),
+            ),
         }
     }
 }

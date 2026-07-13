@@ -254,8 +254,25 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   letters (s)/(d)/(c)/(r)/(a) stay functional English keys appended by
   code. Stateful `self.message` strings (dialog event messages) move to
   slice 4 with the status work.
-- [ ] Extract status messages into parameterized templates — the largest
-  churn, deliberately last.
+- [x] Extract status messages into parameterized templates — slice 4a,
+  landed 2026-07-13 via Codex brief-022 (gated: scope/fmt/clippy/617 tests
+  reproduced, zh reviewed, mutation-checked): 172 call sites in `app/*.rs`
+  converted, 158 keys (148 `status.*` + 10 `prompt.*.label/name`), table
+  now 206 unique keys with a uniqueness test; three behavior tests pin the
+  exact English baseline and the zh output through real command paths.
+  Debian size measurement pending the next VM session (macOS 645,580,
+  +12,296).
+- [ ] Slice 4b: the 50 helper-composed status call sites brief-022
+  deferred — strings built by `buffer_error_text`, `workspace_error_text`,
+  `opened_file_status`/`reloaded_file_status`,
+  `status_with_atomic_temp_report`, `replacement_status_text`, `axis_name`,
+  `command_run_status`, command-line parse/help text,
+  `ConfigDiagnosticsSection::label`, `PromptCompletionState::status_text`,
+  the config-source reload status, and the i18n loader diagnostic itself.
+  These need catalog parameters threaded through `files/`, `help/`,
+  `command_line.rs`, and `command_output/` helpers; also decide `Untitled`
+  (lives in dun-core, no catalog access). Then the dialog event messages
+  stored in `FileDialogState::message`.
 - [ ] Extend `i18n/` to more common languages (ja/de/fr/es) once the
   extraction slices settle the key set.
 - [ ] Measure the size delta per batch; the mechanism must stay lean since

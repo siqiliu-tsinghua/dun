@@ -114,7 +114,9 @@ impl AppState {
 
     fn cancel_confirm(&mut self) {
         self.confirm = None;
-        self.set_status("Unsaved changes cancelled");
+        self.set_status(
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_UNSAVED_CANCELLED).to_string(),
+        );
     }
 
     fn save_confirmed_action(&mut self) {
@@ -138,7 +140,11 @@ impl AppState {
 
         match self.save_buffer(confirm.buffer_id) {
             Ok(_) => self.continue_pending_action(confirm.action),
-            Err(error) => self.set_status(format!("Save failed: {error}")),
+            Err(error) => self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_SAVE_FAILED,
+                &[&error.to_string()],
+            )),
         }
     }
 
@@ -173,7 +179,11 @@ impl AppState {
             }
             PendingAction::ReloadBuffer => {
                 if let Err(error) = self.reload_focused_buffer() {
-                    self.set_status(format!("Reload failed: {error}"));
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_RELOAD_FAILED,
+                        &[&error.to_string()],
+                    ));
                 }
             }
             PendingAction::CloseFile => self.close_focused_file_unchecked(),
@@ -229,9 +239,11 @@ impl AppState {
 
     fn cancel_file_dialog(&mut self) {
         if let Some(dialog) = self.file_dialog.take() {
-            self.set_status(format!(
-                "{} cancelled",
-                dialog.kind.name(&self.shell.catalog)
+            let name = dialog.kind.name(&self.shell.catalog).to_string();
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_DIALOG_CANCELLED,
+                &[&name],
             ));
         }
     }
@@ -321,9 +333,11 @@ impl AppState {
     fn finish_file_dialog_submit(&mut self, dialog: FileDialogState, submit: FileDialogSubmit) {
         match submit {
             FileDialogSubmit::Cancel => {
-                self.set_status(format!(
-                    "{} cancelled",
-                    dialog.kind.name(&self.shell.catalog)
+                let name = dialog.kind.name(&self.shell.catalog).to_string();
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_DIALOG_CANCELLED,
+                    &[&name],
                 ));
             }
             FileDialogSubmit::ContinueEditing => {
@@ -332,7 +346,11 @@ impl AppState {
             FileDialogSubmit::Path(path) => match dialog.kind {
                 FileDialogKind::Open => {
                     if let Err(error) = self.open_file_path(path.clone()) {
-                        let status = format!("Open failed: {error}");
+                        let status = ui_text::tr_fmt(
+                            &self.shell.catalog,
+                            ui_text::STATUS_OPEN_FAILED,
+                            &[&error.to_string()],
+                        );
                         let mut dialog = dialog;
                         dialog.message = Some(status.clone());
                         self.file_dialog = Some(dialog);
@@ -343,7 +361,11 @@ impl AppState {
                 }
                 FileDialogKind::SaveAs => {
                     if let Err(error) = self.save_focused_buffer_as(path.clone()) {
-                        let status = format!("Save As failed: {error}");
+                        let status = ui_text::tr_fmt(
+                            &self.shell.catalog,
+                            ui_text::STATUS_SAVE_AS_FAILED,
+                            &[&error.to_string()],
+                        );
                         let mut dialog = dialog;
                         dialog.message = Some(status.clone());
                         self.file_dialog = Some(dialog);

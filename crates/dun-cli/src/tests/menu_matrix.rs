@@ -185,7 +185,7 @@ fn modal_name(app: &AppState) -> String {
         open.push(dialog.kind.name(&app.shell.catalog));
     }
     if let Some(prompt) = &app.prompt {
-        open.push(prompt.kind.name());
+        open.push(prompt.kind.name(&app.shell.catalog));
     }
     if app.confirm.is_some() {
         open.push("Unsaved Changes");

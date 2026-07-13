@@ -43,7 +43,12 @@ impl AppState {
         let preview = prompt.preview.clone();
         if input.is_empty() {
             self.restore_prompt_preview(preview.as_ref());
-            self.status_message = Some(format!("{}type to search", kind.label()));
+            let label = kind.label(&self.shell.catalog).to_string();
+            self.status_message = Some(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_PROMPT_TYPE_TO_SEARCH,
+                &[&label],
+            ));
             return;
         }
 
@@ -61,13 +66,23 @@ impl AppState {
             .map(|preview| preview.buffer_id)
             .or_else(|| self.focused_buffer_id());
         let Some(buffer_id) = buffer_id else {
-            self.status_message = Some(format!("{}focused buffer is missing", kind.name()));
+            let name = kind.name(&self.shell.catalog).to_string();
+            self.status_message = Some(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_PROMPT_BUFFER_MISSING,
+                &[&name],
+            ));
             return;
         };
         self.focus_window_for_buffer(buffer_id);
 
         let Some(buffer) = self.buffer_state_mut(buffer_id) else {
-            self.status_message = Some(format!("{}focused buffer is missing", kind.name()));
+            let name = kind.name(&self.shell.catalog).to_string();
+            self.status_message = Some(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_PROMPT_BUFFER_MISSING,
+                &[&name],
+            ));
             return;
         };
         let matches = buffer
@@ -76,8 +91,12 @@ impl AppState {
         if matches.is_empty() {
             buffer.buffer.clear_selection();
             buffer.set_search(spec.clone(), matches, None);
-            self.status_message =
-                Some(format!("{}no matches for {}", kind.label(), spec.display()));
+            let label = kind.label(&self.shell.catalog).to_string();
+            self.status_message = Some(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_PROMPT_NO_MATCHES,
+                &[&label, &spec.display()],
+            ));
             return;
         }
 
@@ -94,12 +113,16 @@ impl AppState {
         let _ = buffer.buffer.select(selected.start, selected.end);
         let match_count = matches.len();
         buffer.set_search(spec.clone(), matches, Some(selection.index));
-        self.status_message = Some(format!(
-            "{}{}/{} {}",
-            kind.label(),
-            selection.index + 1,
-            match_count,
-            spec.display()
+        let label = kind.label(&self.shell.catalog).to_string();
+        self.status_message = Some(ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::STATUS_PROMPT_MATCH,
+            &[
+                &label,
+                &(selection.index + 1).to_string(),
+                &match_count.to_string(),
+                &spec.display(),
+            ],
         ));
     }
 
@@ -126,15 +149,26 @@ impl AppState {
         self.pending_keys.clear();
 
         if self.confirm.is_some() {
-            self.set_status("Paste ignored during confirmation");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_PASTE_IGNORED_CONFIRMATION,
+                )
+                .to_string(),
+            );
             return;
         }
         if self.replace_confirm.is_some() {
-            self.set_status("Paste ignored during replace confirmation");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_IGNORED_REPLACE).to_string(),
+            );
             return;
         }
         if self.buffer_switcher.is_some() {
-            self.set_status("Paste ignored during buffer switcher");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_IGNORED_SWITCHER)
+                    .to_string(),
+            );
             return;
         }
 
@@ -166,7 +200,9 @@ impl AppState {
     }
 
     pub(crate) fn note_right_click_paste(&mut self) {
-        self.set_status("Paste: waiting for terminal bracketed paste data");
+        self.set_status(
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_WAITING).to_string(),
+        );
     }
 
     pub(crate) fn handle_prompt_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
@@ -256,7 +292,9 @@ impl AppState {
         let input = prompt.input.as_str().to_string();
         if prompt.input.cursor_index != input.len() {
             prompt.clear_completion();
-            self.status_message = Some("Command completion: move cursor to end".to_string());
+            self.status_message = Some(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMPLETION_CURSOR_END).to_string(),
+            );
             return;
         }
 
@@ -275,19 +313,28 @@ impl AppState {
         match completion {
             CommandCompletion::None => {
                 prompt.clear_completion();
-                self.status_message = Some("Command completion: no matches".to_string());
+                self.status_message = Some(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMPLETION_NO_MATCHES)
+                        .to_string(),
+                );
             }
             CommandCompletion::Unique(text) => {
                 prompt.detach_history();
                 prompt.clear_completion();
                 prompt.input.set_text(text);
-                self.status_message = Some("Command completion".to_string());
+                self.status_message = Some(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMPLETION_READY).to_string(),
+                );
             }
             CommandCompletion::CommonPrefix(text, count) => {
                 prompt.detach_history();
                 prompt.clear_completion();
                 prompt.input.set_text(text);
-                self.status_message = Some(format!("Command completion: {count} matches"));
+                self.status_message = Some(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_COMPLETION_MATCHES,
+                    &[&count.to_string()],
+                ));
             }
             CommandCompletion::Candidates(candidates) => {
                 prompt.completion = Some(PromptCompletionState::new(input, candidates));
@@ -408,7 +455,12 @@ impl AppState {
             if prompt.kind.is_replace() {
                 self.pending_replace_query = None;
             }
-            self.set_status(format!("{} cancelled", prompt.kind.name()));
+            let name = prompt.kind.name(&self.shell.catalog).to_string();
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_PROMPT_CANCELLED,
+                &[&name],
+            ));
         }
     }
 
@@ -422,7 +474,12 @@ impl AppState {
                 let input = prompt.input.as_str().trim().to_string();
                 let spec = SearchSpec::parse(&input);
                 if spec.is_empty() {
-                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    let name = prompt.kind.name(&self.shell.catalog).to_string();
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PROMPT_CANCELLED,
+                        &[&name],
+                    ));
                     return;
                 }
 
@@ -434,7 +491,12 @@ impl AppState {
                 let spec = SearchSpec::parse(&input);
                 if spec.is_empty() {
                     self.pending_replace_query = None;
-                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    let name = prompt.kind.name(&self.shell.catalog).to_string();
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PROMPT_CANCELLED,
+                        &[&name],
+                    ));
                     return;
                 }
 
@@ -443,7 +505,10 @@ impl AppState {
             }
             PromptKind::ReplaceWith => {
                 let Some(query) = self.pending_replace_query.take() else {
-                    self.set_status("Replace: no query");
+                    self.set_status(
+                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_REPLACE_NO_QUERY)
+                            .to_string(),
+                    );
                     return;
                 };
 
@@ -456,7 +521,12 @@ impl AppState {
             PromptKind::GoToLine => {
                 let input = prompt.input.as_str().trim();
                 if input.is_empty() {
-                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    let name = prompt.kind.name(&self.shell.catalog).to_string();
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PROMPT_CANCELLED,
+                        &[&name],
+                    ));
                     return;
                 }
 
@@ -465,7 +535,12 @@ impl AppState {
             PromptKind::RunCommand => {
                 let input = prompt.input.as_str().trim().to_string();
                 if input.is_empty() {
-                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    let name = prompt.kind.name(&self.shell.catalog).to_string();
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PROMPT_CANCELLED,
+                        &[&name],
+                    ));
                     return;
                 }
 
@@ -475,7 +550,12 @@ impl AppState {
             PromptKind::CommandLine => {
                 let input = prompt.input.as_str().trim().to_string();
                 if input.is_empty() {
-                    self.set_status(format!("{} cancelled", prompt.kind.name()));
+                    let name = prompt.kind.name(&self.shell.catalog).to_string();
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PROMPT_CANCELLED,
+                        &[&name],
+                    ));
                     return;
                 }
 

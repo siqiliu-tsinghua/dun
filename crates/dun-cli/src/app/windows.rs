@@ -4,20 +4,57 @@ impl AppState {
     pub(crate) fn handle_window_command(&mut self, command: &WindowCommand) {
         match command {
             WindowCommand::SplitHorizontal => {
-                self.split_focused(Axis::Horizontal, "Split horizontally")
+                self.split_focused(Axis::Horizontal, ui_text::STATUS_WINDOW_SPLIT_HORIZONTAL)
             }
-            WindowCommand::SplitVertical => self.split_focused(Axis::Vertical, "Split vertically"),
-            WindowCommand::FocusLeft => self.focus_window_direction(Direction::Left, "left"),
-            WindowCommand::FocusRight => self.focus_window_direction(Direction::Right, "right"),
-            WindowCommand::FocusUp => self.focus_window_direction(Direction::Up, "up"),
-            WindowCommand::FocusDown => self.focus_window_direction(Direction::Down, "down"),
-            WindowCommand::ResizeLeft => self.resize_window_direction(Direction::Left, "left"),
-            WindowCommand::ResizeRight => self.resize_window_direction(Direction::Right, "right"),
-            WindowCommand::ResizeUp => self.resize_window_direction(Direction::Up, "up"),
-            WindowCommand::ResizeDown => self.resize_window_direction(Direction::Down, "down"),
+            WindowCommand::SplitVertical => {
+                self.split_focused(Axis::Vertical, ui_text::STATUS_WINDOW_SPLIT_VERTICAL)
+            }
+            WindowCommand::FocusLeft => self.focus_window_direction(
+                Direction::Left,
+                ui_text::STATUS_WINDOW_FOCUSED_LEFT,
+                "left",
+            ),
+            WindowCommand::FocusRight => self.focus_window_direction(
+                Direction::Right,
+                ui_text::STATUS_WINDOW_FOCUSED_RIGHT,
+                "right",
+            ),
+            WindowCommand::FocusUp => {
+                self.focus_window_direction(Direction::Up, ui_text::STATUS_WINDOW_FOCUSED_UP, "up")
+            }
+            WindowCommand::FocusDown => self.focus_window_direction(
+                Direction::Down,
+                ui_text::STATUS_WINDOW_FOCUSED_DOWN,
+                "down",
+            ),
+            WindowCommand::ResizeLeft => self.resize_window_direction(
+                Direction::Left,
+                ui_text::STATUS_WINDOW_RESIZED_LEFT,
+                "left",
+            ),
+            WindowCommand::ResizeRight => self.resize_window_direction(
+                Direction::Right,
+                ui_text::STATUS_WINDOW_RESIZED_RIGHT,
+                "right",
+            ),
+            WindowCommand::ResizeUp => {
+                self.resize_window_direction(Direction::Up, ui_text::STATUS_WINDOW_RESIZED_UP, "up")
+            }
+            WindowCommand::ResizeDown => self.resize_window_direction(
+                Direction::Down,
+                ui_text::STATUS_WINDOW_RESIZED_DOWN,
+                "down",
+            ),
             WindowCommand::Equalize => match self.workspace.equalize() {
-                0 => self.set_status("Splits are already even"),
-                count => self.set_status(format!("Equalized {count} split(s)")),
+                0 => self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_SPLITS_EVEN)
+                        .to_string(),
+                ),
+                count => self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_WINDOW_EQUALIZED,
+                    &[&count.to_string()],
+                )),
             },
             WindowCommand::RotateSplit => match self.workspace.rotate_focused_split() {
                 Ok(axis) => {
@@ -29,21 +66,32 @@ impl AppState {
                 )),
             },
             WindowCommand::Collapse => match self.workspace.collapse_focused() {
-                Ok(()) => self.set_status("Collapsed pane"),
+                Ok(()) => self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_COLLAPSED).to_string(),
+                ),
                 Err(error) => {
                     self.set_status(format!("Collapse failed: {}", workspace_error_text(error)))
                 }
             },
             WindowCommand::Expand => match self.workspace.expand_focused() {
-                Ok(true) => self.set_status("Expanded pane"),
-                Ok(false) => self.set_status("Pane is already expanded"),
+                Ok(true) => self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_EXPANDED).to_string(),
+                ),
+                Ok(false) => self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_ALREADY_EXPANDED)
+                        .to_string(),
+                ),
                 Err(error) => {
                     self.set_status(format!("Expand failed: {}", workspace_error_text(error)))
                 }
             },
             WindowCommand::ToggleCollapse => match self.workspace.toggle_focused_collapse() {
-                Ok(true) => self.set_status("Collapsed pane"),
-                Ok(false) => self.set_status("Expanded pane"),
+                Ok(true) => self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_COLLAPSED).to_string(),
+                ),
+                Ok(false) => self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_EXPANDED).to_string(),
+                ),
                 Err(error) => self.set_status(format!(
                     "Toggle collapse failed: {}",
                     workspace_error_text(error)
@@ -61,12 +109,17 @@ impl AppState {
         }
     }
 
-    fn focus_window_direction(&mut self, direction: Direction, label: &str) {
+    fn focus_window_direction(
+        &mut self,
+        direction: Direction,
+        success: ui_text::TextKey,
+        label: &str,
+    ) {
         match self
             .workspace
             .focus_direction(direction, self.workspace_area)
         {
-            Ok(_) => self.set_status(format!("Focused {label}")),
+            Ok(_) => self.set_status(ui_text::tr(&self.shell.catalog, success).to_string()),
             Err(error) => self.set_status(format!(
                 "Focus {label} failed: {}",
                 workspace_error_text(error)
@@ -74,9 +127,14 @@ impl AppState {
         }
     }
 
-    fn resize_window_direction(&mut self, direction: Direction, label: &str) {
+    fn resize_window_direction(
+        &mut self,
+        direction: Direction,
+        success: ui_text::TextKey,
+        label: &str,
+    ) {
         match self.workspace.resize_focused(direction) {
-            Ok(_) => self.set_status(format!("Resized {label}")),
+            Ok(_) => self.set_status(ui_text::tr(&self.shell.catalog, success).to_string()),
             Err(error) => self.set_status(format!(
                 "Resize {label} failed: {}",
                 workspace_error_text(error)
@@ -84,7 +142,7 @@ impl AppState {
         }
     }
 
-    fn split_focused(&mut self, axis: Axis, success_status: &'static str) {
+    fn split_focused(&mut self, axis: Axis, success_status: ui_text::TextKey) {
         let window_id = match self.workspace.split_focused(axis) {
             Ok(window_id) => window_id,
             Err(error) => {
@@ -107,7 +165,7 @@ impl AppState {
             ));
         }
 
-        self.set_status(success_status);
+        self.set_status(ui_text::tr(&self.shell.catalog, success_status).to_string());
     }
 
     /// `file.close`: close the focused *file*, which is what a File menu's
@@ -138,7 +196,11 @@ impl AppState {
             // refusing, the way msedit and Notepad behave.
             self.reset_focused_to_untitled();
         }
-        self.set_status(format!("Closed {name}"));
+        self.set_status(ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::STATUS_WINDOW_CLOSED_ITEM,
+            &[&name],
+        ));
     }
 
     pub(crate) fn close_focused_window_unchecked(&mut self) {
@@ -155,7 +217,9 @@ impl AppState {
                 if let Some(buffer_id) = return_buffer_id {
                     self.focus_window_for_buffer(buffer_id);
                 }
-                self.set_status("Closed window");
+                self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_CLOSED).to_string(),
+                );
             }
             Err(error) => {
                 self.set_status(format!("Close failed: {}", workspace_error_text(error)));
@@ -165,7 +229,9 @@ impl AppState {
 
     pub(crate) fn only_focused_window(&mut self) {
         if self.workspace.window_count() <= 1 {
-            self.set_status("Already the only window");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_ONLY_ONE).to_string(),
+            );
             return;
         }
 
@@ -184,7 +250,11 @@ impl AppState {
                 for window in removed {
                     self.drop_buffer_if_unreferenced(window.buffer_id);
                 }
-                self.set_status(format!("Closed {closed} other window(s)"));
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_WINDOW_CLOSED_OTHERS,
+                    &[&closed.to_string()],
+                ));
             }
             Err(error) => {
                 self.set_status(format!(

@@ -19,11 +19,23 @@ impl AppState {
         }
 
         let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
-            self.set_status("Run command failed: focused window is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_RUN_FOCUSED_WINDOW_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
         let Ok(window) = self.workspace.window(window_id) else {
-            self.set_status("Run command failed: output window is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_RUN_OUTPUT_WINDOW_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
         let buffer_id = window.buffer_id;
@@ -70,7 +82,11 @@ impl AppState {
     }
 
     pub(crate) fn run_external_command_to_buffer(&mut self, input: &str) {
-        self.set_status(format!("Running command: {input}"));
+        self.set_status(ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::STATUS_RUN_RUNNING,
+            &[input],
+        ));
         match run_command_capture(
             input,
             COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES,
@@ -82,7 +98,11 @@ impl AppState {
                 self.set_status(status);
             }
             Err(error) => {
-                self.set_status(format!("Run command failed: {error}"));
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_RUN_FAILED,
+                    &[&error.to_string()],
+                ));
             }
         }
     }

@@ -72,7 +72,11 @@ impl AppState {
                 });
             }
             Err(message) => {
-                self.set_status(format!("Plugin {plugin_id} failed: {message}"));
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_PLUGIN_FAILED,
+                    &[plugin_id, &message],
+                ));
             }
         }
     }

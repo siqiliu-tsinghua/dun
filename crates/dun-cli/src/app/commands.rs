@@ -79,19 +79,31 @@ impl AppState {
                     true
                 }
                 Key::Char('n') | Key::Char('N') => {
-                    self.move_focused_numbered_aux_row(1, "Search Results");
+                    let label =
+                        ui_text::tr(&self.shell.catalog, ui_text::WINDOW_SEARCH_RESULTS_TITLE)
+                            .to_string();
+                    self.move_focused_numbered_aux_row(1, &label);
                     true
                 }
                 Key::Char('p') | Key::Char('P') => {
-                    self.move_focused_numbered_aux_row(-1, "Search Results");
+                    let label =
+                        ui_text::tr(&self.shell.catalog, ui_text::WINDOW_SEARCH_RESULTS_TITLE)
+                            .to_string();
+                    self.move_focused_numbered_aux_row(-1, &label);
                     true
                 }
                 Key::Home => {
-                    self.focus_first_numbered_aux_row("Search Results");
+                    let label =
+                        ui_text::tr(&self.shell.catalog, ui_text::WINDOW_SEARCH_RESULTS_TITLE)
+                            .to_string();
+                    self.focus_first_numbered_aux_row(&label);
                     true
                 }
                 Key::End => {
-                    self.focus_last_numbered_aux_row("Search Results");
+                    let label =
+                        ui_text::tr(&self.shell.catalog, ui_text::WINDOW_SEARCH_RESULTS_TITLE)
+                            .to_string();
+                    self.focus_last_numbered_aux_row(&label);
                     true
                 }
                 _ => false,
@@ -173,7 +185,7 @@ impl AppState {
         self.file_dialog = None;
         self.buffer_switcher = None;
         self.runtime_action = Some(action);
-        self.set_status("Shell escape");
+        self.set_status(ui_text::tr(&self.shell.catalog, ui_text::STATUS_SHELL_ESCAPE).to_string());
     }
 
     pub(crate) fn take_runtime_action(&mut self) -> Option<RuntimeAction> {
@@ -190,7 +202,11 @@ impl AppState {
                     None => status,
                 });
             }
-            Err(error) => self.set_status(format!("Config reload failed: {error}")),
+            Err(error) => self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_CONFIG_RELOAD_FAILED,
+                &[&error.to_string()],
+            )),
         }
     }
 
@@ -223,7 +239,11 @@ impl AppState {
             }
             FileCommand::Save => {
                 if let Err(error) = self.save_focused_buffer() {
-                    self.set_status(format!("Save failed: {error}"));
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_SAVE_FAILED,
+                        &[&error.to_string()],
+                    ));
                 }
             }
             FileCommand::Open => {
@@ -249,7 +269,11 @@ impl AppState {
                     return;
                 }
                 if let Err(error) = self.reload_focused_buffer() {
-                    self.set_status(format!("Reload failed: {error}"));
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_RELOAD_FAILED,
+                        &[&error.to_string()],
+                    ));
                 }
             }
             FileCommand::Close => {

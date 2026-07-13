@@ -209,7 +209,13 @@ impl AppState {
 
     fn copy_current_line(&mut self) {
         let Some(buffer_id) = self.focused_buffer_id() else {
-            self.set_status("Copy line failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_COPY_LINE_BUFFER_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
 
@@ -220,15 +226,29 @@ impl AppState {
         match text {
             Some(text) => {
                 self.kill_ring = Some(text);
-                self.set_status("Copied line");
+                self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_COPY_LINE_COPIED).to_string(),
+                );
             }
-            None => self.set_status("Copy line failed: focused buffer is missing"),
+            None => self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_COPY_LINE_BUFFER_MISSING,
+                )
+                .to_string(),
+            ),
         }
     }
 
     fn delete_current_line(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Delete line failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_DELETE_LINE_BUFFER_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
 
@@ -242,7 +262,13 @@ impl AppState {
 
     fn move_current_line(&mut self, direction: isize) {
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Move line failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_MOVE_LINE_BUFFER_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
 
@@ -268,7 +294,9 @@ impl AppState {
 
     fn indent_selected_lines(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Indent failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_INDENT_BUFFER_MISSING).to_string(),
+            );
             return;
         };
 
@@ -282,7 +310,10 @@ impl AppState {
 
     fn outdent_selected_lines(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Outdent failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_OUTDENT_BUFFER_MISSING)
+                    .to_string(),
+            );
             return;
         };
 
@@ -296,7 +327,9 @@ impl AppState {
 
     fn trim_trailing_whitespace(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Trim failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_TRIM_BUFFER_MISSING).to_string(),
+            );
             return;
         };
 
@@ -310,7 +343,9 @@ impl AppState {
 
     fn toggle_word_wrap(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Wrap failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_WRAP_BUFFER_MISSING).to_string(),
+            );
             return;
         };
 
@@ -318,16 +353,18 @@ impl AppState {
         if buffer.word_wrap {
             buffer.first_column = 0;
             buffer.first_visual_row = 0;
-            self.set_status("Word wrap on");
+            self.set_status(ui_text::tr(&self.shell.catalog, ui_text::STATUS_WRAP_ON).to_string());
         } else {
             buffer.first_visual_row = 0;
-            self.set_status("Word wrap off");
+            self.set_status(ui_text::tr(&self.shell.catalog, ui_text::STATUS_WRAP_OFF).to_string());
         }
     }
 
     fn undo_focused_buffer(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Undo failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_UNDO_BUFFER_MISSING).to_string(),
+            );
             return;
         };
 
@@ -341,7 +378,9 @@ impl AppState {
 
     fn redo_focused_buffer(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Redo failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_REDO_BUFFER_MISSING).to_string(),
+            );
             return;
         };
 
@@ -418,15 +457,16 @@ impl AppState {
         let moved = buffer.scroll_view_columns(direction.saturating_mul(step), context.body_width);
         let first_column = buffer.first_column;
         let status = if moved {
-            if direction < 0 {
-                format!("Scrolled left to column {}", first_column + 1)
+            let key = if direction < 0 {
+                ui_text::STATUS_SCROLL_LEFT
             } else {
-                format!("Scrolled right to column {}", first_column + 1)
-            }
+                ui_text::STATUS_SCROLL_RIGHT
+            };
+            ui_text::tr_fmt(&self.shell.catalog, key, &[&(first_column + 1).to_string()])
         } else if direction < 0 {
-            "Already at left edge".to_string()
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_SCROLL_LEFT_EDGE).to_string()
         } else {
-            "Already at right edge".to_string()
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_SCROLL_RIGHT_EDGE).to_string()
         };
         self.set_status(status);
         moved
@@ -461,12 +501,16 @@ impl AppState {
         match self.focused_selection_text() {
             Ok(text) => {
                 self.kill_ring = Some(text);
-                self.set_status("Copied selection");
+                self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_COPY_COPIED).to_string(),
+                );
             }
-            Err(CopyTextError::MissingBuffer) => {
-                self.set_status("Copy failed: focused buffer is missing")
-            }
-            Err(CopyTextError::NoSelection) => self.set_status("Copy: no selection"),
+            Err(CopyTextError::MissingBuffer) => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COPY_BUFFER_MISSING).to_string(),
+            ),
+            Err(CopyTextError::NoSelection) => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COPY_NO_SELECTION).to_string(),
+            ),
             Err(CopyTextError::Buffer(error)) => {
                 self.set_status(format!("Copy failed: {}", buffer_error_text(error)))
             }
@@ -475,11 +519,21 @@ impl AppState {
 
     fn copy_selection_external(&mut self) {
         match self.focused_selection_text() {
-            Ok(text) => self.copy_text_external(text, "selection"),
-            Err(CopyTextError::MissingBuffer) => {
-                self.set_status("External copy failed: focused buffer is missing")
-            }
-            Err(CopyTextError::NoSelection) => self.set_status("External copy: no selection"),
+            Ok(text) => self.copy_text_external(text),
+            Err(CopyTextError::MissingBuffer) => self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_EXTERNAL_COPY_BUFFER_MISSING,
+                )
+                .to_string(),
+            ),
+            Err(CopyTextError::NoSelection) => self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_EXTERNAL_COPY_NO_SELECTION,
+                )
+                .to_string(),
+            ),
             Err(CopyTextError::Buffer(error)) => self.set_status(format!(
                 "External copy failed: {}",
                 buffer_error_text(error)
@@ -505,33 +559,46 @@ impl AppState {
             .map_err(CopyTextError::Buffer)
     }
 
-    fn copy_text_external(&mut self, text: String, label: &str) {
+    fn copy_text_external(&mut self, text: String) {
         self.kill_ring = Some(text.clone());
         let byte_len = text.len();
         if !self.clipboard.osc52.enabled {
-            self.set_status(format!("External copy disabled: copied {label} internally"));
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_EXTERNAL_COPY_DISABLED)
+                    .to_string(),
+            );
             return;
         }
         if byte_len > self.clipboard.osc52.max_bytes {
-            self.set_status(format!(
-                "External copy failed: {label} is {byte_len} bytes; limit is {}",
-                self.clipboard.osc52.max_bytes
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_EXTERNAL_COPY_TOO_LARGE,
+                &[
+                    &byte_len.to_string(),
+                    &self.clipboard.osc52.max_bytes.to_string(),
+                ],
             ));
             return;
         }
 
         self.runtime_action = Some(RuntimeAction::WriteTerminal(osc52_copy_sequence(&text)));
-        self.set_status(format!("Copied {label} to external clipboard"));
+        self.set_status(
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_EXTERNAL_COPY_COPIED).to_string(),
+        );
     }
 
     fn cut_selection(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Cut failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_CUT_BUFFER_MISSING).to_string(),
+            );
             return;
         };
 
         if buffer.buffer.is_read_only() {
-            self.set_status("Cut failed: buffer is read-only");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_CUT_READ_ONLY).to_string(),
+            );
             return;
         }
 
@@ -540,7 +607,9 @@ impl AppState {
             .selection_range()
             .filter(|range| !range.is_empty())
         else {
-            self.set_status("Cut: no selection");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_CUT_NO_SELECTION).to_string(),
+            );
             return;
         };
 
@@ -555,30 +624,42 @@ impl AppState {
         match buffer.buffer.delete_range(range) {
             Ok(true) => {
                 self.kill_ring = Some(text);
-                self.set_status("Cut selection");
+                self.set_status(
+                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_CUT_SELECTION).to_string(),
+                );
             }
-            Ok(false) => self.set_status("Cut: no selection"),
+            Ok(false) => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_CUT_NO_SELECTION).to_string(),
+            ),
             Err(error) => self.set_status(format!("Cut failed: {}", buffer_error_text(error))),
         }
     }
 
     fn paste_internal_clipboard(&mut self) {
         let Some(text) = self.kill_ring.clone() else {
-            self.set_status("Paste: internal clipboard empty; use terminal paste");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_EMPTY).to_string(),
+            );
             return;
         };
         if text.is_empty() {
-            self.set_status("Paste: internal clipboard empty; use terminal paste");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_EMPTY).to_string(),
+            );
             return;
         }
 
         let Some(buffer) = self.focused_buffer_mut() else {
-            self.set_status("Paste failed: focused buffer is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_BUFFER_MISSING).to_string(),
+            );
             return;
         };
 
         match buffer.buffer.insert_str(&text) {
-            Ok(()) => self.set_status("Pasted selection"),
+            Ok(()) => self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_SELECTION).to_string(),
+            ),
             Err(error) => self.set_status(format!("Paste failed: {}", buffer_error_text(error))),
         }
     }
@@ -609,9 +690,16 @@ impl AppState {
             .shell
             .keymap
             .sequence_for_command(&EditorCommand::Window(WindowCommand::Expand))
-            .map(|sequence| format!(" ({sequence})"))
-            .unwrap_or_default();
-        self.set_status(format!("Pane is collapsed; expand it to edit{expand}"));
+            .map(ToString::to_string);
+        let status = match expand {
+            Some(expand) => ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_PANE_COLLAPSED_WITH_KEY,
+                &[&expand],
+            ),
+            None => ui_text::tr(&self.shell.catalog, ui_text::STATUS_PANE_COLLAPSED).to_string(),
+        };
+        self.set_status(status);
         true
     }
 }

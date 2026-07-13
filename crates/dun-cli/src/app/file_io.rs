@@ -15,7 +15,9 @@ impl AppState {
             window.title = "Untitled".to_string();
             window.buffer_kind = dun_core::BufferKind::Untitled;
         }
-        self.set_status("New untitled buffer");
+        self.set_status(
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_FILE_NEW_UNTITLED).to_string(),
+        );
     }
 
     pub(crate) fn open_file_path(&mut self, path: PathBuf) -> io::Result<()> {
@@ -101,7 +103,11 @@ impl AppState {
             // already refuses a plain Save when the file vanished from under a
             // clean buffer, so there was nothing to rescue.
             if !buffer.buffer.is_dirty() {
-                self.set_status(format!("No changes to save in {}", path.display()));
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_SAVE_NO_CHANGES,
+                    &[&path.display().to_string()],
+                ));
                 return Ok(path);
             }
 

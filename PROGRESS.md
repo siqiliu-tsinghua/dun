@@ -1047,3 +1047,20 @@ This is an append-only progress log. Keep new entries dated and factual.
   shortcuts, parent-directory row) and unsaved-changes confirm. Workspace
   613 tests; macOS 633,284 (+4,120). Dialog event messages stored in state
   (self.message) deliberately wait for slice 4's status-template work.
+- Landed i18n slice 4a via Codex brief-022 (2026-07-13), the first
+  Codex-delegated i18n batch: 172 status-message call sites in app/*.rs
+  converted to the ui_text key table (158 new keys; the table now holds 206
+  unique keys, pinned by a uniqueness test), PromptKind label/name became
+  catalog lookups, full zh-CN translations shipped. Three behavior tests
+  drive real command paths and assert both the byte-exact English baseline
+  and the zh output; gate reproduced fmt/clippy/617 tests, reviewed the zh
+  file, and independently mutation-checked a conversion and the uniqueness
+  test (both red as required). 50 helper-composed call sites were deferred
+  with an explicit list, now recorded as TODO slice 4b. Gate incident worth
+  remembering: restoring a mutation with `git checkout <file>` wiped the
+  uncommitted Codex changes in two files; recovered them from the dispatch
+  log's final `git diff` dump (`/tmp/dun_cdx_brief_NNN.log`) plus a
+  `cargo fmt` pass, and re-verified all gates green. Never checkout-restore
+  on a dirty tree. macOS budget build 645,580 (+12,296); Debian
+  measurement deferred to the next VM session (VM shut down mid-gate by
+  request).

@@ -11,6 +11,11 @@ fn temp_i18n_dir(name: &str) -> PathBuf {
     dir
 }
 
+fn shipped_zh_catalog() -> dun_config::TextCatalog {
+    dun_config::parse_catalog(include_str!("../../../../i18n/zh-CN.conf"), "zh-CN")
+        .expect("shipped file parses")
+}
+
 #[test]
 fn picks_the_most_specific_locale_candidate() {
     let dir = temp_i18n_dir("i18n-specific");
@@ -191,6 +196,64 @@ fn shipped_zh_catalog_translates_all_dialog_chrome() {
         "placeholder count mismatches:\n{}",
         mismatched.join("\n")
     );
+}
+
+#[test]
+fn ui_text_keys_are_unique() {
+    let mut seen = std::collections::BTreeSet::new();
+    for (key, _) in crate::ui_text::ALL {
+        assert!(seen.insert(*key), "duplicate ui text key: {key}");
+    }
+}
+
+#[test]
+fn prompt_cancel_status_uses_the_catalog_and_keeps_exact_english() {
+    let mut english = AppState::new();
+    english.handle_command(&EditorCommand::Edit(EditCommand::Find));
+    english.handle_prompt_key_event(CrosstermKeyEvent::new(
+        CrosstermKeyCode::Esc,
+        CrosstermKeyModifiers::NONE,
+    ));
+    assert_eq!(english.status_message.as_deref(), Some("Find cancelled"));
+
+    let mut chinese = AppState::new();
+    chinese.shell.catalog = shipped_zh_catalog();
+    chinese.handle_command(&EditorCommand::Edit(EditCommand::Find));
+    chinese.handle_prompt_key_event(CrosstermKeyEvent::new(
+        CrosstermKeyCode::Esc,
+        CrosstermKeyModifiers::NONE,
+    ));
+    assert_eq!(chinese.status_message.as_deref(), Some("已取消查找"));
+}
+
+#[test]
+fn empty_find_status_uses_the_catalog_and_keeps_exact_english() {
+    let mut english = AppState::new();
+    english.repeat_find(SearchDirection::Forward);
+    assert_eq!(english.status_message.as_deref(), Some("Find: no query"));
+
+    let mut chinese = AppState::new();
+    chinese.shell.catalog = shipped_zh_catalog();
+    chinese.repeat_find(SearchDirection::Forward);
+    assert_eq!(
+        chinese.status_message.as_deref(),
+        Some("查找：没有查询内容")
+    );
+}
+
+#[test]
+fn window_status_uses_the_catalog_and_keeps_exact_english() {
+    let mut english = AppState::new();
+    english.handle_command(&EditorCommand::Window(WindowCommand::Equalize));
+    assert_eq!(
+        english.status_message.as_deref(),
+        Some("Splits are already even")
+    );
+
+    let mut chinese = AppState::new();
+    chinese.shell.catalog = shipped_zh_catalog();
+    chinese.handle_command(&EditorCommand::Window(WindowCommand::Equalize));
+    assert_eq!(chinese.status_message.as_deref(), Some("拆分已经均匀"));
 }
 
 #[test]

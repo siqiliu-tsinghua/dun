@@ -32,11 +32,19 @@ impl AppState {
         }
 
         let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
-            self.set_status(format!("{title} failed: focused window is missing"));
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_AUX_FOCUSED_WINDOW_MISSING,
+                &[title],
+            ));
             return;
         };
         let Ok(window) = self.workspace.window(window_id) else {
-            self.set_status(format!("{title} failed: window is missing"));
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_AUX_WINDOW_MISSING,
+                &[title],
+            ));
             return;
         };
         let buffer_id = window.buffer_id;
@@ -58,16 +66,26 @@ impl AppState {
     pub(crate) fn open_help_screen(&mut self) {
         if let Some(window_id) = self.help_window_id() {
             self.workspace.focused = window_id;
-            self.set_status("Help");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_HELP_OPENED).to_string(),
+            );
             return;
         }
 
         let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
-            self.set_status("Help failed: focused window is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_HELP_FOCUSED_WINDOW_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
         let Ok(window) = self.workspace.window(window_id) else {
-            self.set_status("Help failed: help window is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_HELP_WINDOW_MISSING).to_string(),
+            );
             return;
         };
         let buffer_id = window.buffer_id;
@@ -93,7 +111,7 @@ impl AppState {
             window.collapsed = false;
         }
 
-        self.set_status("Help");
+        self.set_status(ui_text::tr(&self.shell.catalog, ui_text::STATUS_HELP_OPENED).to_string());
     }
 
     fn help_window_id(&self) -> Option<WindowId> {
@@ -131,7 +149,13 @@ impl AppState {
     }
 
     pub(crate) fn open_config_diagnostics_screen(&mut self) {
-        self.set_status("Config diagnostics");
+        self.set_status(
+            ui_text::tr(
+                &self.shell.catalog,
+                ui_text::STATUS_CONFIG_DIAGNOSTICS_OPENED,
+            )
+            .to_string(),
+        );
 
         if let Some(window_id) = self.config_diagnostics_window_id() {
             self.workspace.focused = window_id;
@@ -140,11 +164,23 @@ impl AppState {
         }
 
         let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
-            self.set_status("Config diagnostics failed: focused window is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_CONFIG_DIAGNOSTICS_FOCUSED_WINDOW_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
         let Ok(window) = self.workspace.window(window_id) else {
-            self.set_status("Config diagnostics failed: diagnostics window is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_CONFIG_DIAGNOSTICS_WINDOW_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
         let buffer_id = window.buffer_id;
@@ -200,11 +236,23 @@ impl AppState {
     pub(crate) fn jump_config_diagnostics_section(&mut self, section: ConfigDiagnosticsSection) {
         self.open_config_diagnostics_screen();
         let Some(window_id) = self.config_diagnostics_window_id() else {
-            self.set_status("Config diagnostics failed: diagnostics window is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_CONFIG_DIAGNOSTICS_WINDOW_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
         let Some(buffer_id) = self.config_diagnostics_buffer_id() else {
-            self.set_status("Config diagnostics failed: diagnostics buffer is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_CONFIG_DIAGNOSTICS_BUFFER_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
         let Some(line_index) = self
@@ -234,7 +282,9 @@ impl AppState {
     }
 
     pub(crate) fn open_status_history_screen(&mut self) {
-        self.set_status("Status history");
+        self.set_status(
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_HISTORY_OPENED).to_string(),
+        );
 
         if let Some(window_id) = self.status_history_window_id() {
             self.workspace.focused = window_id;
@@ -242,11 +292,20 @@ impl AppState {
         }
 
         let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
-            self.set_status("Status history failed: focused window is missing");
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_HISTORY_FOCUSED_WINDOW_MISSING,
+                )
+                .to_string(),
+            );
             return;
         };
         let Ok(window) = self.workspace.window(window_id) else {
-            self.set_status("Status history failed: status window is missing");
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_HISTORY_WINDOW_MISSING)
+                    .to_string(),
+            );
             return;
         };
         let buffer_id = window.buffer_id;
