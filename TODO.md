@@ -209,28 +209,44 @@ per-language resource files (key → string) selected by `LC_MESSAGES`/`LANG`.
 Only the mechanism plus English count against the size budget. Starts after
 the plugin-client stage closes (release gates + dual-platform re-audit).
 
-- [ ] Define the i18n key model and the `i18n/<lang>.toml` resource format,
-  including lookup order (`LC_MESSAGES`/`LANG` → English fallback) and where
-  the editor searches for resource directories.
-- [ ] Extract user-visible UI text to keys: menus, help, dialogs, prompts,
-  and status templates. Menu + help text is the first slice; the scattered
-  `format!` status messages are the largest churn (parameterized templates
-  per language) and come last.
-- [ ] Change UI label types from `&'static str` to `Cow<'static, str>`
-  (`MenuItem`/`MenuEntry` in `crates/dun-ui/src/model.rs` and equivalents)
-  so the built-in language stays zero-cost while loaded translations are
-  owned strings.
-- [ ] Load resource files with bounded file size, and pass every loaded
-  string through the display sanitizer: translation files are untrusted
-  input and must not be able to smuggle control bytes into UI chrome.
-- [ ] Fall back to English on ASCII terminals (`EncodingProfile::Ascii`):
+Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
+[docs/i18n.md](./docs/i18n.md).
+
+- [x] Define the i18n key model and the `i18n/<lang>.conf` resource format
+  (same `key = value` line format as the config file), lookup order
+  (`LC_ALL`/`LC_MESSAGES`/`LANG` → English fallback), and the search
+  location (`i18n/` next to the active config file). Documented in
+  docs/i18n.md.
+- [x] Change UI label types from `&'static str` to `Cow<'static, str>`
+  (`MenuItem`/`MenuEntry`) so the built-in language stays zero-cost while
+  loaded translations are owned strings.
+- [x] Extract menu labels to keys (`menu.*` in
+  `crates/dun-ui/src/frame/menu.rs`) with mnemonic-preserving composition:
+  translations supply base text only; the mnemonic letter always comes from
+  the compiled English label, so uniqueness and keyboard navigation hold by
+  construction in every language.
+- [x] Load resource files with bounded file size (64 KiB cap before
+  allocation), and reject any value the display sanitizer would escape
+  (control bytes, ESC, bidi formatting, invisible zero-width): the load
+  check literally runs the sanitizer, so it can never drift from what
+  rendering enforces. Broken files reject whole with a line-numbered
+  status diagnostic; the editor stays English.
+- [x] Fall back to English on ASCII terminals (`EncodingProfile::Ascii`):
   non-ASCII translated text would only be sanitizer-escaped there. Wide/CJK
   display itself already works (Surface + unicode-width).
-- [ ] Ship an `i18n/` directory of resource files for common languages
-  (zh-CN first, then e.g. ja/de/fr/es), loaded at runtime by locale, and
-  document the resource format for translators.
+- [x] Ship the first reference translation: `i18n/zh-CN.conf` (menus), with
+  a completeness test binding it to the menu keys. Translator guide in
+  docs/i18n.md.
+- [ ] Extract help window fixed strings (headers/sections; content is
+  keymap-generated) — slice 2.
+- [ ] Extract dialog titles, buttons, and prompt labels — slice 3.
+- [ ] Extract status messages into parameterized templates — the largest
+  churn, deliberately last.
+- [ ] Extend `i18n/` to more common languages (ja/de/fr/es) once the
+  extraction slices settle the key set.
 - [ ] Measure the size delta per batch; the mechanism must stay lean since
-  hand-rolled parsing (no serde) remains the rule.
+  hand-rolled parsing (no serde) remains the rule. Slice 1 measured on
+  macOS locally; Debian binding measurement at the next VM session.
 
 ## Planned Stage: Distinctive Plugins (Python/Lua Hosts)
 

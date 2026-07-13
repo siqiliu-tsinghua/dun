@@ -30,6 +30,8 @@ artifacts. A minimal build must not require the `rum` runtime.
 - `AUDIT.md`: security model, threat notes, invariants, and audit checklist.
 - `docs/plugin-protocol.md`: host-neutral plugin protocol, trust classes,
   role-policy boundary, transport, and completion criteria.
+- `docs/i18n.md`: UI text translation design — compiled English defaults,
+  external per-language resource files, mnemonic and sanitizer invariants.
 - `docs/code-organization-guidelines.md`: safe Rust, file-size, module
   splitting, and directory organization rules.
 

@@ -22,7 +22,9 @@ impl AppState {
         loaded_config: LoadedConfig,
     ) -> Self {
         let detected_profile = detect_terminal_profile();
-        let shell = UiShell::from_config(&loaded_config.config, detected_profile);
+        let mut shell = UiShell::from_config(&loaded_config.config, detected_profile);
+        let loaded_catalog = load_ui_catalog(&loaded_config.source, shell.profile.encoding);
+        shell.catalog = loaded_catalog.catalog;
         let limits = loaded_config.config.limits;
         let file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
         let clipboard = loaded_config.config.clipboard;
@@ -31,7 +33,7 @@ impl AppState {
 
         let highlighter = PluginHighlighter::from_entries(&loaded_config.config.plugins);
 
-        Self {
+        let mut app = Self {
             highlighter,
             workspace: Workspace::new_untitled(),
             buffers: vec![BufferState::new(BufferId(1), TextBuffer::new_untitled())],
@@ -65,7 +67,11 @@ impl AppState {
             kill_ring: None,
             recent_file_dialog_input: None,
             runtime_action: None,
+        };
+        if let Some(diagnostic) = loaded_catalog.diagnostic {
+            app.set_status(diagnostic);
         }
+        app
     }
 
     #[cfg(test)]
@@ -93,13 +99,15 @@ impl AppState {
     ) -> io::Result<Self> {
         let mut app = Self::from_loaded_config(config_request, loaded_config);
         if let Some(path) = path {
-            app.open_file_path(path)?;
             // Open reports itself, but on startup there is no user action to
             // report: the file is plainly on screen and its path is already in
             // the title and the right of the status bar. Start at rest so the
             // first frame shows the buffer readout rather than a truncated
-            // "Opened /very/long/path". The message stays in the history.
-            app.status_message = None;
+            // "Opened /very/long/path". The message stays in the history. A
+            // startup diagnostic (broken i18n file) must survive the open.
+            let startup_status = app.status_message.take();
+            app.open_file_path(path)?;
+            app.status_message = startup_status;
         }
         Ok(app)
     }

@@ -540,7 +540,7 @@ fn menu_mnemonics_are_unique_within_each_menu() {
     for item in menu.items {
         let mut seen = Vec::new();
         for entry in item.entries {
-            let Some(mnemonic) = menu_entry_mnemonic(entry.label) else {
+            let Some(mnemonic) = menu_entry_mnemonic(&entry.label) else {
                 continue;
             };
             assert!(

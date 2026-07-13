@@ -1,4 +1,4 @@
-use dun_config::{Config, KeySequence, KeyStroke, Keymap};
+use dun_config::{Config, KeySequence, KeyStroke, Keymap, TextCatalog};
 use dun_core::{DisplaySanitizer, EditorCommand, Workspace};
 use dun_term::{EncodingProfile, GlyphSet, TerminalProfile, Theme};
 
@@ -9,6 +9,9 @@ pub struct UiShell {
     pub theme: Theme,
     pub keymap: Keymap,
     pub display_sanitizer: DisplaySanitizer,
+    /// Loaded UI translations; empty means built-in English. Loading is
+    /// the caller's job (rendering stays free of file I/O).
+    pub catalog: TextCatalog,
 }
 
 impl UiShell {
@@ -27,6 +30,7 @@ impl UiShell {
             theme,
             keymap: config.keybindings.clone(),
             display_sanitizer,
+            catalog: TextCatalog::empty(),
         }
     }
 

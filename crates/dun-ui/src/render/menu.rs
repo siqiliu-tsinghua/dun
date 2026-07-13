@@ -6,7 +6,7 @@ use crate::{MenuBar, MenuEntry, UiShell, display_width, fit_text_to_width, statu
 pub(crate) fn menu_item_column_range(menu: &MenuBar, index: usize) -> Option<(u16, u16)> {
     let mut x = 1usize;
     for (candidate, item) in menu.items.iter().enumerate() {
-        let end = x.saturating_add(display_width(item.label).saturating_add(2));
+        let end = x.saturating_add(display_width(&item.label).saturating_add(2));
         if candidate == index {
             return Some((
                 x.min(u16::MAX as usize) as u16,
@@ -32,7 +32,7 @@ pub(crate) fn dropdown_rect_for_menu(
         .map(|entry| menu_entry_width(shell, entry))
         .max()
         .unwrap_or(1)
-        .max(display_width(item.label));
+        .max(display_width(&item.label));
     let width = content_width.saturating_add(4).min(u16::MAX as usize) as u16;
     let height = item.entries.len().saturating_add(2).min(u16::MAX as usize) as u16;
 
@@ -80,7 +80,7 @@ pub(crate) fn menu_visible_entry_range(
 }
 
 fn menu_entry_width(shell: &UiShell, entry: &MenuEntry) -> usize {
-    let label_width = display_width(entry.label);
+    let label_width = display_width(&entry.label);
     let shortcut_width = shell
         .keymap
         .sequence_for_command(&entry.command)
@@ -99,7 +99,7 @@ pub(crate) fn menu_entry_text(shell: &UiShell, entry: &MenuEntry, width: usize) 
         .sequence_for_command(&entry.command)
         .map(ToString::to_string)
         .unwrap_or_default();
-    let label = sanitize_chrome_text(shell, entry.label);
+    let label = sanitize_chrome_text(shell, &entry.label);
     let shortcut = sanitize_chrome_text(shell, &shortcut);
 
     if shortcut.is_empty() {

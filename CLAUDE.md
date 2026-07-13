@@ -125,11 +125,12 @@ Sequencing (stages 1–2 completed 2026-07-10):
    (SyntaxHighlight end to end, load/unload, 16-case failure matrix;
    TODO reconciled 2026-07-13). Remaining: Debian size gate + release smoke
    at the next VM session, which doubles as the post-client re-audit.
-4. **UI text i18n** (NEXT — TODO.md "UI Text Internationalization" stage,
-   decided 2026-07-11): hybrid model — English compiled in as the
-   `&'static` fallback, other languages from external `i18n/<lang>.toml`
-   resource files for common languages (zh-CN first), loaded at runtime by
-   locale. Menu + help first; status `format!` churn last.
+4. **UI text i18n** (ACTIVE — TODO.md "UI Text Internationalization" stage,
+   decided 2026-07-11, design in docs/i18n.md): hybrid model — English
+   compiled in as the `&'static` fallback, other languages from external
+   `i18n/<lang>.conf` resource files loaded at runtime by locale. Slice 1
+   (mechanism + menus + zh-CN) landed 2026-07-13; next help, then
+   dialogs/prompts; status `format!` churn last.
 5. **Distinctive plugins** (TODO.md "Distinctive Plugins" stage): a small
    set of Python/Lua hosts beyond syntax highlight; extend protocol/roles
    as real implementation needs surface (new Role variants, per-role

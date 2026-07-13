@@ -1,189 +1,273 @@
+use std::borrow::Cow;
+
 use dun_core::EditorCommand;
 
+use crate::hit::entry_mnemonic;
 use crate::{MenuBar, MenuEntry, MenuItem, MenuSelection, UiShell};
 
 impl UiShell {
+    /// Compose a translated top-level label. The mnemonic letter always
+    /// comes from the compiled English label ("File" -> F), so keyboard
+    /// navigation is identical in every language (docs/i18n.md).
+    fn menu_label(&self, key: &str, english: &'static str) -> Cow<'static, str> {
+        match self.catalog.get(key) {
+            None => Cow::Borrowed(english),
+            Some(base) => {
+                let mnemonic = english.chars().next().unwrap_or('?');
+                Cow::Owned(format!("{base} ({mnemonic})"))
+            }
+        }
+    }
+
+    /// Compose a translated dropdown label, keeping the English trailing
+    /// "(M)" mnemonic: "New (N)" + "新建" -> "新建 (N)".
+    fn entry_label(&self, key: &str, english: &'static str) -> Cow<'static, str> {
+        match self.catalog.get(key) {
+            None => Cow::Borrowed(english),
+            Some(base) => match entry_mnemonic(english) {
+                Some(mnemonic) => Cow::Owned(format!("{base} ({mnemonic})")),
+                None => Cow::Owned(base.to_string()),
+            },
+        }
+    }
+
     pub(crate) fn menu_bar(&self, active: Option<MenuSelection>) -> MenuBar {
+        let entry = |key: &str, english: &'static str, command: EditorCommand| {
+            MenuEntry::new(self.entry_label(key, english), command)
+        };
+
         MenuBar {
             active,
             items: vec![
                 MenuItem::new(
-                    "File",
+                    self.menu_label("menu.file", "File"),
                     vec![
-                        MenuEntry::new("New (N)", EditorCommand::File(dun_core::FileCommand::New)),
-                        MenuEntry::new(
+                        entry(
+                            "menu.file.new",
+                            "New (N)",
+                            EditorCommand::File(dun_core::FileCommand::New),
+                        ),
+                        entry(
+                            "menu.file.open",
                             "Open... (O)",
                             EditorCommand::File(dun_core::FileCommand::Open),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.file.switch-buffer",
                             "Switch Buffer (B)",
                             EditorCommand::File(dun_core::FileCommand::SwitchBuffer),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.file.save",
                             "Save (S)",
                             EditorCommand::File(dun_core::FileCommand::Save),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.file.save-as",
                             "Save As... (A)",
                             EditorCommand::File(dun_core::FileCommand::SaveAs),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.file.reload",
                             "Reload (E)",
                             EditorCommand::File(dun_core::FileCommand::Reload),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.file.close",
                             "Close (C)",
                             EditorCommand::File(dun_core::FileCommand::Close),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.file.run-command",
                             "Run Command (R)",
                             EditorCommand::App(dun_core::AppCommand::RunCommand),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.file.shell-escape",
                             "Shell Escape (H)",
                             EditorCommand::App(dun_core::AppCommand::ShellEscape),
                         ),
-                        MenuEntry::new("Quit (Q)", EditorCommand::App(dun_core::AppCommand::Quit)),
+                        entry(
+                            "menu.file.quit",
+                            "Quit (Q)",
+                            EditorCommand::App(dun_core::AppCommand::Quit),
+                        ),
                     ],
                 ),
                 MenuItem::new(
-                    "Edit",
+                    self.menu_label("menu.edit", "Edit"),
                     vec![
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.undo",
                             "Undo (U)",
                             EditorCommand::Edit(dun_core::EditCommand::Undo),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.redo",
                             "Redo (R)",
                             EditorCommand::Edit(dun_core::EditCommand::Redo),
                         ),
-                        MenuEntry::new("Cut (T)", EditorCommand::Edit(dun_core::EditCommand::Cut)),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.cut",
+                            "Cut (T)",
+                            EditorCommand::Edit(dun_core::EditCommand::Cut),
+                        ),
+                        entry(
+                            "menu.edit.copy",
                             "Copy (C)",
                             EditorCommand::Edit(dun_core::EditCommand::Copy),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.copy-external",
                             "Copy External (X)",
                             EditorCommand::Edit(dun_core::EditCommand::CopyExternal),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.paste",
                             "Paste (P)",
                             EditorCommand::Edit(dun_core::EditCommand::Paste),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.select-all",
                             "Select All (A)",
                             EditorCommand::Edit(dun_core::EditCommand::SelectAll),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.select-line",
                             "Select Line (L)",
                             EditorCommand::Edit(dun_core::EditCommand::SelectLine),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.copy-line",
                             "Copy Line (Y)",
                             EditorCommand::Edit(dun_core::EditCommand::CopyLine),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.delete-line",
                             "Delete Line (K)",
                             EditorCommand::Edit(dun_core::EditCommand::DeleteLine),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.indent-line",
                             "Indent Line (I)",
                             EditorCommand::Edit(dun_core::EditCommand::IndentLine),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.outdent-line",
                             "Outdent Line (O)",
                             EditorCommand::Edit(dun_core::EditCommand::OutdentLine),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.trim-whitespace",
                             "Trim Whitespace (W)",
                             EditorCommand::Edit(dun_core::EditCommand::TrimTrailingWhitespace),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.find",
                             "Find (F)",
                             EditorCommand::Edit(dun_core::EditCommand::Find),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.find-next",
                             "Find Next (N)",
                             EditorCommand::Edit(dun_core::EditCommand::FindNext),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.replace",
                             "Replace (B)",
                             EditorCommand::Edit(dun_core::EditCommand::Replace),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.edit.go-to-line",
                             "Go To Line (G)",
                             EditorCommand::Edit(dun_core::EditCommand::GoToLine),
                         ),
                     ],
                 ),
                 MenuItem::new(
-                    "View",
+                    self.menu_label("menu.view", "View"),
                     vec![
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.split-horizontal",
                             "Split Horizontal (H)",
                             EditorCommand::Window(dun_core::WindowCommand::SplitHorizontal),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.split-vertical",
                             "Split Vertical (V)",
                             EditorCommand::Window(dun_core::WindowCommand::SplitVertical),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.equalize",
                             "Equalize (E)",
                             EditorCommand::Window(dun_core::WindowCommand::Equalize),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.only-window",
                             "Only Window (O)",
                             EditorCommand::Window(dun_core::WindowCommand::Only),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.toggle-collapse",
                             "Toggle Collapse (C)",
                             EditorCommand::Window(dun_core::WindowCommand::ToggleCollapse),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.collapse",
                             "Collapse (M)",
                             EditorCommand::Window(dun_core::WindowCommand::Collapse),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.expand",
                             "Expand (P)",
                             EditorCommand::Window(dun_core::WindowCommand::Expand),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.word-wrap",
                             "Word Wrap (Z)",
                             EditorCommand::Edit(dun_core::EditCommand::ToggleWordWrap),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.scroll-left",
                             "Scroll Left ([)",
                             EditorCommand::Edit(dun_core::EditCommand::ScrollLeft),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.scroll-right",
                             "Scroll Right (])",
                             EditorCommand::Edit(dun_core::EditCommand::ScrollRight),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.close-window",
                             "Close Window (X)",
                             EditorCommand::Window(dun_core::WindowCommand::Close),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.search-results",
                             "Search Results (W)",
                             EditorCommand::App(dun_core::AppCommand::SearchResults),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.status-history",
                             "Status History (S)",
                             EditorCommand::App(dun_core::AppCommand::StatusHistory),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.config-diagnostics",
                             "Config Diagnostics (D)",
                             EditorCommand::App(dun_core::AppCommand::ConfigDiagnostics),
                         ),
-                        MenuEntry::new(
+                        entry(
+                            "menu.view.reload-config",
                             "Reload Config (R)",
                             EditorCommand::App(dun_core::AppCommand::ReloadConfig),
                         ),
                     ],
                 ),
                 MenuItem::new(
-                    "Help",
-                    vec![MenuEntry::new(
+                    self.menu_label("menu.help", "Help"),
+                    vec![entry(
+                        "menu.help.help",
                         "Help (H)",
                         EditorCommand::App(dun_core::AppCommand::Help),
                     )],

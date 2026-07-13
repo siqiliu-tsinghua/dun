@@ -347,6 +347,17 @@ line drawing. For 16-color profiles, the terminal output path rewrites
 crossterm palette SGR sequences into legacy 16-color SGR forms instead of
 emitting 256-color-style `38;5;n` or `48;5;n` controls.
 
+## UI Languages
+
+Menu text is translatable. English is compiled in and always works with no
+extra files; other languages load at runtime from `i18n/<lang>.conf` resource
+files next to the user's config file, selected by the locale environment
+(`LC_ALL`/`LC_MESSAGES`/`LANG`). Reference translations ship in
+[i18n/](./i18n/) (currently Simplified Chinese). Menu mnemonics stay the
+English letters in every language, so keyboard navigation never changes. See
+[docs/i18n.md](./docs/i18n.md) for the design, safety rules, and translator
+guide.
+
 ## Development Documents
 
 - [AGENTS.md](./AGENTS.md): instructions for coding agents and contributors.
@@ -373,6 +384,8 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
   gate, required feature set, and optional feature trim order.
 - [docs/feature-triage.md](./docs/feature-triage.md): working inventory and
   A/B/C/D classification for the v0.1 slimming stage.
+- [docs/i18n.md](./docs/i18n.md): UI text translation design and translator
+  guide.
 - [docs/plugin-protocol.md](./docs/plugin-protocol.md): host-neutral plugin
   protocol, trust classes, role policy, and completion criteria.
 - [docs/runtime-resource-audit.md](./docs/runtime-resource-audit.md):

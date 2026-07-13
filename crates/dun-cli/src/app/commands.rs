@@ -184,19 +184,24 @@ impl AppState {
         match load_config(&self.config_request) {
             Ok(loaded_config) => {
                 let status = loaded_config.source.status_text();
-                self.apply_loaded_config(loaded_config);
-                self.set_status(status);
+                let i18n_diagnostic = self.apply_loaded_config(loaded_config);
+                self.set_status(match i18n_diagnostic {
+                    Some(diagnostic) => format!("{status}; {diagnostic}"),
+                    None => status,
+                });
             }
             Err(error) => self.set_status(format!("Config reload failed: {error}")),
         }
     }
 
-    fn apply_loaded_config(&mut self, loaded_config: LoadedConfig) {
+    fn apply_loaded_config(&mut self, loaded_config: LoadedConfig) -> Option<String> {
         self.highlighter = PluginHighlighter::from_entries(&loaded_config.config.plugins);
         self.pending_keys.clear();
         self.mouse_drag = None;
         self.clear_active_menu();
         self.shell = UiShell::from_config(&loaded_config.config, self.detected_profile);
+        let loaded_catalog = load_ui_catalog(&loaded_config.source, self.shell.profile.encoding);
+        self.shell.catalog = loaded_catalog.catalog;
         self.limits = loaded_config.config.limits;
         self.file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
         self.clipboard = loaded_config.config.clipboard;
@@ -205,6 +210,7 @@ impl AppState {
         self.config_source = loaded_config.source;
         self.refresh_help_buffer();
         self.refresh_config_diagnostics_buffer();
+        loaded_catalog.diagnostic
     }
 
     pub(crate) fn handle_file_command(&mut self, command: &FileCommand) {

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use dun_core::{
     BufferId, EditorCommand, Position, Rect, SanitizedLine, SearchMatch, TextBuffer, WindowId,
 };
@@ -288,25 +290,33 @@ impl MenuSelection {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MenuItem {
-    pub label: &'static str,
+    /// Borrowed for the built-in English labels, owned for loaded
+    /// translations (docs/i18n.md).
+    pub label: Cow<'static, str>,
     pub entries: Vec<MenuEntry>,
 }
 
 impl MenuItem {
-    pub fn new(label: &'static str, entries: Vec<MenuEntry>) -> Self {
-        Self { label, entries }
+    pub fn new(label: impl Into<Cow<'static, str>>, entries: Vec<MenuEntry>) -> Self {
+        Self {
+            label: label.into(),
+            entries,
+        }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MenuEntry {
-    pub label: &'static str,
+    pub label: Cow<'static, str>,
     pub command: EditorCommand,
 }
 
 impl MenuEntry {
-    pub const fn new(label: &'static str, command: EditorCommand) -> Self {
-        Self { label, command }
+    pub fn new(label: impl Into<Cow<'static, str>>, command: EditorCommand) -> Self {
+        Self {
+            label: label.into(),
+            command,
+        }
     }
 }
 

@@ -40,6 +40,7 @@ mod config_loading;
 mod dialogs;
 mod files;
 mod help;
+mod i18n_loading;
 mod plugins;
 mod terminal;
 mod util;
@@ -107,6 +108,7 @@ use help::text::{
     ConfigDiagnosticsSection, line_with_exact_text, numbered_list_index_for_line,
     numbered_list_rows, parse_config_diagnostics_section, search_results_text,
 };
+pub(crate) use i18n_loading::load_ui_catalog;
 use plugins::{HighlightJob, HighlightOutcome, PluginHighlighter, language_hint};
 #[cfg(test)]
 use terminal::rewrite_16_color_sgr;

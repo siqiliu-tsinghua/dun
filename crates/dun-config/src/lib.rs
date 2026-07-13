@@ -6,6 +6,7 @@ mod colors;
 mod commands;
 mod config;
 mod defaults;
+mod i18n;
 mod keys;
 mod limits;
 mod parser;
@@ -20,6 +21,10 @@ pub use config::{
     TerminalOverrides,
 };
 pub use defaults::default_config_text;
+pub use i18n::{
+    CatalogParseError, MAX_CATALOG_FILE_BYTES, MAX_CATALOG_VALUE_BYTES, TextCatalog,
+    locale_candidates, parse_catalog,
+};
 pub use keys::{
     FileDialogAction, FileDialogKeyBinding, FileDialogKeymap, FileDialogKeymapError, Key,
     KeyBinding, KeyModifiers, KeyParseError, KeySequence, KeyStroke, Keymap, KeymapError,

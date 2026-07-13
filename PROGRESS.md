@@ -978,3 +978,31 @@ This is an append-only progress log. Keep new entries dated and factual.
   Render slice cost +4,096 bytes Debian; total protocol-client cost from
   the pre-client baseline is 86,016 bytes (Debian 706,944, margin 341,632).
   The protocol-client stage's First Applied Role section is closed.
+- Reconciled the plan docs with the implementation and resequenced the plan
+  (2026-07-13, 9b272a6, user decision): the plugin-protocol-client stage's
+  spec/role/transport items were built but never checked off; two decisions
+  moved from session memory into the repo (TrustClass rejects unknown classes
+  instead of modeling unsupported-unsafe; protocol v0 has no LoadPlugin
+  message kinds because one host is one plugin). New order: close out the
+  plugin stage (Debian gate + smoke at the next VM session), then UI text
+  i18n, then distinctive Python/Lua plugins with protocol enhancements driven
+  by real needs; F12/F13 restoration stays deferred behind these.
+- Landed i18n slice 1: mechanism + menus + zh-CN (2026-07-13). Design in
+  docs/i18n.md — English compiled in as `&'static` defaults, other languages
+  from external `i18n/<lang>.conf` files (same `key = value` format as the
+  config file) next to the active config, selected by
+  `LC_ALL`/`LC_MESSAGES`/`LANG`. `MenuItem`/`MenuEntry` labels became
+  `Cow<'static, str>`; translations supply base text only and the code
+  composes the English mnemonic letter back on ("文件 (F)", "新建 (N)"), so
+  menu keyboard navigation is invariant across languages and mnemonic
+  uniqueness holds by construction. Loading rejects a file whole on the
+  first value the display sanitizer would escape (the check runs the
+  sanitizer itself, so it cannot drift), caps files at 64 KiB before
+  allocation, reports a line-numbered status diagnostic, and falls back to
+  English; ASCII terminals skip translations entirely. Shipped
+  `i18n/zh-CN.conf` with a completeness test binding it to the menu keys.
+  Verified in a real tmux session (debug and release builds): translated
+  menu bar and dropdowns render with correct CJK widths and the O mnemonic
+  opens the Open dialog from the translated label. 19 new tests; workspace
+  606 passed. macOS budget build 612,716 -> 625,060 bytes (+12,344);
+  Debian binding measurement folds into the next VM session.

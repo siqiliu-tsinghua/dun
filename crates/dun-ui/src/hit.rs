@@ -128,13 +128,8 @@ impl UiShell {
     }
 
     pub fn menu_entry_mnemonic(&self, menu_index: usize, entry_index: usize) -> Option<char> {
-        let label = self
-            .menu_bar(None)
-            .items
-            .get(menu_index)?
-            .entries
-            .get(entry_index)?
-            .label;
+        let menu = self.menu_bar(None);
+        let label = &menu.items.get(menu_index)?.entries.get(entry_index)?.label;
         entry_mnemonic(label)
     }
 
@@ -146,7 +141,7 @@ impl UiShell {
         self.menu_bar(None)
             .items
             .iter()
-            .position(|item| mnemonic_matches(item.label, ch))
+            .position(|item| mnemonic_matches(&item.label, ch))
     }
 
     /// The entry an open dropdown should run for a bare letter key. Entries
@@ -159,7 +154,7 @@ impl UiShell {
             .entries
             .iter()
             .position(|entry| {
-                entry_mnemonic(entry.label)
+                entry_mnemonic(&entry.label)
                     .is_some_and(|mnemonic| mnemonic.eq_ignore_ascii_case(&ch) || mnemonic == ch)
             })
     }
@@ -269,10 +264,12 @@ impl UiShell {
     }
 }
 
+/// A translated menu-bar label carries its English mnemonic in trailing
+/// parens ("文件 (F)"), which must win over the first letter; untranslated
+/// labels ("File") keep the first-letter rule.
 fn mnemonic_matches(label: &str, ch: char) -> bool {
-    label
-        .chars()
-        .next()
+    entry_mnemonic(label)
+        .or_else(|| label.chars().next())
         .is_some_and(|mnemonic| mnemonic.eq_ignore_ascii_case(&ch))
 }
 

@@ -273,6 +273,24 @@ the future process launcher to execute directly, without a shell. Parsing this
 section only builds and validates typed configuration; it does not launch a
 plugin host.
 
+## UI language
+
+Menu text can be translated through external resource files; see
+[i18n.md](./i18n.md) for the design and the safety rules. There is no config
+key: the language comes from the locale environment (first nonempty of
+`LC_ALL`, `LC_MESSAGES`, `LANG`), and translations load from an `i18n/`
+directory next to the active config file — `~/.config/dun/i18n/zh-CN.conf`
+under default discovery. The repository ships reference translations in its
+top-level `i18n/` directory.
+
+English is compiled in and needs no files. Missing translation files are
+silently fine; a present-but-invalid file is rejected whole with a status
+message and the editor stays English. On ASCII-only terminals translations
+are skipped entirely. With `--no-config`, everything built-in applies,
+including the English UI text. Menu mnemonics — `(F)`, `(N)` — always come
+from the built-in English labels, so keyboard navigation is the same in
+every language and translation files cannot change or break it.
+
 ## Example
 
 ```text
