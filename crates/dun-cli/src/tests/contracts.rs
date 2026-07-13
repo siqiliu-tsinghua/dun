@@ -9,6 +9,7 @@ fn every_help_entry_names_a_real_command() {
     let help = help_text(
         &Keymap::default_editor(),
         &FileDialogKeymap::default_file_dialog(),
+        &dun_config::TextCatalog::empty(),
     );
     let command_help = help
         .split_once("\nPrompts\n")

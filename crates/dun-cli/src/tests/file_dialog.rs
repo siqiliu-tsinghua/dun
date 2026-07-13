@@ -437,7 +437,7 @@ fn file_dialog_uses_configured_modal_keybindings() {
     );
     assert!(app.file_dialog.as_ref().unwrap().show_hidden);
 
-    let help = help_text(&app.shell.keymap, &app.file_dialog_keys);
+    let help = help_text(&app.shell.keymap, &app.file_dialog_keys, &app.shell.catalog);
     assert!(help.contains("F8"));
     assert!(help.contains("file_dialog.toggle_hidden"));
 }

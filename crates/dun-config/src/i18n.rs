@@ -116,13 +116,17 @@ pub fn parse_catalog(input: &str, lang: &str) -> Result<TextCatalog, CatalogPars
         let value = raw_value.trim();
 
         if key.is_empty()
-            || !key
-                .chars()
-                .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '.' || ch == '-')
+            || !key.chars().all(|ch| {
+                ch.is_ascii_lowercase()
+                    || ch.is_ascii_digit()
+                    || ch == '.'
+                    || ch == '-'
+                    || ch == '_'
+            })
         {
             return Err(CatalogParseError::line(
                 line_number,
-                format!("invalid key `{key}`; keys are lowercase [a-z0-9.-]"),
+                format!("invalid key `{key}`; keys are lowercase [a-z0-9._-]"),
             ));
         }
         if value.is_empty() {

@@ -236,8 +236,13 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
 - [x] Ship the first reference translation: `i18n/zh-CN.conf` (menus), with
   a completeness test binding it to the menu keys. Translator guide in
   docs/i18n.md.
-- [ ] Extract help window fixed strings (headers/sections; content is
-  keymap-generated) — slice 2.
+- [x] Extract help window fixed strings — slice 2, landed 2026-07-13:
+  ~125 keys (title, section headers, command descriptions keyed by command
+  id as `help.command.<id>`, prompt/selection/navigation/menu/notes rows),
+  all translated in `i18n/zh-CN.conf` with a completeness test that fails
+  listing any missing key (`help_translation_keys`). Key-cap columns stay
+  English; column padding is by display width, not char count (the
+  translated "(未绑定)" key column exposed the misalignment).
 - [ ] Extract dialog titles, buttons, and prompt labels — slice 3.
 - [ ] Extract status messages into parameterized templates — the largest
   churn, deliberately last.

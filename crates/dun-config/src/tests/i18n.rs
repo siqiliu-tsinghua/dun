@@ -46,6 +46,12 @@ fn accepts_unknown_keys_for_forward_compatibility() {
 }
 
 #[test]
+fn accepts_underscores_where_keys_embed_command_ids() {
+    let catalog = parse_catalog("help.command.edit.move_left = 左移\n", "zh-CN").expect("parses");
+    assert_eq!(catalog.get("help.command.edit.move_left"), Some("左移"));
+}
+
+#[test]
 fn rejects_missing_equals_bad_keys_and_empty_values() {
     assert!(parse_catalog("menu.file\n", "zh-CN").is_err());
     assert!(parse_catalog("Menu.File = x\n", "zh-CN").is_err());

@@ -1006,3 +1006,31 @@ This is an append-only progress log. Keep new entries dated and factual.
   opens the Open dialog from the translated label. 19 new tests; workspace
   606 passed. macOS budget build 612,716 -> 625,060 bytes (+12,344);
   Debian binding measurement folds into the next VM session.
+- Closed the plugin-protocol-client stage and paid off the measurement debt
+  (2026-07-13, a6d7ee5): Debian budget build 670,080 bytes at fd31719
+  (margin 378,496) from a clean vm-sync archive, all release-smoke items
+  green on both platforms, zh-CN menus verified on the Debian release
+  binary under tmux. One recorded span e61774a -> fd31719 (+32,768 Debian)
+  covers briefs 012-021, the theme redesign, and sanitizer hardening.
+- Investigated the translated-text-length risk (user-raised) and fixed the
+  one real defect it exposed (2026-07-13, a9ff7c8): dropdown geometry was
+  already clamp-and-truncate by shared construction (render and hit testing
+  use the same functions; fit_text_to_width cuts on display-width
+  boundaries), but a dropdown near the right edge shrank below minimum and
+  vanished — now it shifts left onto the screen, msedit-style. Verified at
+  26/34 columns in tmux with deliberately long zh translations; new tests
+  pin no-overflow, shift semantics, and hit/render agreement
+  (mutation-checked). Zero size cost on both platforms (Debian re-measured
+  670,080).
+- Landed i18n slice 2: the help window (2026-07-13). ~125 catalog keys —
+  title, section headers, command descriptions keyed by command id
+  (help.command.<id>), fixed prompt/selection/navigation/menu/notes rows —
+  with full zh-CN translations and a completeness test that fails listing
+  exactly the missing keys (help_translation_keys enumerates every key the
+  help window can look up). Catalog keys now allow '_' for embedded command
+  ids. Found and fixed the second real length bug: help columns were padded
+  by char count ({:<15}), so the 10-cell-wide 6-char "(未绑定)" shifted its
+  row's description column — padding is now by display width
+  (mutation-checked test). Key-cap columns stay English by design. Verified
+  in tmux: translated, aligned help on the zh locale. Workspace 611 tests;
+  macOS 629,164 (+4,104).

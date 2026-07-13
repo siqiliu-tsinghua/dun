@@ -73,7 +73,11 @@ impl AppState {
         let buffer_id = window.buffer_id;
         let help = BufferState::new(
             buffer_id,
-            help_buffer(&self.shell.keymap, &self.file_dialog_keys),
+            help_buffer(
+                &self.shell.keymap,
+                &self.file_dialog_keys,
+                &self.shell.catalog,
+            ),
         );
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
@@ -114,7 +118,11 @@ impl AppState {
         };
         let help = BufferState::new(
             buffer_id,
-            help_buffer(&self.shell.keymap, &self.file_dialog_keys),
+            help_buffer(
+                &self.shell.keymap,
+                &self.file_dialog_keys,
+                &self.shell.catalog,
+            ),
         );
 
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {

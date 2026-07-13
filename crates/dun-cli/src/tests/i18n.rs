@@ -102,3 +102,58 @@ fn i18n_dir_follows_the_config_source() {
     }
     assert_eq!(i18n_dir_for_source(&ConfigSource::Disabled), None);
 }
+
+#[test]
+fn shipped_zh_catalog_translates_the_whole_help_window() {
+    let text = include_str!("../../../../i18n/zh-CN.conf");
+    let catalog = dun_config::parse_catalog(text, "zh-CN").expect("shipped file parses");
+
+    let missing: Vec<String> = crate::help::content::help_translation_keys()
+        .into_iter()
+        .filter(|(key, _)| catalog.get(key).is_none())
+        .map(|(key, english)| format!("{key} = {english}"))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "untranslated help keys:\n{}",
+        missing.join("\n")
+    );
+
+    let help = crate::help::content::help_text(
+        &dun_config::Keymap::default_editor(),
+        &dun_config::FileDialogKeymap::default_file_dialog(),
+        &catalog,
+    );
+    assert!(help.contains("帮助"), "translated help must render zh text");
+    assert!(
+        !help.contains("Move left"),
+        "English descriptions leaked into translated help"
+    );
+    // Command ids stay untranslated: they are what the command prompt takes.
+    assert!(help.contains("[edit.move_left]"));
+
+    // Column alignment must hold by display width, not char count: the
+    // translated "(未绑定)" key column is 10 cells wide but only 6 chars,
+    // so char-count padding would shift its description right.
+    let description_column = |line: &str, description: &str| {
+        let start = line.find(description).expect("description in line");
+        unicode_width::UnicodeWidthStr::width(&line[..start])
+    };
+    let bound = help
+        .lines()
+        .find(|line| line.contains("[app.help]"))
+        .expect("bound command row");
+    let unbound = help
+        .lines()
+        .find(|line| line.contains("[app.search_results]"))
+        .expect("unbound command row");
+    assert!(
+        unbound.contains("(未绑定)"),
+        "fixture expects an unbound row"
+    );
+    assert_eq!(
+        description_column(bound, "帮助"),
+        description_column(unbound, "列出当前搜索结果"),
+        "description columns must align across ASCII and wide key columns"
+    );
+}
