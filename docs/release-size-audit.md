@@ -385,3 +385,32 @@ rendered the zh-CN menus correctly under tmux on the VM with
 `LANG=zh_CN.UTF-8`. Local smoke: tmux_grid 5 passed, msedit_diff 1 passed,
 release `test-panic-hook` pty_smoke 10 passed, `strings | grep -c
 DUN_TEST_PANIC` printed 0 on the budget binary.
+
+## 2026-07-13 Dropdown shift-left clamp (a9ff7c8)
+
+Menu dropdowns near the right edge shift left onto the screen instead of
+being clamped away (translated labels widen the bar, so the rightmost menu
+fell off narrow terminals sooner). Zero size cost on both platforms:
+
+| Platform | Before | After | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 625,060 | 625,060 | 0 | 423,516 |
+| Debian x86_64 | 670,080 | 670,080 | 0 | 378,496 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `a9ff7c8`;
+`--version` smoke passed.
+
+## 2026-07-13 i18n slice 2: help window (28d0c97)
+
+Help window text extraction (~125 catalog keys, display-width column
+padding, '_' allowed in catalog keys) plus the shipped zh-CN help
+translations. The key-enumeration helper is `#[cfg(test)]` and costs the
+binary nothing; the delta is the catalog lookups and table restructuring.
+
+| Platform | Before | After | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 625,060 | 629,164 | +4,104 | 419,412 |
+| Debian x86_64 | 670,080 | 678,272 | +8,192 | 370,304 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `28d0c97`;
+`--version` smoke passed; VM scratch directory removed after recording.
