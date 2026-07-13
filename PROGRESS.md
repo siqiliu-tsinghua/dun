@@ -1034,3 +1034,16 @@ This is an append-only progress log. Keep new entries dated and factual.
   (mutation-checked test). Key-cap columns stay English by design. Verified
   in tmux: translated, aligned help on the zh locale. Workspace 611 tests;
   macOS 629,164 (+4,104).
+- Landed i18n slice 3: dialog chrome (2026-07-13). 48 keys declared once in
+  crates/dun-cli/src/ui_text.rs — prompt modal titles, unsaved/replace
+  confirmation dialogs, buffer switcher, file-dialog chrome, helper-window
+  titles — with full zh-CN translations. New template mechanism (tr_fmt):
+  translations may reorder {} placeholders; a placeholder-count mismatch
+  falls back to the English template so runtime values are never dropped,
+  and the completeness test rejects shipped mismatches outright.
+  Confirmation button letters (s)/(d)/(c)/(r)/(a) remain functional English
+  keys appended by code, the same invariant as menu mnemonics. Verified in
+  tmux on the zh locale: translated Open dialog (title, labels, footer
+  shortcuts, parent-directory row) and unsaved-changes confirm. Workspace
+  613 tests; macOS 633,284 (+4,120). Dialog event messages stored in state
+  (self.message) deliberately wait for slice 4's status-template work.

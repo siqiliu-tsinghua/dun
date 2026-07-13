@@ -229,7 +229,10 @@ impl AppState {
 
     fn cancel_file_dialog(&mut self) {
         if let Some(dialog) = self.file_dialog.take() {
-            self.set_status(format!("{} cancelled", dialog.kind.name()));
+            self.set_status(format!(
+                "{} cancelled",
+                dialog.kind.name(&self.shell.catalog)
+            ));
         }
     }
 
@@ -318,7 +321,10 @@ impl AppState {
     fn finish_file_dialog_submit(&mut self, dialog: FileDialogState, submit: FileDialogSubmit) {
         match submit {
             FileDialogSubmit::Cancel => {
-                self.set_status(format!("{} cancelled", dialog.kind.name()));
+                self.set_status(format!(
+                    "{} cancelled",
+                    dialog.kind.name(&self.shell.catalog)
+                ));
             }
             FileDialogSubmit::ContinueEditing => {
                 self.file_dialog = Some(dialog);

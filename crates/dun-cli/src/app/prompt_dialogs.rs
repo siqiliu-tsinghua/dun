@@ -534,23 +534,24 @@ impl AppState {
     }
 
     pub(crate) fn active_overlay(&self) -> Option<UiOverlay> {
+        let catalog = &self.shell.catalog;
         if let Some(confirm) = &self.confirm {
-            let action = match confirm.action {
-                PendingAction::Quit => "[Save(s)] [Discard(d)] [Cancel(c)]",
-                PendingAction::New
-                | PendingAction::OpenPrompt
-                | PendingAction::ReloadBuffer
-                | PendingAction::CloseFile
-                | PendingAction::CloseWindow
-                | PendingAction::OnlyWindow(_) => "[Save(s)] [Discard(d)] [Cancel(c)]",
-            };
+            // The (s)/(d)/(c) letters are the keys the dialog answers to;
+            // translations change the words, never the letters.
+            let action = format!(
+                "[{}(s)] [{}(d)] [{}(c)]",
+                ui_text::tr(catalog, ui_text::CONFIRM_SAVE),
+                ui_text::tr(catalog, ui_text::CONFIRM_DISCARD),
+                ui_text::tr(catalog, ui_text::CONFIRM_CANCEL),
+            );
             return Some(UiOverlay::message(
-                "Unsaved Changes",
-                vec![format!(
-                    "Unsaved changes in {}",
-                    self.buffer_display_name(confirm.buffer_id)
+                ui_text::tr(catalog, ui_text::CONFIRM_UNSAVED_TITLE),
+                vec![ui_text::tr_fmt(
+                    catalog,
+                    ui_text::CONFIRM_UNSAVED_BODY,
+                    &[&self.buffer_display_name(confirm.buffer_id)],
                 )],
-                vec![action.to_string()],
+                vec![action],
             ));
         }
 
@@ -563,12 +564,19 @@ impl AppState {
         }
 
         if let Some(dialog) = &self.file_dialog {
-            return Some(dialog.overlay(&self.file_dialog_keys));
+            return Some(dialog.overlay(&self.file_dialog_keys, catalog));
         }
 
         let prompt = self.prompt.as_ref()?;
+        let title_key = match prompt.kind {
+            PromptKind::CommandLine => ui_text::PROMPT_COMMAND_TITLE,
+            PromptKind::Find => ui_text::PROMPT_FIND_TITLE,
+            PromptKind::ReplaceFind | PromptKind::ReplaceWith => ui_text::PROMPT_REPLACE_TITLE,
+            PromptKind::GoToLine => ui_text::PROMPT_GO_TO_LINE_TITLE,
+            PromptKind::RunCommand => ui_text::PROMPT_RUN_COMMAND_TITLE,
+        };
         let mut overlay = UiOverlay::prompt(
-            prompt.kind.name(),
+            ui_text::tr(catalog, title_key),
             prompt.input.as_str().to_string(),
             prompt.input.cursor_display_column(),
         );
@@ -579,35 +587,54 @@ impl AppState {
     }
 
     fn replace_confirm_overlay(&self, confirm: &ReplaceConfirmState) -> UiOverlay {
+        let catalog = &self.shell.catalog;
+        let find_display = confirm.spec.display();
+        let with_display = replacement_status_text(&confirm.replacement);
         UiOverlay::message(
-            "Confirm Replace",
+            ui_text::tr(catalog, ui_text::CONFIRM_REPLACE_TITLE),
             vec![
-                format!("Find: {}", confirm.spec.display()),
-                format!(
-                    "Replace with: {}",
-                    replacement_status_text(&confirm.replacement)
-                ),
+                ui_text::tr_fmt(catalog, ui_text::CONFIRM_REPLACE_FIND, &[&find_display]),
+                ui_text::tr_fmt(catalog, ui_text::CONFIRM_REPLACE_WITH, &[with_display]),
                 self.replace_confirm_status_text(confirm),
             ],
-            vec!["[Replace(r)] [Skip(s)] [All(a)] [Cancel(c)]".to_string()],
+            vec![format!(
+                "[{}(r)] [{}(s)] [{}(a)] [{}(c)]",
+                ui_text::tr(catalog, ui_text::CONFIRM_REPLACE),
+                ui_text::tr(catalog, ui_text::CONFIRM_SKIP),
+                ui_text::tr(catalog, ui_text::CONFIRM_ALL),
+                ui_text::tr(catalog, ui_text::CONFIRM_CANCEL),
+            )],
         )
     }
 
     fn replace_confirm_status_text(&self, confirm: &ReplaceConfirmState) -> String {
+        let catalog = &self.shell.catalog;
         let match_status = self
             .buffer_state(confirm.buffer_id)
             .and_then(|buffer| buffer.search.as_ref())
             .filter(|search| search.spec == confirm.spec)
             .and_then(|search| match (search.matches.len(), search.active_index) {
                 (0, _) => None,
-                (total, Some(index)) => Some(format!("Match {}/{}", index + 1, total)),
-                (total, None) => Some(format!("Match {total}")),
+                (total, Some(index)) => Some(ui_text::tr_fmt(
+                    catalog,
+                    ui_text::CONFIRM_MATCH_OF,
+                    &[&(index + 1).to_string(), &total.to_string()],
+                )),
+                (total, None) => Some(ui_text::tr_fmt(
+                    catalog,
+                    ui_text::CONFIRM_MATCH_TOTAL,
+                    &[&total.to_string()],
+                )),
             })
-            .unwrap_or_else(|| "Match -".to_string());
+            .unwrap_or_else(|| ui_text::tr(catalog, ui_text::CONFIRM_MATCH_NONE).to_string());
 
         format!(
-            "{match_status}; replaced {}, skipped {}",
-            confirm.replaced, confirm.skipped
+            "{match_status}{}",
+            ui_text::tr_fmt(
+                catalog,
+                ui_text::CONFIRM_PROGRESS,
+                &[&confirm.replaced.to_string(), &confirm.skipped.to_string()],
+            )
         )
     }
 }

@@ -49,45 +49,56 @@ impl FileDialogState {
         format!("{label}{}", self.input.as_str())
     }
 
-    pub(crate) fn overlay(&self, keymap: &FileDialogKeymap) -> UiOverlay {
+    pub(crate) fn overlay(&self, keymap: &FileDialogKeymap, catalog: &TextCatalog) -> UiOverlay {
         let context = file_dialog_context(self.input.as_str());
         let hidden_state = if self.show_hidden {
-            "shown"
+            ui_text::tr(catalog, ui_text::DIALOG_HIDDEN_SHOWN)
         } else if context.prefix.starts_with('.') {
-            "shown by prefix"
+            ui_text::tr(catalog, ui_text::DIALOG_HIDDEN_BY_PREFIX)
         } else {
-            "hidden"
+            ui_text::tr(catalog, ui_text::DIALOG_HIDDEN_HIDDEN)
         };
         let hidden_key = file_dialog_action_key_text(keymap, FileDialogAction::ToggleHidden);
         let entry_count = self.entries.iter().filter(|entry| !entry.is_parent).count();
         let mut lines = vec![
-            format!("Look in: {}", context.directory.display()),
-            format!("{}:", self.kind.input_label()),
+            ui_text::tr_fmt(
+                catalog,
+                ui_text::DIALOG_LOOK_IN,
+                &[&context.directory.display().to_string()],
+            ),
+            format!("{}:", self.kind.input_label(catalog)),
             self.message
                 .clone()
-                .unwrap_or_else(|| self.kind.help_text(entry_count)),
-            format!("Hidden: {hidden_state} ({hidden_key})"),
+                .unwrap_or_else(|| self.kind.help_text(entry_count, catalog)),
+            ui_text::tr_fmt(
+                catalog,
+                ui_text::DIALOG_HIDDEN,
+                &[hidden_state, &hidden_key],
+            ),
         ];
         if self.entries.len() > FILE_DIALOG_VISIBLE_ENTRIES {
             if let Some((start, end, _)) = self.visible_entry_range() {
-                lines.push(format!(
-                    "Showing {}-{} of {} matches",
-                    start + 1,
-                    end,
-                    self.entries.len()
+                lines.push(ui_text::tr_fmt(
+                    catalog,
+                    ui_text::DIALOG_SHOWING_MATCHES,
+                    &[
+                        &(start + 1).to_string(),
+                        &end.to_string(),
+                        &self.entries.len().to_string(),
+                    ],
                 ));
             }
         }
 
-        let (list, selected) = self.visible_entry_texts();
+        let (list, selected) = self.visible_entry_texts(catalog);
         let mut overlay = UiOverlay::file_dialog(
-            self.kind.name(),
+            self.kind.name(catalog),
             lines,
             self.input.as_str().to_string(),
             self.input.cursor_display_column(),
             list,
             selected,
-            vec![file_dialog_shortcuts_text(keymap)],
+            vec![file_dialog_shortcuts_text(keymap, catalog)],
         );
         if let Some((start, end, _)) = self.visible_entry_range() {
             overlay = overlay.with_list_overflow(start > 0, end < self.entries.len());
@@ -128,13 +139,19 @@ impl FileDialogState {
         }
     }
 
-    pub(crate) fn visible_entry_texts(&self) -> (Vec<String>, Option<usize>) {
+    pub(crate) fn visible_entry_texts(
+        &self,
+        catalog: &TextCatalog,
+    ) -> (Vec<String>, Option<usize>) {
         let Some((start, end, selected)) = self.visible_entry_range() else {
-            return (vec!["(no matches)".to_string()], None);
+            return (
+                vec![ui_text::tr(catalog, ui_text::DIALOG_NO_MATCHES).to_string()],
+                None,
+            );
         };
         let list = self.entries[start..end]
             .iter()
-            .map(FileDialogEntry::display_text)
+            .map(|entry| entry.display_text(catalog))
             .collect::<Vec<_>>();
         let selected = if (start..end).contains(&selected) {
             Some(selected - start)
@@ -466,17 +483,17 @@ pub(crate) enum FileDialogKind {
 }
 
 impl FileDialogKind {
-    pub(crate) const fn name(self) -> &'static str {
+    pub(crate) fn name(self, catalog: &TextCatalog) -> &str {
         match self {
-            Self::Open => "Open",
-            Self::SaveAs => "Save As",
+            Self::Open => ui_text::tr(catalog, ui_text::DIALOG_OPEN_TITLE),
+            Self::SaveAs => ui_text::tr(catalog, ui_text::DIALOG_SAVE_AS_TITLE),
         }
     }
 
-    pub(crate) const fn input_label(self) -> &'static str {
+    pub(crate) fn input_label(self, catalog: &TextCatalog) -> &str {
         match self {
-            Self::Open => "File name",
-            Self::SaveAs => "Save as",
+            Self::Open => ui_text::tr(catalog, ui_text::DIALOG_OPEN_INPUT_LABEL),
+            Self::SaveAs => ui_text::tr(catalog, ui_text::DIALOG_SAVE_AS_INPUT_LABEL),
         }
     }
 
@@ -484,7 +501,16 @@ impl FileDialogKind {
         matches!(self, Self::SaveAs)
     }
 
-    pub(crate) fn help_text(self, entry_count: usize) -> String {
+    /// English keeps its singular/plural branching; a translation supplies
+    /// one `{}` template used for every count.
+    pub(crate) fn help_text(self, entry_count: usize, catalog: &TextCatalog) -> String {
+        let key = match self {
+            Self::Open => ui_text::DIALOG_OPEN_HELP,
+            Self::SaveAs => ui_text::DIALOG_SAVE_AS_HELP,
+        };
+        if let Some(template) = ui_text::tr_template(catalog, key, 1) {
+            return ui_text::substitute(template, &[&entry_count.to_string()]);
+        }
         let noun = if entry_count == 1 { "entry" } else { "entries" };
         match self {
             Self::Open => format!("Select a file or type a path. {entry_count} {noun}."),
@@ -509,9 +535,9 @@ pub(crate) struct FileDialogListing {
 }
 
 impl FileDialogEntry {
-    pub(crate) fn display_text(&self) -> String {
+    pub(crate) fn display_text(&self, catalog: &TextCatalog) -> String {
         if self.is_parent {
-            "[..] Parent directory".to_string()
+            ui_text::tr(catalog, ui_text::DIALOG_PARENT_DIR).to_string()
         } else if self.is_dir {
             format!("[DIR]  {}/", self.name)
         } else {

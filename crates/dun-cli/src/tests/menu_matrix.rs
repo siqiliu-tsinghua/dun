@@ -182,7 +182,7 @@ fn drive_entry(fixture: &MenuMatrixFixture, menu: &MenuSpec, entry: &EntrySpec) 
 fn modal_name(app: &AppState) -> String {
     let mut open = Vec::new();
     if let Some(dialog) = &app.file_dialog {
-        open.push(dialog.kind.name());
+        open.push(dialog.kind.name(&app.shell.catalog));
     }
     if let Some(prompt) = &app.prompt {
         open.push(prompt.kind.name());

@@ -352,13 +352,20 @@ pub(crate) fn file_dialog_action_key_text(
         .unwrap_or_else(|| "(unbound)".to_string())
 }
 
-pub(crate) fn file_dialog_shortcuts_text(keymap: &FileDialogKeymap) -> String {
+pub(crate) fn file_dialog_shortcuts_text(
+    keymap: &FileDialogKeymap,
+    catalog: &TextCatalog,
+) -> String {
     format!(
-        "[{}] OK  [{}] Complete  [{}] Hidden  [{}] Cancel",
+        "[{}] {}  [{}] {}  [{}] {}  [{}] {}",
         file_dialog_action_key_text(keymap, FileDialogAction::Submit),
+        ui_text::tr(catalog, ui_text::DIALOG_SHORTCUT_OK),
         file_dialog_action_key_text(keymap, FileDialogAction::CompleteForward),
+        ui_text::tr(catalog, ui_text::DIALOG_SHORTCUT_COMPLETE),
         file_dialog_action_key_text(keymap, FileDialogAction::ToggleHidden),
+        ui_text::tr(catalog, ui_text::DIALOG_SHORTCUT_HIDDEN),
         file_dialog_action_key_text(keymap, FileDialogAction::Cancel),
+        ui_text::tr(catalog, ui_text::DIALOG_SHORTCUT_CANCEL),
     )
 }
 

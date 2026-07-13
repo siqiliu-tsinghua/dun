@@ -14,7 +14,7 @@ use crossterm::event::{
 };
 use dun_config::{
     ClipboardConfig, FileDialogAction, FileDialogKeymap, Key, KeyModifiers, KeySequence, KeyStroke,
-    Keymap, Limits, ThemeName, command_from_id, command_id, default_config_text,
+    Keymap, Limits, TextCatalog, ThemeName, command_from_id, command_id, default_config_text,
     file_dialog_action_id,
 };
 #[cfg(test)]
@@ -43,6 +43,7 @@ mod help;
 mod i18n_loading;
 mod plugins;
 mod terminal;
+mod ui_text;
 mod util;
 
 use app::{

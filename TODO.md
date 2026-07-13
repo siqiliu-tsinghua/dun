@@ -243,7 +243,17 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   listing any missing key (`help_translation_keys`). Key-cap columns stay
   English; column padding is by display width, not char count (the
   translated "(未绑定)" key column exposed the misalignment).
-- [ ] Extract dialog titles, buttons, and prompt labels — slice 3.
+- [x] Extract dialog titles, buttons, and prompt labels — slice 3, landed
+  2026-07-13: 48 keys in `crates/dun-cli/src/ui_text.rs` (single source;
+  the completeness test enumerates `ui_text::ALL` and also rejects
+  placeholder-count drift). Covers prompt modal titles, unsaved/replace
+  confirm dialogs, buffer switcher, file dialog chrome, and helper-window
+  titles. Introduced the `{}` template mechanism (`tr_fmt`): translations
+  can reorder arguments, and a template whose placeholder count mismatches
+  falls back to English so runtime values are never dropped. Confirm-button
+  letters (s)/(d)/(c)/(r)/(a) stay functional English keys appended by
+  code. Stateful `self.message` strings (dialog event messages) move to
+  slice 4 with the status work.
 - [ ] Extract status messages into parameterized templates — the largest
   churn, deliberately last.
 - [ ] Extend `i18n/` to more common languages (ja/de/fr/es) once the

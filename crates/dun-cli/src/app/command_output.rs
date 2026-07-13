@@ -8,7 +8,9 @@ impl AppState {
             self.workspace.focused = window_id;
             self.refresh_command_output_buffer(&text);
             if let Ok(window) = self.workspace.window_mut(window_id) {
-                window.title = "Command Output".to_string();
+                window.title =
+                    ui_text::tr(&self.shell.catalog, ui_text::WINDOW_COMMAND_OUTPUT_TITLE)
+                        .to_string();
                 window.kind = WindowKind::CommandOutput;
                 window.buffer_kind = BufferKind::ReadOnly;
                 window.collapsed = false;
@@ -34,7 +36,8 @@ impl AppState {
         }
 
         if let Ok(window) = self.workspace.window_mut(window_id) {
-            window.title = "Command Output".to_string();
+            window.title =
+                ui_text::tr(&self.shell.catalog, ui_text::WINDOW_COMMAND_OUTPUT_TITLE).to_string();
             window.kind = WindowKind::CommandOutput;
             window.buffer_kind = BufferKind::ReadOnly;
             window.collapsed = false;

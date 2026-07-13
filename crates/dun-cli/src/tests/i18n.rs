@@ -157,3 +157,64 @@ fn shipped_zh_catalog_translates_the_whole_help_window() {
         "description columns must align across ASCII and wide key columns"
     );
 }
+
+#[test]
+fn shipped_zh_catalog_translates_all_dialog_chrome() {
+    let text = include_str!("../../../../i18n/zh-CN.conf");
+    let catalog = dun_config::parse_catalog(text, "zh-CN").expect("shipped file parses");
+
+    let missing: Vec<String> = crate::ui_text::ALL
+        .iter()
+        .filter(|(key, _)| catalog.get(key).is_none())
+        .map(|(key, english)| format!("{key} = {english}"))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "untranslated dialog keys:\n{}",
+        missing.join("\n")
+    );
+
+    // Translated templates must keep the exact placeholder count of their
+    // English default — mismatches silently fall back to English, so a
+    // shipped translation with a mismatch is a bug, not a preference.
+    let mismatched: Vec<String> = crate::ui_text::ALL
+        .iter()
+        .filter_map(|(key, english)| {
+            let translated = catalog.get(key)?;
+            (crate::ui_text::placeholder_count(translated)
+                != crate::ui_text::placeholder_count(english))
+            .then(|| format!("{key}: `{english}` vs `{translated}`"))
+        })
+        .collect();
+    assert!(
+        mismatched.is_empty(),
+        "placeholder count mismatches:\n{}",
+        mismatched.join("\n")
+    );
+}
+
+#[test]
+fn tr_fmt_substitutes_and_survives_broken_templates() {
+    let catalog = dun_config::parse_catalog(
+        "confirm.unsaved.body = {} 有未保存的更改\nconfirm.replace.match-of = 匹配太少\n",
+        "zh-CN",
+    )
+    .expect("parses");
+
+    // Correct placeholder count: translated template is used, args in order.
+    assert_eq!(
+        crate::ui_text::tr_fmt(&catalog, crate::ui_text::CONFIRM_UNSAVED_BODY, &["a.txt"]),
+        "a.txt 有未保存的更改"
+    );
+    // Placeholder count mismatch (translation lost its {}s): the English
+    // template wins so no runtime value is dropped.
+    assert_eq!(
+        crate::ui_text::tr_fmt(&catalog, crate::ui_text::CONFIRM_MATCH_OF, &["2", "5"]),
+        "Match 2/5"
+    );
+    // Untranslated key: English template with substitution.
+    assert_eq!(
+        crate::ui_text::tr_fmt(&catalog, crate::ui_text::SWITCHER_OPEN_BUFFERS, &["3"]),
+        "Open buffers: 3"
+    );
+}

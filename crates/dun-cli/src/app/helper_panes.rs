@@ -87,7 +87,7 @@ impl AppState {
         }
 
         if let Ok(window) = self.workspace.window_mut(window_id) {
-            window.title = "Help".to_string();
+            window.title = ui_text::tr(&self.shell.catalog, ui_text::WINDOW_HELP_TITLE).to_string();
             window.kind = WindowKind::Help;
             window.buffer_kind = BufferKind::ReadOnly;
             window.collapsed = false;
@@ -158,7 +158,11 @@ impl AppState {
         }
 
         if let Ok(window) = self.workspace.window_mut(window_id) {
-            window.title = "Config Diagnostics".to_string();
+            window.title = ui_text::tr(
+                &self.shell.catalog,
+                ui_text::WINDOW_CONFIG_DIAGNOSTICS_TITLE,
+            )
+            .to_string();
             window.kind = WindowKind::ConfigDiagnostics;
             window.buffer_kind = BufferKind::ReadOnly;
             window.collapsed = false;
@@ -256,7 +260,8 @@ impl AppState {
         }
 
         if let Ok(window) = self.workspace.window_mut(window_id) {
-            window.title = "Status History".to_string();
+            window.title =
+                ui_text::tr(&self.shell.catalog, ui_text::WINDOW_STATUS_HISTORY_TITLE).to_string();
             window.kind = WindowKind::StatusHistory;
             window.buffer_kind = BufferKind::ReadOnly;
             window.collapsed = false;

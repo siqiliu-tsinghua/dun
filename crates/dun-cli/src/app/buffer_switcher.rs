@@ -129,25 +129,33 @@ impl AppState {
     }
 
     pub(crate) fn buffer_switcher_overlay(&self, switcher: &BufferSwitcherState) -> UiOverlay {
+        let catalog = &self.shell.catalog;
         let entries = self.buffer_switcher_entries();
         let (list, selected) = switcher.visible_entry_texts(&entries);
-        let mut lines = vec![format!("Open buffers: {}", entries.len())];
+        let mut lines = vec![ui_text::tr_fmt(
+            catalog,
+            ui_text::SWITCHER_OPEN_BUFFERS,
+            &[&entries.len().to_string()],
+        )];
         if entries.len() > BUFFER_SWITCHER_VISIBLE_ENTRIES {
             if let Some((start, end, _)) = switcher.visible_entry_range(entries.len()) {
-                lines.push(format!(
-                    "Showing {}-{} of {} buffers",
-                    start + 1,
-                    end,
-                    entries.len()
+                lines.push(ui_text::tr_fmt(
+                    catalog,
+                    ui_text::SWITCHER_SHOWING,
+                    &[
+                        &(start + 1).to_string(),
+                        &end.to_string(),
+                        &entries.len().to_string(),
+                    ],
                 ));
             }
         }
         let mut overlay = UiOverlay::message(
-            "Switch Buffer",
+            ui_text::tr(catalog, ui_text::SWITCHER_TITLE),
             lines,
             vec![
-                "[Up/Down PgUp/PgDn] Move".to_string(),
-                "[Home/End] First/Last  [Enter] Switch  [Esc] Cancel".to_string(),
+                ui_text::tr(catalog, ui_text::SWITCHER_HINT_MOVE).to_string(),
+                ui_text::tr(catalog, ui_text::SWITCHER_HINT_ACTIONS).to_string(),
             ],
         )
         .with_list(list, selected, 48);

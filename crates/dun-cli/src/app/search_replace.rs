@@ -315,9 +315,11 @@ impl AppState {
         };
         let text = search_results_text(&source_name, &spec, &matches, &source.buffer);
         self.search_results_source = Some(source_buffer_id);
+        let title =
+            ui_text::tr(&self.shell.catalog, ui_text::WINDOW_SEARCH_RESULTS_TITLE).to_string();
         self.open_read_only_aux_window(
             WindowKind::SearchResults,
-            "Search Results",
+            &title,
             search_results_buffer(&text),
         );
         self.set_status(format!("Search Results: {} match(es)", matches.len()));

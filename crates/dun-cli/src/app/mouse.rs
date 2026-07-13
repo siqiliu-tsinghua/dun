@@ -135,7 +135,7 @@ impl AppState {
         let Some(dialog) = &self.file_dialog else {
             return false;
         };
-        let overlay = dialog.overlay(&self.file_dialog_keys);
+        let overlay = dialog.overlay(&self.file_dialog_keys, &self.shell.catalog);
         let Some(visible_index) =
             self.shell
                 .hit_test_overlay_list(&overlay, self.overlay_area(), screen_x, screen_y)
