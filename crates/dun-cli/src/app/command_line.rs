@@ -208,10 +208,11 @@ impl AppState {
                     return;
                 }
                 if let Err(error) = self.open_file_path(PathBuf::from(path)) {
+                    let detail = path_error_status_text(&self.shell.catalog, &error);
                     self.set_status(ui_text::tr_fmt(
                         &self.shell.catalog,
                         ui_text::STATUS_OPEN_FAILED,
-                        &[&error.to_string()],
+                        &[&detail],
                     ));
                 }
             }
@@ -226,10 +227,11 @@ impl AppState {
             [] => self.handle_file_command(&FileCommand::Save),
             [path] => {
                 if let Err(error) = self.save_focused_buffer_as(PathBuf::from(path)) {
+                    let detail = path_error_status_text(&self.shell.catalog, &error);
                     self.set_status(ui_text::tr_fmt(
                         &self.shell.catalog,
                         ui_text::STATUS_SAVE_AS_FAILED,
-                        &[&error.to_string()],
+                        &[&detail],
                     ));
                 }
             }
@@ -244,10 +246,11 @@ impl AppState {
             [] => self.handle_file_command(&FileCommand::SaveAs),
             [path] => {
                 if let Err(error) = self.save_focused_buffer_as(PathBuf::from(path)) {
+                    let detail = path_error_status_text(&self.shell.catalog, &error);
                     self.set_status(ui_text::tr_fmt(
                         &self.shell.catalog,
                         ui_text::STATUS_SAVE_AS_FAILED,
-                        &[&error.to_string()],
+                        &[&detail],
                     ));
                 }
             }

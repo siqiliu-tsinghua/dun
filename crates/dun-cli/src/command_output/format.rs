@@ -1,75 +1,108 @@
-use crate::terminal::{duration_status_text, exit_status_text};
+use crate::terminal::{duration_status_text, localized_exit_status_text};
 use crate::*;
 
 pub(crate) fn command_output_buffer(text: &str) -> TextBuffer {
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, text)
 }
 
-pub(crate) fn command_output_text(result: &CommandRunResult) -> String {
-    let mut out = String::from("Dun Command Output\n\n");
-    out.push_str(&format!("Command: {}\n", result.command));
-    out.push_str(&format!("Shell: {}\n", result.shell.to_string_lossy()));
-    if result.timed_out {
-        out.push_str("Status: timed out; process killed\n");
+pub(crate) fn command_output_text(catalog: &TextCatalog, result: &CommandRunResult) -> String {
+    let mut out = ui_text::tr(catalog, ui_text::COMMAND_OUTPUT_TITLE).to_string();
+    out.push_str("\n\n");
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_COMMAND,
+        &[&result.command],
+    ));
+    out.push('\n');
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_SHELL,
+        &[&result.shell.to_string_lossy()],
+    ));
+    out.push('\n');
+    let status = if result.timed_out {
+        ui_text::tr(catalog, ui_text::COMMAND_OUTPUT_STATUS_TIMED_OUT).to_string()
     } else {
-        out.push_str(&format!("Status: {}\n", exit_status_text(result.status)));
-    }
-    out.push_str(&format!(
-        "Elapsed: {}\n",
-        duration_status_text(result.elapsed)
+        localized_exit_status_text(catalog, result.status)
+    };
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_STATUS,
+        &[&status],
     ));
-    out.push_str(&format!(
-        "Limit: {} bytes per stream\n",
-        COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES
+    out.push('\n');
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_ELAPSED,
+        &[&duration_status_text(result.elapsed)],
     ));
-    out.push_str(&format!(
-        "Stdout: {}\n",
-        command_stream_summary(&result.stdout)
+    out.push('\n');
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_LIMIT,
+        &[&COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES.to_string()],
     ));
-    out.push_str(&format!(
-        "Stdout Lines: {}\n",
-        command_stream_line_count(&result.stdout)
+    out.push('\n');
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_STDOUT,
+        &[&command_stream_summary(catalog, &result.stdout)],
     ));
-    out.push_str(&format!(
-        "Stderr: {}\n",
-        command_stream_summary(&result.stderr)
+    out.push('\n');
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_STDOUT_LINES,
+        &[&command_stream_line_count(&result.stdout).to_string()],
     ));
-    out.push_str(&format!(
-        "Stderr Lines: {}\n",
-        command_stream_line_count(&result.stderr)
+    out.push('\n');
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_STDERR,
+        &[&command_stream_summary(catalog, &result.stderr)],
     ));
-    out.push_str(&format!(
-        "Truncated: {}\n",
-        if result.stdout.truncated || result.stderr.truncated {
-            "yes"
-        } else {
-            "no"
-        }
+    out.push('\n');
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_STDERR_LINES,
+        &[&command_stream_line_count(&result.stderr).to_string()],
     ));
-
-    out.push_str(&format!(
-        "\n--- stdout ({}) ---\n",
-        command_stream_summary(&result.stdout)
+    out.push('\n');
+    let truncated = if result.stdout.truncated || result.stderr.truncated {
+        ui_text::tr(catalog, ui_text::COMMAND_OUTPUT_YES)
+    } else {
+        ui_text::tr(catalog, ui_text::COMMAND_OUTPUT_NO)
+    };
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_TRUNCATED,
+        &[truncated],
     ));
-    push_decoded_command_stream(&mut out, &result.stdout);
-    out.push_str(&format!(
-        "\n--- stderr ({}) ---\n",
-        command_stream_summary(&result.stderr)
+    out.push_str("\n\n");
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_STDOUT_SECTION,
+        &[&command_stream_summary(catalog, &result.stdout)],
     ));
-    push_decoded_command_stream(&mut out, &result.stderr);
+    out.push('\n');
+    push_decoded_command_stream(&mut out, catalog, &result.stdout);
+    out.push('\n');
+    out.push_str(&ui_text::tr_fmt(
+        catalog,
+        ui_text::COMMAND_OUTPUT_STDERR_SECTION,
+        &[&command_stream_summary(catalog, &result.stderr)],
+    ));
+    out.push('\n');
+    push_decoded_command_stream(&mut out, catalog, &result.stderr);
     out
 }
 
-fn command_stream_summary(stream: &CapturedCommandStream) -> String {
-    format!(
-        "{} bytes, {}",
-        stream.bytes.len(),
-        if stream.truncated {
-            "truncated"
-        } else {
-            "complete"
-        }
-    )
+fn command_stream_summary(catalog: &TextCatalog, stream: &CapturedCommandStream) -> String {
+    let key = if stream.truncated {
+        ui_text::COMMAND_OUTPUT_STREAM_TRUNCATED
+    } else {
+        ui_text::COMMAND_OUTPUT_STREAM_COMPLETE
+    };
+    ui_text::tr_fmt(catalog, key, &[&stream.bytes.len().to_string()])
 }
 
 fn command_stream_line_count(stream: &CapturedCommandStream) -> usize {
@@ -83,9 +116,14 @@ fn command_stream_line_count(stream: &CapturedCommandStream) -> usize {
         .max(1)
 }
 
-fn push_decoded_command_stream(out: &mut String, stream: &CapturedCommandStream) {
+fn push_decoded_command_stream(
+    out: &mut String,
+    catalog: &TextCatalog,
+    stream: &CapturedCommandStream,
+) {
     if stream.bytes.is_empty() {
-        out.push_str("(empty)\n");
+        out.push_str(ui_text::tr(catalog, ui_text::COMMAND_OUTPUT_EMPTY));
+        out.push('\n');
     } else {
         let decoded = decode_file_text(stream.bytes.clone());
         out.push_str(&decoded.text);
@@ -94,6 +132,10 @@ fn push_decoded_command_stream(out: &mut String, stream: &CapturedCommandStream)
         }
     }
     if stream.truncated {
-        out.push_str("[truncated]\n");
+        out.push_str(ui_text::tr(
+            catalog,
+            ui_text::COMMAND_OUTPUT_TRUNCATED_MARKER,
+        ));
+        out.push('\n');
     }
 }

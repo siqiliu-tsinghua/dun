@@ -275,23 +275,20 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   section tokens, command ids — stays English and is passed as a `{}`
   argument; only the prose around it translates. `ui_text.rs` was split into
   `ui_text/{mod,chrome,status}.rs` on the way.
-- [ ] Slice 4b-2: the text that cannot be reached by threading a catalog,
-  because it is **stored or type-erased**, and needs a typed-message
-  refactor instead:
-  - `FileDialogState::message` — English text stored in state by methods
-    that have no catalog. Store a typed message enum; render it at
-    `overlay()` time, where the catalog is already in hand.
-  - `path_error_detail` / `path_io_error` (`files/save.rs`) — dun-authored
-    text ("not found", "permission denied") carried inside an `io::Error`
-    across `io::Result` boundaries. Needs a typed path-error enum; the
-    OS-supplied fallback message stays whatever the OS gives.
-  - `"Untitled"` window titles — the string lives in `dun-core`, which
-    cannot depend on `dun-config` (where `TextCatalog` lives). Decide:
-    `dun-cli` overrides the title after workspace construction and split.
-  - Command Output buffer *content* (`command_output/format.rs`), the last
-    user of the English `exit_status_text`.
-  - Then split `ui_text/status.rs` by domain and retire the explicit size
-    exception recorded in docs/code-organization-guidelines.md.
+- [x] Slice 4b-2: the stored / type-erased text — landed 2026-07-13 via Codex
+  brief-024 (gated: scope/fmt/clippy/624 tests reproduced, zh reviewed,
+  mutation-checked twice). `FileDialogState::message` became a typed
+  `FileDialogMessage` enum rendered at `overlay()`; dun-authored path errors
+  became a typed `PathIoError` carried *inside* `io::Error` via its custom
+  payload API (`io::Error::new` + `get_ref`/`downcast_ref`), so the
+  `io::Result` plumbing never changed; `"Untitled"` is overwritten by dun-cli
+  at every creation point (dun-core stays catalog-free); Command Output buffer
+  content is translated and the English `exit_status_text` is retired. 36 keys.
+- [ ] Slice 4c: split `ui_text/status.rs` (~40k) by domain —
+  `status/{file,edit,window,search,prompt,plugin,command}.rs` — keeping `ALL` a
+  single flat enumeration in `mod.rs`, and retire the explicit size exception
+  recorded in docs/code-organization-guidelines.md. Held until now on purpose:
+  4b-1 and 4b-2 were still adding keys to that file.
 - [ ] Extend `i18n/` to more common languages (ja/de/fr/es) once the
   extraction slices settle the key set.
 - [ ] Measure the size delta per batch; the mechanism must stay lean since

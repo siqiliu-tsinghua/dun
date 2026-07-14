@@ -184,18 +184,11 @@ pub(crate) fn command_run_status(catalog: &TextCatalog, result: &CommandRunResul
     }
 }
 
-fn localized_exit_status_text(catalog: &TextCatalog, status: ExitStatus) -> String {
+pub(crate) fn localized_exit_status_text(catalog: &TextCatalog, status: ExitStatus) -> String {
     status
         .code()
         .map(|code| ui_text::tr_fmt(catalog, ui_text::STATUS_RUN_EXIT, &[&code.to_string()]))
         .unwrap_or_else(|| ui_text::tr(catalog, ui_text::STATUS_RUN_TERMINATED).to_string())
-}
-
-/// The English form, for Command Output *buffer content* (which is not yet
-/// translated). Defined through the localized path with an empty catalog so
-/// the two cannot drift apart.
-pub(crate) fn exit_status_text(status: ExitStatus) -> String {
-    localized_exit_status_text(&TextCatalog::empty(), status)
 }
 
 pub(crate) fn duration_status_text(duration: Duration) -> String {

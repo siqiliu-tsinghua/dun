@@ -239,10 +239,11 @@ impl AppState {
             }
             FileCommand::Save => {
                 if let Err(error) = self.save_focused_buffer() {
+                    let detail = path_error_status_text(&self.shell.catalog, &error);
                     self.set_status(ui_text::tr_fmt(
                         &self.shell.catalog,
                         ui_text::STATUS_SAVE_FAILED,
-                        &[&error.to_string()],
+                        &[&detail],
                     ));
                 }
             }
@@ -269,10 +270,11 @@ impl AppState {
                     return;
                 }
                 if let Err(error) = self.reload_focused_buffer() {
+                    let detail = path_error_status_text(&self.shell.catalog, &error);
                     self.set_status(ui_text::tr_fmt(
                         &self.shell.catalog,
                         ui_text::STATUS_RELOAD_FAILED,
-                        &[&error.to_string()],
+                        &[&detail],
                     ));
                 }
             }

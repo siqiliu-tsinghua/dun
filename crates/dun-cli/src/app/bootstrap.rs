@@ -8,13 +8,20 @@ impl AppState {
 
     #[cfg(test)]
     pub(crate) fn from_config(config: Config) -> Self {
-        Self::from_loaded_config(
-            ConfigLoadRequest::new(None, true),
-            LoadedConfig {
-                config,
-                source: ConfigSource::Disabled,
-            },
-        )
+        Self::from_config_with_catalog(config, TextCatalog::empty())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_config_with_catalog(config: Config, catalog: TextCatalog) -> Self {
+        let config_request = ConfigLoadRequest::new(None, true);
+        let loaded_config = LoadedConfig {
+            config,
+            source: ConfigSource::Disabled,
+        };
+        let detected_profile = detect_terminal_profile();
+        let mut shell = UiShell::from_config(&loaded_config.config, detected_profile);
+        shell.catalog = catalog;
+        Self::finish_loaded_config(config_request, loaded_config, detected_profile, shell, None)
     }
 
     pub(crate) fn from_loaded_config(
@@ -25,6 +32,22 @@ impl AppState {
         let mut shell = UiShell::from_config(&loaded_config.config, detected_profile);
         let loaded_catalog = load_ui_catalog(&loaded_config.source, shell.profile.encoding);
         shell.catalog = loaded_catalog.catalog;
+        Self::finish_loaded_config(
+            config_request,
+            loaded_config,
+            detected_profile,
+            shell,
+            loaded_catalog.diagnostic,
+        )
+    }
+
+    fn finish_loaded_config(
+        config_request: ConfigLoadRequest,
+        loaded_config: LoadedConfig,
+        detected_profile: TerminalProfile,
+        shell: UiShell,
+        catalog_diagnostic: Option<String>,
+    ) -> Self {
         let limits = loaded_config.config.limits;
         let file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
         let clipboard = loaded_config.config.clipboard;
@@ -32,10 +55,15 @@ impl AppState {
         let plugin_status = loaded_config.config.plugin_status;
 
         let highlighter = PluginHighlighter::from_entries(&loaded_config.config.plugins);
+        let mut workspace = Workspace::new_untitled();
+        let initial_window = workspace.focused;
+        if let Ok(window) = workspace.window_mut(initial_window) {
+            window.title = ui_text::tr(&shell.catalog, ui_text::WINDOW_UNTITLED).to_string();
+        }
 
         let mut app = Self {
             highlighter,
-            workspace: Workspace::new_untitled(),
+            workspace,
             buffers: vec![BufferState::new(BufferId(1), TextBuffer::new_untitled())],
             config_request,
             config_source: loaded_config.source,
@@ -68,7 +96,7 @@ impl AppState {
             recent_file_dialog_input: None,
             runtime_action: None,
         };
-        if let Some(diagnostic) = loaded_catalog.diagnostic {
+        if let Some(diagnostic) = catalog_diagnostic {
             app.set_status(diagnostic);
         }
         app

@@ -20,7 +20,7 @@ pub(crate) use profile::detect_terminal_profile;
 pub(crate) use sgr::rewrite_16_color_sgr;
 pub(crate) use sgr::{TerminalColorRewrite, TerminalWriter};
 pub(crate) use shell::{
-    command_run_status, duration_status_text, exit_status_text, handle_runtime_action,
+    command_run_status, duration_status_text, handle_runtime_action, localized_exit_status_text,
     run_command_capture,
 };
 pub(crate) use surface_backend::SurfaceBackend;

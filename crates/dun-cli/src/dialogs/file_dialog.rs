@@ -1,8 +1,77 @@
 use crate::files::{
-    common_entry_prefix, ensure_trailing_separator, expand_user_path, file_dialog_context,
-    file_dialog_list_message, is_completable_file_dialog_entry, list_file_dialog_entries,
+    PathErrorDetail, common_entry_prefix, ensure_trailing_separator, expand_user_path,
+    file_dialog_context, file_dialog_list_message, is_completable_file_dialog_entry,
+    list_file_dialog_entries,
 };
 use crate::*;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum FileDialogMessage {
+    NoMatches,
+    NoVisibleMatches,
+    NoMatchesForPrefix(String),
+    OnlyHiddenFiltered,
+    DirectoryEmpty,
+    CannotList {
+        directory: String,
+        detail: PathErrorDetail,
+    },
+    HiddenFiles {
+        shown: bool,
+    },
+    ConfirmOverwrite(String),
+    /// Already-rendered text composed elsewhere *with* a catalog — the
+    /// open/save failure status that `app/file_dialogs.rs` copies into the
+    /// dialog. This is the one honest escape hatch; do not use it for
+    /// anything a variant can express.
+    Text(String),
+}
+
+impl FileDialogMessage {
+    pub(crate) fn render(&self, catalog: &TextCatalog) -> String {
+        match self {
+            Self::NoMatches => {
+                ui_text::tr(catalog, ui_text::STATUS_FILE_DIALOG_NO_MATCHES).to_string()
+            }
+            Self::NoVisibleMatches => {
+                ui_text::tr(catalog, ui_text::STATUS_FILE_DIALOG_NO_VISIBLE_MATCHES).to_string()
+            }
+            Self::NoMatchesForPrefix(prefix) => ui_text::tr_fmt(
+                catalog,
+                ui_text::STATUS_FILE_DIALOG_NO_MATCHES_FOR_PREFIX,
+                &[prefix],
+            ),
+            Self::OnlyHiddenFiltered => {
+                ui_text::tr(catalog, ui_text::STATUS_FILE_DIALOG_ONLY_HIDDEN_FILTERED).to_string()
+            }
+            Self::DirectoryEmpty => {
+                ui_text::tr(catalog, ui_text::STATUS_FILE_DIALOG_DIRECTORY_EMPTY).to_string()
+            }
+            Self::CannotList { directory, detail } => {
+                let detail = detail.render(catalog);
+                ui_text::tr_fmt(
+                    catalog,
+                    ui_text::STATUS_FILE_DIALOG_CANNOT_LIST,
+                    &[directory, &detail],
+                )
+            }
+            Self::HiddenFiles { shown } => {
+                let key = if *shown {
+                    ui_text::STATUS_FILE_DIALOG_HIDDEN_SHOWN
+                } else {
+                    ui_text::STATUS_FILE_DIALOG_HIDDEN_HIDDEN
+                };
+                ui_text::tr(catalog, key).to_string()
+            }
+            Self::ConfirmOverwrite(path) => ui_text::tr_fmt(
+                catalog,
+                ui_text::STATUS_FILE_DIALOG_CONFIRM_OVERWRITE,
+                &[path],
+            ),
+            Self::Text(text) => text.clone(),
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FileDialogState {
@@ -13,7 +82,7 @@ pub(crate) struct FileDialogState {
     pub(crate) scroll_offset: usize,
     pub(crate) show_hidden: bool,
     pub(crate) selection_touched: bool,
-    pub(crate) message: Option<String>,
+    pub(crate) message: Option<FileDialogMessage>,
     pub(crate) after_success: Option<PendingAction>,
     pub(crate) overwrite_path: Option<PathBuf>,
 }
@@ -68,7 +137,8 @@ impl FileDialogState {
             ),
             format!("{}:", self.kind.input_label(catalog)),
             self.message
-                .clone()
+                .as_ref()
+                .map(|message| message.render(catalog))
                 .unwrap_or_else(|| self.kind.help_text(entry_count, catalog)),
             ui_text::tr_fmt(
                 catalog,
@@ -130,11 +200,10 @@ impl FileDialogState {
                 self.selected_index = None;
                 self.scroll_offset = 0;
                 self.selection_touched = false;
-                self.message = Some(format!(
-                    "Cannot list {}: {}",
-                    context.directory.display(),
-                    path_error_detail(&error)
-                ));
+                self.message = Some(FileDialogMessage::CannotList {
+                    directory: context.directory.display().to_string(),
+                    detail: PathErrorDetail::classify(&error),
+                });
             }
         }
     }
@@ -229,7 +298,7 @@ impl FileDialogState {
     pub(crate) fn move_selection(&mut self, delta: isize) {
         if self.entries.is_empty() {
             self.selected_index = None;
-            self.message = Some("No matches".to_string());
+            self.message = Some(FileDialogMessage::NoMatches);
             return;
         }
 
@@ -244,7 +313,7 @@ impl FileDialogState {
         if self.entries.is_empty() {
             self.selected_index = None;
             self.scroll_offset = 0;
-            self.message = Some("No matches".to_string());
+            self.message = Some(FileDialogMessage::NoMatches);
             return;
         }
 
@@ -322,15 +391,14 @@ impl FileDialogState {
     pub(crate) fn toggle_hidden(&mut self) {
         self.show_hidden = !self.show_hidden;
         self.refresh_entries();
-        self.message = Some(format!(
-            "Hidden files {}",
-            if self.show_hidden { "shown" } else { "hidden" }
-        ));
+        self.message = Some(FileDialogMessage::HiddenFiles {
+            shown: self.show_hidden,
+        });
     }
 
     pub(crate) fn complete(&mut self, forward: bool) {
         if self.entries.is_empty() {
-            self.message = Some("No matches".to_string());
+            self.message = Some(FileDialogMessage::NoMatches);
             return;
         }
 
@@ -344,7 +412,7 @@ impl FileDialogState {
             .collect::<Vec<_>>();
 
         if completion_indices.is_empty() {
-            self.message = Some("No matches".to_string());
+            self.message = Some(FileDialogMessage::NoMatches);
             return;
         }
 
@@ -430,9 +498,8 @@ impl FileDialogState {
             && self.overwrite_path.as_ref() != Some(&path)
         {
             self.overwrite_path = Some(path.clone());
-            self.message = Some(format!(
-                "Replace existing file {}? Press Enter again.",
-                path.display()
+            self.message = Some(FileDialogMessage::ConfirmOverwrite(
+                path.display().to_string(),
             ));
             return FileDialogSubmit::ContinueEditing;
         }

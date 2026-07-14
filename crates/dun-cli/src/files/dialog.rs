@@ -126,7 +126,7 @@ pub(crate) fn file_dialog_list_message(
     entries: &[FileDialogEntry],
     show_hidden: bool,
     hidden_filtered: usize,
-) -> Option<String> {
+) -> Option<FileDialogMessage> {
     let visible_entries = entries.iter().filter(|entry| !entry.is_parent).count();
     if visible_entries > 0 {
         return None;
@@ -134,15 +134,17 @@ pub(crate) fn file_dialog_list_message(
 
     if !context.prefix.is_empty() {
         if hidden_filtered > 0 && !show_hidden && !context.prefix.starts_with('.') {
-            return Some("No visible matches; type . or toggle hidden files".to_string());
+            return Some(FileDialogMessage::NoVisibleMatches);
         }
-        return Some(format!("No matches for `{}`; `..` goes up", context.prefix));
+        return Some(FileDialogMessage::NoMatchesForPrefix(
+            context.prefix.clone(),
+        ));
     }
 
     if hidden_filtered > 0 && !show_hidden {
-        Some("Only hidden entries are filtered; type . or toggle hidden files".to_string())
+        Some(FileDialogMessage::OnlyHiddenFiltered)
     } else {
-        Some("Directory is empty; `..` goes up".to_string())
+        Some(FileDialogMessage::DirectoryEmpty)
     }
 }
 

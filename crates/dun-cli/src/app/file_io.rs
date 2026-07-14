@@ -11,8 +11,9 @@ impl AppState {
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             *buffer = BufferState::new(buffer_id, TextBuffer::new_untitled());
         }
+        let title = ui_text::tr(&self.shell.catalog, ui_text::WINDOW_UNTITLED).to_string();
         if let Ok(window) = self.workspace.window_mut(window_id) {
-            window.title = "Untitled".to_string();
+            window.title = title;
             window.buffer_kind = dun_core::BufferKind::Untitled;
         }
         self.set_status(

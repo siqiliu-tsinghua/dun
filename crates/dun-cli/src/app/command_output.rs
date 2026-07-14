@@ -2,7 +2,7 @@ use crate::*;
 
 impl AppState {
     fn open_command_output_screen(&mut self, result: &CommandRunResult) {
-        let text = command_output_text(result);
+        let text = command_output_text(&self.shell.catalog, result);
 
         if let Some(window_id) = self.command_output_window_id() {
             self.workspace.focused = window_id;

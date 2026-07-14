@@ -1090,3 +1090,27 @@ This is an append-only progress log. Keep new entries dated and factual.
   `ui_text/status.rs` lands at ~37k, over the 35k threshold; an explicit
   temporary exception is recorded in docs/code-organization-guidelines.md and
   expires when slice 4b-2 splits it by domain.
+- Landed i18n slice 4b-2 via Codex brief-024 (2026-07-13): the text a catalog
+  could not reach because it was stored or type-erased before anyone holding a
+  catalog saw it. `FileDialogState::message` became a typed `FileDialogMessage`
+  enum rendered at `overlay()` (where the catalog already is); dun-authored
+  path errors became a typed `PathIoError` carried *inside* `io::Error` through
+  its custom-payload API (`io::Error::new` + `get_ref`/`downcast_ref`), so the
+  structure survives to the display site and the `io::Result` plumbing never
+  changed — the obstacle that made this slice look like a signature-churn
+  refactor turned out to be solvable with std's own escape hatch. `"Untitled"`
+  is overwritten by dun-cli at each creation point, leaving dun-core
+  catalog-free (it cannot depend on dun-config, where TextCatalog lives), and
+  Command Output buffer content is translated. 36 keys, 4 behavior tests
+  driving real interactions.
+  Gate found one real gap Codex's own mutation run could not see: after the
+  refactor every *editor* display site went through the catalog, so
+  `PathIoError::Display` — still live, because an `io::Error` escapes to the
+  CLI's `eprintln!` when `dun /unopenable/path` fails at startup — became a
+  second, untested source of English. Breaking its separator passed all 297
+  tests. Fixed by making `Display` render through the key table with an empty
+  catalog (one English source, same trick as `exit_status_text`) and adding a
+  test that pins the CLI startup text; the same mutation now kills four tests.
+  Workspace 624 green; live-verified in tmux (「无标题」title, and the path
+  error in Chinese in both the dialog and the status bar with the path itself
+  verbatim). macOS budget build 649,716; Debian still owed (VM off).

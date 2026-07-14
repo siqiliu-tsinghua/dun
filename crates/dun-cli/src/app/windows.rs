@@ -209,6 +209,14 @@ impl AppState {
                 TextBuffer::new_untitled(),
             ));
         }
+        let title = ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::WINDOW_UNTITLED_NUMBERED,
+            &[&window_id.0.to_string()],
+        );
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = title;
+        }
 
         self.set_status(ui_text::tr(&self.shell.catalog, success_status).to_string());
     }

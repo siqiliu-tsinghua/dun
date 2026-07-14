@@ -19,5 +19,7 @@ pub(crate) use dialog::{
 pub(crate) use open::{
     LoadedTextBuffer, load_text_buffer, opened_file_status, reloaded_file_status, title_for_path,
 };
-pub(crate) use save::{path_error_detail, path_io_error, validate_save_snapshot};
+pub(crate) use save::{
+    PathErrorDetail, path_error_status_text, path_io_error, validate_save_snapshot,
+};
 pub(crate) use snapshot::{FileReadSnapshot, current_file_snapshot, validate_stable_file_read};

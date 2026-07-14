@@ -359,7 +359,10 @@ fn file_dialog_hides_dotfiles_until_prefix_or_toggle() {
         .collect::<Vec<_>>();
     assert!(dialog.show_hidden);
     assert!(entry_names.contains(&".secret"));
-    assert_eq!(dialog.message.as_deref(), Some("Hidden files shown"));
+    assert_eq!(
+        dialog.message,
+        Some(FileDialogMessage::HiddenFiles { shown: true })
+    );
 
     let _ = std::fs::remove_file(hidden);
     let _ = std::fs::remove_file(visible);

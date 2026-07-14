@@ -73,9 +73,9 @@ pub(crate) use config_loading::{
 };
 use dialogs::{
     BufferSwitcherEntry, BufferSwitcherState, ConfirmState, CopyTextError, FileDialogContext,
-    FileDialogEntry, FileDialogKind, FileDialogListing, FileDialogState, FileDialogSubmit,
-    LineInput, PendingAction, PromptCompletionState, PromptHistoryKind, PromptKind,
-    PromptPreviewState, PromptState, ReplaceConfirmState,
+    FileDialogEntry, FileDialogKind, FileDialogListing, FileDialogMessage, FileDialogState,
+    FileDialogSubmit, LineInput, PendingAction, PromptCompletionState, PromptHistoryKind,
+    PromptKind, PromptPreviewState, PromptState, ReplaceConfirmState,
 };
 use files::text::{
     advance_wrapped_column, buffer_end_position, byte_column_for_wrapped_row_column,
@@ -86,7 +86,7 @@ use files::{
     AtomicTempReconcileReport, FileReadSnapshot, LoadedTextBuffer, atomic_write_text_file,
     common_entry_prefix, current_file_snapshot, file_dialog_context,
     file_dialog_recent_input_for_path, is_completable_file_dialog_entry, list_file_dialog_entries,
-    load_text_buffer, opened_file_status, path_error_detail, path_io_error,
+    load_text_buffer, opened_file_status, path_error_status_text, path_io_error,
     reconcile_atomic_save_temp_files, reloaded_file_status, single_line_paste_text,
     status_with_atomic_temp_report, title_for_path, validate_save_snapshot,
 };

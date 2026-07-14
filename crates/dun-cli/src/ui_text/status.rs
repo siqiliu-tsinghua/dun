@@ -193,6 +193,39 @@ pub(crate) const STATUS_RUN_TIMED_OUT_TRUNCATED: TextKey = (
 pub(crate) const STATUS_RUN_EXIT: TextKey = ("status.run.exit", "exit {}");
 pub(crate) const STATUS_RUN_TERMINATED: TextKey = ("status.run.terminated", "terminated");
 
+// Command Output buffer content.
+pub(crate) const COMMAND_OUTPUT_TITLE: TextKey = ("command-output.title", "Dun Command Output");
+pub(crate) const COMMAND_OUTPUT_COMMAND: TextKey = ("command-output.command", "Command: {}");
+pub(crate) const COMMAND_OUTPUT_SHELL: TextKey = ("command-output.shell", "Shell: {}");
+pub(crate) const COMMAND_OUTPUT_STATUS: TextKey = ("command-output.status", "Status: {}");
+pub(crate) const COMMAND_OUTPUT_STATUS_TIMED_OUT: TextKey = (
+    "command-output.status.timed-out",
+    "timed out; process killed",
+);
+pub(crate) const COMMAND_OUTPUT_ELAPSED: TextKey = ("command-output.elapsed", "Elapsed: {}");
+pub(crate) const COMMAND_OUTPUT_LIMIT: TextKey =
+    ("command-output.limit", "Limit: {} bytes per stream");
+pub(crate) const COMMAND_OUTPUT_STDOUT: TextKey = ("command-output.stdout", "Stdout: {}");
+pub(crate) const COMMAND_OUTPUT_STDOUT_LINES: TextKey =
+    ("command-output.stdout-lines", "Stdout Lines: {}");
+pub(crate) const COMMAND_OUTPUT_STDERR: TextKey = ("command-output.stderr", "Stderr: {}");
+pub(crate) const COMMAND_OUTPUT_STDERR_LINES: TextKey =
+    ("command-output.stderr-lines", "Stderr Lines: {}");
+pub(crate) const COMMAND_OUTPUT_TRUNCATED: TextKey = ("command-output.truncated", "Truncated: {}");
+pub(crate) const COMMAND_OUTPUT_YES: TextKey = ("command-output.yes", "yes");
+pub(crate) const COMMAND_OUTPUT_NO: TextKey = ("command-output.no", "no");
+pub(crate) const COMMAND_OUTPUT_STREAM_COMPLETE: TextKey =
+    ("command-output.stream.complete", "{} bytes, complete");
+pub(crate) const COMMAND_OUTPUT_STREAM_TRUNCATED: TextKey =
+    ("command-output.stream.truncated", "{} bytes, truncated");
+pub(crate) const COMMAND_OUTPUT_STDOUT_SECTION: TextKey =
+    ("command-output.stdout-section", "--- stdout ({}) ---");
+pub(crate) const COMMAND_OUTPUT_STDERR_SECTION: TextKey =
+    ("command-output.stderr-section", "--- stderr ({}) ---");
+pub(crate) const COMMAND_OUTPUT_EMPTY: TextKey = ("command-output.empty", "(empty)");
+pub(crate) const COMMAND_OUTPUT_TRUNCATED_MARKER: TextKey =
+    ("command-output.truncated-marker", "[truncated]");
+
 // Editing and clipboard status messages.
 pub(crate) const STATUS_COPY_LINE_BUFFER_MISSING: TextKey = (
     "status.copy-line.buffer-missing",
@@ -358,6 +391,47 @@ pub(crate) const STATUS_ATOMIC_RECOVERY_FOUND: TextKey = (
 pub(crate) const STATUS_ATOMIC_RECOVERY_FOUND_MANY: TextKey = (
     "status.atomic-temp.recovery-found-many",
     "{} recovery temp file(s) found; first: {}",
+);
+pub(crate) const STATUS_PATH_ERROR_FRAME: TextKey = ("status.path-error.frame", "{}: {}");
+pub(crate) const STATUS_PATH_ERROR_NOT_FOUND: TextKey =
+    ("status.path-error.not-found", "not found");
+pub(crate) const STATUS_PATH_ERROR_PERMISSION_DENIED: TextKey =
+    ("status.path-error.permission-denied", "permission denied");
+pub(crate) const STATUS_PATH_ERROR_PARENT_MISSING: TextKey = (
+    "status.path-error.parent-missing",
+    "parent directory does not exist",
+);
+pub(crate) const STATUS_PATH_ERROR_DESTINATION_READ_ONLY: TextKey = (
+    "status.path-error.destination-read-only",
+    "destination is read-only",
+);
+pub(crate) const STATUS_FILE_DIALOG_NO_MATCHES: TextKey =
+    ("status.file-dialog.no-matches", "No matches");
+pub(crate) const STATUS_FILE_DIALOG_NO_VISIBLE_MATCHES: TextKey = (
+    "status.file-dialog.no-visible-matches",
+    "No visible matches; type . or toggle hidden files",
+);
+pub(crate) const STATUS_FILE_DIALOG_NO_MATCHES_FOR_PREFIX: TextKey = (
+    "status.file-dialog.no-matches-for-prefix",
+    "No matches for `{}`; `..` goes up",
+);
+pub(crate) const STATUS_FILE_DIALOG_ONLY_HIDDEN_FILTERED: TextKey = (
+    "status.file-dialog.only-hidden-filtered",
+    "Only hidden entries are filtered; type . or toggle hidden files",
+);
+pub(crate) const STATUS_FILE_DIALOG_DIRECTORY_EMPTY: TextKey = (
+    "status.file-dialog.directory-empty",
+    "Directory is empty; `..` goes up",
+);
+pub(crate) const STATUS_FILE_DIALOG_CANNOT_LIST: TextKey =
+    ("status.file-dialog.cannot-list", "Cannot list {}: {}");
+pub(crate) const STATUS_FILE_DIALOG_HIDDEN_SHOWN: TextKey =
+    ("status.file-dialog.hidden-shown", "Hidden files shown");
+pub(crate) const STATUS_FILE_DIALOG_HIDDEN_HIDDEN: TextKey =
+    ("status.file-dialog.hidden-hidden", "Hidden files hidden");
+pub(crate) const STATUS_FILE_DIALOG_CONFIRM_OVERWRITE: TextKey = (
+    "status.file-dialog.confirm-overwrite",
+    "Replace existing file {}? Press Enter again.",
 );
 
 // Helper-window status messages.
@@ -559,6 +633,8 @@ pub(crate) const STATUS_GO_TO_LINE_FAILED: TextKey =
     ("status.go-to-line.failed", "Go to line failed: {}");
 
 // Window-layout status messages.
+pub(crate) const WINDOW_UNTITLED: TextKey = ("window.untitled", "Untitled");
+pub(crate) const WINDOW_UNTITLED_NUMBERED: TextKey = ("window.untitled-numbered", "Untitled-{}");
 pub(crate) const STATUS_WINDOW_SPLIT_HORIZONTAL: TextKey =
     ("status.window.split-horizontal", "Split horizontally");
 pub(crate) const STATUS_WINDOW_SPLIT_VERTICAL: TextKey =
@@ -701,6 +777,26 @@ pub(super) const ALL: &[TextKey] = &[
     STATUS_RUN_TIMED_OUT_TRUNCATED,
     STATUS_RUN_EXIT,
     STATUS_RUN_TERMINATED,
+    COMMAND_OUTPUT_TITLE,
+    COMMAND_OUTPUT_COMMAND,
+    COMMAND_OUTPUT_SHELL,
+    COMMAND_OUTPUT_STATUS,
+    COMMAND_OUTPUT_STATUS_TIMED_OUT,
+    COMMAND_OUTPUT_ELAPSED,
+    COMMAND_OUTPUT_LIMIT,
+    COMMAND_OUTPUT_STDOUT,
+    COMMAND_OUTPUT_STDOUT_LINES,
+    COMMAND_OUTPUT_STDERR,
+    COMMAND_OUTPUT_STDERR_LINES,
+    COMMAND_OUTPUT_TRUNCATED,
+    COMMAND_OUTPUT_YES,
+    COMMAND_OUTPUT_NO,
+    COMMAND_OUTPUT_STREAM_COMPLETE,
+    COMMAND_OUTPUT_STREAM_TRUNCATED,
+    COMMAND_OUTPUT_STDOUT_SECTION,
+    COMMAND_OUTPUT_STDERR_SECTION,
+    COMMAND_OUTPUT_EMPTY,
+    COMMAND_OUTPUT_TRUNCATED_MARKER,
     STATUS_COPY_LINE_BUFFER_MISSING,
     STATUS_COPY_LINE_COPIED,
     STATUS_DELETE_LINE_BUFFER_MISSING,
@@ -762,6 +858,20 @@ pub(super) const ALL: &[TextKey] = &[
     STATUS_ATOMIC_CLEAN_FAILED,
     STATUS_ATOMIC_RECOVERY_FOUND,
     STATUS_ATOMIC_RECOVERY_FOUND_MANY,
+    STATUS_PATH_ERROR_FRAME,
+    STATUS_PATH_ERROR_NOT_FOUND,
+    STATUS_PATH_ERROR_PERMISSION_DENIED,
+    STATUS_PATH_ERROR_PARENT_MISSING,
+    STATUS_PATH_ERROR_DESTINATION_READ_ONLY,
+    STATUS_FILE_DIALOG_NO_MATCHES,
+    STATUS_FILE_DIALOG_NO_VISIBLE_MATCHES,
+    STATUS_FILE_DIALOG_NO_MATCHES_FOR_PREFIX,
+    STATUS_FILE_DIALOG_ONLY_HIDDEN_FILTERED,
+    STATUS_FILE_DIALOG_DIRECTORY_EMPTY,
+    STATUS_FILE_DIALOG_CANNOT_LIST,
+    STATUS_FILE_DIALOG_HIDDEN_SHOWN,
+    STATUS_FILE_DIALOG_HIDDEN_HIDDEN,
+    STATUS_FILE_DIALOG_CONFIRM_OVERWRITE,
     STATUS_AUX_FOCUSED_WINDOW_MISSING,
     STATUS_AUX_WINDOW_MISSING,
     STATUS_HELP_OPENED,
@@ -826,6 +936,8 @@ pub(super) const ALL: &[TextKey] = &[
     STATUS_GO_TO_LINE_PAST_END,
     STATUS_GO_TO_LINE_MOVED,
     STATUS_GO_TO_LINE_FAILED,
+    WINDOW_UNTITLED,
+    WINDOW_UNTITLED_NUMBERED,
     STATUS_WINDOW_SPLIT_HORIZONTAL,
     STATUS_WINDOW_SPLIT_VERTICAL,
     STATUS_WINDOW_SPLITS_EVEN,

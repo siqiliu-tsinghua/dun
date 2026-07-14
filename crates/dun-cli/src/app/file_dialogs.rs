@@ -140,11 +140,14 @@ impl AppState {
 
         match self.save_buffer(confirm.buffer_id) {
             Ok(_) => self.continue_pending_action(confirm.action),
-            Err(error) => self.set_status(ui_text::tr_fmt(
-                &self.shell.catalog,
-                ui_text::STATUS_SAVE_FAILED,
-                &[&error.to_string()],
-            )),
+            Err(error) => {
+                let detail = path_error_status_text(&self.shell.catalog, &error);
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_SAVE_FAILED,
+                    &[&detail],
+                ));
+            }
         }
     }
 
@@ -179,10 +182,11 @@ impl AppState {
             }
             PendingAction::ReloadBuffer => {
                 if let Err(error) = self.reload_focused_buffer() {
+                    let detail = path_error_status_text(&self.shell.catalog, &error);
                     self.set_status(ui_text::tr_fmt(
                         &self.shell.catalog,
                         ui_text::STATUS_RELOAD_FAILED,
-                        &[&error.to_string()],
+                        &[&detail],
                     ));
                 }
             }
@@ -346,13 +350,14 @@ impl AppState {
             FileDialogSubmit::Path(path) => match dialog.kind {
                 FileDialogKind::Open => {
                     if let Err(error) = self.open_file_path(path.clone()) {
+                        let detail = path_error_status_text(&self.shell.catalog, &error);
                         let status = ui_text::tr_fmt(
                             &self.shell.catalog,
                             ui_text::STATUS_OPEN_FAILED,
-                            &[&error.to_string()],
+                            &[&detail],
                         );
                         let mut dialog = dialog;
-                        dialog.message = Some(status.clone());
+                        dialog.message = Some(FileDialogMessage::Text(status.clone()));
                         self.file_dialog = Some(dialog);
                         self.set_status(status);
                     } else {
@@ -361,13 +366,14 @@ impl AppState {
                 }
                 FileDialogKind::SaveAs => {
                     if let Err(error) = self.save_focused_buffer_as(path.clone()) {
+                        let detail = path_error_status_text(&self.shell.catalog, &error);
                         let status = ui_text::tr_fmt(
                             &self.shell.catalog,
                             ui_text::STATUS_SAVE_AS_FAILED,
-                            &[&error.to_string()],
+                            &[&detail],
                         );
                         let mut dialog = dialog;
-                        dialog.message = Some(status.clone());
+                        dialog.message = Some(FileDialogMessage::Text(status.clone()));
                         self.file_dialog = Some(dialog);
                         self.set_status(status);
                     } else if let Some(action) = dialog.after_success {

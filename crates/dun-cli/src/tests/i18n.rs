@@ -300,6 +300,110 @@ fn opened_file_helper_uses_the_catalog_and_keeps_exact_english() {
 }
 
 #[test]
+fn file_dialog_message_renders_through_the_catalog_after_a_real_interaction() {
+    let toggle_hidden =
+        CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::CONTROL);
+
+    let mut english = AppState::new();
+    english.handle_command(&EditorCommand::File(FileCommand::Open));
+    english.handle_file_dialog_key_event(toggle_hidden);
+    assert!(
+        english
+            .active_overlay()
+            .expect("English file dialog")
+            .lines
+            .iter()
+            .any(|line| line == "Hidden files shown")
+    );
+
+    let mut chinese = AppState::new();
+    chinese.shell.catalog = shipped_zh_catalog();
+    chinese.handle_command(&EditorCommand::File(FileCommand::Open));
+    chinese.handle_file_dialog_key_event(toggle_hidden);
+    assert!(
+        chinese
+            .active_overlay()
+            .expect("Chinese file dialog")
+            .lines
+            .iter()
+            .any(|line| line == "已显示隐藏文件")
+    );
+}
+
+#[test]
+fn missing_path_error_uses_the_catalog_and_keeps_exact_english() {
+    let path = temp_file_path("i18n-missing-open.txt");
+
+    let mut english = AppState::new();
+    english.handle_command(&EditorCommand::File(FileCommand::Open));
+    send_text(&mut english, &path.to_string_lossy());
+    handle_key_event(
+        &mut english,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+    );
+    let english_status = format!("Open failed: {}: not found", path.display());
+    assert_eq!(
+        english.status_message.as_deref(),
+        Some(english_status.as_str())
+    );
+    assert!(
+        english
+            .active_overlay()
+            .expect("English file dialog remains open")
+            .lines
+            .iter()
+            .any(|line| line == &english_status)
+    );
+
+    let mut chinese = AppState::new();
+    chinese.shell.catalog = shipped_zh_catalog();
+    chinese.handle_command(&EditorCommand::File(FileCommand::Open));
+    send_text(&mut chinese, &path.to_string_lossy());
+    handle_key_event(
+        &mut chinese,
+        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+    );
+    let chinese_status = format!("打开失败：{}：未找到", path.display());
+    assert_eq!(
+        chinese.status_message.as_deref(),
+        Some(chinese_status.as_str())
+    );
+    assert!(
+        chinese
+            .active_overlay()
+            .expect("Chinese file dialog remains open")
+            .lines
+            .iter()
+            .any(|line| line == &chinese_status)
+    );
+}
+
+#[test]
+fn untitled_window_titles_use_the_catalog_at_startup_and_after_split() {
+    let mut app = AppState::from_config_with_catalog(Config::default(), shipped_zh_catalog());
+    assert_eq!(app.workspace.focused_window().unwrap().title, "无标题");
+
+    app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
+    assert_eq!(app.workspace.focused_window().unwrap().title, "无标题-2");
+}
+
+#[test]
+fn command_output_buffer_content_uses_the_catalog() {
+    let mut app = AppState::new();
+    app.shell.catalog = shipped_zh_catalog();
+
+    app.run_external_command_to_buffer("printf dun-i18n");
+
+    let window = app.workspace.focused_window().unwrap();
+    let text = app.buffer_state(window.buffer_id).unwrap().buffer.to_text();
+    assert!(text.starts_with("Dun 命令输出\n\n命令：printf dun-i18n\n"));
+    assert!(text.contains("状态：退出码 0\n"));
+    assert!(text.contains("标准输出：8 字节，完整\n"));
+    assert!(text.contains("已截断：否\n"));
+    assert!(text.contains("--- 标准输出（8 字节，完整） ---\ndun-i18n\n"));
+}
+
+#[test]
 fn tr_fmt_substitutes_and_survives_broken_templates() {
     let catalog = dun_config::parse_catalog(
         "confirm.unsaved.body = {} 有未保存的更改\nconfirm.replace.match-of = 匹配太少\n",
@@ -323,4 +427,26 @@ fn tr_fmt_substitutes_and_survives_broken_templates() {
         crate::ui_text::tr_fmt(&catalog, crate::ui_text::SWITCHER_OPEN_BUFFERS, &["3"]),
         "Open buffers: 3"
     );
+}
+
+/// The one path-error consumer that does *not* go through the catalog: an
+/// `io::Error` that escapes to the CLI's own `eprintln!` before there is an
+/// editor at all (`dun /file/that/cannot/be/opened`). Its text comes from
+/// `Display`, so `Display` needs a fence of its own — without this, changing
+/// the separator or a detail word passes the whole suite.
+#[test]
+fn cli_path_error_display_is_pinned_english() {
+    use std::io::ErrorKind;
+
+    let error = crate::files::path_io_error(
+        std::path::Path::new("/tmp/no-such-file"),
+        std::io::Error::from(ErrorKind::NotFound),
+    );
+    assert_eq!(error.to_string(), "/tmp/no-such-file: not found");
+
+    let error = crate::files::path_io_error(
+        std::path::Path::new(""),
+        std::io::Error::from(ErrorKind::PermissionDenied),
+    );
+    assert_eq!(error.to_string(), "(empty path): permission denied");
 }
