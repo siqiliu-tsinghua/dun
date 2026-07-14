@@ -92,21 +92,20 @@ remaining theme palette constructor file, `theme/builtins.rs`, is concentrated
 data-style code; when adding new theme families, split that file by theme
 family before extending it further.
 
-### Explicit temporary exception: `dun-cli/src/ui_text/status.rs`
+Stage 12 split the i18n key table. `ui_text.rs` grew past `35k` while the i18n
+slices landed and was split twice: first into `ui_text/{mod,chrome,status}.rs`,
+then — once the extraction stopped adding keys — `status.rs` (42k, 265 keys)
+into `ui_text/status/{window,file,edit,search,prompt,command,command_output}.rs`,
+each under `10k`. The temporary size exception recorded here for `status.rs` is
+retired.
 
-The i18n key table (`ui_text/status.rs`, ~37k as of 2026-07-13) is over the
-`35k` implementation threshold. It is granted an explicit temporary exception
-under the "maintenance signals, not blind commands" rule, because it is pure
-flat data — one `const NAME: TextKey = ("key", "English default");` per line,
-no logic, no coupling — so review cost stays linear and a split buys little
-beyond key lookup convenience. `ui_text.rs` was already split once (into
-`mod.rs` machinery + `chrome.rs` + `status.rs`) when it crossed `35k`.
-
-The exception expires when the remaining status text lands (the deferred
-`path_error_detail` / `FileDialogState::message` / Command Output work): at
-that point split `status.rs` by domain — `status/{file,edit,window,search,
-prompt,plugin,command}.rs` — keeping `ALL` a single flat enumeration
-assembled in `mod.rs`, which the completeness and uniqueness tests depend on.
+Two properties of that table are load-bearing and should survive future edits:
+`ALL` stays a **single flat enumeration** (assembled in `status/mod.rs` from the
+domain modules, then in `ui_text/mod.rs` with `chrome`), because the
+translation-completeness and key-uniqueness tests walk it; and the domain
+modules are re-exported with globs, so every call site says `ui_text::SOME_KEY`
+and never has to know which file a key lives in. Moving a key between domain
+modules must therefore stay invisible to callers.
 
 Stage 11 reduced `dun-ui/src/lib.rs` to a facade. The main remaining watch-list
 implementation files are now feature-group files such as

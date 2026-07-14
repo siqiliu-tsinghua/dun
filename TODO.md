@@ -284,11 +284,14 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   `io::Result` plumbing never changed; `"Untitled"` is overwritten by dun-cli
   at every creation point (dun-core stays catalog-free); Command Output buffer
   content is translated and the English `exit_status_text` is retired. 36 keys.
-- [ ] Slice 4c: split `ui_text/status.rs` (~40k) by domain —
-  `status/{file,edit,window,search,prompt,plugin,command}.rs` — keeping `ALL` a
-  single flat enumeration in `mod.rs`, and retire the explicit size exception
-  recorded in docs/code-organization-guidelines.md. Held until now on purpose:
-  4b-1 and 4b-2 were still adding keys to that file.
+- [x] Slice 4c: split `ui_text/status.rs` — landed 2026-07-13 via Codex
+  brief-025. 42k/265 keys became `ui_text/status/{window,file,edit,search,
+  prompt,command,command_output}.rs`, each under 10k, with `ALL` still a single
+  flat enumeration and glob re-exports keeping every call site untouched. Gate
+  verified the move was byte-faithful by comparing the pre/post key tables as
+  sorted sets (265 keys, English defaults identical), and the release binary is
+  unchanged to the byte. The size exception in
+  docs/code-organization-guidelines.md is retired.
 - [ ] Extend `i18n/` to more common languages (ja/de/fr/es) once the
   extraction slices settle the key set.
 - [ ] Measure the size delta per batch; the mechanism must stay lean since

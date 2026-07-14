@@ -1114,3 +1114,20 @@ This is an append-only progress log. Keep new entries dated and factual.
   Workspace 624 green; live-verified in tmux (「无标题」title, and the path
   error in Chinese in both the dialog and the status bar with the path itself
   verbatim). macOS budget build 649,716; Debian still owed (VM off).
+- Landed i18n slice 4c via Codex brief-025 (2026-07-13): `ui_text/status.rs`
+  (42k, 265 keys) split into `ui_text/status/{window,file,edit,search,prompt,
+  command,command_output}.rs`, each under 10k, retiring the temporary size
+  exception. Pure data movement: `ALL` stays one flat enumeration and the glob
+  re-exports mean not a single call site or test changed — the brief made that
+  its acceptance criterion (`git status` may show only `ui_text/`), and it held.
+  The gate's check was a set comparison rather than a mutation, because the
+  failure mode of a move is a silently retyped string, not a broken invariant: a
+  mistyped *key* would fail the completeness test, but a mistyped *English
+  default* would pass every test and quietly change the UI. Extracted all 265
+  `(key, English)` pairs from the pre-split file and from the new modules and
+  compared them as sorted sets — identical, no duplicates. The release binary is
+  byte-identical (649,716), which is independent evidence the move changed
+  nothing.
+  The i18n stage is now functionally complete: menus, help, dialogs, and every
+  status message translate, with zh-CN shipped. Remaining i18n work is additive
+  only (more languages) plus the owed Debian measurements.
