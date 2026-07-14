@@ -292,8 +292,21 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   sorted sets (265 keys, English defaults identical), and the release binary is
   unchanged to the byte. The size exception in
   docs/code-organization-guidelines.md is retired.
-- [ ] Extend `i18n/` to more common languages (ja/de/fr/es) once the
-  extraction slices settle the key set.
+- [x] Extend `i18n/` to more languages — done 2026-07-13, ten shipped:
+  `zh-Hans`, `zh-Hant`, `fr`, `de`, `it`, `es`, `pt`, `ru`, `ja`, `ko`
+  (briefs 027–029). Bare language tags except Chinese, which needs a script
+  tag; the locale chain's script step means one file serves every region of
+  its language. Every file is validated by
+  `every_shipped_translation_is_valid_and_complete`, which discovers the
+  directory rather than naming files, so a contributed language is covered
+  the moment it lands. Each shipped file states in its header that it is
+  machine-translated and unreviewed by a native speaker.
+- [ ] Adopt native-speaker corrections as they arrive. The nine non-Chinese
+  files are machine-translated; the mechanism protects function (mnemonics,
+  key caps, command vocabulary stay English by construction) and the
+  validator protects structure, but wording quality is unreviewed. The one
+  place a wording error is destructive — Save/Discard/Cancel beside the
+  literal `(s)`/`(d)`/`(c)` keys — is guarded by a pairwise-distinct test.
 - [ ] Measure the size delta per batch; the mechanism must stay lean since
   hand-rolled parsing (no serde) remains the rule. Slice 1 measured both
   platforms at `fd31719`: macOS +12,344 (625,060); Debian span including

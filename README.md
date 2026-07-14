@@ -349,14 +349,21 @@ emitting 256-color-style `38;5;n` or `48;5;n` controls.
 
 ## UI Languages
 
-Menu text is translatable. English is compiled in and always works with no
-extra files; other languages load at runtime from `i18n/<lang>.conf` resource
-files next to the user's config file, selected by the locale environment
-(`LC_ALL`/`LC_MESSAGES`/`LANG`). Reference translations ship in
-[i18n/](./i18n/) (currently Simplified Chinese). Menu mnemonics stay the
-English letters in every language, so keyboard navigation never changes. See
-[docs/i18n.md](./docs/i18n.md) for the design, safety rules, and translator
-guide.
+The whole UI is translatable — menus, help, dialogs and status messages.
+English is compiled in and always works with no extra files; other languages
+load at runtime from `i18n/<tag>.conf` resource files next to the user's config
+file, selected by the locale environment (`LC_ALL`/`LC_MESSAGES`/`LANG`).
+
+Ten reference translations ship in [i18n/](./i18n/): Simplified and Traditional
+Chinese, French, German, Italian, Spanish, Portuguese, Russian, Japanese and
+Korean. They cost the binary nothing — they are files, not code.
+
+Menu mnemonics and key names stay English in every language, so keyboard
+navigation never changes; anything a user has to type back (command ids, theme
+names, config tokens) stays English too. The nine non-Chinese files are
+machine-translated and not yet reviewed by native speakers; corrections are
+welcome. See [docs/i18n.md](./docs/i18n.md) for the design, the safety rules,
+and what a translation must satisfy.
 
 ## Development Documents
 
