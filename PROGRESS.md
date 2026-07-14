@@ -1216,3 +1216,20 @@ This is an append-only progress log. Keep new entries dated and factual.
   Live-verified in tmux at 80 and 34 columns for German (the longest words) and
   Russian: zero overflow, the dropdown-shift and display-width truncation from
   the earlier fixes carrying the load. Binary unchanged at 649,900 bytes.
+- Shipped Japanese and Korean via Codex brief-029 (2026-07-13), completing the
+  language set: ten translations (zh-Hans, zh-Hant, fr, de, it, es, pt, ru, ja,
+  ko), 499 keys each, all passing the validator.
+  The indexed-placeholder distribution is the clearest possible vindication of
+  the mechanism: 0 reordered templates in German, Spanish, French, Italian,
+  Portuguese and both Chinese variants — whose word order tracks English closely
+  enough — against 15 in Russian and 20 each in Japanese and Korean, the
+  verb-final languages. "Find: {}/{} matches: {}" becomes 検索：{2} — 全{1}件中
+  {0}件目, which positional placeholders could not express at all. The mechanism
+  was added precisely for the languages that turned out to need it, and ignored
+  by the ones that did not.
+  All ten pass the destructive-action guard. Live-verified in tmux: ja/ko render
+  with correct CJK cell widths and no overflow. Binary unchanged at 649,900
+  bytes — ten languages cost the executable nothing, which is the whole point of
+  the external-resource design.
+  The i18n stage is complete. What remains is additive (more languages, from
+  contributors) and the owed Debian measurements.
