@@ -124,9 +124,16 @@ fn missing_files_and_c_locale_stay_english_without_diagnostics() {
     fs::remove_dir_all(&dir).unwrap();
 }
 
+/// The script step is the whole reason a Singaporean reader stops getting
+/// English, and the whole reason a Taipei reader does not get Simplified
+/// characters. Pin both halves: every Simplified locale reaches `zh-Hans`,
+/// every Traditional locale reaches `zh-Hant`, and neither ever reaches the
+/// other — a regression in the script table would otherwise show up as
+/// nothing worse than "the wrong Chinese", which no other test would catch.
 #[test]
-fn shipped_script_catalog_resolves_simplified_but_not_traditional_chinese() {
+fn shipped_script_catalogs_route_each_locale_to_its_own_script() {
     let dir = shipped_i18n_dir();
+
     for raw_locale in ["zh_CN.UTF-8", "zh_SG.UTF-8", "zh_MY.UTF-8", "zh"] {
         let loaded = catalog_from_dir(&dir, raw_locale);
         assert_eq!(loaded.catalog.lang(), Some("zh-Hans"), "{raw_locale}");
@@ -140,7 +147,15 @@ fn shipped_script_catalog_resolves_simplified_but_not_traditional_chinese() {
 
     for raw_locale in ["zh_TW.UTF-8", "zh_HK.UTF-8", "zh_MO.UTF-8"] {
         let loaded = catalog_from_dir(&dir, raw_locale);
-        assert!(loaded.catalog.is_empty(), "{raw_locale}");
+        assert_eq!(loaded.catalog.lang(), Some("zh-Hant"), "{raw_locale}");
+        // Not merely Traditional characters: Taiwan says 檔案 for "File",
+        // where the mainland says 文件. A character conversion of zh-Hans
+        // would put 文件 here and pass every other check.
+        assert_eq!(
+            loaded.catalog.get("menu.file"),
+            Some("檔案"),
+            "{raw_locale}"
+        );
         assert!(loaded.diagnostic.is_none(), "{raw_locale}");
     }
 }

@@ -1158,3 +1158,28 @@ This is an append-only progress log. Keep new entries dated and factual.
   now names the missing menu key. Live-verified in tmux: `LANG=zh_SG.UTF-8`
   renders Simplified menus, `LANG=zh_TW.UTF-8` renders English. 626 tests green;
   macOS 649,892.
+- Shipped Traditional Chinese (`i18n/zh-Hant.conf`, 499 keys) via Codex
+  brief-027 (2026-07-13), serving zh_TW/zh_HK/zh_MO through the script chain.
+  The brief's substance was a terminology table, because the obvious approach —
+  a 簡→繁 character conversion — produces mainland vocabulary in Traditional
+  characters (視圖 where Taiwan says 檢視, 幫助 where it says 說明, 保存 where it
+  says 儲存), which is a costume, not a translation. Review: only 4% of values
+  came out identical to zh-Hans, and each of those 20 is a word that genuinely
+  is the same (命令/取消/是/否/全部/重做) — the signature of real localisation.
+  Spot-checked the safety-critical and highest-visibility surfaces: the
+  destructive-action words (儲存/捨棄/取消) are pairwise distinct, and the
+  vocabulary rule holds (config, Enter, command ids, theme names all still
+  English). Codex hit the brief-026 test asserting zh_TW gets English — which
+  shipping zh-Hant necessarily invalidates — and correctly STOPPED rather than
+  editing a test it was forbidden to touch; the gate rewrote that test to pin
+  both halves of the split (every Simplified locale reaches zh-Hans, every
+  Traditional one reaches zh-Hant, neither reaches the other), which is a
+  stronger assertion than the one it replaced. Live-verified in tmux for
+  zh_TW/zh_HK/zh_CN. Binary size unchanged: translations are external files and
+  cost the binary nothing, by design.
+- Found a documentation defect of my own while planning the next languages:
+  docs/i18n.md claims a translation "may reorder {} placeholders freely", but
+  `substitute()` fills them strictly left to right — reordering is impossible.
+  Harmless for Chinese (word order tracks English closely), but 33 templates
+  carry 2+ placeholders and Japanese/Korean/Russian will need to reorder them.
+  Indexed placeholders must land before those languages are dispatched.
