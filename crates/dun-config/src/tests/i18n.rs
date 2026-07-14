@@ -9,10 +9,39 @@ fn empty_catalog_translates_nothing() {
 }
 
 #[test]
-fn locale_candidates_cover_region_and_primary() {
-    assert_eq!(locale_candidates("zh_CN.UTF-8"), vec!["zh-CN", "zh"]);
-    assert_eq!(locale_candidates("zh-cn"), vec!["zh-CN", "zh"]);
+fn locale_candidates_add_the_chinese_script_between_region_and_language() {
+    assert_eq!(
+        locale_candidates("zh_CN.UTF-8"),
+        vec!["zh-CN", "zh-Hans", "zh"]
+    );
+    assert_eq!(
+        locale_candidates("zh_SG.UTF-8"),
+        vec!["zh-SG", "zh-Hans", "zh"]
+    );
+    assert_eq!(
+        locale_candidates("zh_MY.UTF-8"),
+        vec!["zh-MY", "zh-Hans", "zh"]
+    );
+    assert_eq!(
+        locale_candidates("zh_TW.UTF-8"),
+        vec!["zh-TW", "zh-Hant", "zh"]
+    );
+    assert_eq!(
+        locale_candidates("zh_HK.UTF-8"),
+        vec!["zh-HK", "zh-Hant", "zh"]
+    );
+    assert_eq!(
+        locale_candidates("zh_MO.UTF-8"),
+        vec!["zh-MO", "zh-Hant", "zh"]
+    );
+    assert_eq!(locale_candidates("zh"), vec!["zh-Hans", "zh"]);
+    assert_eq!(locale_candidates("zh-cn"), vec!["zh-CN", "zh-Hans", "zh"]);
+}
+
+#[test]
+fn locale_candidates_without_a_script_entry_are_unchanged() {
     assert_eq!(locale_candidates("de_DE@euro"), vec!["de-DE", "de"]);
+    assert_eq!(locale_candidates("ja_JP.UTF-8"), vec!["ja-JP", "ja"]);
     assert_eq!(locale_candidates("ja"), vec!["ja"]);
     assert_eq!(locale_candidates("JA.eucJP"), vec!["ja"]);
 }

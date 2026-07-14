@@ -1131,3 +1131,30 @@ This is an append-only progress log. Keep new entries dated and factual.
   The i18n stage is now functionally complete: menus, help, dialogs, and every
   status message translate, with zh-CN shipped. Remaining i18n work is additive
   only (more languages) plus the owed Debian measurements.
+- Landed the locale script fallback and a validator for every translation via
+  Codex brief-026 (2026-07-13), the mechanism work that had to precede any new
+  language. The candidate chain gained a script step — `zh_SG` now resolves
+  `zh-SG` → `zh-Hans` → `zh` — so a Singaporean reader, who uses exactly the
+  same Simplified characters as a mainland one, stops getting English; the
+  shipped file is renamed `zh-Hans.conf` because the name should say what the
+  file *is*. Deliberately not an alias table (`zh-SG → zh-CN`, as msedit does):
+  which region is "canonical" Simplified is a product opinion, and opinions do
+  not belong in the core; which script a region writes is not. `zh_TW`/`zh_HK`
+  still get English until a Traditional file exists — correct, and now by design
+  rather than by accident. The validator now discovers every `i18n/*.conf`
+  instead of hardcoding one, enforcing parse, size, completeness, placeholder
+  integrity and no-unknown-keys, plus a destructive-action guard: the
+  Save/Discard/Cancel words must be pairwise distinct, because they are drawn
+  beside the literal (s)/(d)/(c) keys the dialog answers to and a translation
+  that makes two read alike could cost a user their unsaved work.
+  Gate found the fix was only 90% of the way there: the completeness set was
+  `ui_text::ALL` + help keys, and the 47 **menu** keys — the most visible text
+  in the editor — live in dun-ui with no enumerable list, guarded only by a test
+  hardcoded to zh-Hans. Any new language would have shipped with unvalidated
+  menus. Verified by deleting `menu.file.save` and watching the generic
+  validator pass. Fixed by rewriting `dun-ui/src/frame/menu.rs` as a const table
+  (the single source the renderer reads) and exporting
+  `menu_translation_keys()`, mirroring `help_translation_keys()`; the validator
+  now names the missing menu key. Live-verified in tmux: `LANG=zh_SG.UTF-8`
+  renders Simplified menus, `LANG=zh_TW.UTF-8` renders English. 626 tests green;
+  macOS 649,892.

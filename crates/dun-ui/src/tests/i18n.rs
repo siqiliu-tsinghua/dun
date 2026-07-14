@@ -53,25 +53,25 @@ fn mnemonics_keep_working_on_translated_labels() {
 
 #[test]
 fn every_menu_key_in_the_reference_translation_exists() {
-    // Guard against key drift between menu_bar() and i18n/zh-CN.conf: a
+    // Guard against key drift between menu_bar() and i18n/zh-Hans.conf: a
     // translated file must translate every menu it names, and translating
     // every key must translate every visible label.
-    let text = include_str!("../../../../i18n/zh-CN.conf");
+    let text = include_str!("../../../../i18n/zh-Hans.conf");
     let shell = UiShell {
-        catalog: parse_catalog(text, "zh-CN").expect("shipped file parses"),
+        catalog: parse_catalog(text, "zh-Hans").expect("shipped file parses"),
         ..UiShell::default()
     };
     let menu = shell.menu_bar(None);
     for item in &menu.items {
         assert!(
             matches!(item.label, std::borrow::Cow::Owned(_)),
-            "menu label `{}` has no translation in i18n/zh-CN.conf",
+            "menu label `{}` has no translation in i18n/zh-Hans.conf",
             item.label
         );
         for entry in &item.entries {
             assert!(
                 matches!(entry.label, std::borrow::Cow::Owned(_)),
-                "entry label `{}` has no translation in i18n/zh-CN.conf",
+                "entry label `{}` has no translation in i18n/zh-Hans.conf",
                 entry.label
             );
         }
@@ -130,9 +130,9 @@ fn rightmost_translated_menu_shifts_on_screen_instead_of_vanishing() {
     // At 26 columns the translated menu bar cuts off before 帮助, but its
     // mnemonic still opens it; the dropdown must shift left onto the screen
     // rather than being clamped into nothing.
-    let text = include_str!("../../../../i18n/zh-CN.conf");
+    let text = include_str!("../../../../i18n/zh-Hans.conf");
     let shell = UiShell {
-        catalog: parse_catalog(text, "zh-CN").expect("shipped file parses"),
+        catalog: parse_catalog(text, "zh-Hans").expect("shipped file parses"),
         ..UiShell::default()
     };
     let area = Rect::new(0, 0, 26, 10);

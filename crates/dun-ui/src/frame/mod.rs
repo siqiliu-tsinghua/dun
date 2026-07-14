@@ -5,7 +5,7 @@ use crate::{BufferView, MenuSelection, UiFrame, UiShell, UiWindow};
 mod cursor;
 mod gutter;
 mod highlight;
-mod menu;
+pub mod menu;
 mod scroll;
 mod status;
 mod text;

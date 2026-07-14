@@ -42,10 +42,15 @@ impl TextCatalog {
     pub fn get(&self, key: &str) -> Option<&str> {
         self.entries.get(key).map(String::as_str)
     }
+
+    pub fn keys(&self) -> impl Iterator<Item = &str> {
+        self.entries.keys().map(String::as_str)
+    }
 }
 
 /// Locale candidates for a raw locale value, most specific first:
-/// `zh_CN.UTF-8` → `["zh-CN", "zh"]`. `C`, `POSIX`, and empty select none.
+/// `zh_CN.UTF-8` → `["zh-CN", "zh-Hans", "zh"]`. `C`, `POSIX`, and
+/// empty select none.
 pub fn locale_candidates(raw_locale: &str) -> Vec<String> {
     let base = raw_locale
         .split(['.', '@'])
@@ -62,13 +67,33 @@ pub fn locale_candidates(raw_locale: &str) -> Vec<String> {
         return Vec::new();
     }
 
-    match parts.next().map(str::to_ascii_uppercase) {
-        Some(region)
-            if region.chars().all(|ch| ch.is_ascii_alphanumeric()) && !region.is_empty() =>
-        {
-            vec![format!("{primary}-{region}"), primary]
+    let region = match parts.next() {
+        Some(region) => {
+            let region = region.to_ascii_uppercase();
+            if region.is_empty() || !region.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+                return vec![primary];
+            }
+            Some(region)
         }
-        _ => vec![primary],
+        None => None,
+    };
+
+    let mut candidates = Vec::with_capacity(3);
+    if let Some(region) = region.as_deref() {
+        candidates.push(format!("{primary}-{region}"));
+    }
+    if let Some(script) = locale_script(&primary, region.as_deref()) {
+        candidates.push(format!("{primary}-{script}"));
+    }
+    candidates.push(primary);
+    candidates
+}
+
+fn locale_script(language: &str, region: Option<&str>) -> Option<&'static str> {
+    match (language, region) {
+        ("zh", None | Some("CN" | "SG" | "MY")) => Some("Hans"),
+        ("zh", Some("TW" | "HK" | "MO")) => Some("Hant"),
+        _ => None,
     }
 }
 

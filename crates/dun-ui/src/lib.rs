@@ -10,6 +10,7 @@ mod surface;
 mod surface_emit;
 mod text;
 
+pub use frame::menu::menu_translation_keys;
 pub use model::{
     BufferHighlightSpan, BufferView, HighlightClass, MenuBar, MenuEntry, MenuItem, MenuSelection,
     PluginIndicator, StatusBar, UiCursor, UiFrame, UiGutterLine, UiHighlightLine,

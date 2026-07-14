@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -11,9 +12,71 @@ fn temp_i18n_dir(name: &str) -> PathBuf {
     dir
 }
 
+fn shipped_i18n_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../i18n")
+}
+
 fn shipped_zh_catalog() -> dun_config::TextCatalog {
-    dun_config::parse_catalog(include_str!("../../../../i18n/zh-CN.conf"), "zh-CN")
+    dun_config::parse_catalog(include_str!("../../../../i18n/zh-Hans.conf"), "zh-Hans")
         .expect("shipped file parses")
+}
+
+fn translation_defaults() -> BTreeMap<String, &'static str> {
+    let mut defaults = BTreeMap::new();
+    for &(key, english) in crate::ui_text::ALL {
+        assert!(
+            defaults.insert(key.to_string(), english).is_none(),
+            "duplicate translation key: {key}"
+        );
+    }
+    for (key, english) in crate::help::content::help_translation_keys() {
+        assert!(
+            defaults.insert(key.clone(), english).is_none(),
+            "duplicate translation key: {key}"
+        );
+    }
+    // The menu keys live in dun-ui and were the one surface this validator
+    // could not see: a shipped translation could drop a menu label — the most
+    // visible text in the editor — and only a hardcoded zh-Hans test would
+    // notice, so any *new* language would ship with unvalidated menus.
+    for (key, english) in dun_ui::menu_translation_keys() {
+        assert!(
+            defaults.insert(key.to_string(), english).is_none(),
+            "duplicate translation key: {key}"
+        );
+    }
+    defaults
+}
+
+fn shipped_catalog_files() -> Vec<PathBuf> {
+    let dir = shipped_i18n_dir();
+    let mut files: Vec<PathBuf> = fs::read_dir(&dir)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", dir.display()))
+        .map(|entry| entry.expect("reads shipped i18n directory entry").path())
+        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("conf"))
+        .collect();
+    files.sort();
+    assert!(!files.is_empty(), "no shipped i18n/*.conf files found");
+    files
+}
+
+fn menu_uses_translation_key(key: &str) -> bool {
+    const MARKER: &str = "DUN_MENU_TRANSLATION_PROBE_9A7E";
+
+    let mut app = AppState::new();
+    app.shell.catalog = dun_config::parse_catalog(&format!("{key} = {MARKER}\n"), "test")
+        .expect("probe catalog parses");
+    let buffer_views = app.buffer_views();
+    let frame =
+        app.shell
+            .frame_for_workspace(&app.workspace, Rect::new(0, 0, 80, 20), &buffer_views);
+    frame.menu.items.iter().any(|item| {
+        item.label.contains(MARKER)
+            || item
+                .entries
+                .iter()
+                .any(|entry| entry.label.contains(MARKER))
+    })
 }
 
 #[test]
@@ -59,6 +122,27 @@ fn missing_files_and_c_locale_stay_english_without_diagnostics() {
     assert!(loaded.diagnostic.is_none());
 
     fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn shipped_script_catalog_resolves_simplified_but_not_traditional_chinese() {
+    let dir = shipped_i18n_dir();
+    for raw_locale in ["zh_CN.UTF-8", "zh_SG.UTF-8", "zh_MY.UTF-8", "zh"] {
+        let loaded = catalog_from_dir(&dir, raw_locale);
+        assert_eq!(loaded.catalog.lang(), Some("zh-Hans"), "{raw_locale}");
+        assert_eq!(
+            loaded.catalog.get("menu.file"),
+            Some("文件"),
+            "{raw_locale}"
+        );
+        assert!(loaded.diagnostic.is_none(), "{raw_locale}");
+    }
+
+    for raw_locale in ["zh_TW.UTF-8", "zh_HK.UTF-8", "zh_MO.UTF-8"] {
+        let loaded = catalog_from_dir(&dir, raw_locale);
+        assert!(loaded.catalog.is_empty(), "{raw_locale}");
+        assert!(loaded.diagnostic.is_none(), "{raw_locale}");
+    }
 }
 
 #[test]
@@ -110,19 +194,7 @@ fn i18n_dir_follows_the_config_source() {
 
 #[test]
 fn shipped_zh_catalog_translates_the_whole_help_window() {
-    let text = include_str!("../../../../i18n/zh-CN.conf");
-    let catalog = dun_config::parse_catalog(text, "zh-CN").expect("shipped file parses");
-
-    let missing: Vec<String> = crate::help::content::help_translation_keys()
-        .into_iter()
-        .filter(|(key, _)| catalog.get(key).is_none())
-        .map(|(key, english)| format!("{key} = {english}"))
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "untranslated help keys:\n{}",
-        missing.join("\n")
-    );
+    let catalog = shipped_zh_catalog();
 
     let help = crate::help::content::help_text(
         &dun_config::Keymap::default_editor(),
@@ -164,38 +236,111 @@ fn shipped_zh_catalog_translates_the_whole_help_window() {
 }
 
 #[test]
-fn shipped_zh_catalog_translates_all_dialog_chrome() {
-    let text = include_str!("../../../../i18n/zh-CN.conf");
-    let catalog = dun_config::parse_catalog(text, "zh-CN").expect("shipped file parses");
+fn every_shipped_translation_is_valid_and_complete() {
+    const DESTRUCTIVE_ACTION_KEYS: [&str; 3] = [
+        "confirm.button.save",
+        "confirm.button.discard",
+        "confirm.button.cancel",
+    ];
 
-    let missing: Vec<String> = crate::ui_text::ALL
-        .iter()
-        .filter(|(key, _)| catalog.get(key).is_none())
-        .map(|(key, english)| format!("{key} = {english}"))
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "untranslated dialog keys:\n{}",
-        missing.join("\n")
-    );
+    let defaults = translation_defaults();
+    for path in shipped_catalog_files() {
+        let bytes = fs::read(&path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+        assert!(
+            bytes.len() <= dun_config::MAX_CATALOG_FILE_BYTES,
+            "{} is {} bytes; catalog cap is {} bytes",
+            path.display(),
+            bytes.len(),
+            dun_config::MAX_CATALOG_FILE_BYTES
+        );
+        let text = std::str::from_utf8(&bytes)
+            .unwrap_or_else(|error| panic!("{} is not UTF-8: {error}", path.display()));
+        let lang = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or_else(|| panic!("{} has no UTF-8 language tag", path.display()));
+        let catalog = dun_config::parse_catalog(text, lang)
+            .unwrap_or_else(|error| panic!("{} does not parse: {error}", path.display()));
 
-    // Translated templates must keep the exact placeholder count of their
-    // English default — mismatches silently fall back to English, so a
-    // shipped translation with a mismatch is a bug, not a preference.
-    let mismatched: Vec<String> = crate::ui_text::ALL
-        .iter()
-        .filter_map(|(key, english)| {
-            let translated = catalog.get(key)?;
-            (crate::ui_text::placeholder_count(translated)
-                != crate::ui_text::placeholder_count(english))
-            .then(|| format!("{key}: `{english}` vs `{translated}`"))
-        })
-        .collect();
-    assert!(
-        mismatched.is_empty(),
-        "placeholder count mismatches:\n{}",
-        mismatched.join("\n")
-    );
+        let missing: Vec<String> = defaults
+            .iter()
+            .filter(|(key, _)| catalog.get(key).is_none())
+            .map(|(key, english)| format!("{key} = {english}"))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "{} is missing translation keys:\n{}",
+            path.display(),
+            missing.join("\n")
+        );
+
+        let mut unknown: Vec<&str> = catalog
+            .keys()
+            .filter(|key| !defaults.contains_key(*key) && !menu_uses_translation_key(key))
+            .collect();
+        unknown.sort_unstable();
+        assert!(
+            unknown.is_empty(),
+            "{} has unknown translation keys:\n{}",
+            path.display(),
+            unknown.join("\n")
+        );
+
+        let mismatched: Vec<String> = catalog
+            .keys()
+            .filter_map(|key| {
+                let translated = catalog.get(key).expect("enumerated catalog key exists");
+                let english = defaults.get(key).copied();
+                // Menu labels have no templates; their compiled English
+                // labels are rendered directly with a separate mnemonic.
+                let expected = english.map(crate::ui_text::placeholder_count).unwrap_or(0);
+                let actual = crate::ui_text::placeholder_count(translated);
+                (actual != expected).then(|| match english {
+                    Some(english) => format!(
+                        "{key}: expected {expected}, got {actual}; `{english}` vs `{translated}`"
+                    ),
+                    None => format!(
+                        "{key}: expected {expected}, got {actual}; menu translation `{translated}`"
+                    ),
+                })
+            })
+            .collect();
+        assert!(
+            mismatched.is_empty(),
+            "{} has placeholder count mismatches:\n{}",
+            path.display(),
+            mismatched.join("\n")
+        );
+
+        let labels = DESTRUCTIVE_ACTION_KEYS.map(|key| {
+            let value = catalog.get(key).unwrap_or_else(|| {
+                panic!(
+                    "{} is missing destructive-action key `{key}`",
+                    path.display()
+                )
+            });
+            assert!(
+                !value.is_empty(),
+                "{} has an empty destructive-action label for `{key}`",
+                path.display()
+            );
+            (key, value)
+        });
+        for left in 0..labels.len() {
+            for right in left + 1..labels.len() {
+                assert_ne!(
+                    labels[left].1,
+                    labels[right].1,
+                    "{} destructive-action labels must be pairwise distinct; `{}` and `{}` are both `{}`",
+                    path.display(),
+                    labels[left].0,
+                    labels[right].0,
+                    labels[left].1
+                );
+            }
+        }
+    }
 }
 
 #[test]
