@@ -1197,3 +1197,22 @@ This is an append-only progress log. Keep new entries dated and factual.
   silently drop a runtime value — and a template that breaks either rule is
   ignored so the English renders instead of nonsense. Mutation-checked by making
   a zh-Hant template skip an argument; the validator named it. 628 tests green.
+- Shipped six European translations via Codex brief-028 (2026-07-13): fr, de,
+  it, es, pt (Brazilian), ru — 499 keys each, bare language tags so one file
+  serves every region of its language (es.conf covers Spain and all of Latin
+  America; only Chinese needs a script tag, because Simplified and Traditional
+  are genuinely different writing systems).
+  Review focused on the one place a translation error is destructive rather than
+  merely confusing: the confirm dialog draws Save/Discard/Cancel beside the
+  literal (s)/(d)/(c) keys it answers to. Undo and Cancel are the same word in
+  careless French (Annuler), Italian (Annulla) and Russian (Отменить), so all
+  three needed a distinct Discard — Abandonner / Scarta / Не сохранять ("do not
+  save", the cleanest of the three). All eight shipped languages pass the guard.
+  The vocabulary rule holds everywhere (config, plugin [load|unload], command
+  ids, theme names, key names still English), and the indexed-placeholder
+  mechanism earned its keep immediately: Russian needed 15 reordered templates,
+  e.g. "Команда завершилась за {1}; статус: {0}" — the duration before the exit
+  status, which positional {} could not have expressed.
+  Live-verified in tmux at 80 and 34 columns for German (the longest words) and
+  Russian: zero overflow, the dropdown-shift and display-width truncation from
+  the earlier fixes carrying the load. Binary unchanged at 649,900 bytes.
