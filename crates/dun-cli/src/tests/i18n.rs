@@ -310,8 +310,12 @@ fn every_shipped_translation_is_valid_and_complete() {
                 // Menu labels have no templates; their compiled English
                 // labels are rendered directly with a separate mnemonic.
                 let expected = english.map(crate::ui_text::placeholder_count).unwrap_or(0);
+                // A translation may use indexed {0}/{1} to reorder arguments
+                // into its own word order; it may not skip one, invent one, or
+                // mix the two forms.
+                let valid = crate::ui_text::indexed_template_is_valid(translated, expected);
                 let actual = crate::ui_text::placeholder_count(translated);
-                (actual != expected).then(|| match english {
+                (!valid).then(|| match english {
                     Some(english) => format!(
                         "{key}: expected {expected}, got {actual}; `{english}` vs `{translated}`"
                     ),
@@ -609,4 +613,65 @@ fn cli_path_error_display_is_pinned_english() {
         std::io::Error::from(ErrorKind::PermissionDenied),
     );
     assert_eq!(error.to_string(), "(empty path): permission denied");
+}
+
+/// Japanese and Korean are verb-final and Russian word order is free, so a
+/// translation of a multi-argument template must be able to put the arguments
+/// where its grammar wants them. Positional `{}` cannot express that — this is
+/// what indexed `{N}` is for, and what the validator has to police.
+#[test]
+fn indexed_placeholders_let_a_translation_reorder_arguments() {
+    use crate::ui_text::{indexed_template_is_valid, placeholder_count, substitute};
+
+    // Positional: English order, filled left to right (unchanged behaviour).
+    assert_eq!(
+        substitute("Find: {}/{} for {}", &["2", "7", "fn"]),
+        "Find: 2/7 for fn"
+    );
+
+    // Indexed: the query comes first, the counts after — the whole point.
+    assert_eq!(
+        substitute("検索：{2} — {0}/{1} 件目", &["2", "7", "fn"]),
+        "検索：fn — 2/7 件目"
+    );
+    // An index may repeat.
+    assert_eq!(substitute("{0} → {0}", &["x"]), "x → x");
+
+    // Arity is the highest index plus one, so the validator compares like
+    // with like across the two forms.
+    assert_eq!(placeholder_count("{}/{} {}"), 3);
+    assert_eq!(placeholder_count("{2} {0} {1}"), 3);
+
+    // What must be rejected: a skipped argument (silently drops a runtime
+    // value), an out-of-range index, and a mix of the two forms.
+    assert!(indexed_template_is_valid("{2} {0} {1}", 3));
+    assert!(!indexed_template_is_valid("{0} {2}", 3), "skips index 1");
+    assert!(
+        !indexed_template_is_valid("{0} {1} {9}", 3),
+        "index out of range"
+    );
+    assert!(
+        !indexed_template_is_valid("{0} and {}", 2),
+        "mixes the two forms"
+    );
+    assert!(
+        !indexed_template_is_valid("{}/{}", 3),
+        "wrong positional arity"
+    );
+}
+
+/// A translation that breaks the placeholder rules must degrade to English,
+/// never to nonsense or to a dropped value.
+#[test]
+fn a_broken_indexed_template_falls_back_to_english() {
+    let catalog = dun_config::parse_catalog(
+        // Skips {1}: the total would silently vanish from the status line.
+        "status.replace.match-of = 一致 {0}\n",
+        "test",
+    )
+    .expect("parses");
+    assert_eq!(
+        crate::ui_text::tr_fmt(&catalog, crate::ui_text::CONFIRM_MATCH_OF, &["2", "7"]),
+        "Match 2/7"
+    );
 }

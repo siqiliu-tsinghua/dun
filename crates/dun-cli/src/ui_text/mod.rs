@@ -47,7 +47,7 @@ pub(crate) fn tr(catalog: &TextCatalog, key: TextKey) -> &str {
 pub(crate) fn tr_fmt(catalog: &TextCatalog, key: TextKey, args: &[&str]) -> String {
     let template = catalog
         .get(key.0)
-        .filter(|translated| placeholder_count(translated) == args.len())
+        .filter(|translated| indexed_template_is_valid(translated, args.len()))
         .unwrap_or(key.1);
     substitute(template, args)
 }
@@ -57,14 +57,65 @@ pub(crate) fn tr_fmt(catalog: &TextCatalog, key: TextKey, args: &[&str]) -> Stri
 pub(crate) fn tr_template(catalog: &TextCatalog, key: TextKey, arg_count: usize) -> Option<&str> {
     catalog
         .get(key.0)
-        .filter(|translated| placeholder_count(translated) == arg_count)
+        .filter(|translated| indexed_template_is_valid(translated, arg_count))
 }
 
+/// How many arguments a template consumes.
+///
+/// English defaults use positional `{}`, filled left to right. A translation
+/// may instead use **indexed** `{0}`, `{1}`, … to put the arguments in an
+/// order its language needs — Japanese and Korean are verb-final, and Russian
+/// word order is free, so a template like `Find: {}/{} matches: {}` cannot be
+/// said naturally with the English order forced on it. An indexed template's
+/// arity is its highest index plus one.
+///
+/// The two forms do not mix: a template is positional or indexed, never both.
+///
+/// Only the shipped-translation validator needs the count as a number; the
+/// runtime asks `indexed_template_is_valid` instead.
+#[cfg(test)]
 pub(crate) fn placeholder_count(template: &str) -> usize {
-    template.matches("{}").count()
+    match indexed_placeholders(template) {
+        Some(indices) => indices.iter().copied().max().map_or(0, |max| max + 1),
+        None => template.matches("{}").count(),
+    }
+}
+
+/// The `{N}` indices a template uses, or `None` if it uses none. A template
+/// that mixes `{}` with `{N}` is rejected (returns `None` with a stray `{}`
+/// left in place), so validation catches it rather than rendering nonsense.
+fn indexed_placeholders(template: &str) -> Option<Vec<usize>> {
+    let mut indices = Vec::new();
+    let mut rest = template;
+    while let Some((_, tail)) = rest.split_once('{') {
+        let (body, after) = tail.split_once('}')?;
+        if !body.is_empty() {
+            indices.push(body.parse().ok()?);
+        }
+        rest = after;
+    }
+    (!indices.is_empty()).then_some(indices)
+}
+
+/// Every index in `0..arity` is used at least once, and no index is out of
+/// range. This is what the shipped-translation validator checks: an indexed
+/// template that skips an argument would silently drop a runtime value.
+pub(crate) fn indexed_template_is_valid(template: &str, arity: usize) -> bool {
+    match indexed_placeholders(template) {
+        None => template.matches("{}").count() == arity,
+        Some(indices) => {
+            !template.contains("{}")
+                && (0..arity).all(|index| indices.contains(&index))
+                && indices.iter().all(|index| *index < arity)
+        }
+    }
 }
 
 pub(crate) fn substitute(template: &str, args: &[&str]) -> String {
+    if let Some(_indices) = indexed_placeholders(template) {
+        return substitute_indexed(template, args);
+    }
+
     let mut out = String::with_capacity(template.len() + 16);
     let mut rest = template;
     for arg in args {
@@ -76,6 +127,28 @@ pub(crate) fn substitute(template: &str, args: &[&str]) -> String {
             }
             None => break,
         }
+    }
+    out.push_str(rest);
+    out
+}
+
+fn substitute_indexed(template: &str, args: &[&str]) -> String {
+    let mut out = String::with_capacity(template.len() + 16);
+    let mut rest = template;
+    while let Some((head, tail)) = rest.split_once('{') {
+        out.push_str(head);
+        let Some((body, after)) = tail.split_once('}') else {
+            out.push('{');
+            rest = tail;
+            continue;
+        };
+        match body.parse::<usize>().ok().and_then(|index| args.get(index)) {
+            Some(arg) => out.push_str(arg),
+            // An out-of-range index cannot happen for a validated template;
+            // if one somehow arrives, drop it rather than render `{7}`.
+            None => {}
+        }
+        rest = after;
     }
     out.push_str(rest);
     out

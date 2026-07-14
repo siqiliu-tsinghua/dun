@@ -1183,3 +1183,17 @@ This is an append-only progress log. Keep new entries dated and factual.
   Harmless for Chinese (word order tracks English closely), but 33 templates
   carry 2+ placeholders and Japanese/Korean/Russian will need to reorder them.
   Indexed placeholders must land before those languages are dispatched.
+- Fixed the placeholder mechanism before dispatching the remaining languages
+  (2026-07-13). `substitute()` filled `{}` strictly left to right, so a
+  translation could not reorder arguments — while docs/i18n.md claimed it could,
+  a documentation defect I introduced in slice 3. Harmless for Chinese, whose
+  word order tracks English closely, but 33 templates carry two or more
+  placeholders and Japanese and Korean are verb-final while Russian word order
+  is free: forcing English argument order on them produces text no native
+  speaker would write. Translations may now use indexed `{0}`/`{1}` placeholders
+  (English defaults keep positional `{}` and are unchanged). The validator
+  enforces the rules that matter: a template is positional or indexed but never
+  both, an indexed one must use every index in `0..arity` — skipping one would
+  silently drop a runtime value — and a template that breaks either rule is
+  ignored so the English renders instead of nonsense. Mutation-checked by making
+  a zh-Hant template skip an argument; the validator named it. 628 tests green.
