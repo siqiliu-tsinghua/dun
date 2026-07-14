@@ -5,10 +5,13 @@ impl AppState {
         let tokens = match parse_command_line(input) {
             Ok(tokens) => tokens,
             Err(error) => {
-                self.set_status(format!(
-                    "Command failed: {}",
-                    command_line_parse_error_text(error)
-                ));
+                let detail = command_line_parse_error_text(&self.shell.catalog, error);
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_COMMAND_PARSE_FAILED,
+                    &[detail],
+                );
+                self.set_status(status);
                 return;
             }
         };
@@ -49,7 +52,10 @@ impl AppState {
             "find" => self.run_find_command(args),
             "replace" => self.run_replace_command(args),
             "goto" | "gotoline" | "line" => self.run_go_to_line_command(args),
-            "commands" => self.set_status(COMMAND_LINE_HELP),
+            "commands" => {
+                let status = command_line_help(&self.shell.catalog);
+                self.set_status(status);
+            }
             _ => self.run_command_id_command(command, args),
         }
     }
@@ -67,16 +73,17 @@ impl AppState {
 
     fn run_theme_command(&mut self, args: &[String]) {
         match args {
-            [] => self.set_status(format!(
-                "Theme: {} ({})",
-                self.shell.theme.name,
-                theme_command_values()
+            [] => self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_THEME_CURRENT,
+                &[self.shell.theme.name, theme_command_values()],
             )),
             [theme] => match parse_theme_command_value(theme) {
                 Some(theme) => self.set_runtime_theme(theme),
-                None => self.set_status(format!(
-                    "Theme failed: unknown theme {theme}; expected {}",
-                    theme_command_values()
+                None => self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_THEME_UNKNOWN,
+                    &[theme, theme_command_values()],
                 )),
             },
             _ => self.set_status(
@@ -156,14 +163,16 @@ impl AppState {
             [] => self.open_config_diagnostics_screen(),
             [section] => match parse_config_diagnostics_section(section) {
                 Some(section) => self.jump_config_diagnostics_section(section),
-                None => self.set_status(format!(
-                    "Command failed: config expects one of {}",
-                    config_diagnostics_section_values()
+                None => self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_COMMAND_CONFIG_SECTION,
+                    &[config_diagnostics_section_values()],
                 )),
             },
-            _ => self.set_status(format!(
-                "Command failed: config expects zero args or one of {}",
-                config_diagnostics_section_values()
+            _ => self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_COMMAND_CONFIG_SECTION_ARITY,
+                &[config_diagnostics_section_values()],
             )),
         }
     }

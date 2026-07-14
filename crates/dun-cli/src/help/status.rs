@@ -1,8 +1,11 @@
 use crate::*;
 
-pub(crate) fn replacement_status_text(replacement: &str) -> &str {
+pub(crate) fn replacement_status_text<'a>(
+    catalog: &'a TextCatalog,
+    replacement: &'a str,
+) -> &'a str {
     if replacement.is_empty() {
-        "<empty>"
+        ui_text::tr(catalog, ui_text::STATUS_REPLACEMENT_EMPTY)
     } else {
         replacement
     }
@@ -132,28 +135,33 @@ pub(crate) const fn color_status(colors: ColorProfile) -> &'static str {
     }
 }
 
-pub(crate) const fn buffer_error_text(error: BufferError) -> &'static str {
-    match error {
-        BufferError::InvalidPosition(_) => "invalid position",
-        BufferError::InvalidRange(_) => "invalid range",
-        BufferError::ReadOnly => "buffer is read-only",
-    }
+pub(crate) fn buffer_error_text(catalog: &TextCatalog, error: BufferError) -> &str {
+    let key = match error {
+        BufferError::InvalidPosition(_) => ui_text::STATUS_BUFFER_ERROR_INVALID_POSITION,
+        BufferError::InvalidRange(_) => ui_text::STATUS_BUFFER_ERROR_INVALID_RANGE,
+        BufferError::ReadOnly => ui_text::STATUS_BUFFER_ERROR_READ_ONLY,
+    };
+    ui_text::tr(catalog, key)
 }
 
-pub(crate) const fn workspace_error_text(error: WorkspaceError) -> &'static str {
-    match error {
-        WorkspaceError::CannotCloseLastWindow => "cannot close the last window",
-        WorkspaceError::CannotCollapseLastWindow => "cannot collapse the only window",
-        WorkspaceError::FocusMissing => "focused window is missing",
-        WorkspaceError::NoNeighbor => "no neighboring pane",
-        WorkspaceError::NoResizableSplit => "no matching split",
-        WorkspaceError::WindowMissing => "window is missing",
-    }
+pub(crate) fn workspace_error_text(catalog: &TextCatalog, error: WorkspaceError) -> &str {
+    let key = match error {
+        WorkspaceError::CannotCloseLastWindow => ui_text::STATUS_WORKSPACE_ERROR_CANNOT_CLOSE_LAST,
+        WorkspaceError::CannotCollapseLastWindow => {
+            ui_text::STATUS_WORKSPACE_ERROR_CANNOT_COLLAPSE_LAST
+        }
+        WorkspaceError::FocusMissing => ui_text::STATUS_WORKSPACE_ERROR_FOCUS_MISSING,
+        WorkspaceError::NoNeighbor => ui_text::STATUS_WORKSPACE_ERROR_NO_NEIGHBOR,
+        WorkspaceError::NoResizableSplit => ui_text::STATUS_WORKSPACE_ERROR_NO_RESIZABLE_SPLIT,
+        WorkspaceError::WindowMissing => ui_text::STATUS_WORKSPACE_ERROR_WINDOW_MISSING,
+    };
+    ui_text::tr(catalog, key)
 }
 
-pub(crate) const fn axis_name(axis: Axis) -> &'static str {
-    match axis {
-        Axis::Horizontal => "horizontal",
-        Axis::Vertical => "vertical",
-    }
+pub(crate) fn axis_name(catalog: &TextCatalog, axis: Axis) -> &str {
+    let key = match axis {
+        Axis::Horizontal => ui_text::STATUS_WINDOW_AXIS_HORIZONTAL,
+        Axis::Vertical => ui_text::STATUS_WINDOW_AXIS_VERTICAL,
+    };
+    ui_text::tr(catalog, key)
 }

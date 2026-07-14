@@ -3,6 +3,10 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use dun_config::TextCatalog;
+
+use crate::ui_text;
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct AtomicTempReconcileReport {
     cleaned: usize,
@@ -247,6 +251,7 @@ fn atomic_temp_file_is_obsolete(
 }
 
 pub(crate) fn status_with_atomic_temp_report(
+    catalog: &TextCatalog,
     status: impl Into<String>,
     report: &AtomicTempReconcileReport,
 ) -> String {
@@ -254,25 +259,34 @@ pub(crate) fn status_with_atomic_temp_report(
     let mut suffixes = Vec::new();
 
     if report.cleaned > 0 {
-        suffixes.push(format!(
-            "cleaned {} stale save temp file(s)",
-            report.cleaned
+        suffixes.push(ui_text::tr_fmt(
+            catalog,
+            ui_text::STATUS_ATOMIC_CLEANED,
+            &[&report.cleaned.to_string()],
         ));
     }
     if report.cleanup_failures > 0 {
-        suffixes.push(format!(
-            "failed to clean {} save temp file(s)",
-            report.cleanup_failures
+        suffixes.push(ui_text::tr_fmt(
+            catalog,
+            ui_text::STATUS_ATOMIC_CLEAN_FAILED,
+            &[&report.cleanup_failures.to_string()],
         ));
     }
     if let Some(first) = report.recovery_candidates.first() {
         if report.recovery_candidates.len() == 1 {
-            suffixes.push(format!("recovery temp file found: {}", first.display()));
+            suffixes.push(ui_text::tr_fmt(
+                catalog,
+                ui_text::STATUS_ATOMIC_RECOVERY_FOUND,
+                &[&first.display().to_string()],
+            ));
         } else {
-            suffixes.push(format!(
-                "{} recovery temp file(s) found; first: {}",
-                report.recovery_candidates.len(),
-                first.display()
+            suffixes.push(ui_text::tr_fmt(
+                catalog,
+                ui_text::STATUS_ATOMIC_RECOVERY_FOUND_MANY,
+                &[
+                    &report.recovery_candidates.len().to_string(),
+                    &first.display().to_string(),
+                ],
             ));
         }
     }

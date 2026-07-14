@@ -4,9 +4,12 @@ use std::io::{self, Read, Write};
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
+use dun_config::TextCatalog;
+
 use super::{RuntimeAction, SurfaceBackend, TerminalGuard};
 use crate::app::AppState;
 use crate::command_output::{CapturedCommandStream, CommandRunResult};
+use crate::ui_text;
 
 pub(crate) fn handle_runtime_action(
     action: RuntimeAction,
@@ -40,7 +43,10 @@ fn run_shell_escape(
 
     match (status, resume_result) {
         (Ok(status), Ok(())) => {
-            app.set_status(format!("Shell returned {}", exit_status_text(status)));
+            let exit = localized_exit_status_text(&app.shell.catalog, status);
+            let status =
+                ui_text::tr_fmt(&app.shell.catalog, ui_text::STATUS_SHELL_RETURNED, &[&exit]);
+            app.set_status(status);
             Ok(())
         }
         (Err(error), Ok(())) => {
@@ -157,30 +163,39 @@ fn join_captured_stream(
         .map_err(|_| io::Error::other("command output reader panicked"))?
 }
 
-pub(crate) fn command_run_status(result: &CommandRunResult) -> String {
-    let mut status = if result.timed_out {
-        format!(
-            "Command timed out after {} and was killed",
-            duration_status_text(result.elapsed)
-        )
+pub(crate) fn command_run_status(catalog: &TextCatalog, result: &CommandRunResult) -> String {
+    let truncated = result.stdout.truncated || result.stderr.truncated;
+    let duration = duration_status_text(result.elapsed);
+    if result.timed_out {
+        let key = if truncated {
+            ui_text::STATUS_RUN_TIMED_OUT_TRUNCATED
+        } else {
+            ui_text::STATUS_RUN_TIMED_OUT
+        };
+        ui_text::tr_fmt(catalog, key, &[&duration])
     } else {
-        format!(
-            "Command returned {} in {}",
-            exit_status_text(result.status),
-            duration_status_text(result.elapsed)
-        )
-    };
-    if result.stdout.truncated || result.stderr.truncated {
-        status.push_str("; output truncated");
+        let key = if truncated {
+            ui_text::STATUS_RUN_RETURNED_TRUNCATED
+        } else {
+            ui_text::STATUS_RUN_RETURNED
+        };
+        let exit = localized_exit_status_text(catalog, result.status);
+        ui_text::tr_fmt(catalog, key, &[&exit, &duration])
     }
-    status
 }
 
-pub(crate) fn exit_status_text(status: ExitStatus) -> String {
+fn localized_exit_status_text(catalog: &TextCatalog, status: ExitStatus) -> String {
     status
         .code()
-        .map(|code| format!("exit {code}"))
-        .unwrap_or_else(|| "terminated".to_string())
+        .map(|code| ui_text::tr_fmt(catalog, ui_text::STATUS_RUN_EXIT, &[&code.to_string()]))
+        .unwrap_or_else(|| ui_text::tr(catalog, ui_text::STATUS_RUN_TERMINATED).to_string())
+}
+
+/// The English form, for Command Output *buffer content* (which is not yet
+/// translated). Defined through the localized path with an empty catalog so
+/// the two cannot drift apart.
+pub(crate) fn exit_status_text(status: ExitStatus) -> String {
+    localized_exit_status_text(&TextCatalog::empty(), status)
 }
 
 pub(crate) fn duration_status_text(duration: Duration) -> String {

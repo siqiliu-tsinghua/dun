@@ -93,7 +93,7 @@ impl AppState {
             std::time::Duration::from_millis(self.limits.run_command_timeout_ms),
         ) {
             Ok(result) => {
-                let status = command_run_status(&result);
+                let status = command_run_status(&self.shell.catalog, &result);
                 self.open_command_output_screen(&result);
                 self.set_status(status);
             }

@@ -195,7 +195,12 @@ impl AppState {
         };
 
         if let Err(error) = buffer.buffer.insert_str(text) {
-            self.set_status(format!("Paste failed: {}", buffer_error_text(error)));
+            let status = ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_PASTE_FAILED,
+                &[buffer_error_text(&self.shell.catalog, error)],
+            );
+            self.set_status(status);
         }
     }
 
@@ -283,6 +288,7 @@ impl AppState {
     }
 
     fn complete_command_line_prompt(&mut self, forward: bool) {
+        let catalog = &self.shell.catalog;
         let Some(prompt) = &mut self.prompt else {
             return;
         };
@@ -292,9 +298,8 @@ impl AppState {
         let input = prompt.input.as_str().to_string();
         if prompt.input.cursor_index != input.len() {
             prompt.clear_completion();
-            self.status_message = Some(
-                ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMPLETION_CURSOR_END).to_string(),
-            );
+            self.status_message =
+                Some(ui_text::tr(catalog, ui_text::STATUS_COMPLETION_CURSOR_END).to_string());
             return;
         }
 
@@ -304,8 +309,10 @@ impl AppState {
             self.status_message = prompt
                 .completion
                 .as_ref()
-                .map(PromptCompletionState::status_text)
-                .or_else(|| Some("Command completion".to_string()));
+                .map(|completion| completion.status_text(catalog))
+                .or_else(|| {
+                    Some(ui_text::tr(catalog, ui_text::STATUS_COMPLETION_READY).to_string())
+                });
             return;
         }
 
@@ -313,25 +320,22 @@ impl AppState {
         match completion {
             CommandCompletion::None => {
                 prompt.clear_completion();
-                self.status_message = Some(
-                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMPLETION_NO_MATCHES)
-                        .to_string(),
-                );
+                self.status_message =
+                    Some(ui_text::tr(catalog, ui_text::STATUS_COMPLETION_NO_MATCHES).to_string());
             }
             CommandCompletion::Unique(text) => {
                 prompt.detach_history();
                 prompt.clear_completion();
                 prompt.input.set_text(text);
-                self.status_message = Some(
-                    ui_text::tr(&self.shell.catalog, ui_text::STATUS_COMPLETION_READY).to_string(),
-                );
+                self.status_message =
+                    Some(ui_text::tr(catalog, ui_text::STATUS_COMPLETION_READY).to_string());
             }
             CommandCompletion::CommonPrefix(text, count) => {
                 prompt.detach_history();
                 prompt.clear_completion();
                 prompt.input.set_text(text);
                 self.status_message = Some(ui_text::tr_fmt(
-                    &self.shell.catalog,
+                    catalog,
                     ui_text::STATUS_COMPLETION_MATCHES,
                     &[&count.to_string()],
                 ));
@@ -341,7 +345,7 @@ impl AppState {
                 self.status_message = prompt
                     .completion
                     .as_ref()
-                    .map(PromptCompletionState::status_text);
+                    .map(|completion| completion.status_text(catalog));
             }
         }
     }
@@ -661,7 +665,7 @@ impl AppState {
             prompt.input.cursor_display_column(),
         );
         if let Some(completion) = &prompt.completion {
-            overlay.lines.push(completion.status_text());
+            overlay.lines.push(completion.status_text(catalog));
         }
         Some(overlay)
     }
@@ -669,7 +673,7 @@ impl AppState {
     fn replace_confirm_overlay(&self, confirm: &ReplaceConfirmState) -> UiOverlay {
         let catalog = &self.shell.catalog;
         let find_display = confirm.spec.display();
-        let with_display = replacement_status_text(&confirm.replacement);
+        let with_display = replacement_status_text(catalog, &confirm.replacement);
         UiOverlay::message(
             ui_text::tr(catalog, ui_text::CONFIRM_REPLACE_TITLE),
             vec![

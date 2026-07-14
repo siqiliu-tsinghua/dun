@@ -262,17 +262,36 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   exact English baseline and the zh output through real command paths.
   Debian size measurement pending the next VM session (macOS 645,580,
   +12,296).
-- [ ] Slice 4b: the 50 helper-composed status call sites brief-022
-  deferred — strings built by `buffer_error_text`, `workspace_error_text`,
+- [x] Slice 4b-1: the stateless helper text builders — landed 2026-07-13 via
+  Codex brief-023 (gated: scope/fmt/clippy/619 tests reproduced, zh reviewed,
+  mutation-checked). All 50 helper-composed call sites brief-022 deferred are
+  converted: `buffer_error_text`, `workspace_error_text`, `axis_name`,
+  `replacement_status_text`, `command_line_parse_error_text`,
+  `COMMAND_LINE_HELP`, `command_run_status`/`exit_status_text`,
   `opened_file_status`/`reloaded_file_status`,
-  `status_with_atomic_temp_report`, `replacement_status_text`, `axis_name`,
-  `command_run_status`, command-line parse/help text,
-  `ConfigDiagnosticsSection::label`, `PromptCompletionState::status_text`,
-  the config-source reload status, and the i18n loader diagnostic itself.
-  These need catalog parameters threaded through `files/`, `help/`,
-  `command_line.rs`, and `command_output/` helpers; also decide `Untitled`
-  (lives in dun-core, no catalog access). Then the dialog event messages
-  stored in `FileDialogState::message`.
+  `status_with_atomic_temp_report`, `ConfigSource::status_text`, and
+  `PromptCompletionState::status_text` (13 builders, 81 keys). Established
+  the **vocabulary rule**: text the user types back — theme names, config
+  section tokens, command ids — stays English and is passed as a `{}`
+  argument; only the prose around it translates. `ui_text.rs` was split into
+  `ui_text/{mod,chrome,status}.rs` on the way.
+- [ ] Slice 4b-2: the text that cannot be reached by threading a catalog,
+  because it is **stored or type-erased**, and needs a typed-message
+  refactor instead:
+  - `FileDialogState::message` — English text stored in state by methods
+    that have no catalog. Store a typed message enum; render it at
+    `overlay()` time, where the catalog is already in hand.
+  - `path_error_detail` / `path_io_error` (`files/save.rs`) — dun-authored
+    text ("not found", "permission denied") carried inside an `io::Error`
+    across `io::Result` boundaries. Needs a typed path-error enum; the
+    OS-supplied fallback message stays whatever the OS gives.
+  - `"Untitled"` window titles — the string lives in `dun-core`, which
+    cannot depend on `dun-config` (where `TextCatalog` lives). Decide:
+    `dun-cli` overrides the title after workspace construction and split.
+  - Command Output buffer *content* (`command_output/format.rs`), the last
+    user of the English `exit_status_text`.
+  - Then split `ui_text/status.rs` by domain and retire the explicit size
+    exception recorded in docs/code-organization-guidelines.md.
 - [ ] Extend `i18n/` to more common languages (ja/de/fr/es) once the
   extraction slices settle the key set.
 - [ ] Measure the size delta per batch; the mechanism must stay lean since

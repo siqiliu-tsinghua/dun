@@ -3,7 +3,9 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use dun_config::{Config, parse_config};
+use dun_config::{Config, TextCatalog, parse_config};
+
+use crate::ui_text;
 
 pub(crate) const DUN_CONFIG_ENV: &str = "DUN_CONFIG";
 
@@ -54,15 +56,24 @@ pub(crate) enum ConfigSource {
 }
 
 impl ConfigSource {
-    pub(crate) fn status_text(&self) -> String {
+    pub(crate) fn status_text(&self, catalog: &TextCatalog) -> String {
         match self {
-            Self::Disabled => "Config reloaded from built-in defaults (--no-config)".to_string(),
-            Self::Explicit(path) => format!("Config reloaded from {}", path.display()),
-            Self::Environment(path) => {
-                format!("Config reloaded from {DUN_CONFIG_ENV}={}", path.display())
+            Self::Disabled => {
+                ui_text::tr(catalog, ui_text::STATUS_CONFIG_RELOADED_DISABLED).to_string()
             }
-            Self::DefaultFile(path) => format!("Config reloaded from {}", path.display()),
-            Self::BuiltInDefaults => "Config reloaded from built-in defaults".to_string(),
+            Self::Explicit(path) | Self::DefaultFile(path) => ui_text::tr_fmt(
+                catalog,
+                ui_text::STATUS_CONFIG_RELOADED_PATH,
+                &[&path.display().to_string()],
+            ),
+            Self::Environment(path) => ui_text::tr_fmt(
+                catalog,
+                ui_text::STATUS_CONFIG_RELOADED_ENVIRONMENT,
+                &[DUN_CONFIG_ENV, &path.display().to_string()],
+            ),
+            Self::BuiltInDefaults => {
+                ui_text::tr(catalog, ui_text::STATUS_CONFIG_RELOADED_DEFAULTS).to_string()
+            }
         }
     }
 

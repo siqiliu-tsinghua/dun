@@ -158,12 +158,15 @@ impl AppState {
         let _ = buffer.buffer.select(selected.start, selected.end);
         let match_count = matches.len();
         buffer.set_search(confirm.spec.clone(), matches, Some(selection.index));
-        self.status_message = Some(format!(
-            "Replace confirm: {}/{} {} -> {}",
-            selection.index + 1,
-            match_count,
-            confirm.spec.display(),
-            replacement_status_text(&confirm.replacement)
+        self.status_message = Some(ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::STATUS_REPLACE_CONFIRM,
+            &[
+                &(selection.index + 1).to_string(),
+                &match_count.to_string(),
+                &confirm.spec.display(),
+                replacement_status_text(&self.shell.catalog, &confirm.replacement),
+            ],
         ));
         true
     }
@@ -216,7 +219,12 @@ impl AppState {
             }
             Err(error) => {
                 self.replace_confirm = None;
-                self.set_status(format!("Replace failed: {}", buffer_error_text(error)));
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_REPLACE_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
             }
         }
     }
@@ -297,19 +305,35 @@ impl AppState {
                 let remaining = new_matches.len();
                 buffer.set_search(confirm.spec.clone(), new_matches, None);
                 let total = confirm.replaced + count;
-                let suffix = if remaining == 0 {
-                    String::new()
+                let replacement =
+                    replacement_status_text(&self.shell.catalog, &confirm.replacement);
+                let status = if remaining == 0 {
+                    ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_REPLACE_ALL_APPLIED,
+                        &[&total.to_string(), &confirm.spec.display(), replacement],
+                    )
                 } else {
-                    format!("; {remaining} matches remain")
+                    ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_REPLACE_ALL_APPLIED_REMAINING,
+                        &[
+                            &total.to_string(),
+                            &confirm.spec.display(),
+                            replacement,
+                            &remaining.to_string(),
+                        ],
+                    )
                 };
-                self.set_status(format!(
-                    "Replace All: {total} {} -> {}{suffix}",
-                    confirm.spec.display(),
-                    replacement_status_text(&confirm.replacement)
-                ));
+                self.set_status(status);
             }
             Err(error) => {
-                self.set_status(format!("Replace All failed: {}", buffer_error_text(error)))
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_REPLACE_ALL_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
             }
         }
     }
@@ -720,7 +744,6 @@ impl AppState {
 
         match buffer.buffer.replace_range(target, replacement) {
             Ok(()) => {
-                let suffix = if selection.wrapped { " (wrapped)" } else { "" };
                 let new_matches = buffer
                     .buffer
                     .find_all_with_options(&spec.query, spec.options);
@@ -737,24 +760,62 @@ impl AppState {
                     let selected = new_matches[next.index].range;
                     let _ = buffer.buffer.select(selected.start, selected.end);
                 }
-                let next_status = match next_selection {
-                    Some(next) => format!("; next {}/{}", next.index + 1, new_matches.len()),
-                    None => "; no matches left".to_string(),
-                };
+                let new_total = new_matches.len();
                 buffer.set_search(
                     spec.clone(),
                     new_matches,
                     next_selection.map(|selection| selection.index),
                 );
-                self.set_status(format!(
-                    "Replace: {}/{} {} -> {}{suffix}{next_status}",
-                    selection.index + 1,
-                    old_total,
-                    spec.display(),
-                    replacement_status_text(replacement)
-                ));
+
+                let replacement = replacement_status_text(&self.shell.catalog, replacement);
+                let status = match next_selection {
+                    Some(next) => {
+                        let key = if selection.wrapped {
+                            ui_text::STATUS_REPLACE_APPLIED_NEXT_WRAPPED
+                        } else {
+                            ui_text::STATUS_REPLACE_APPLIED_NEXT
+                        };
+                        ui_text::tr_fmt(
+                            &self.shell.catalog,
+                            key,
+                            &[
+                                &(selection.index + 1).to_string(),
+                                &old_total.to_string(),
+                                &spec.display(),
+                                replacement,
+                                &(next.index + 1).to_string(),
+                                &new_total.to_string(),
+                            ],
+                        )
+                    }
+                    None => {
+                        let key = if selection.wrapped {
+                            ui_text::STATUS_REPLACE_APPLIED_DONE_WRAPPED
+                        } else {
+                            ui_text::STATUS_REPLACE_APPLIED_DONE
+                        };
+                        ui_text::tr_fmt(
+                            &self.shell.catalog,
+                            key,
+                            &[
+                                &(selection.index + 1).to_string(),
+                                &old_total.to_string(),
+                                &spec.display(),
+                                replacement,
+                            ],
+                        )
+                    }
+                };
+                self.set_status(status);
             }
-            Err(error) => self.set_status(format!("Replace failed: {}", buffer_error_text(error))),
+            Err(error) => {
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_REPLACE_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
+            }
         }
     }
 
@@ -801,19 +862,34 @@ impl AppState {
                     .find_all_with_options(&spec.query, spec.options);
                 let remaining = new_matches.len();
                 buffer.set_search(spec.clone(), new_matches, None);
-                let suffix = if remaining == 0 {
-                    String::new()
+                let replacement = replacement_status_text(&self.shell.catalog, replacement);
+                let status = if remaining == 0 {
+                    ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_REPLACE_ALL_APPLIED,
+                        &[&count.to_string(), &spec.display(), replacement],
+                    )
                 } else {
-                    format!("; {remaining} matches remain")
+                    ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_REPLACE_ALL_APPLIED_REMAINING,
+                        &[
+                            &count.to_string(),
+                            &spec.display(),
+                            replacement,
+                            &remaining.to_string(),
+                        ],
+                    )
                 };
-                self.set_status(format!(
-                    "Replace All: {count} {} -> {}{suffix}",
-                    spec.display(),
-                    replacement_status_text(replacement)
-                ));
+                self.set_status(status);
             }
             Err(error) => {
-                self.set_status(format!("Replace All failed: {}", buffer_error_text(error)))
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_REPLACE_ALL_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
             }
         }
     }
@@ -877,7 +953,12 @@ impl AppState {
                 &[&line_number.to_string()],
             )),
             Err(error) => {
-                self.set_status(format!("Go to line failed: {}", buffer_error_text(error)))
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_GO_TO_LINE_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
             }
         }
     }

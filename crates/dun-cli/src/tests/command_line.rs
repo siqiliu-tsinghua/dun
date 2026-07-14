@@ -269,7 +269,12 @@ fn command_line_history_repeats_previous_command() {
         CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
     );
 
-    assert_eq!(app.status_message, Some(COMMAND_LINE_HELP.to_string()));
+    assert_eq!(
+        app.status_message.as_deref(),
+        Some(
+            "Commands: help, results [N], config [section], status, reload-config, reloadfile, shell, run [\"command\"], theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right"
+        )
+    );
     assert_eq!(app.command_history, vec!["commands".to_string()]);
 }
 

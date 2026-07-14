@@ -57,7 +57,7 @@ pub(crate) use cli::{CliAction, CliError, cli_help_text, cli_version_text, parse
 #[cfg(test)]
 pub(crate) use command_line::CommandLineParseError;
 pub(crate) use command_line::{
-    COMMAND_LINE_HELP, CommandCompletion, CommandCompletionCandidate, command_line_completion,
+    CommandCompletion, CommandCompletionCandidate, command_line_completion, command_line_help,
     command_line_parse_error_text, config_diagnostics_section_values, normalize_command_line_token,
     parse_command_line, parse_theme_command_value, theme_command_values,
 };

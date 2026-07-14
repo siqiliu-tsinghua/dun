@@ -1064,3 +1064,29 @@ This is an append-only progress log. Keep new entries dated and factual.
   on a dirty tree. macOS budget build 645,580 (+12,296); Debian
   measurement deferred to the next VM session (VM shut down mid-gate by
   request).
+- Landed i18n slice 4b-1 via Codex brief-023 (2026-07-13): the 50 status call
+  sites brief-022 deferred are converted by giving their 13 text builders a
+  catalog (buffer/workspace error text, axis name, replacement placeholder,
+  command-line parse error and help, command-run/exit status, open/reload
+  status, atomic-temp report, config source, completion status) — 81 keys, 81
+  zh entries, and `ui_text.rs` split into `ui_text/{mod,chrome,status}.rs`
+  before it grew. The slice established the **vocabulary rule**, now the
+  unifying principle of dun's i18n alongside menu mnemonics and help key caps:
+  text the user has to type back — theme names, config-diagnostics section
+  tokens, command ids, the command-name list inside the command-line help —
+  stays English and is passed as a `{}` argument; only the prose around it
+  translates. Two traps were pre-solved in the brief rather than discovered by
+  Codex: `COMMAND_LINE_HELP` is 276 bytes and could not be a single catalog
+  value (256-byte cap), and the i18n loader's own diagnostic must stay English
+  because there is no catalog when the catalog is what failed. Gate: scope
+  clean, fmt/clippy/619 tests reproduced, zh reviewed (and the slice-3 entries
+  normalized to fullwidth punctuation to match), the new behavior tests
+  mutation-checked, live-verified in tmux (workspace error in Chinese; theme
+  error proving the vocabulary rule — "主题失败：未知主题 nosuch；应为
+  msedit|turbo|dark|dun"). Gate cleanup: `exit_status_text` now delegates to
+  the localized path with an empty catalog, so the English and translated
+  formatters cannot drift. macOS budget build 645,588 (+8 bytes — the strings
+  were already in the binary). Debian measurement still owed (VM off).
+  `ui_text/status.rs` lands at ~37k, over the 35k threshold; an explicit
+  temporary exception is recorded in docs/code-organization-guidelines.md and
+  expires when slice 4b-2 splits it by domain.

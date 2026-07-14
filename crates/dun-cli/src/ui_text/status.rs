@@ -1,106 +1,4 @@
-//! Fixed UI chrome and status text with catalog keys (docs/i18n.md, slices 3–4).
-//!
-//! Every translatable dialog/overlay/window-title/status string is declared
-//! here once as a `(catalog key, English default)` pair, so call sites cannot
-//! invent keys ad hoc and the translation-completeness test can enumerate the
-//! full set (`ALL`).
-
-use dun_config::TextCatalog;
-
-pub(crate) type TextKey = (&'static str, &'static str);
-
-// Prompt modal titles.
-pub(crate) const PROMPT_COMMAND_TITLE: TextKey = ("prompt.command.title", "Command");
-pub(crate) const PROMPT_FIND_TITLE: TextKey = ("prompt.find.title", "Find");
-pub(crate) const PROMPT_REPLACE_TITLE: TextKey = ("prompt.replace.title", "Replace");
-pub(crate) const PROMPT_GO_TO_LINE_TITLE: TextKey = ("prompt.go-to-line.title", "Go To Line");
-pub(crate) const PROMPT_RUN_COMMAND_TITLE: TextKey = ("prompt.run-command.title", "Run Command");
-
-// Prompt-kind sentence openers and names used by status messages.
-pub(crate) const PROMPT_COMMAND_LABEL: TextKey = ("prompt.command.label", "Command: ");
-pub(crate) const PROMPT_COMMAND_NAME: TextKey = ("prompt.command.name", "Command");
-pub(crate) const PROMPT_FIND_LABEL: TextKey = ("prompt.find.label", "Find: ");
-pub(crate) const PROMPT_FIND_NAME: TextKey = ("prompt.find.name", "Find");
-pub(crate) const PROMPT_REPLACE_FIND_LABEL: TextKey =
-    ("prompt.replace-find.label", "Find to replace: ");
-pub(crate) const PROMPT_REPLACE_WITH_LABEL: TextKey =
-    ("prompt.replace-with.label", "Replace with: ");
-pub(crate) const PROMPT_GO_TO_LINE_LABEL: TextKey = ("prompt.go-to-line.label", "Go To Line: ");
-pub(crate) const PROMPT_GO_TO_LINE_NAME: TextKey = ("prompt.go-to-line.name", "Go To Line");
-pub(crate) const PROMPT_RUN_COMMAND_LABEL: TextKey = ("prompt.run-command.label", "Run Command: ");
-pub(crate) const PROMPT_RUN_COMMAND_NAME: TextKey = ("prompt.run-command.name", "Run Command");
-
-// Unsaved-changes confirmation. The button letters (s)/(d)/(c) are the
-// actual keys the dialog answers to and are appended by the code — a
-// translation supplies only the word.
-pub(crate) const CONFIRM_UNSAVED_TITLE: TextKey = ("confirm.unsaved.title", "Unsaved Changes");
-pub(crate) const CONFIRM_UNSAVED_BODY: TextKey = ("confirm.unsaved.body", "Unsaved changes in {}");
-pub(crate) const CONFIRM_SAVE: TextKey = ("confirm.button.save", "Save");
-pub(crate) const CONFIRM_DISCARD: TextKey = ("confirm.button.discard", "Discard");
-pub(crate) const CONFIRM_CANCEL: TextKey = ("confirm.button.cancel", "Cancel");
-
-// Replace confirmation.
-pub(crate) const CONFIRM_REPLACE_TITLE: TextKey = ("confirm.replace.title", "Confirm Replace");
-pub(crate) const CONFIRM_REPLACE_FIND: TextKey = ("confirm.replace.find", "Find: {}");
-pub(crate) const CONFIRM_REPLACE_WITH: TextKey = ("confirm.replace.with", "Replace with: {}");
-pub(crate) const CONFIRM_REPLACE: TextKey = ("confirm.button.replace", "Replace");
-pub(crate) const CONFIRM_SKIP: TextKey = ("confirm.button.skip", "Skip");
-pub(crate) const CONFIRM_ALL: TextKey = ("confirm.button.all", "All");
-pub(crate) const CONFIRM_MATCH_OF: TextKey = ("confirm.replace.match-of", "Match {}/{}");
-pub(crate) const CONFIRM_MATCH_TOTAL: TextKey = ("confirm.replace.match-total", "Match {}");
-pub(crate) const CONFIRM_MATCH_NONE: TextKey = ("confirm.replace.match-none", "Match -");
-pub(crate) const CONFIRM_PROGRESS: TextKey =
-    ("confirm.replace.progress", "; replaced {}, skipped {}");
-
-// Buffer switcher.
-pub(crate) const SWITCHER_TITLE: TextKey = ("switcher.title", "Switch Buffer");
-pub(crate) const SWITCHER_OPEN_BUFFERS: TextKey = ("switcher.open-buffers", "Open buffers: {}");
-pub(crate) const SWITCHER_SHOWING: TextKey = ("switcher.showing", "Showing {}-{} of {} buffers");
-pub(crate) const SWITCHER_HINT_MOVE: TextKey = ("switcher.hint.move", "[Up/Down PgUp/PgDn] Move");
-pub(crate) const SWITCHER_HINT_ACTIONS: TextKey = (
-    "switcher.hint.actions",
-    "[Home/End] First/Last  [Enter] Switch  [Esc] Cancel",
-);
-
-// File dialogs. The help lines keep English singular/plural branching in
-// code; a translation supplies one template for all counts.
-pub(crate) const DIALOG_OPEN_TITLE: TextKey = ("dialog.open.title", "Open");
-pub(crate) const DIALOG_SAVE_AS_TITLE: TextKey = ("dialog.save-as.title", "Save As");
-pub(crate) const DIALOG_OPEN_INPUT_LABEL: TextKey = ("dialog.open.input-label", "File name");
-pub(crate) const DIALOG_SAVE_AS_INPUT_LABEL: TextKey = ("dialog.save-as.input-label", "Save as");
-pub(crate) const DIALOG_LOOK_IN: TextKey = ("dialog.look-in", "Look in: {}");
-pub(crate) const DIALOG_OPEN_HELP: TextKey = (
-    "dialog.open.help",
-    "Select a file or type a path. {} entries.",
-);
-pub(crate) const DIALOG_SAVE_AS_HELP: TextKey = (
-    "dialog.save-as.help",
-    "Type the destination path. {} entries.",
-);
-pub(crate) const DIALOG_HIDDEN: TextKey = ("dialog.hidden", "Hidden: {} ({})");
-pub(crate) const DIALOG_HIDDEN_SHOWN: TextKey = ("dialog.hidden.shown", "shown");
-pub(crate) const DIALOG_HIDDEN_HIDDEN: TextKey = ("dialog.hidden.hidden", "hidden");
-pub(crate) const DIALOG_HIDDEN_BY_PREFIX: TextKey =
-    ("dialog.hidden.shown-by-prefix", "shown by prefix");
-pub(crate) const DIALOG_SHOWING_MATCHES: TextKey =
-    ("dialog.showing-matches", "Showing {}-{} of {} matches");
-pub(crate) const DIALOG_PARENT_DIR: TextKey = ("dialog.parent-directory", "[..] Parent directory");
-pub(crate) const DIALOG_NO_MATCHES: TextKey = ("dialog.no-matches-row", "(no matches)");
-pub(crate) const DIALOG_SHORTCUT_OK: TextKey = ("dialog.shortcut.ok", "OK");
-pub(crate) const DIALOG_SHORTCUT_COMPLETE: TextKey = ("dialog.shortcut.complete", "Complete");
-pub(crate) const DIALOG_SHORTCUT_HIDDEN: TextKey = ("dialog.shortcut.hidden", "Hidden");
-pub(crate) const DIALOG_SHORTCUT_CANCEL: TextKey = ("dialog.shortcut.cancel", "Cancel");
-
-// Helper-window titles (translated when the window opens).
-pub(crate) const WINDOW_HELP_TITLE: TextKey = ("window.help.title", "Help");
-pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_TITLE: TextKey =
-    ("window.config-diagnostics.title", "Config Diagnostics");
-pub(crate) const WINDOW_STATUS_HISTORY_TITLE: TextKey =
-    ("window.status-history.title", "Status History");
-pub(crate) const WINDOW_SEARCH_RESULTS_TITLE: TextKey =
-    ("window.search-results.title", "Search Results");
-pub(crate) const WINDOW_COMMAND_OUTPUT_TITLE: TextKey =
-    ("window.command-output.title", "Command Output");
+use super::TextKey;
 
 // Buffer-switcher status messages.
 pub(crate) const STATUS_SWITCHER_ONLY_ONE: TextKey = (
@@ -128,11 +26,50 @@ pub(crate) const STATUS_SWITCHER_NO_WINDOW: TextKey = (
     "Switch buffer failed: {} has no window",
 );
 
+// Shared helper fragments used inside complete status templates.
+pub(crate) const STATUS_REPLACEMENT_EMPTY: TextKey = ("status.replacement.empty", "<empty>");
+pub(crate) const STATUS_BUFFER_ERROR_INVALID_POSITION: TextKey =
+    ("status.buffer-error.invalid-position", "invalid position");
+pub(crate) const STATUS_BUFFER_ERROR_INVALID_RANGE: TextKey =
+    ("status.buffer-error.invalid-range", "invalid range");
+pub(crate) const STATUS_BUFFER_ERROR_READ_ONLY: TextKey =
+    ("status.buffer-error.read-only", "buffer is read-only");
+pub(crate) const STATUS_WORKSPACE_ERROR_CANNOT_CLOSE_LAST: TextKey = (
+    "status.workspace-error.cannot-close-last-window",
+    "cannot close the last window",
+);
+pub(crate) const STATUS_WORKSPACE_ERROR_CANNOT_COLLAPSE_LAST: TextKey = (
+    "status.workspace-error.cannot-collapse-last-window",
+    "cannot collapse the only window",
+);
+pub(crate) const STATUS_WORKSPACE_ERROR_FOCUS_MISSING: TextKey = (
+    "status.workspace-error.focus-missing",
+    "focused window is missing",
+);
+pub(crate) const STATUS_WORKSPACE_ERROR_NO_NEIGHBOR: TextKey =
+    ("status.workspace-error.no-neighbor", "no neighboring pane");
+pub(crate) const STATUS_WORKSPACE_ERROR_NO_RESIZABLE_SPLIT: TextKey = (
+    "status.workspace-error.no-resizable-split",
+    "no matching split",
+);
+pub(crate) const STATUS_WORKSPACE_ERROR_WINDOW_MISSING: TextKey =
+    ("status.workspace-error.window-missing", "window is missing");
+
 // Command-line, configuration, plugin, and command-run status messages.
 pub(crate) const STATUS_COMMAND_CANCELLED: TextKey =
     ("status.command.cancelled", "Command cancelled");
 pub(crate) const STATUS_COMMAND_UNKNOWN: TextKey =
     ("status.command.unknown", "Unknown command: {}");
+pub(crate) const STATUS_COMMAND_PARSE_FAILED: TextKey =
+    ("status.command.parse-failed", "Command failed: {}");
+pub(crate) const STATUS_COMMAND_PARSE_TRAILING_ESCAPE: TextKey =
+    ("status.command.parse.trailing-escape", "trailing escape");
+pub(crate) const STATUS_COMMAND_PARSE_UNCLOSED_QUOTE: TextKey =
+    ("status.command.parse.unclosed-quote", "unclosed quote");
+pub(crate) const STATUS_COMMAND_LINE_HELP: TextKey = (
+    "status.command-line.help",
+    "Commands: {}, or any command id such as {}",
+);
 pub(crate) const STATUS_COMMAND_THEME_ARITY: TextKey = (
     "status.command.theme-arity",
     "Command failed: theme expects zero or one theme name",
@@ -173,6 +110,14 @@ pub(crate) const STATUS_COMMAND_GO_TO_LINE_ARITY: TextKey = (
     "status.command.go-to-line-arity",
     "Command failed: go-to-line expects one line number",
 );
+pub(crate) const STATUS_COMMAND_CONFIG_SECTION: TextKey = (
+    "status.command.config-section",
+    "Command failed: config expects one of {}",
+);
+pub(crate) const STATUS_COMMAND_CONFIG_SECTION_ARITY: TextKey = (
+    "status.command.config-section-arity",
+    "Command failed: config expects zero args or one of {}",
+);
 pub(crate) const STATUS_PLUGIN_NOT_CONFIGURED: TextKey = (
     "status.plugin.not-configured",
     "No syntax-highlight plugin configured",
@@ -190,6 +135,11 @@ pub(crate) const STATUS_PLUGIN_USAGE: TextKey =
     ("status.plugin.usage", "Usage: plugin [load|unload]");
 pub(crate) const STATUS_PLUGIN_FAILED: TextKey = ("status.plugin.failed", "Plugin {} failed: {}");
 pub(crate) const STATUS_THEME_CHANGED: TextKey = ("status.theme.changed", "Theme: {}");
+pub(crate) const STATUS_THEME_CURRENT: TextKey = ("status.theme.current", "Theme: {} ({})");
+pub(crate) const STATUS_THEME_UNKNOWN: TextKey = (
+    "status.theme.unknown",
+    "Theme failed: unknown theme {}; expected {}",
+);
 pub(crate) const STATUS_OPEN_DIRTY: TextKey = (
     "status.open.dirty",
     "Open failed: focused buffer has unsaved changes",
@@ -200,7 +150,22 @@ pub(crate) const STATUS_SAVE_FAILED: TextKey = ("status.save.failed", "Save fail
 pub(crate) const STATUS_RELOAD_FAILED: TextKey = ("status.reload.failed", "Reload failed: {}");
 pub(crate) const STATUS_CONFIG_RELOAD_FAILED: TextKey =
     ("status.config.reload-failed", "Config reload failed: {}");
+pub(crate) const STATUS_CONFIG_RELOADED_DISABLED: TextKey = (
+    "status.config.reloaded-disabled",
+    "Config reloaded from built-in defaults (--no-config)",
+);
+pub(crate) const STATUS_CONFIG_RELOADED_PATH: TextKey =
+    ("status.config.reloaded-path", "Config reloaded from {}");
+pub(crate) const STATUS_CONFIG_RELOADED_ENVIRONMENT: TextKey = (
+    "status.config.reloaded-environment",
+    "Config reloaded from {}={}",
+);
+pub(crate) const STATUS_CONFIG_RELOADED_DEFAULTS: TextKey = (
+    "status.config.reloaded-defaults",
+    "Config reloaded from built-in defaults",
+);
 pub(crate) const STATUS_SHELL_ESCAPE: TextKey = ("status.shell.escape", "Shell escape");
+pub(crate) const STATUS_SHELL_RETURNED: TextKey = ("status.shell.returned", "Shell returned {}");
 pub(crate) const STATUS_RUN_FOCUSED_WINDOW_MISSING: TextKey = (
     "status.run.focused-window-missing",
     "Run command failed: focused window is missing",
@@ -211,6 +176,22 @@ pub(crate) const STATUS_RUN_OUTPUT_WINDOW_MISSING: TextKey = (
 );
 pub(crate) const STATUS_RUN_RUNNING: TextKey = ("status.run.running", "Running command: {}");
 pub(crate) const STATUS_RUN_FAILED: TextKey = ("status.run.failed", "Run command failed: {}");
+pub(crate) const STATUS_RUN_RETURNED: TextKey =
+    ("status.run.returned", "Command returned {} in {}");
+pub(crate) const STATUS_RUN_RETURNED_TRUNCATED: TextKey = (
+    "status.run.returned-truncated",
+    "Command returned {} in {}; output truncated",
+);
+pub(crate) const STATUS_RUN_TIMED_OUT: TextKey = (
+    "status.run.timed-out",
+    "Command timed out after {} and was killed",
+);
+pub(crate) const STATUS_RUN_TIMED_OUT_TRUNCATED: TextKey = (
+    "status.run.timed-out-truncated",
+    "Command timed out after {} and was killed; output truncated",
+);
+pub(crate) const STATUS_RUN_EXIT: TextKey = ("status.run.exit", "exit {}");
+pub(crate) const STATUS_RUN_TERMINATED: TextKey = ("status.run.terminated", "terminated");
 
 // Editing and clipboard status messages.
 pub(crate) const STATUS_COPY_LINE_BUFFER_MISSING: TextKey = (
@@ -222,22 +203,29 @@ pub(crate) const STATUS_DELETE_LINE_BUFFER_MISSING: TextKey = (
     "status.delete-line.buffer-missing",
     "Delete line failed: focused buffer is missing",
 );
+pub(crate) const STATUS_DELETE_LINE_FAILED: TextKey =
+    ("status.delete-line.failed", "Delete line failed: {}");
 pub(crate) const STATUS_MOVE_LINE_BUFFER_MISSING: TextKey = (
     "status.move-line.buffer-missing",
     "Move line failed: focused buffer is missing",
 );
+pub(crate) const STATUS_MOVE_LINE_FAILED: TextKey =
+    ("status.move-line.failed", "Move line failed: {}");
 pub(crate) const STATUS_INDENT_BUFFER_MISSING: TextKey = (
     "status.indent.buffer-missing",
     "Indent failed: focused buffer is missing",
 );
+pub(crate) const STATUS_INDENT_FAILED: TextKey = ("status.indent.failed", "Indent failed: {}");
 pub(crate) const STATUS_OUTDENT_BUFFER_MISSING: TextKey = (
     "status.outdent.buffer-missing",
     "Outdent failed: focused buffer is missing",
 );
+pub(crate) const STATUS_OUTDENT_FAILED: TextKey = ("status.outdent.failed", "Outdent failed: {}");
 pub(crate) const STATUS_TRIM_BUFFER_MISSING: TextKey = (
     "status.trim.buffer-missing",
     "Trim failed: focused buffer is missing",
 );
+pub(crate) const STATUS_TRIM_FAILED: TextKey = ("status.trim.failed", "Trim failed: {}");
 pub(crate) const STATUS_WRAP_BUFFER_MISSING: TextKey = (
     "status.wrap.buffer-missing",
     "Wrap failed: focused buffer is missing",
@@ -248,10 +236,12 @@ pub(crate) const STATUS_UNDO_BUFFER_MISSING: TextKey = (
     "status.undo.buffer-missing",
     "Undo failed: focused buffer is missing",
 );
+pub(crate) const STATUS_UNDO_FAILED: TextKey = ("status.undo.failed", "Undo failed: {}");
 pub(crate) const STATUS_REDO_BUFFER_MISSING: TextKey = (
     "status.redo.buffer-missing",
     "Redo failed: focused buffer is missing",
 );
+pub(crate) const STATUS_REDO_FAILED: TextKey = ("status.redo.failed", "Redo failed: {}");
 pub(crate) const STATUS_SCROLL_LEFT: TextKey = ("status.scroll.left", "Scrolled left to column {}");
 pub(crate) const STATUS_SCROLL_RIGHT: TextKey =
     ("status.scroll.right", "Scrolled right to column {}");
@@ -266,6 +256,7 @@ pub(crate) const STATUS_COPY_BUFFER_MISSING: TextKey = (
 );
 pub(crate) const STATUS_COPY_NO_SELECTION: TextKey =
     ("status.copy.no-selection", "Copy: no selection");
+pub(crate) const STATUS_COPY_FAILED: TextKey = ("status.copy.failed", "Copy failed: {}");
 pub(crate) const STATUS_EXTERNAL_COPY_BUFFER_MISSING: TextKey = (
     "status.external-copy.buffer-missing",
     "External copy failed: focused buffer is missing",
@@ -286,6 +277,8 @@ pub(crate) const STATUS_EXTERNAL_COPY_COPIED: TextKey = (
     "status.external-copy.copied",
     "Copied selection to external clipboard",
 );
+pub(crate) const STATUS_EXTERNAL_COPY_FAILED: TextKey =
+    ("status.external-copy.failed", "External copy failed: {}");
 pub(crate) const STATUS_CUT_BUFFER_MISSING: TextKey = (
     "status.cut.buffer-missing",
     "Cut failed: focused buffer is missing",
@@ -295,6 +288,7 @@ pub(crate) const STATUS_CUT_READ_ONLY: TextKey =
 pub(crate) const STATUS_CUT_NO_SELECTION: TextKey =
     ("status.cut.no-selection", "Cut: no selection");
 pub(crate) const STATUS_CUT_SELECTION: TextKey = ("status.cut.selection", "Cut selection");
+pub(crate) const STATUS_CUT_FAILED: TextKey = ("status.cut.failed", "Cut failed: {}");
 pub(crate) const STATUS_PASTE_EMPTY: TextKey = (
     "status.paste.empty",
     "Paste: internal clipboard empty; use terminal paste",
@@ -304,6 +298,7 @@ pub(crate) const STATUS_PASTE_BUFFER_MISSING: TextKey = (
     "Paste failed: focused buffer is missing",
 );
 pub(crate) const STATUS_PASTE_SELECTION: TextKey = ("status.paste.selection", "Pasted selection");
+pub(crate) const STATUS_PASTE_FAILED: TextKey = ("status.paste.failed", "Paste failed: {}");
 pub(crate) const STATUS_PASTE_IGNORED_CONFIRMATION: TextKey = (
     "status.paste.ignored-confirmation",
     "Paste ignored during confirmation",
@@ -337,6 +332,33 @@ pub(crate) const STATUS_FILE_NEW_UNTITLED: TextKey =
     ("status.file.new-untitled", "New untitled buffer");
 pub(crate) const STATUS_SAVE_NO_CHANGES: TextKey =
     ("status.save.no-changes", "No changes to save in {}");
+pub(crate) const STATUS_OPEN_OPENED: TextKey = ("status.open.opened", "Opened {}");
+pub(crate) const STATUS_OPEN_OPENED_ESCAPED: TextKey = (
+    "status.open.opened-escaped-bytes",
+    "Opened {} read-only: non-UTF-8 bytes shown as escapes",
+);
+pub(crate) const STATUS_RELOAD_RELOADED: TextKey = ("status.reload.reloaded", "Reloaded {}");
+pub(crate) const STATUS_RELOAD_RELOADED_ESCAPED: TextKey = (
+    "status.reload.reloaded-escaped-bytes",
+    "Reloaded {} read-only: non-UTF-8 bytes shown as escapes",
+);
+pub(crate) const STATUS_SAVE_SAVED: TextKey = ("status.save.saved", "Saved {}");
+pub(crate) const STATUS_ATOMIC_CLEANED: TextKey = (
+    "status.atomic-temp.cleaned",
+    "cleaned {} stale save temp file(s)",
+);
+pub(crate) const STATUS_ATOMIC_CLEAN_FAILED: TextKey = (
+    "status.atomic-temp.clean-failed",
+    "failed to clean {} save temp file(s)",
+);
+pub(crate) const STATUS_ATOMIC_RECOVERY_FOUND: TextKey = (
+    "status.atomic-temp.recovery-found",
+    "recovery temp file found: {}",
+);
+pub(crate) const STATUS_ATOMIC_RECOVERY_FOUND_MANY: TextKey = (
+    "status.atomic-temp.recovery-found-many",
+    "{} recovery temp file(s) found; first: {}",
+);
 
 // Helper-window status messages.
 pub(crate) const STATUS_AUX_FOCUSED_WINDOW_MISSING: TextKey = (
@@ -369,6 +391,14 @@ pub(crate) const STATUS_CONFIG_DIAGNOSTICS_WINDOW_MISSING: TextKey = (
 pub(crate) const STATUS_CONFIG_DIAGNOSTICS_BUFFER_MISSING: TextKey = (
     "status.config-diagnostics.buffer-missing",
     "Config diagnostics failed: diagnostics buffer is missing",
+);
+pub(crate) const STATUS_CONFIG_DIAGNOSTICS_SECTION_NOT_FOUND: TextKey = (
+    "status.config-diagnostics.section-not-found",
+    "Config diagnostics: {} section not found",
+);
+pub(crate) const STATUS_CONFIG_DIAGNOSTICS_SECTION: TextKey = (
+    "status.config-diagnostics.section",
+    "Config diagnostics: {}",
 );
 pub(crate) const STATUS_HISTORY_OPENED: TextKey = ("status.history.opened", "Status history");
 pub(crate) const STATUS_HISTORY_FOCUSED_WINDOW_MISSING: TextKey = (
@@ -405,6 +435,10 @@ pub(crate) const STATUS_COMPLETION_MATCHES: TextKey = (
     "status.completion.matches",
     "Command completion: {} matches",
 );
+pub(crate) const STATUS_COMPLETION_CANDIDATES: TextKey =
+    ("status.completion.candidates", "Command completion: {}");
+pub(crate) const STATUS_COMPLETION_SELECTED: TextKey =
+    ("status.completion.selected", "Command completion: {}/{} {}");
 
 // Find, replace, search-results, and go-to-line status messages.
 pub(crate) const STATUS_FIND_BUFFER_MISSING: TextKey = (
@@ -429,9 +463,28 @@ pub(crate) const STATUS_REPLACE_CANCELLED: TextKey = (
 );
 pub(crate) const STATUS_REPLACE_NO_MATCHES: TextKey =
     ("status.replace.no-matches", "Replace: no matches for {}");
+pub(crate) const STATUS_REPLACE_FAILED: TextKey = ("status.replace.failed", "Replace failed: {}");
 pub(crate) const STATUS_REPLACE_DONE: TextKey = (
     "status.replace.done",
     "Replace done: {} replaced, {} skipped",
+);
+pub(crate) const STATUS_REPLACE_CONFIRM: TextKey =
+    ("status.replace.confirm", "Replace confirm: {}/{} {} -> {}");
+pub(crate) const STATUS_REPLACE_APPLIED_NEXT: TextKey = (
+    "status.replace.applied-next",
+    "Replace: {}/{} {} -> {}; next {}/{}",
+);
+pub(crate) const STATUS_REPLACE_APPLIED_NEXT_WRAPPED: TextKey = (
+    "status.replace.applied-next-wrapped",
+    "Replace: {}/{} {} -> {} (wrapped); next {}/{}",
+);
+pub(crate) const STATUS_REPLACE_APPLIED_DONE: TextKey = (
+    "status.replace.applied-done",
+    "Replace: {}/{} {} -> {}; no matches left",
+);
+pub(crate) const STATUS_REPLACE_APPLIED_DONE_WRAPPED: TextKey = (
+    "status.replace.applied-done-wrapped",
+    "Replace: {}/{} {} -> {} (wrapped); no matches left",
 );
 pub(crate) const STATUS_REPLACE_ALL_NO_QUERY: TextKey =
     ("status.replace-all.no-query", "Replace All: no query");
@@ -442,6 +495,14 @@ pub(crate) const STATUS_REPLACE_ALL_BUFFER_MISSING: TextKey = (
 pub(crate) const STATUS_REPLACE_ALL_NO_MATCHES: TextKey = (
     "status.replace-all.no-matches",
     "Replace All: no matches for {}",
+);
+pub(crate) const STATUS_REPLACE_ALL_FAILED: TextKey =
+    ("status.replace-all.failed", "Replace All failed: {}");
+pub(crate) const STATUS_REPLACE_ALL_APPLIED: TextKey =
+    ("status.replace-all.applied", "Replace All: {} {} -> {}");
+pub(crate) const STATUS_REPLACE_ALL_APPLIED_REMAINING: TextKey = (
+    "status.replace-all.applied-remaining",
+    "Replace All: {} {} -> {}; {} matches remain",
 );
 pub(crate) const STATUS_RESULTS_FOCUSED_BUFFER_MISSING: TextKey = (
     "status.search-results.focused-buffer-missing",
@@ -494,6 +555,8 @@ pub(crate) const STATUS_GO_TO_LINE_PAST_END: TextKey = (
     "Go to line failed: line {} is past end ({} lines)",
 );
 pub(crate) const STATUS_GO_TO_LINE_MOVED: TextKey = ("status.go-to-line.moved", "Go to line: {}");
+pub(crate) const STATUS_GO_TO_LINE_FAILED: TextKey =
+    ("status.go-to-line.failed", "Go to line failed: {}");
 
 // Window-layout status messages.
 pub(crate) const STATUS_WINDOW_SPLIT_HORIZONTAL: TextKey =
@@ -528,68 +591,49 @@ pub(crate) const STATUS_WINDOW_ONLY_ONE: TextKey =
     ("status.window.only-one", "Already the only window");
 pub(crate) const STATUS_WINDOW_CLOSED_OTHERS: TextKey =
     ("status.window.closed-others", "Closed {} other window(s)");
+pub(crate) const STATUS_WINDOW_AXIS_HORIZONTAL: TextKey =
+    ("status.window.axis.horizontal", "horizontal");
+pub(crate) const STATUS_WINDOW_AXIS_VERTICAL: TextKey = ("status.window.axis.vertical", "vertical");
+pub(crate) const STATUS_WINDOW_ROTATED: TextKey =
+    ("status.window.rotated", "Rotated focused split to {}");
+pub(crate) const STATUS_WINDOW_ROTATE_FAILED: TextKey =
+    ("status.window.rotate-failed", "Rotate split failed: {}");
+pub(crate) const STATUS_WINDOW_COLLAPSE_FAILED: TextKey =
+    ("status.window.collapse-failed", "Collapse failed: {}");
+pub(crate) const STATUS_WINDOW_EXPAND_FAILED: TextKey =
+    ("status.window.expand-failed", "Expand failed: {}");
+pub(crate) const STATUS_WINDOW_TOGGLE_COLLAPSE_FAILED: TextKey = (
+    "status.window.toggle-collapse-failed",
+    "Toggle collapse failed: {}",
+);
+pub(crate) const STATUS_WINDOW_FOCUS_LEFT_FAILED: TextKey =
+    ("status.window.focus-left-failed", "Focus left failed: {}");
+pub(crate) const STATUS_WINDOW_FOCUS_RIGHT_FAILED: TextKey =
+    ("status.window.focus-right-failed", "Focus right failed: {}");
+pub(crate) const STATUS_WINDOW_FOCUS_UP_FAILED: TextKey =
+    ("status.window.focus-up-failed", "Focus up failed: {}");
+pub(crate) const STATUS_WINDOW_FOCUS_DOWN_FAILED: TextKey =
+    ("status.window.focus-down-failed", "Focus down failed: {}");
+pub(crate) const STATUS_WINDOW_RESIZE_LEFT_FAILED: TextKey =
+    ("status.window.resize-left-failed", "Resize left failed: {}");
+pub(crate) const STATUS_WINDOW_RESIZE_RIGHT_FAILED: TextKey = (
+    "status.window.resize-right-failed",
+    "Resize right failed: {}",
+);
+pub(crate) const STATUS_WINDOW_RESIZE_UP_FAILED: TextKey =
+    ("status.window.resize-up-failed", "Resize up failed: {}");
+pub(crate) const STATUS_WINDOW_RESIZE_DOWN_FAILED: TextKey =
+    ("status.window.resize-down-failed", "Resize down failed: {}");
+pub(crate) const STATUS_WINDOW_SPLIT_FAILED: TextKey =
+    ("status.window.split-failed", "Split failed: {}");
+pub(crate) const STATUS_WINDOW_CLOSE_FAILED: TextKey =
+    ("status.window.close-failed", "Close failed: {}");
+pub(crate) const STATUS_WINDOW_ONLY_FAILED: TextKey =
+    ("status.window.only-failed", "Only window failed: {}");
 
-/// Every key above, for the translation-completeness test.
+/// Every status key above, for the translation-completeness test.
 #[cfg(test)]
-pub(crate) const ALL: &[TextKey] = &[
-    PROMPT_COMMAND_TITLE,
-    PROMPT_FIND_TITLE,
-    PROMPT_REPLACE_TITLE,
-    PROMPT_GO_TO_LINE_TITLE,
-    PROMPT_RUN_COMMAND_TITLE,
-    PROMPT_COMMAND_LABEL,
-    PROMPT_COMMAND_NAME,
-    PROMPT_FIND_LABEL,
-    PROMPT_FIND_NAME,
-    PROMPT_REPLACE_FIND_LABEL,
-    PROMPT_REPLACE_WITH_LABEL,
-    PROMPT_GO_TO_LINE_LABEL,
-    PROMPT_GO_TO_LINE_NAME,
-    PROMPT_RUN_COMMAND_LABEL,
-    PROMPT_RUN_COMMAND_NAME,
-    CONFIRM_UNSAVED_TITLE,
-    CONFIRM_UNSAVED_BODY,
-    CONFIRM_SAVE,
-    CONFIRM_DISCARD,
-    CONFIRM_CANCEL,
-    CONFIRM_REPLACE_TITLE,
-    CONFIRM_REPLACE_FIND,
-    CONFIRM_REPLACE_WITH,
-    CONFIRM_REPLACE,
-    CONFIRM_SKIP,
-    CONFIRM_ALL,
-    CONFIRM_MATCH_OF,
-    CONFIRM_MATCH_TOTAL,
-    CONFIRM_MATCH_NONE,
-    CONFIRM_PROGRESS,
-    SWITCHER_TITLE,
-    SWITCHER_OPEN_BUFFERS,
-    SWITCHER_SHOWING,
-    SWITCHER_HINT_MOVE,
-    SWITCHER_HINT_ACTIONS,
-    DIALOG_OPEN_TITLE,
-    DIALOG_SAVE_AS_TITLE,
-    DIALOG_OPEN_INPUT_LABEL,
-    DIALOG_SAVE_AS_INPUT_LABEL,
-    DIALOG_LOOK_IN,
-    DIALOG_OPEN_HELP,
-    DIALOG_SAVE_AS_HELP,
-    DIALOG_HIDDEN,
-    DIALOG_HIDDEN_SHOWN,
-    DIALOG_HIDDEN_HIDDEN,
-    DIALOG_HIDDEN_BY_PREFIX,
-    DIALOG_SHOWING_MATCHES,
-    DIALOG_PARENT_DIR,
-    DIALOG_NO_MATCHES,
-    DIALOG_SHORTCUT_OK,
-    DIALOG_SHORTCUT_COMPLETE,
-    DIALOG_SHORTCUT_HIDDEN,
-    DIALOG_SHORTCUT_CANCEL,
-    WINDOW_HELP_TITLE,
-    WINDOW_CONFIG_DIAGNOSTICS_TITLE,
-    WINDOW_STATUS_HISTORY_TITLE,
-    WINDOW_SEARCH_RESULTS_TITLE,
-    WINDOW_COMMAND_OUTPUT_TITLE,
+pub(super) const ALL: &[TextKey] = &[
     STATUS_SWITCHER_ONLY_ONE,
     STATUS_SWITCHER_OPENED,
     STATUS_SWITCHER_CANCELLED,
@@ -597,8 +641,22 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_SWITCHER_BUFFER_MISSING,
     STATUS_SWITCHER_SWITCHED,
     STATUS_SWITCHER_NO_WINDOW,
+    STATUS_REPLACEMENT_EMPTY,
+    STATUS_BUFFER_ERROR_INVALID_POSITION,
+    STATUS_BUFFER_ERROR_INVALID_RANGE,
+    STATUS_BUFFER_ERROR_READ_ONLY,
+    STATUS_WORKSPACE_ERROR_CANNOT_CLOSE_LAST,
+    STATUS_WORKSPACE_ERROR_CANNOT_COLLAPSE_LAST,
+    STATUS_WORKSPACE_ERROR_FOCUS_MISSING,
+    STATUS_WORKSPACE_ERROR_NO_NEIGHBOR,
+    STATUS_WORKSPACE_ERROR_NO_RESIZABLE_SPLIT,
+    STATUS_WORKSPACE_ERROR_WINDOW_MISSING,
     STATUS_COMMAND_CANCELLED,
     STATUS_COMMAND_UNKNOWN,
+    STATUS_COMMAND_PARSE_FAILED,
+    STATUS_COMMAND_PARSE_TRAILING_ESCAPE,
+    STATUS_COMMAND_PARSE_UNCLOSED_QUOTE,
+    STATUS_COMMAND_LINE_HELP,
     STATUS_COMMAND_THEME_ARITY,
     STATUS_COMMAND_RUN_ARITY,
     STATUS_COMMAND_RESULTS_ARITY,
@@ -609,6 +667,8 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_COMMAND_FIND_ARITY,
     STATUS_COMMAND_REPLACE_ARITY,
     STATUS_COMMAND_GO_TO_LINE_ARITY,
+    STATUS_COMMAND_CONFIG_SECTION,
+    STATUS_COMMAND_CONFIG_SECTION_ARITY,
     STATUS_PLUGIN_NOT_CONFIGURED,
     STATUS_PLUGIN_IS_LOADED,
     STATUS_PLUGIN_IS_UNLOADED,
@@ -617,29 +677,49 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_PLUGIN_USAGE,
     STATUS_PLUGIN_FAILED,
     STATUS_THEME_CHANGED,
+    STATUS_THEME_CURRENT,
+    STATUS_THEME_UNKNOWN,
     STATUS_OPEN_DIRTY,
     STATUS_OPEN_FAILED,
     STATUS_SAVE_AS_FAILED,
     STATUS_SAVE_FAILED,
     STATUS_RELOAD_FAILED,
     STATUS_CONFIG_RELOAD_FAILED,
+    STATUS_CONFIG_RELOADED_DISABLED,
+    STATUS_CONFIG_RELOADED_PATH,
+    STATUS_CONFIG_RELOADED_ENVIRONMENT,
+    STATUS_CONFIG_RELOADED_DEFAULTS,
     STATUS_SHELL_ESCAPE,
+    STATUS_SHELL_RETURNED,
     STATUS_RUN_FOCUSED_WINDOW_MISSING,
     STATUS_RUN_OUTPUT_WINDOW_MISSING,
     STATUS_RUN_RUNNING,
     STATUS_RUN_FAILED,
+    STATUS_RUN_RETURNED,
+    STATUS_RUN_RETURNED_TRUNCATED,
+    STATUS_RUN_TIMED_OUT,
+    STATUS_RUN_TIMED_OUT_TRUNCATED,
+    STATUS_RUN_EXIT,
+    STATUS_RUN_TERMINATED,
     STATUS_COPY_LINE_BUFFER_MISSING,
     STATUS_COPY_LINE_COPIED,
     STATUS_DELETE_LINE_BUFFER_MISSING,
+    STATUS_DELETE_LINE_FAILED,
     STATUS_MOVE_LINE_BUFFER_MISSING,
+    STATUS_MOVE_LINE_FAILED,
     STATUS_INDENT_BUFFER_MISSING,
+    STATUS_INDENT_FAILED,
     STATUS_OUTDENT_BUFFER_MISSING,
+    STATUS_OUTDENT_FAILED,
     STATUS_TRIM_BUFFER_MISSING,
+    STATUS_TRIM_FAILED,
     STATUS_WRAP_BUFFER_MISSING,
     STATUS_WRAP_ON,
     STATUS_WRAP_OFF,
     STATUS_UNDO_BUFFER_MISSING,
+    STATUS_UNDO_FAILED,
     STATUS_REDO_BUFFER_MISSING,
+    STATUS_REDO_FAILED,
     STATUS_SCROLL_LEFT,
     STATUS_SCROLL_RIGHT,
     STATUS_SCROLL_LEFT_EDGE,
@@ -647,18 +727,22 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_COPY_COPIED,
     STATUS_COPY_BUFFER_MISSING,
     STATUS_COPY_NO_SELECTION,
+    STATUS_COPY_FAILED,
     STATUS_EXTERNAL_COPY_BUFFER_MISSING,
     STATUS_EXTERNAL_COPY_NO_SELECTION,
     STATUS_EXTERNAL_COPY_DISABLED,
     STATUS_EXTERNAL_COPY_TOO_LARGE,
     STATUS_EXTERNAL_COPY_COPIED,
+    STATUS_EXTERNAL_COPY_FAILED,
     STATUS_CUT_BUFFER_MISSING,
     STATUS_CUT_READ_ONLY,
     STATUS_CUT_NO_SELECTION,
     STATUS_CUT_SELECTION,
+    STATUS_CUT_FAILED,
     STATUS_PASTE_EMPTY,
     STATUS_PASTE_BUFFER_MISSING,
     STATUS_PASTE_SELECTION,
+    STATUS_PASTE_FAILED,
     STATUS_PASTE_IGNORED_CONFIRMATION,
     STATUS_PASTE_IGNORED_REPLACE,
     STATUS_PASTE_IGNORED_SWITCHER,
@@ -669,6 +753,15 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_DIALOG_CANCELLED,
     STATUS_FILE_NEW_UNTITLED,
     STATUS_SAVE_NO_CHANGES,
+    STATUS_OPEN_OPENED,
+    STATUS_OPEN_OPENED_ESCAPED,
+    STATUS_RELOAD_RELOADED,
+    STATUS_RELOAD_RELOADED_ESCAPED,
+    STATUS_SAVE_SAVED,
+    STATUS_ATOMIC_CLEANED,
+    STATUS_ATOMIC_CLEAN_FAILED,
+    STATUS_ATOMIC_RECOVERY_FOUND,
+    STATUS_ATOMIC_RECOVERY_FOUND_MANY,
     STATUS_AUX_FOCUSED_WINDOW_MISSING,
     STATUS_AUX_WINDOW_MISSING,
     STATUS_HELP_OPENED,
@@ -678,6 +771,8 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_CONFIG_DIAGNOSTICS_FOCUSED_WINDOW_MISSING,
     STATUS_CONFIG_DIAGNOSTICS_WINDOW_MISSING,
     STATUS_CONFIG_DIAGNOSTICS_BUFFER_MISSING,
+    STATUS_CONFIG_DIAGNOSTICS_SECTION_NOT_FOUND,
+    STATUS_CONFIG_DIAGNOSTICS_SECTION,
     STATUS_HISTORY_OPENED,
     STATUS_HISTORY_FOCUSED_WINDOW_MISSING,
     STATUS_HISTORY_WINDOW_MISSING,
@@ -690,6 +785,8 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_COMPLETION_NO_MATCHES,
     STATUS_COMPLETION_READY,
     STATUS_COMPLETION_MATCHES,
+    STATUS_COMPLETION_CANDIDATES,
+    STATUS_COMPLETION_SELECTED,
     STATUS_FIND_BUFFER_MISSING,
     STATUS_FIND_NO_MATCHES,
     STATUS_FIND_MATCH,
@@ -699,10 +796,19 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_REPLACE_BUFFER_MISSING,
     STATUS_REPLACE_CANCELLED,
     STATUS_REPLACE_NO_MATCHES,
+    STATUS_REPLACE_FAILED,
     STATUS_REPLACE_DONE,
+    STATUS_REPLACE_CONFIRM,
+    STATUS_REPLACE_APPLIED_NEXT,
+    STATUS_REPLACE_APPLIED_NEXT_WRAPPED,
+    STATUS_REPLACE_APPLIED_DONE,
+    STATUS_REPLACE_APPLIED_DONE_WRAPPED,
     STATUS_REPLACE_ALL_NO_QUERY,
     STATUS_REPLACE_ALL_BUFFER_MISSING,
     STATUS_REPLACE_ALL_NO_MATCHES,
+    STATUS_REPLACE_ALL_FAILED,
+    STATUS_REPLACE_ALL_APPLIED,
+    STATUS_REPLACE_ALL_APPLIED_REMAINING,
     STATUS_RESULTS_FOCUSED_BUFFER_MISSING,
     STATUS_RESULTS_NO_QUERY,
     STATUS_RESULTS_NO_MATCHES,
@@ -719,6 +825,7 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_GO_TO_LINE_BUFFER_MISSING,
     STATUS_GO_TO_LINE_PAST_END,
     STATUS_GO_TO_LINE_MOVED,
+    STATUS_GO_TO_LINE_FAILED,
     STATUS_WINDOW_SPLIT_HORIZONTAL,
     STATUS_WINDOW_SPLIT_VERTICAL,
     STATUS_WINDOW_SPLITS_EVEN,
@@ -738,50 +845,22 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_WINDOW_CLOSED,
     STATUS_WINDOW_ONLY_ONE,
     STATUS_WINDOW_CLOSED_OTHERS,
+    STATUS_WINDOW_AXIS_HORIZONTAL,
+    STATUS_WINDOW_AXIS_VERTICAL,
+    STATUS_WINDOW_ROTATED,
+    STATUS_WINDOW_ROTATE_FAILED,
+    STATUS_WINDOW_COLLAPSE_FAILED,
+    STATUS_WINDOW_EXPAND_FAILED,
+    STATUS_WINDOW_TOGGLE_COLLAPSE_FAILED,
+    STATUS_WINDOW_FOCUS_LEFT_FAILED,
+    STATUS_WINDOW_FOCUS_RIGHT_FAILED,
+    STATUS_WINDOW_FOCUS_UP_FAILED,
+    STATUS_WINDOW_FOCUS_DOWN_FAILED,
+    STATUS_WINDOW_RESIZE_LEFT_FAILED,
+    STATUS_WINDOW_RESIZE_RIGHT_FAILED,
+    STATUS_WINDOW_RESIZE_UP_FAILED,
+    STATUS_WINDOW_RESIZE_DOWN_FAILED,
+    STATUS_WINDOW_SPLIT_FAILED,
+    STATUS_WINDOW_CLOSE_FAILED,
+    STATUS_WINDOW_ONLY_FAILED,
 ];
-
-/// Translate a fixed string.
-pub(crate) fn tr(catalog: &TextCatalog, key: TextKey) -> &str {
-    catalog.get(key.0).unwrap_or(key.1)
-}
-
-/// Translate a `{}`-template and substitute arguments left to right. A
-/// translated template whose placeholder count does not match the argument
-/// count is ignored in favor of the English template: a translation mistake
-/// must never drop or duplicate runtime values.
-pub(crate) fn tr_fmt(catalog: &TextCatalog, key: TextKey, args: &[&str]) -> String {
-    let template = catalog
-        .get(key.0)
-        .filter(|translated| placeholder_count(translated) == args.len())
-        .unwrap_or(key.1);
-    substitute(template, args)
-}
-
-/// The validated translated template for a key, when the caller needs its
-/// own English fallback (e.g. English singular/plural branching).
-pub(crate) fn tr_template(catalog: &TextCatalog, key: TextKey, arg_count: usize) -> Option<&str> {
-    catalog
-        .get(key.0)
-        .filter(|translated| placeholder_count(translated) == arg_count)
-}
-
-pub(crate) fn placeholder_count(template: &str) -> usize {
-    template.matches("{}").count()
-}
-
-pub(crate) fn substitute(template: &str, args: &[&str]) -> String {
-    let mut out = String::with_capacity(template.len() + 16);
-    let mut rest = template;
-    for arg in args {
-        match rest.split_once("{}") {
-            Some((head, tail)) => {
-                out.push_str(head);
-                out.push_str(arg);
-                rest = tail;
-            }
-            None => break,
-        }
-    }
-    out.push_str(rest);
-    out
-}

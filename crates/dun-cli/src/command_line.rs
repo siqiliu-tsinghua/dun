@@ -1,6 +1,15 @@
 use crate::*;
 
-pub(crate) const COMMAND_LINE_HELP: &str = "Commands: help, results [N], config [section], status, reload-config, reloadfile, shell, run [\"command\"], theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE, or any command id such as edit.scroll_right";
+const COMMAND_LINE_HELP_COMMANDS: &str = "help, results [N], config [section], status, reload-config, reloadfile, shell, run [\"command\"], theme [name], open [path], save [path], save-as [path], find [query], replace QUERY TEXT, replace all QUERY TEXT, goto LINE";
+const COMMAND_LINE_HELP_EXAMPLE_ID: &str = "edit.scroll_right";
+
+pub(crate) fn command_line_help(catalog: &TextCatalog) -> String {
+    ui_text::tr_fmt(
+        catalog,
+        ui_text::STATUS_COMMAND_LINE_HELP,
+        &[COMMAND_LINE_HELP_COMMANDS, COMMAND_LINE_HELP_EXAMPLE_ID],
+    )
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CommandLineParseError {
@@ -298,11 +307,15 @@ pub(crate) fn parse_command_line(input: &str) -> Result<Vec<String>, CommandLine
     Ok(tokens)
 }
 
-pub(crate) fn command_line_parse_error_text(error: CommandLineParseError) -> &'static str {
-    match error {
-        CommandLineParseError::TrailingEscape => "trailing escape",
-        CommandLineParseError::UnclosedQuote => "unclosed quote",
-    }
+pub(crate) fn command_line_parse_error_text(
+    catalog: &TextCatalog,
+    error: CommandLineParseError,
+) -> &str {
+    let key = match error {
+        CommandLineParseError::TrailingEscape => ui_text::STATUS_COMMAND_PARSE_TRAILING_ESCAPE,
+        CommandLineParseError::UnclosedQuote => ui_text::STATUS_COMMAND_PARSE_UNCLOSED_QUOTE,
+    };
+    ui_text::tr(catalog, key)
 }
 
 pub(crate) fn normalize_command_line_token(input: &str) -> String {

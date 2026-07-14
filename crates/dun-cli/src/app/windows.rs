@@ -12,38 +12,42 @@ impl AppState {
             WindowCommand::FocusLeft => self.focus_window_direction(
                 Direction::Left,
                 ui_text::STATUS_WINDOW_FOCUSED_LEFT,
-                "left",
+                ui_text::STATUS_WINDOW_FOCUS_LEFT_FAILED,
             ),
             WindowCommand::FocusRight => self.focus_window_direction(
                 Direction::Right,
                 ui_text::STATUS_WINDOW_FOCUSED_RIGHT,
-                "right",
+                ui_text::STATUS_WINDOW_FOCUS_RIGHT_FAILED,
             ),
-            WindowCommand::FocusUp => {
-                self.focus_window_direction(Direction::Up, ui_text::STATUS_WINDOW_FOCUSED_UP, "up")
-            }
+            WindowCommand::FocusUp => self.focus_window_direction(
+                Direction::Up,
+                ui_text::STATUS_WINDOW_FOCUSED_UP,
+                ui_text::STATUS_WINDOW_FOCUS_UP_FAILED,
+            ),
             WindowCommand::FocusDown => self.focus_window_direction(
                 Direction::Down,
                 ui_text::STATUS_WINDOW_FOCUSED_DOWN,
-                "down",
+                ui_text::STATUS_WINDOW_FOCUS_DOWN_FAILED,
             ),
             WindowCommand::ResizeLeft => self.resize_window_direction(
                 Direction::Left,
                 ui_text::STATUS_WINDOW_RESIZED_LEFT,
-                "left",
+                ui_text::STATUS_WINDOW_RESIZE_LEFT_FAILED,
             ),
             WindowCommand::ResizeRight => self.resize_window_direction(
                 Direction::Right,
                 ui_text::STATUS_WINDOW_RESIZED_RIGHT,
-                "right",
+                ui_text::STATUS_WINDOW_RESIZE_RIGHT_FAILED,
             ),
-            WindowCommand::ResizeUp => {
-                self.resize_window_direction(Direction::Up, ui_text::STATUS_WINDOW_RESIZED_UP, "up")
-            }
+            WindowCommand::ResizeUp => self.resize_window_direction(
+                Direction::Up,
+                ui_text::STATUS_WINDOW_RESIZED_UP,
+                ui_text::STATUS_WINDOW_RESIZE_UP_FAILED,
+            ),
             WindowCommand::ResizeDown => self.resize_window_direction(
                 Direction::Down,
                 ui_text::STATUS_WINDOW_RESIZED_DOWN,
-                "down",
+                ui_text::STATUS_WINDOW_RESIZE_DOWN_FAILED,
             ),
             WindowCommand::Equalize => match self.workspace.equalize() {
                 0 => self.set_status(
@@ -58,19 +62,33 @@ impl AppState {
             },
             WindowCommand::RotateSplit => match self.workspace.rotate_focused_split() {
                 Ok(axis) => {
-                    self.set_status(format!("Rotated focused split to {}", axis_name(axis)))
+                    let status = ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_WINDOW_ROTATED,
+                        &[axis_name(&self.shell.catalog, axis)],
+                    );
+                    self.set_status(status);
                 }
-                Err(error) => self.set_status(format!(
-                    "Rotate split failed: {}",
-                    workspace_error_text(error)
-                )),
+                Err(error) => {
+                    let status = ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_WINDOW_ROTATE_FAILED,
+                        &[workspace_error_text(&self.shell.catalog, error)],
+                    );
+                    self.set_status(status);
+                }
             },
             WindowCommand::Collapse => match self.workspace.collapse_focused() {
                 Ok(()) => self.set_status(
                     ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_COLLAPSED).to_string(),
                 ),
                 Err(error) => {
-                    self.set_status(format!("Collapse failed: {}", workspace_error_text(error)))
+                    let status = ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_WINDOW_COLLAPSE_FAILED,
+                        &[workspace_error_text(&self.shell.catalog, error)],
+                    );
+                    self.set_status(status);
                 }
             },
             WindowCommand::Expand => match self.workspace.expand_focused() {
@@ -82,7 +100,12 @@ impl AppState {
                         .to_string(),
                 ),
                 Err(error) => {
-                    self.set_status(format!("Expand failed: {}", workspace_error_text(error)))
+                    let status = ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_WINDOW_EXPAND_FAILED,
+                        &[workspace_error_text(&self.shell.catalog, error)],
+                    );
+                    self.set_status(status);
                 }
             },
             WindowCommand::ToggleCollapse => match self.workspace.toggle_focused_collapse() {
@@ -92,10 +115,14 @@ impl AppState {
                 Ok(false) => self.set_status(
                     ui_text::tr(&self.shell.catalog, ui_text::STATUS_WINDOW_EXPANDED).to_string(),
                 ),
-                Err(error) => self.set_status(format!(
-                    "Toggle collapse failed: {}",
-                    workspace_error_text(error)
-                )),
+                Err(error) => {
+                    let status = ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_WINDOW_TOGGLE_COLLAPSE_FAILED,
+                        &[workspace_error_text(&self.shell.catalog, error)],
+                    );
+                    self.set_status(status);
+                }
             },
             WindowCommand::Close => {
                 if self.workspace.window_count() > 1
@@ -113,17 +140,21 @@ impl AppState {
         &mut self,
         direction: Direction,
         success: ui_text::TextKey,
-        label: &str,
+        failure: ui_text::TextKey,
     ) {
         match self
             .workspace
             .focus_direction(direction, self.workspace_area)
         {
             Ok(_) => self.set_status(ui_text::tr(&self.shell.catalog, success).to_string()),
-            Err(error) => self.set_status(format!(
-                "Focus {label} failed: {}",
-                workspace_error_text(error)
-            )),
+            Err(error) => {
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    failure,
+                    &[workspace_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
+            }
         }
     }
 
@@ -131,14 +162,18 @@ impl AppState {
         &mut self,
         direction: Direction,
         success: ui_text::TextKey,
-        label: &str,
+        failure: ui_text::TextKey,
     ) {
         match self.workspace.resize_focused(direction) {
             Ok(_) => self.set_status(ui_text::tr(&self.shell.catalog, success).to_string()),
-            Err(error) => self.set_status(format!(
-                "Resize {label} failed: {}",
-                workspace_error_text(error)
-            )),
+            Err(error) => {
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    failure,
+                    &[workspace_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
+            }
         }
     }
 
@@ -146,14 +181,24 @@ impl AppState {
         let window_id = match self.workspace.split_focused(axis) {
             Ok(window_id) => window_id,
             Err(error) => {
-                self.set_status(format!("Split failed: {}", workspace_error_text(error)));
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_WINDOW_SPLIT_FAILED,
+                    &[workspace_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
                 return;
             }
         };
         let window = match self.workspace.window(window_id) {
             Ok(window) => window,
             Err(error) => {
-                self.set_status(format!("Split failed: {}", workspace_error_text(error)));
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_WINDOW_SPLIT_FAILED,
+                    &[workspace_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
                 return;
             }
         };
@@ -222,7 +267,12 @@ impl AppState {
                 );
             }
             Err(error) => {
-                self.set_status(format!("Close failed: {}", workspace_error_text(error)));
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_WINDOW_CLOSE_FAILED,
+                    &[workspace_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
             }
         }
     }
@@ -257,10 +307,12 @@ impl AppState {
                 ));
             }
             Err(error) => {
-                self.set_status(format!(
-                    "Only window failed: {}",
-                    workspace_error_text(error)
-                ));
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_WINDOW_ONLY_FAILED,
+                    &[workspace_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
             }
         }
     }

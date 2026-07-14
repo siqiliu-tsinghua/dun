@@ -257,6 +257,49 @@ fn window_status_uses_the_catalog_and_keeps_exact_english() {
 }
 
 #[test]
+fn workspace_error_helper_uses_the_catalog_and_keeps_exact_english() {
+    let mut english = AppState::new();
+    english.sync_view_for_area(Rect::new(0, 0, 80, 20));
+    english.handle_command(&EditorCommand::Window(WindowCommand::FocusLeft));
+    assert_eq!(
+        english.status_message.as_deref(),
+        Some("Focus left failed: no neighboring pane")
+    );
+
+    let mut chinese = AppState::new();
+    chinese.shell.catalog = shipped_zh_catalog();
+    chinese.sync_view_for_area(Rect::new(0, 0, 80, 20));
+    chinese.handle_command(&EditorCommand::Window(WindowCommand::FocusLeft));
+    assert_eq!(
+        chinese.status_message.as_deref(),
+        Some("焦点左移失败：没有相邻窗格")
+    );
+}
+
+#[test]
+fn opened_file_helper_uses_the_catalog_and_keeps_exact_english() {
+    let path = temp_file_path("i18n-opened-file.txt");
+    fs::write(&path, "translated open\n").unwrap();
+
+    let mut english = AppState::new();
+    english.open_file_path(path.clone()).unwrap();
+    assert_eq!(
+        english.status_message,
+        Some(format!("Opened {}", path.display()))
+    );
+
+    let mut chinese = AppState::new();
+    chinese.shell.catalog = shipped_zh_catalog();
+    chinese.open_file_path(path.clone()).unwrap();
+    assert_eq!(
+        chinese.status_message,
+        Some(format!("已打开 {}", path.display()))
+    );
+
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn tr_fmt_substitutes_and_survives_broken_templates() {
     let catalog = dun_config::parse_catalog(
         "confirm.unsaved.body = {} 有未保存的更改\nconfirm.replace.match-of = 匹配太少\n",

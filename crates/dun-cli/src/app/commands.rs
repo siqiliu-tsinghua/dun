@@ -195,7 +195,7 @@ impl AppState {
     pub(crate) fn reload_config(&mut self) {
         match load_config(&self.config_request) {
             Ok(loaded_config) => {
-                let status = loaded_config.source.status_text();
+                let status = loaded_config.source.status_text(&self.shell.catalog);
                 let i18n_diagnostic = self.apply_loaded_config(loaded_config);
                 self.set_status(match i18n_diagnostic {
                     Some(diagnostic) => format!("{status}; {diagnostic}"),

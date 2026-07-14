@@ -104,7 +104,7 @@ impl PromptCompletionState {
         }
     }
 
-    pub(crate) fn status_text(&self) -> String {
+    pub(crate) fn status_text(&self, catalog: &TextCatalog) -> String {
         let list = self
             .candidates
             .iter()
@@ -112,14 +112,17 @@ impl PromptCompletionState {
             .collect::<Vec<_>>()
             .join(" ");
         if let Some(index) = self.active_index {
-            format!(
-                "Command completion: {}/{} {}",
-                index + 1,
-                self.candidates.len(),
-                list
+            ui_text::tr_fmt(
+                catalog,
+                ui_text::STATUS_COMPLETION_SELECTED,
+                &[
+                    &(index + 1).to_string(),
+                    &self.candidates.len().to_string(),
+                    &list,
+                ],
             )
         } else {
-            format!("Command completion: {list}")
+            ui_text::tr_fmt(catalog, ui_text::STATUS_COMPLETION_CANDIDATES, &[&list])
         }
     }
 }

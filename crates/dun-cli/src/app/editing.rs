@@ -255,7 +255,11 @@ impl AppState {
         let status = match buffer.buffer.delete_current_line() {
             Ok(true) => "Deleted line".to_string(),
             Ok(false) => "Delete line: nothing deleted".to_string(),
-            Err(error) => format!("Delete line failed: {}", buffer_error_text(error)),
+            Err(error) => ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_DELETE_LINE_FAILED,
+                &[buffer_error_text(&self.shell.catalog, error)],
+            ),
         };
         self.set_status(status);
     }
@@ -287,7 +291,11 @@ impl AppState {
             }
             Ok(false) if direction < 0 => "Move line: already at top".to_string(),
             Ok(false) => "Move line: already at bottom".to_string(),
-            Err(error) => format!("Move line failed: {}", buffer_error_text(error)),
+            Err(error) => ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_MOVE_LINE_FAILED,
+                &[buffer_error_text(&self.shell.catalog, error)],
+            ),
         };
         self.set_status(status);
     }
@@ -303,7 +311,11 @@ impl AppState {
         let status = match buffer.buffer.indent_selected_lines(EDITOR_INDENT) {
             Ok(0) => "Indent: nothing changed".to_string(),
             Ok(count) => format!("Indented {count} line(s)"),
-            Err(error) => format!("Indent failed: {}", buffer_error_text(error)),
+            Err(error) => ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_INDENT_FAILED,
+                &[buffer_error_text(&self.shell.catalog, error)],
+            ),
         };
         self.set_status(status);
     }
@@ -320,7 +332,11 @@ impl AppState {
         let status = match buffer.buffer.outdent_selected_lines(EDITOR_INDENT.len()) {
             Ok(0) => "Outdent: nothing changed".to_string(),
             Ok(count) => format!("Outdented {count} line(s)"),
-            Err(error) => format!("Outdent failed: {}", buffer_error_text(error)),
+            Err(error) => ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_OUTDENT_FAILED,
+                &[buffer_error_text(&self.shell.catalog, error)],
+            ),
         };
         self.set_status(status);
     }
@@ -336,7 +352,11 @@ impl AppState {
         let status = match buffer.buffer.trim_trailing_whitespace() {
             Ok(0) => "Trim: no trailing whitespace".to_string(),
             Ok(count) => format!("Trimmed trailing whitespace on {count} line(s)"),
-            Err(error) => format!("Trim failed: {}", buffer_error_text(error)),
+            Err(error) => ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_TRIM_FAILED,
+                &[buffer_error_text(&self.shell.catalog, error)],
+            ),
         };
         self.set_status(status);
     }
@@ -371,7 +391,11 @@ impl AppState {
         let status = match buffer.buffer.undo() {
             Ok(true) => "Undo".to_string(),
             Ok(false) => "Nothing to undo".to_string(),
-            Err(error) => format!("Undo failed: {}", buffer_error_text(error)),
+            Err(error) => ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_UNDO_FAILED,
+                &[buffer_error_text(&self.shell.catalog, error)],
+            ),
         };
         self.set_status(status);
     }
@@ -387,7 +411,11 @@ impl AppState {
         let status = match buffer.buffer.redo() {
             Ok(true) => "Redo".to_string(),
             Ok(false) => "Nothing to redo".to_string(),
-            Err(error) => format!("Redo failed: {}", buffer_error_text(error)),
+            Err(error) => ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_REDO_FAILED,
+                &[buffer_error_text(&self.shell.catalog, error)],
+            ),
         };
         self.set_status(status);
     }
@@ -512,7 +540,12 @@ impl AppState {
                 ui_text::tr(&self.shell.catalog, ui_text::STATUS_COPY_NO_SELECTION).to_string(),
             ),
             Err(CopyTextError::Buffer(error)) => {
-                self.set_status(format!("Copy failed: {}", buffer_error_text(error)))
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_COPY_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
             }
         }
     }
@@ -534,10 +567,14 @@ impl AppState {
                 )
                 .to_string(),
             ),
-            Err(CopyTextError::Buffer(error)) => self.set_status(format!(
-                "External copy failed: {}",
-                buffer_error_text(error)
-            )),
+            Err(CopyTextError::Buffer(error)) => {
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_EXTERNAL_COPY_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
+            }
         }
     }
 
@@ -616,7 +653,12 @@ impl AppState {
         let text = match buffer.buffer.text_in_range(range) {
             Ok(text) => text,
             Err(error) => {
-                self.set_status(format!("Cut failed: {}", buffer_error_text(error)));
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_CUT_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
                 return;
             }
         };
@@ -631,7 +673,14 @@ impl AppState {
             Ok(false) => self.set_status(
                 ui_text::tr(&self.shell.catalog, ui_text::STATUS_CUT_NO_SELECTION).to_string(),
             ),
-            Err(error) => self.set_status(format!("Cut failed: {}", buffer_error_text(error))),
+            Err(error) => {
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_CUT_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
+            }
         }
     }
 
@@ -660,7 +709,14 @@ impl AppState {
             Ok(()) => self.set_status(
                 ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_SELECTION).to_string(),
             ),
-            Err(error) => self.set_status(format!("Paste failed: {}", buffer_error_text(error))),
+            Err(error) => {
+                let status = ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_PASTE_FAILED,
+                    &[buffer_error_text(&self.shell.catalog, error)],
+                );
+                self.set_status(status);
+            }
         }
     }
 

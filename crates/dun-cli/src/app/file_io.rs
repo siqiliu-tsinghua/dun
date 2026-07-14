@@ -55,8 +55,9 @@ impl AppState {
             window.buffer_kind = kind;
         }
 
-        let status = opened_file_status(&path, encoding);
-        self.set_status(status_with_atomic_temp_report(status, &temp_report));
+        let status = opened_file_status(&self.shell.catalog, &path, encoding);
+        let status = status_with_atomic_temp_report(&self.shell.catalog, status, &temp_report);
+        self.set_status(status);
     }
 
     pub(crate) fn save_focused_buffer(&mut self) -> io::Result<()> {
@@ -122,10 +123,14 @@ impl AppState {
             buffer.buffer.mark_saved();
             buffer.file_snapshot = current_file_snapshot(&path).ok();
         }
-        self.set_status(status_with_atomic_temp_report(
-            format!("Saved {}", path.display()),
-            &report.temp_reconcile,
-        ));
+        let status = ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::STATUS_SAVE_SAVED,
+            &[&path.display().to_string()],
+        );
+        let status =
+            status_with_atomic_temp_report(&self.shell.catalog, status, &report.temp_reconcile);
+        self.set_status(status);
         Ok(path)
     }
 
@@ -171,10 +176,14 @@ impl AppState {
             window.buffer_kind = dun_core::BufferKind::File;
         }
 
-        self.set_status(status_with_atomic_temp_report(
-            format!("Saved {}", path.display()),
-            &report.temp_reconcile,
-        ));
+        let status = ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::STATUS_SAVE_SAVED,
+            &[&path.display().to_string()],
+        );
+        let status =
+            status_with_atomic_temp_report(&self.shell.catalog, status, &report.temp_reconcile);
+        self.set_status(status);
         Ok(())
     }
 
@@ -237,8 +246,9 @@ impl AppState {
             window.buffer_kind = kind;
         }
 
-        let status = reloaded_file_status(&path, encoding);
-        self.set_status(status_with_atomic_temp_report(status, &temp_report));
+        let status = reloaded_file_status(&self.shell.catalog, &path, encoding);
+        let status = status_with_atomic_temp_report(&self.shell.catalog, status, &temp_report);
+        self.set_status(status);
         Ok(())
     }
 }

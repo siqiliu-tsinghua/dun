@@ -259,9 +259,10 @@ impl AppState {
             .buffer_state(buffer_id)
             .and_then(|buffer| line_with_exact_text(&buffer.buffer, section.heading()))
         else {
-            self.set_status(format!(
-                "Config diagnostics: {} section not found",
-                section.label()
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_CONFIG_DIAGNOSTICS_SECTION_NOT_FOUND,
+                &[section.label()],
             ));
             return;
         };
@@ -278,7 +279,11 @@ impl AppState {
             let _ = buffer.buffer.set_cursor(Position::new(line_index, 0));
             buffer.ensure_cursor_visible(context.body_height, context.body_width);
         }
-        self.set_status(format!("Config diagnostics: {}", section.label()));
+        self.set_status(ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::STATUS_CONFIG_DIAGNOSTICS_SECTION,
+            &[section.label()],
+        ));
     }
 
     pub(crate) fn open_status_history_screen(&mut self) {

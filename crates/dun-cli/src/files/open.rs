@@ -2,7 +2,10 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::Path;
 
+use dun_config::TextCatalog;
 use dun_core::{FileTextEncoding, TextBuffer, decode_file_text};
+
+use crate::ui_text;
 
 use super::{FileReadSnapshot, validate_stable_file_read};
 
@@ -70,24 +73,28 @@ fn editable_file_soft_limit_error(size: u64, soft_limit: u64) -> io::Error {
     )
 }
 
-pub(crate) fn opened_file_status(path: &Path, encoding: FileTextEncoding) -> String {
-    match encoding {
-        FileTextEncoding::Utf8 => format!("Opened {}", path.display()),
-        FileTextEncoding::EscapedBytes => format!(
-            "Opened {} read-only: non-UTF-8 bytes shown as escapes",
-            path.display()
-        ),
-    }
+pub(crate) fn opened_file_status(
+    catalog: &TextCatalog,
+    path: &Path,
+    encoding: FileTextEncoding,
+) -> String {
+    let key = match encoding {
+        FileTextEncoding::Utf8 => ui_text::STATUS_OPEN_OPENED,
+        FileTextEncoding::EscapedBytes => ui_text::STATUS_OPEN_OPENED_ESCAPED,
+    };
+    ui_text::tr_fmt(catalog, key, &[&path.display().to_string()])
 }
 
-pub(crate) fn reloaded_file_status(path: &Path, encoding: FileTextEncoding) -> String {
-    match encoding {
-        FileTextEncoding::Utf8 => format!("Reloaded {}", path.display()),
-        FileTextEncoding::EscapedBytes => format!(
-            "Reloaded {} read-only: non-UTF-8 bytes shown as escapes",
-            path.display()
-        ),
-    }
+pub(crate) fn reloaded_file_status(
+    catalog: &TextCatalog,
+    path: &Path,
+    encoding: FileTextEncoding,
+) -> String {
+    let key = match encoding {
+        FileTextEncoding::Utf8 => ui_text::STATUS_RELOAD_RELOADED,
+        FileTextEncoding::EscapedBytes => ui_text::STATUS_RELOAD_RELOADED_ESCAPED,
+    };
+    ui_text::tr_fmt(catalog, key, &[&path.display().to_string()])
 }
 
 pub(crate) fn title_for_path(path: &Path) -> String {
