@@ -45,16 +45,24 @@ and the size gate below.
 ## Hard Size Budget (the binding constraint)
 
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
-x86_64 AND Debian x86_64. Current 2026-07-13 (`fd31719`, plugin client +
-i18n slice 1 landed):
+x86_64 AND Debian x86_64.
 
-- macOS: 625,060 bytes (`target/x86_64-apple-darwin/release/dun`)
-- Debian: 670,080 bytes — **binding platform**, margin 378,496 bytes
+- macOS: **649,900 bytes** at `1d03433` (2026-07-13, i18n stage complete).
+- Debian: **686,464 bytes** at `89cd9e4` — **binding platform**, margin
+  362,112 bytes.
 
-The plugin client is in these numbers; the margin is future-feature
-reserve. Decisive measurements happen on the Debian VM; macOS deltas are
-proxies (~1.1-1.25x rule of thumb). With `opt-level = "z"` + fat LTO, size
-deltas are non-additive — measure per batch.
+**Debian measurement debt: 19 commits** (`89cd9e4..1d03433`) are unmeasured
+on the binding platform — the VM was unavailable for the second half of the
+i18n stage. macOS grew 16,616 bytes across that span, so Debian is expected
+around 700 KiB (still ~340 KiB of margin), but that is a projection, not a
+measurement. **Settle this debt at the next VM session**, before the plugin
+stage starts adding runtime code.
+
+Note the ten shipped translations cost the binary **nothing**: they are
+external resource files, not code. Decisive measurements happen on the
+Debian VM; macOS deltas are proxies (~1.1-1.25x rule of thumb). With
+`opt-level = "z"` + fat LTO, size deltas are non-additive — measure per
+batch.
 
 ## Codex Delegation (grunt-work packages)
 
@@ -80,6 +88,21 @@ verbatim evidence — it never commits, branches, or pushes.
   Codex-authored A-level tests this session passed against a broken
   implementation and only mutation caught them — a brief saying "verified" is
   not the same as a test that can fail.
+- **Restore a mutation by reversing the edit, never with `git checkout`.**
+  The tree is dirty during a gate: checkout restores from HEAD/index and
+  wipes the brief's uncommitted work with it. This bit twice on 2026-07-13;
+  recovery came from the final `git diff` dump in
+  `/tmp/dun_cdx_brief_NNN.log`, plus a `cargo fmt` pass.
+- **Aim the mutation at a path the test actually covers.** A mutation that
+  survives is either a vacuous test or a misaimed mutation — check which
+  before accusing the test. On 2026-07-13 a survivor turned out to be my own
+  bad aim (I broke a `WorkspaceError` variant the test never exercised).
+- **A refactor can silently remove coverage.** Twice this session, a
+  correct-looking refactor left a live code path with no test on it (the
+  `PathIoError::Display` used only by the CLI's startup `eprintln!`; the 47
+  menu keys the generic validator could not see). Codex's own mutation runs
+  could not detect either. After a refactor, ask which paths *used* to be
+  covered and mutate those.
 - Watch Codex's recurring failure modes in review: fixing at the wrong
   layer, masking symptoms instead of causes, drive-by edits outside scope,
   and vacuous tests (an oracle that reuses the implementation's own predicate;
@@ -124,18 +147,21 @@ Sequencing (stages 1–2 completed 2026-07-10):
 3. ~~Land the real plugin protocol client~~ — DONE, stage closed
    2026-07-13: all release gates passed at `fd31719`; Debian re-audit
    recorded (670,080 bytes, margin 378,496).
-4. **UI text i18n** (ACTIVE — TODO.md "UI Text Internationalization" stage,
-   decided 2026-07-11, design in docs/i18n.md): hybrid model — English
-   compiled in as the `&'static` fallback, other languages from external
-   `i18n/<lang>.conf` resource files loaded at runtime by locale. Slice 1
-   (mechanism + menus + zh-CN) landed 2026-07-13; next help, then
-   dialogs/prompts; status `format!` churn last.
-5. **Distinctive plugins** (TODO.md "Distinctive Plugins" stage): a small
-   set of Python/Lua hosts beyond syntax highlight; extend protocol/roles
-   as real implementation needs surface (new Role variants, per-role
-   policy, protocol-level LoadPlugin only if multi-plugin hosts become
-   real). Everything else (F12/F13 restoration review, OSC 52 paste, rum
-   evaluation) stays deferred behind these.
+4. ~~UI text i18n~~ — DONE, stage closed 2026-07-13 (design in
+   docs/i18n.md). The whole UI translates (menus, help, dialogs, every
+   status message); English is compiled in as the `&'static` fallback and
+   ten languages ship as external `i18n/<tag>.conf` files, which cost the
+   binary nothing. Remaining work is additive: native-speaker corrections
+   to the nine machine-translated files.
+5. **Distinctive plugins** (ACTIVE — TODO.md "Distinctive Plugins" stage):
+   a small set of Python/Lua hosts beyond syntax highlight; extend
+   protocol/roles as real implementation needs surface (new Role variants,
+   per-role policy, protocol-level LoadPlugin only if multi-plugin hosts
+   become real). Everything else (F12/F13 restoration review, OSC 52 paste,
+   rum evaluation) stays deferred behind these.
+   **Before adding runtime code here, settle the Debian measurement debt**
+   (19 commits; see the size budget above) — a plugin stage that starts on
+   an unmeasured baseline cannot attribute its own cost.
 
 Parallel line: renderer replacement (drop ratatui for the in-house Surface
 backend) as dependency hygiene, sliced into small Codex briefs (brief-002
