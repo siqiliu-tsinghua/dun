@@ -48,15 +48,16 @@ The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
 - macOS: **649,900 bytes** at `1d03433` (2026-07-13, i18n stage complete).
-- Debian: **686,464 bytes** at `89cd9e4` — **binding platform**, margin
-  362,112 bytes.
+- Debian: **715,136 bytes** at `744c843` (≡ `1d03433`; docs-only tip) —
+  **binding platform**, margin 333,440 bytes (2026-07-15).
 
-**Debian measurement debt: 19 commits** (`89cd9e4..1d03433`) are unmeasured
-on the binding platform — the VM was unavailable for the second half of the
-i18n stage. macOS grew 16,616 bytes across that span, so Debian is expected
-around 700 KiB (still ~340 KiB of margin), but that is a projection, not a
-measurement. **Settle this debt at the next VM session**, before the plugin
-stage starts adding runtime code.
+**Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
+(`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to
+`1d03433`) measures 715,136 bytes on the VM — +28,672 over `89cd9e4`, the
+i18n slice-4 mechanism tail; the ten translations stayed free. The ~700 KiB
+projection held. Smoke passed (ELF PIE stripped, `ldd` = libgcc/libm/libc/
+ld-linux unchanged, `--version`, `--dump-config`). The plugin stage now
+starts on a measured baseline (docs/release-size-audit.md 2026-07-15).
 
 Note the ten shipped translations cost the binary **nothing**: they are
 external resource files, not code. Decisive measurements happen on the
@@ -159,14 +160,15 @@ Sequencing (stages 1–2 completed 2026-07-10):
    per-role policy, protocol-level LoadPlugin only if multi-plugin hosts
    become real). Everything else (F12/F13 restoration review, OSC 52 paste,
    rum evaluation) stays deferred behind these.
-   **Before adding runtime code here, settle the Debian measurement debt**
-   (19 commits; see the size budget above) — a plugin stage that starts on
-   an unmeasured baseline cannot attribute its own cost.
+   The Debian measurement baseline is now settled (715,136 bytes at
+   `744c843`, 2026-07-15; see the size budget above), so this stage starts
+   on a measured floor and each runtime batch attributes its own cost.
 
-Parallel line: renderer replacement (drop ratatui for the in-house Surface
-backend) as dependency hygiene, sliced into small Codex briefs (brief-002
-landed the Surface grid). No longer size-critical; correctness gates and
-the tmux/PTY suites are the fence.
+Renderer replacement is DONE: ratatui was fully retired at `858e876`
+(2026-07-11) — dropped from every crate, the workspace table, and the
+lockfile (76 → 42 packages); `dun` renders through the in-house Surface
+backend, with only a doc-comment mention of the old snapshot helper left in
+test support. No longer a parallel line.
 
 Triage decision rules (apply in order, first hit wins):
 

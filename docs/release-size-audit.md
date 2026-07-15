@@ -429,3 +429,37 @@ extraction batch:
 
 Debian measured on a clean `vm-test/vm-sync` archive of `89cd9e4`;
 `--version` smoke passed; VM scratch directory removed after recording.
+
+## 2026-07-15 i18n slice 4 tail + Debian debt settlement (744c843 ≡ 1d03433)
+
+The VM was unavailable for the second half of the i18n stage, leaving 19
+commits (`89cd9e4..1d03433`) unmeasured on the binding platform. This audit
+pays that debt off in one span. HEAD is `744c843`, a docs-only tip whose
+release binary is byte-identical to the i18n stage-close commit `1d03433`,
+so measuring HEAD settles the whole debt.
+
+The span covers i18n slices 4a–4c (status-message extraction, the stateless
+helper builders, the typed/stored text, and the `ui_text/status.rs` domain
+split), the locale script-fallback + every-translation validator, the ten
+shipped translations (briefs 027–029), and the dropdown shift-left clamp.
+
+| Platform | 89cd9e4 | 744c843 | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 633,284 | 649,900 | +16,616 | 398,676 |
+| Debian x86_64 | 686,464 | 715,136 | +28,672 | 333,440 |
+
+Debian was measured this session on a clean `vm-test/vm-sync` archive of
+`744c843` (`scripts/release-build.sh`, build-std, rust-src from the Debian
+`rust-src` package; build finished in 46s). The macOS figure is the i18n
+stage-close value tracked at `1d03433` (macOS was never in debt — only the
+VM was unavailable). The +28,672 Debian growth is the i18n slice-4
+mechanism tail; the translations themselves cost the binary nothing
+(external `i18n/*.conf` files). Debian/macOS ratio for this span is ~1.73x,
+consistent with non-additive fat-LTO deltas.
+
+Smoke on the measured Debian binary: `file` reports ELF 64-bit PIE,
+stripped; `ldd` unchanged (`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`,
+`ld-linux`); `--version` printed `dun 0.1.0`; `--dump-config` emitted the
+181-line default config (`theme = dun`). VM scratch directory removed after
+recording. The Distinctive Plugins stage now starts on a measured baseline
+with 333,440 bytes of margin on the binding platform.

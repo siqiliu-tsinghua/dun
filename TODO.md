@@ -307,11 +307,13 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   validator protects structure, but wording quality is unreviewed. The one
   place a wording error is destructive — Save/Discard/Cancel beside the
   literal `(s)`/`(d)`/`(c)` keys — is guarded by a pairwise-distinct test.
-- [ ] Measure the size delta per batch; the mechanism must stay lean since
+- [x] Measure the size delta per batch; the mechanism must stay lean since
   hand-rolled parsing (no serde) remains the rule. Slice 1 measured both
   platforms at `fd31719`: macOS +12,344 (625,060); Debian span including
-  briefs 012-021 lands at 670,080, margin 378,496
-  (docs/release-size-audit.md 2026-07-13).
+  briefs 012-021 lands at 670,080, margin 378,496. Debian debt for slices
+  4a-4c settled 2026-07-15 at `744c843` (≡ `1d03433`): 715,136 bytes,
+  +28,672 over `89cd9e4`, margin 333,440 (docs/release-size-audit.md
+  2026-07-15). Translations stayed free.
 
 ## Planned Stage: Distinctive Plugins (Python/Lua Hosts)
 
