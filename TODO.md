@@ -315,32 +315,45 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   +28,672 over `89cd9e4`, margin 333,440 (docs/release-size-audit.md
   2026-07-15). Translations stayed free.
 
-## Planned Stage: Distinctive Plugins (Python/Lua Hosts)
+## Planned Stage: Distinctive Plugins (Capability Model First)
 
-Plan decided 2026-07-13. With `SyntaxHighlight` proven end to end, add a
-small set of distinctive plugins implemented as external Python or Lua hosts
-(`hosts/` already carries Python and Lua syntax-highlight reference hosts
-plus `hosts/check-host.py` for conformance). Implementation is expected to
-surface protocol gaps; enhance the protocol as they appear rather than
-speculatively — new `Role` variants (`LogFilter`, `TextTransform`,
-`ConfigHelper`, `DocumentStructure`, …), per-role policy overrides, and
-protocol-level `LoadPlugin` (only if a multi-plugin host becomes real) all
-live here.
+Plan decided 2026-07-13; **reframed capability-model-first 2026-07-16.**
+`role` was still described in embedded-`rum` permission terms; across a
+protocol boundary that meaning is dead (`dun` cannot grant an external
+process OS authority). The redesign makes `role` a **named bundle of
+inward capabilities** — typed, validated channels into `dun`-owned objects
+(buffer, stream, overlay, surface, window, scratch-input/execute, menu,
+keybinding). Design lives in docs/plugin-protocol.md ("Capability Model",
+"Capability Infrastructure"). Trust class becomes the capability grant gate.
 
-- [ ] Pick the first distinctive plugin set. Candidates recorded during
-  feature triage: `LogFilter` over Run Command output (the removed F46
-  family's plugin-territory successor), `DocumentStructure` (the removed F20
-  Outline's recorded return path), and `TextTransform` (sort/dedup/table
-  alignment style edits).
-- [ ] Implement each as a Python or Lua host under `hosts/`, passing
-  `hosts/check-host.py`, with the fixture-host protocol tests extended per
-  new role.
-- [ ] Extend `Role`/payload validation per role: every new role needs typed
-  output validation as strict as `StyleSpan` (bounded counts, in-range
-  coordinates, revision matching) — a host must never gain a capability the
-  validated type does not expose.
-- [ ] Record protocol enhancements discovered during implementation in
-  docs/plugin-protocol.md as they land.
+Decision: **build the mechanism and the open capability APIs first, driven
+by fixture hosts, before any concrete product plugin.** A `log-filter`-shaped
+host (`{ stream-read, surface-write, window, scratch-input, menu, keybinding }`)
+is the intended first real consumer and the ergonomics acceptance test — it
+is deferred until the APIs exist, and the surface is not frozen until it has
+been built against once. Each slice ships a minimal fixture host + protocol
+tests + a Debian size measurement (capability cost attributed per batch;
+deltas non-additive).
+
+- [ ] **A — mechanism spine.** Capability vocabulary as types; role as a
+  named capability bundle; config `roles` → capabilities; handshake advertise
+  + trust-gated grant; per-capability validation dispatch (generalize the
+  per-role `validate.rs`); `plugin_id` ownership tagging + unload reaping.
+  Prove with `buffer-read`/`stream-read` in, `overlay-write`/`surface-write`
+  out.
+- [ ] **B — windows + scratch input.** `window` lifecycle (≤2/plugin +
+  aggregate/terminal fallback, own-only destroy); `scratch-input` = a
+  `dun`-native editable buffer + `execute` submit (snippet runs in the host
+  interpreter, never in `dun`; no keystroke routing).
+- [ ] **C — menu.** One top-level subtree per plugin, label i18n (`en_US`
+  required + optional tags), menu-invoke dispatch, structural bounds,
+  menu-bar width handling.
+- [ ] **D — keybinding.** Leader prefix + the event-loop pending-prefix
+  state machine (the one runtime piece the keymap model lacks; `KeySequence`
+  is already `Vec<KeyStroke>`), plus leader-collision validation.
+- [ ] Wire trust as the grant gate (also add the missing config↔handshake
+  trust cross-check) and record every protocol enhancement in
+  docs/plugin-protocol.md as it lands.
 
 ## Completed Stage: v0.1 Release Hardening
 

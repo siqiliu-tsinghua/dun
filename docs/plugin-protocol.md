@@ -23,7 +23,7 @@ protocol client.
 The required client includes:
 
 - protocol message types;
-- role and policy model;
+- role, capability, and policy model;
 - request id and revision handling;
 - bounded input snapshots;
 - output validation;
@@ -86,11 +86,23 @@ is separately sandboxed.
 | `user-trusted-external` | External executable or script speaks the protocol, but may still have ordinary OS authority outside `dun`. | Explicit config only. |
 | `unsupported-unsafe` | Unknown runtime, unknown trust class, or direct authority request. | Rejected by default. |
 
-`dun` can protect only the authority it controls. Role policy prevents a plugin
-from asking `dun` to save files, mutate buffers, run commands, or write the
-terminal outside its role. It cannot by itself stop a Python script or external
-binary from reading files or opening sockets outside the protocol. Those hosts
-must be documented as user-trusted.
+`dun` can protect only the authority it controls. The protocol carries no
+authority-request fields: a plugin cannot ask `dun` to save files, run commands,
+or mutate arbitrary state, because no message expresses such a request. What a
+plugin may cause `dun` to do is bounded by the capabilities its role was granted
+(see Capability Model), each a typed, validated channel into a `dun`-owned
+object. `dun` cannot by itself stop a Python script or external binary from
+reading files or opening sockets outside the protocol; those hosts are
+`user-trusted-external`, and the user's config opt-in is the consent.
+
+Trust class is the grant gate for capabilities. A `pure-sandbox` runtime is
+eligible for automatic granting of read-only and validated-write capabilities
+(buffer/stream reads, overlay and surface writes). Capabilities that are
+UI-invasive or that execute user-authored code in the host — window,
+scratch-input/execute, menu, keybinding — require `user-trusted-external` plus an
+explicit config opt-in. (Trust is currently recorded at handshake but not yet
+cross-checked against the config-declared value, nor used to branch enforcement;
+wiring it as the grant gate is part of the capability-model work.)
 
 ## Process Launch Rules
 
@@ -140,10 +152,139 @@ role
 revision, when tied to an editor buffer or stream
 ```
 
-## Initial Roles
+## Capability Model
 
-The protocol should start with roles that prove the whole request, validation,
-and application path without giving plugins authority.
+`role` was a permission concept in the embedded-`rum` design: a role selected a
+policy group that granted capabilities to `rum` functions. That model depended
+on `dun` controlling the plugin's execution, which only held while `rum` ran
+in-process. Across a protocol boundary `dun` cannot grant an external process
+authority over the outside world, so permission-as-role is obsolete.
+
+What survives — and what the protocol now means by *capability* — is inward: the
+permission to touch a `dun`-owned object through a typed, validated channel. The
+protocol carries no authority-request fields, so `dun` grants no ambient power;
+it only consumes typed output a plugin produces for the capabilities its role
+holds. A **role is a named bundle of capabilities**: named because config and UI
+read better as `roles = log-filter` than as a raw capability list, and because a
+name is a routing and dispatch handle.
+
+The security value did not disappear, it changed direction. In the `rum` era a
+role was the *power granted to the plugin*; now it is *which typed channels `dun`
+will accept from the plugin*. A `syntax-highlight` plugin can only ever emit
+style spans; it structurally cannot emit an edit patch, because `dun` runs no
+other validator for it.
+
+### Capability vocabulary (v0)
+
+Every capability exposes an object `dun` already owns; none introduces a new
+subsystem. Each is bounded, validated on every message, and — for the invasive
+ones — trust-gated.
+
+| Capability | `dun` object | What the plugin may do | Bounds / trust |
+| --- | --- | --- | --- |
+| `buffer-read` | editor buffer | receive a bounded read snapshot (text slice, language, revision) | `max_snapshot_lines`; pure-sandbox auto |
+| `stream-read` | command-output stream | receive bounded stream chunks (chunk, index, final) | frame caps; pure-sandbox auto |
+| `overlay-write` | buffer rendering | return style spans over rendered text; never mutates buffer text | `max_spans`, in-range coords; pure-sandbox auto |
+| `surface-write` | plugin-owned window buffer | write validated, sanitized text into its own surface | size caps; pure-sandbox auto |
+| `window` | tiled window / dock | create and destroy its own windows | ≤2 per plugin + aggregate/terminal-size fallback; destroy own only; `user-trusted-external` |
+| `scratch-input` | editable scratch buffer + execute | own a window backed by a `dun`-native editable buffer; the user edits it with `dun`'s own editing engine; an `execute` action submits the whole buffer text to the host as one blob (no keystroke routing). The submitted snippet runs in the host's interpreter, never in `dun`. | one scratch window; `user-trusted-external` |
+| `menu` | menu bar | create one top-level menu entry; all items hang beneath it; each item dispatches a request to the host | one top-level subtree; bounded item count/depth/label length; label i18n required; `user-trusted-external` |
+| `keybinding` | keymap + event loop | reserve one leader prefix key and bind chords beneath it (Emacs `C-x` style) | one leader; must not shadow existing bindings; `user-trusted-external` |
+
+Read-only and validated-write capabilities (`buffer-read`, `stream-read`,
+`overlay-write`, `surface-write`) are eligible for `pure-sandbox` auto-granting.
+UI-invasive and code-executing capabilities (`window`, `scratch-input`, `menu`,
+`keybinding`) require `user-trusted-external` and an explicit config opt-in.
+
+### Ownership and namespacing
+
+Each plugin gets a namespaced slice of `dun`-owned UI surfaces, all tagged by
+`plugin_id`:
+
+- one menu subtree (one top-level entry, every item beneath it);
+- one keybinding leader prefix and its chord space;
+- at most two windows.
+
+Ownership makes "destroy/remove only your own" automatic: each surface is a
+subtree the plugin exclusively owns. On `plugin unload`, host crash, or timeout,
+`dun` reaps the plugin's menu subtree, key prefix, and windows together.
+
+### Menu label i18n
+
+`dun`'s own UI is fully translated (English compiled in as the `&'static`
+fallback, other tags as external files). Plugin-contributed labels follow the
+same shape: a menu-contribution message carries labels as a locale-tag map. The
+author must supply at least `en_US`; other tags are optional. `dun` resolves by
+the active locale and falls back to `en_US`. A single-tag contribution is legal;
+a contribution missing `en_US` is rejected.
+
+### Error and diagnostic surface
+
+Snippet execution failures and any host-side error surface through a
+`dun`-owned diagnostic pane, fed by the existing `Diagnostic`, `Error`, and
+bounded stderr channels (`max_diagnostics`, `max_stderr_bytes`). It is
+`dun`-owned on purpose: a plugin cannot suppress its own errors, and the pane
+does not count against the plugin's two-window budget. The host reports
+interpreter errors from a submitted snippet as bounded `Diagnostic`/`Error`
+items; `dun` displays them tagged by `plugin_id`.
+
+### Cost discipline
+
+A capability is worth its binary weight only if it exposes an object `dun`
+already maintains for a first-class feature. The v0 vocabulary is drawn entirely
+from existing internals: buffers and the editing engine, the command-output
+stream, the highlight overlay, the tiled window tree, the menu bar, and the
+keymap. Anything that would require a new `dun` subsystem (for example, a
+build/process manager an IDE-style plugin might want) is a separate, separately
+budgeted decision, never something a capability silently pulls in. Each
+capability's `dun`-side implementation lands with the slice that first exercises
+it and is measured per batch on Debian (size deltas are non-additive under
+`opt-level = "z"` + fat LTO).
+
+## Capability Infrastructure (build order)
+
+This stage builds the role/capability mechanism and the open capability APIs
+first, without committing to any concrete product plugin. No distinctive plugin
+is shipped here; each capability API is proven end to end by a minimal **fixture
+host** (the pattern already used by `hosts/check-host.py` and
+`crates/dun-plugin/src/bin/fixture-host.rs`), not by a polished plugin. Fixture
+hosts are required: an open API with no consumer is neither testable end to end
+nor measurable as real-use size.
+
+Slices, each with a fixture host, protocol tests, and a Debian size measurement:
+
+- **A — mechanism spine.** Capability vocabulary as types; role as a named
+  capability bundle; config declares `roles` → capabilities; handshake
+  advertises and `dun` grants (trust-gated); per-capability validation dispatch
+  (generalizing the per-role `validate.rs`); `plugin_id` ownership tagging and
+  unload reaping. Proven with `buffer-read`/`stream-read` in and
+  `overlay-write`/`surface-write` out — the cheapest capabilities, with existing
+  precedent.
+- **B — windows and scratch input.** `window` lifecycle (≤2, aggregate/terminal
+  fallback, own-only destroy) and `scratch-input` (a `dun`-native editable
+  buffer plus the `execute` submit). Fixture host opens/closes a window, writes
+  a surface, and receives a submitted snippet blob.
+- **C — menu.** `menu` contribution (one top-level subtree, label i18n,
+  menu-invoke dispatch, structural bounds, menu-bar width handling). Fixture
+  host contributes a top-level menu whose items dispatch requests.
+- **D — keybinding.** `keybinding` contribution (leader prefix plus the
+  event-loop pending-prefix state machine — the one runtime piece the keymap
+  model does not yet have — and collision validation). Fixture host registers a
+  leader chord that dispatches a request.
+
+The first real product plugin (a `log-filter`-shaped host is the intended first:
+`{ stream-read, surface-write, window, scratch-input, menu, keybinding }`) is
+deferred until the mechanism exists, and it is the ergonomics acceptance test
+for these APIs. Expect a revision pass then; do not freeze the capability
+surface as final until one real consumer has been built against it.
+
+## Role Bundles
+
+A role names a bundle of capabilities. The protocol should start with bundles
+that prove the whole request, validation, and application path without giving
+plugins ambient authority. `SyntaxHighlight` is the only implemented role today
+(`{ buffer-read, overlay-write }`); the rest below are illustrative bundles
+whose `dun`-side implementation is demand-driven per the build order above.
 
 | Role | Input snapshot | Allowed output |
 | --- | --- | --- |
@@ -152,10 +293,10 @@ and application path without giving plugins authority.
 | `TextTransform` | Selection or bounded text slice, cursor context, revision. | Proposed edit patch or replacement text requiring `dun` validation and, where appropriate, user confirmation. |
 | `ConfigHelper` | Defaults, config context, environment summary without secrets. | Typed config patch against the Rust-owned `Config` model. |
 
-`dun` may implement these roles incrementally. The first implementation should
-prove at least one visible, low-risk role end to end, preferably
-`SyntaxHighlight`, because stale revision handling and bounded style-span
-validation are easy to test.
+`dun` implements these roles incrementally. `SyntaxHighlight` proved the whole
+request, validation, and application path end to end (stale revision handling
+and bounded style-span validation are easy to test); the capability
+infrastructure above is what the remaining bundles are built on.
 
 A `DocumentStructure` role is a recorded future need: the built-in Outline
 pane (Markdown/INI/TOML/Rust/shell section heuristics) was removed in the
@@ -170,13 +311,13 @@ Required checks:
 
 - known `plugin_id`, role, and `request_id`;
 - matching buffer or stream revision;
-- output type allowed by the plugin role;
+- output type allowed by the plugin's granted capabilities;
 - output size below the role limit;
 - coordinates within the input snapshot;
 - style ids, tags, command ids, or field names known or allowed by policy;
 - no raw terminal control bytes in diagnostics or user-facing text;
-- no file, process, network, terminal, or editor-mutation authority request
-  outside the role policy.
+- output rides only granted capability channels; there is no authority-request
+  field to honor, so any output outside the plugin's capabilities is rejected.
 
 Rejected output must leave editor state unchanged except for a bounded
 diagnostic.

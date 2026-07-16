@@ -154,15 +154,21 @@ Sequencing (stages 1–2 completed 2026-07-10):
    ten languages ship as external `i18n/<tag>.conf` files, which cost the
    binary nothing. Remaining work is additive: native-speaker corrections
    to the nine machine-translated files.
-5. **Distinctive plugins** (ACTIVE — TODO.md "Distinctive Plugins" stage):
-   a small set of Python/Lua hosts beyond syntax highlight; extend
-   protocol/roles as real implementation needs surface (new Role variants,
-   per-role policy, protocol-level LoadPlugin only if multi-plugin hosts
-   become real). Everything else (F12/F13 restoration review, OSC 52 paste,
-   rum evaluation) stays deferred behind these.
-   The Debian measurement baseline is now settled (715,136 bytes at
-   `744c843`, 2026-07-15; see the size budget above), so this stage starts
-   on a measured floor and each runtime batch attributes its own cost.
+5. **Distinctive plugins** (ACTIVE — TODO.md "Distinctive Plugins" stage;
+   reframed capability-model-first 2026-07-16): `role` is redesigned from an
+   embedded-`rum` permission concept into a **named bundle of inward
+   capabilities** — typed, validated channels into `dun`-owned objects
+   (buffer/stream reads, overlay/surface writes, window, scratch-input +
+   execute, menu, keybinding), with trust class as the grant gate. Build the
+   mechanism and the open capability APIs first (slices A–D), each driven by a
+   fixture host, before any concrete product plugin; a `log-filter`-shaped
+   host is the intended first real consumer and ergonomics acceptance test,
+   deferred until the APIs exist. Design in docs/plugin-protocol.md
+   ("Capability Model" / "Capability Infrastructure"). Everything else
+   (F12/F13 restoration review, OSC 52 paste, rum evaluation) stays deferred
+   behind these. The Debian measurement baseline is settled (715,136 bytes at
+   `744c843`, 2026-07-15; see the size budget above), so this stage starts on
+   a measured floor and each capability batch attributes its own cost.
 
 Renderer replacement is DONE: ratatui was fully retired at `858e876`
 (2026-07-11) — dropped from every crate, the workspace table, and the
