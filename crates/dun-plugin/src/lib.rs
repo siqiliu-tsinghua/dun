@@ -16,10 +16,12 @@ pub mod capability;
 pub mod client;
 pub mod frame;
 pub mod json;
+pub mod menu;
 pub mod proto;
 pub mod validate;
 
 pub use capability::{Capability, GrantedCapabilities};
 pub use client::{HostClient, PluginError};
+pub use menu::{LabelSet, PluginMenu, PluginMenuItem};
 pub use proto::{Policy, Role, TrustClass};
 pub use validate::{InputSnapshot, StyleId, StyleSpan};

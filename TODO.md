@@ -372,6 +372,14 @@ deltas non-additive).
 - [ ] **C — menu.** One top-level subtree per plugin, label i18n (`en_US`
   required + optional tags), menu-invoke dispatch, structural bounds,
   menu-bar width handling.
+  - In progress: the `PluginMenu` contribution model + validator + label
+    resolution (`dun-plugin/src/menu.rs`) landed via brief-031 (Codex-executed,
+    Claude-gated; `en_US`-required and control-char guards mutation-proven;
+    pure `pub` module, zero binary delta, unwired). Claude's spine pending: an
+    `EditorCommand::PluginMenuAction` variant, the menu-invoke dispatch, and
+    the grant-gated (`holds(Window)`) window open/close path reusing
+    `PluginWindows` + a new `WindowKind::PluginSurface` (this also completes
+    B's window path).
 - [ ] **D — keybinding.** Leader prefix + the event-loop pending-prefix
   state machine (the one runtime piece the keymap model lacks; `KeySequence`
   is already `Vec<KeyStroke>`), plus leader-collision validation.
