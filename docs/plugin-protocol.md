@@ -133,7 +133,7 @@ The first protocol version should include these families:
 | Message | Direction | Purpose |
 | --- | --- | --- |
 | `Hello` | host to `dun` or `dun` to host | Protocol version, host id, runtime, trust class, and advertised roles. |
-| `HelloAck` | reply | Accepted protocol version and effective policy limits. |
+| `HelloAck` | reply | Accepted protocol version, effective policy limits, and an optional `menu` contribution (honored only if the host holds the `menu` capability). |
 | `LoadPlugin` | `dun` to host | Load a plugin package, source blob, or configured host entry. |
 | `UnloadPlugin` | `dun` to host | Drop plugin state and caches. |
 | `Request` | `dun` to host | Role-specific bounded input snapshot. |
@@ -282,9 +282,20 @@ surface as final until one real consumer has been built against it.
 
 A role names a bundle of capabilities. The protocol should start with bundles
 that prove the whole request, validation, and application path without giving
-plugins ambient authority. `SyntaxHighlight` is the only implemented role today
-(`{ buffer-read, overlay-write }`); the rest below are illustrative bundles
-whose `dun`-side implementation is demand-driven per the build order above.
+plugins ambient authority. Two role bundles are defined today: `SyntaxHighlight`
+(`{ buffer-read, overlay-write }`, applied end to end) and `LogFilter`
+(`{ stream-read, surface-write, window, scratch-input, menu, keybinding }`,
+which is how a host first becomes eligible for the `menu`/`window` capabilities;
+its request/stream application path is still being built incrementally). The
+remaining rows below are illustrative bundles whose `dun`-side implementation is
+demand-driven per the build order above.
+
+A host advertises its menu contribution in the `HelloAck` payload (`menu`
+field). `dun` parses it with the `menu` capability's validator and honors it
+only when the host was granted `menu` (see Capability Model); an ungranted host
+that advertises a menu is ignored, and a malformed menu from a granted host
+fails the handshake. Menus are therefore static, fixed at launch; a dynamic
+`MenuContribute` message is deferred until a real need appears.
 
 | Role | Input snapshot | Allowed output |
 | --- | --- | --- |

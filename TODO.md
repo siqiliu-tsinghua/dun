@@ -382,12 +382,38 @@ deltas non-additive).
     handshake-carried menu contribution — honored only when the host holds
     `menu`, ignored otherwise (capability gate mutation-proven). macOS +8 to
     654,012.
-  - Spine pending (next chunks): an `EditorCommand::PluginMenuAction` variant
-    + `WindowKind::PluginSurface` (dun-core, exhaustive-match ripples); the
-    dun-cli menu-bar injection, menu-invoke dispatch, and the grant-gated
-    (`holds(Window)`) window open/close path reusing `PluginWindows` (this also
-    completes B's window path). One binding **Debian measurement pending**,
-    taken at that integration milestone for the whole C spine.
+  - Spine remaining — **designed 2026-07-16, not yet built** (next session
+    starts here). Decision: **generalize the dun-cli host layer (option A)** so
+    it manages any-role hosts, not just syntax-highlight. Ordered chunks:
+    1. **Host-layer generalization (atomic).** `PluginHighlighter` →
+       `PluginHost` (per configured entry: worker channel, client lifecycle,
+       `plugin_id`, `granted`, and `menu: Option<PluginMenu>`), collected in
+       `PluginHosts(Vec<PluginHost>)` replacing
+       `AppState.highlighter: Option<PluginHighlighter>`. Highlight scheduling
+       becomes one facet (routed to the highlight-role host); menus are
+       gathered from every host that holds `menu`; `plugin`/`load`/`unload` and
+       the status indicator address hosts by `plugin_id`. The worker sends the
+       launched client's `menu()` back to the main thread via a new startup
+       outcome. **Launch timing (decided): hybrid** — highlight-only hosts stay
+       lazy (launch on first edit, preserving the memory-saving behavior);
+       hosts holding `menu`/`window` launch eagerly (no edit trigger, must
+       handshake to advertise their menu). This is an atomic edit: it forces
+       every call site together — `app/state.rs` (field), `app/bootstrap.rs` +
+       `app/commands.rs` (construct/reload), `app/command_line.rs` (plugin
+       commands), `app/highlight.rs` (status/poll/schedule).
+    2. **dun-core typed variants.** `WindowKind::PluginSurface` and
+       `EditorCommand::PluginMenuAction { plugin_id, action_id }`, with the
+       exhaustive-match arms (`dun-config::command_id` returns a generic static
+       id for `PluginMenuAction` — plugin actions are never user-bindable, so
+       an id/from_id round-trip is not needed).
+    3. **Inject + dispatch + window path.** Inject each host's menu into the
+       menu bar (`MenuItem`/`MenuEntry` with `command = PluginMenuAction`);
+       dispatch `PluginMenuAction` to the grant-gated (`holds(Window)`) window
+       open/close path reusing `PluginWindows` + `WindowKind::PluginSurface`
+       (this also completes B's window path).
+    4. **One binding Debian measurement** for the whole C spine at this
+       integration milestone (VM). Note: chunk 1 (`d2fe8df`) already added +8
+       macOS to 654,012 with the binding measurement still owed here.
 - [ ] **D — keybinding.** Leader prefix + the event-loop pending-prefix
   state machine (the one runtime piece the keymap model lacks; `KeySequence`
   is already `Vec<KeyStroke>`), plus leader-collision validation.
