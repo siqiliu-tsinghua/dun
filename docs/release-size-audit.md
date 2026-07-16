@@ -463,3 +463,32 @@ stripped; `ldd` unchanged (`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`,
 181-line default config (`theme = dun`). VM scratch directory removed after
 recording. The Distinctive Plugins stage now starts on a measured baseline
 with 333,440 bytes of margin on the binding platform.
+
+## 2026-07-16 Capability model spine (c0f610e)
+
+First binding measurement of the capability-model stage. The span
+`744c843..c0f610e` covers the role→capability redesign (docs), the `Capability`
+vocabulary + `GrantedCapabilities` primitives (slice A), the `PluginWindows`
+ownership registry (brief-030), and the live grant + enforcement + the
+config↔handshake trust cross-check (`c0f610e`). The primitives and the registry
+were dead-stripped until `c0f610e` first linked the grant into the client.
+
+| Platform | 744c843 | c0f610e | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 649,900 | 654,004 | +4,104 | 394,572 |
+| Debian x86_64 | 715,136 | 715,136 | +0 | 333,440 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `c0f610e`
+(`scripts/release-build.sh`, build-std, Debian `rust-src`; build finished in
+49s; archive verified to contain `capability.rs` and the grant code before
+trusting the byte-identical result). The whole capability machinery so far
+costs the binding binary **nothing net**: the +4,104 macOS growth from linking
+the grant did not translate to Debian, where it landed inside existing slack —
+the non-additive fat-LTO behavior the budget notes call out (measure per batch,
+never assume additivity or that a macOS delta implies a Debian one).
+
+Smoke on the measured Debian binary: `file` reports ELF 64-bit PIE, stripped;
+`ldd` unchanged (`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, `ld-linux`);
+`--version` printed `dun 0.1.0`; `--dump-config` emitted the default config. VM
+scratch directory removed after recording. Margin on the binding platform is
+unchanged at 333,440 bytes.

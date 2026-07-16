@@ -359,7 +359,16 @@ deltas non-additive).
   - In progress: the `PluginWindows` ownership registry primitive (≤2/plugin
     cap, own-only destroy, reap) landed via brief-030 (Codex-executed,
     Claude-gated; own-only mutation-proven; zero binary delta, still unwired).
-    Workspace wiring + grant gate + `WindowKind::PluginSurface` pending.
+    Workspace wiring + `WindowKind::PluginSurface` pending.
+  - Landed `c0f610e` (Claude-authored): the live grant is wired and enforced —
+    `HostClient` computes `GrantedCapabilities` from roles+config trust after
+    the handshake and refuses `request_highlight` without `overlay-write`; the
+    config↔handshake trust cross-check rejects an over-claiming host. Two new
+    protocol tests, both mutation-proven. First binding Debian measurement of
+    the capability stage taken: 715,136 bytes (+0 from `744c843`; macOS +4,104
+    to 654,004). Still pending in B: the `window`/`scratch` open path (needs a
+    trigger — menu/keybinding or a protocol window-action), ownership reaping
+    wired to real windows, and the sum-typed validator dispatch.
 - [ ] **C — menu.** One top-level subtree per plugin, label i18n (`en_US`
   required + optional tags), menu-invoke dispatch, structural bounds,
   menu-bar width handling.

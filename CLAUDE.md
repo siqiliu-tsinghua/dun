@@ -47,9 +47,13 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **649,900 bytes** at `1d03433` (2026-07-13, i18n stage complete).
-- Debian: **715,136 bytes** at `744c843` (≡ `1d03433`; docs-only tip) —
-  **binding platform**, margin 333,440 bytes (2026-07-15).
+- macOS: **654,004 bytes** at `c0f610e` (2026-07-16, capability grant live;
+  +4,104 from `1d03433` for linking the grant into the client).
+- Debian: **715,136 bytes** at `c0f610e` — **binding platform**, margin
+  333,440 bytes (2026-07-16). Byte-identical to `744c843`: the capability
+  machinery so far (slice A primitives, the window registry, the live grant)
+  cost the binding binary zero net bytes — the +4,104 macOS delta did not
+  translate to Debian (non-additive fat-LTO; measure per batch).
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to
