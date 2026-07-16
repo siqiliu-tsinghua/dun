@@ -375,11 +375,19 @@ deltas non-additive).
   - In progress: the `PluginMenu` contribution model + validator + label
     resolution (`dun-plugin/src/menu.rs`) landed via brief-031 (Codex-executed,
     Claude-gated; `en_US`-required and control-char guards mutation-proven;
-    pure `pub` module, zero binary delta, unwired). Claude's spine pending: an
-    `EditorCommand::PluginMenuAction` variant, the menu-invoke dispatch, and
-    the grant-gated (`holds(Window)`) window open/close path reusing
-    `PluginWindows` + a new `WindowKind::PluginSurface` (this also completes
-    B's window path).
+    pure `pub` module, zero binary delta, unwired).
+  - Spine chunk 1 landed (Claude-authored): `Role::LogFilter` bundle
+    (`{ stream-read, surface-write, window, scratch-input, menu, keybinding }`,
+    trust-gated) makes `menu`/`window` grantable, and `HostClient` parses the
+    handshake-carried menu contribution — honored only when the host holds
+    `menu`, ignored otherwise (capability gate mutation-proven). macOS +8 to
+    654,012.
+  - Spine pending (next chunks): an `EditorCommand::PluginMenuAction` variant
+    + `WindowKind::PluginSurface` (dun-core, exhaustive-match ripples); the
+    dun-cli menu-bar injection, menu-invoke dispatch, and the grant-gated
+    (`holds(Window)`) window open/close path reusing `PluginWindows` (this also
+    completes B's window path). One binding **Debian measurement pending**,
+    taken at that integration milestone for the whole C spine.
 - [ ] **D — keybinding.** Leader prefix + the event-loop pending-prefix
   state machine (the one runtime piece the keymap model lacks; `KeySequence`
   is already `Vec<KeyStroke>`), plus leader-collision validation.

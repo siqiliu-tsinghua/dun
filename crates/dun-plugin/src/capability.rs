@@ -151,6 +151,14 @@ impl Role {
     pub const fn capabilities(self) -> &'static [Capability] {
         match self {
             Role::SyntaxHighlight => &[Capability::BufferRead, Capability::OverlayWrite],
+            Role::LogFilter => &[
+                Capability::StreamRead,
+                Capability::SurfaceWrite,
+                Capability::Window,
+                Capability::ScratchInput,
+                Capability::Menu,
+                Capability::Keybinding,
+            ],
         }
     }
 
@@ -161,6 +169,7 @@ impl Role {
     pub const fn output_capability(self) -> Capability {
         match self {
             Role::SyntaxHighlight => Capability::OverlayWrite,
+            Role::LogFilter => Capability::SurfaceWrite,
         }
     }
 }
@@ -218,6 +227,28 @@ mod tests {
             Role::SyntaxHighlight.output_capability(),
             Capability::OverlayWrite
         );
+    }
+
+    #[test]
+    fn log_filter_bundle_carries_menu_and_window_and_gates_them() {
+        let bundle = Role::LogFilter.capabilities();
+        assert!(bundle.contains(&Capability::Menu));
+        assert!(bundle.contains(&Capability::Window));
+        assert_eq!(
+            Role::LogFilter.output_capability(),
+            Capability::SurfaceWrite
+        );
+
+        // A log-filter host is granted its UI capabilities only when trusted.
+        let sandboxed = GrantedCapabilities::for_roles(&[Role::LogFilter], TrustClass::PureSandbox);
+        assert!(sandboxed.holds(Capability::StreamRead));
+        assert!(!sandboxed.holds(Capability::Menu));
+        assert!(!sandboxed.holds(Capability::Window));
+
+        let trusted =
+            GrantedCapabilities::for_roles(&[Role::LogFilter], TrustClass::UserTrustedExternal);
+        assert!(trusted.holds(Capability::Menu));
+        assert!(trusted.holds(Capability::Window));
     }
 
     #[test]

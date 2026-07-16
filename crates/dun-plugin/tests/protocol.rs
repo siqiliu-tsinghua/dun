@@ -241,6 +241,45 @@ fn host_over_claiming_trust_is_rejected_at_launch() {
     }
 }
 
+#[test]
+fn menu_granted_host_contributes_its_menu() {
+    // A log-filter role is granted `menu`, so the fixture's advertised menu is
+    // parsed and exposed with its locale labels resolved.
+    let client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::LogFilter],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("log-filter host launches");
+    let menu = client
+        .menu()
+        .expect("a menu-granted host contributes a menu");
+    assert_eq!(menu.top_label.resolve(&[]), "Fixture");
+    assert_eq!(menu.top_label.resolve(&["zh-CN".to_string()]), "夹具");
+    assert_eq!(menu.items.len(), 1);
+    assert_eq!(menu.items[0].action_id, "ping");
+}
+
+#[test]
+fn menu_from_ungranted_host_is_ignored() {
+    // A syntax-highlight role has no `menu` capability, so the same advertised
+    // menu is dropped rather than honored.
+    let client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::SyntaxHighlight],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("syntax-highlight host launches");
+    assert!(
+        client.menu().is_none(),
+        "a host without the menu capability must not contribute a menu"
+    );
+}
+
 /// Diagnostic for the handshake-latency-spike investigation. Measures full
 /// `HostClient::launch` (spawn + reader threads + hello/hello-ack) latency
 /// sequentially and then with a burst of concurrent launches, to attribute

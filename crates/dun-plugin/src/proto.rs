@@ -51,18 +51,21 @@ impl MessageKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
     SyntaxHighlight,
+    LogFilter,
 }
 
 impl Role {
     pub const fn id(self) -> &'static str {
         match self {
             Self::SyntaxHighlight => "syntax-highlight",
+            Self::LogFilter => "log-filter",
         }
     }
 
     pub fn from_id(id: &str) -> Option<Self> {
         match id {
             "syntax-highlight" => Some(Self::SyntaxHighlight),
+            "log-filter" => Some(Self::LogFilter),
             _ => None,
         }
     }

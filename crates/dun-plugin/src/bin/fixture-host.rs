@@ -195,6 +195,26 @@ fn hello_payload(trust: &str) -> Json {
     json::obj([
         ("host_id", json::str("fixture")),
         ("trust", json::str(trust)),
+        ("menu", menu_contribution()),
+    ])
+}
+
+fn menu_contribution() -> Json {
+    json::obj([
+        (
+            "top_label",
+            json::obj([
+                ("en_US", json::str("Fixture")),
+                ("zh-CN", json::str("夹具")),
+            ]),
+        ),
+        (
+            "items",
+            Json::Arr(vec![json::obj([
+                ("label", json::obj([("en_US", json::str("Ping"))])),
+                ("action_id", json::str("ping")),
+            ])]),
+        ),
     ])
 }
 

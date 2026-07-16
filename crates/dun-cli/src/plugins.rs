@@ -181,7 +181,8 @@ impl PluginHighlighter {
 fn plugin_role(role: PluginRole) -> Option<Role> {
     match role {
         PluginRole::SyntaxHighlight => Some(Role::SyntaxHighlight),
-        PluginRole::LogFilter | PluginRole::TextTransform | PluginRole::ConfigHelper => None,
+        PluginRole::LogFilter => Some(Role::LogFilter),
+        PluginRole::TextTransform | PluginRole::ConfigHelper => None,
     }
 }
 

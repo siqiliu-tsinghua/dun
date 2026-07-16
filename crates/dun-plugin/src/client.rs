@@ -17,6 +17,7 @@ use std::time::{Duration, Instant};
 use crate::capability::{Capability, GrantedCapabilities};
 use crate::frame::{FrameError, read_frame, write_frame};
 use crate::json::{self, Json};
+use crate::menu::PluginMenu;
 use crate::proto::{Envelope, MessageKind, Policy, ProtocolError, Role, TrustClass};
 use crate::validate::{InputSnapshot, StyleSpan, validate_spans};
 
@@ -81,6 +82,7 @@ pub struct HostClient {
     host_id: String,
     trust: TrustClass,
     granted: GrantedCapabilities,
+    menu: Option<PluginMenu>,
 }
 
 impl HostClient {
@@ -148,12 +150,16 @@ impl HostClient {
             host_id: String::new(),
             trust: TrustClass::UserTrustedExternal,
             granted: GrantedCapabilities::default(),
+            menu: None,
         };
 
-        if let Err(error) = client.handshake() {
-            client.kill();
-            return Err(error);
-        }
+        let advertised_menu = match client.handshake() {
+            Ok(menu) => menu,
+            Err(error) => {
+                client.kill();
+                return Err(error);
+            }
+        };
         // A host may under-claim its trust, never over-claim it: the grant is
         // computed from the user's configured trust, and a host asserting more
         // authority than that is rejected rather than silently clamped.
@@ -164,10 +170,24 @@ impl HostClient {
             ));
         }
         client.granted = GrantedCapabilities::for_roles(roles, config_trust);
+        // A menu contribution is honored only from a host granted the `menu`
+        // capability; an ungranted host that advertises one is simply ignored.
+        // A malformed menu from a granted host is a protocol violation.
+        if client.granted.holds(Capability::Menu) {
+            if let Some(payload) = advertised_menu {
+                match PluginMenu::from_payload(&payload) {
+                    Ok(menu) => client.menu = Some(menu),
+                    Err(_) => {
+                        client.kill();
+                        return Err(PluginError::Handshake("invalid menu contribution"));
+                    }
+                }
+            }
+        }
         Ok(client)
     }
 
-    fn handshake(&mut self) -> Result<(), PluginError> {
+    fn handshake(&mut self) -> Result<Option<Json>, PluginError> {
         self.send(&Envelope {
             kind: MessageKind::Hello,
             request_id: 0,
@@ -195,7 +215,7 @@ impl HostClient {
             .ok_or(PluginError::Handshake("unsupported trust class"))?;
         self.host_id = host_id.to_string();
         self.trust = trust;
-        Ok(())
+        Ok(ack.payload.get("menu").cloned())
     }
 
     pub fn host_id(&self) -> &str {
@@ -204,6 +224,12 @@ impl HostClient {
 
     pub const fn trust(&self) -> TrustClass {
         self.trust
+    }
+
+    /// The host's validated menu contribution, present only when the host was
+    /// granted the `menu` capability and advertised a valid menu at handshake.
+    pub fn menu(&self) -> Option<&PluginMenu> {
+        self.menu.as_ref()
     }
 
     pub fn request_highlight(
