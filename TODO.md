@@ -356,6 +356,10 @@ deltas non-additive).
   dispatch — all first become non-tautological here (the `window`/`scratch`
   gated capabilities and owned surfaces), and this is where the first Debian
   size measurement of the capability machinery is taken.
+  - In progress: the `PluginWindows` ownership registry primitive (≤2/plugin
+    cap, own-only destroy, reap) landed via brief-030 (Codex-executed,
+    Claude-gated; own-only mutation-proven; zero binary delta, still unwired).
+    Workspace wiring + grant gate + `WindowKind::PluginSurface` pending.
 - [ ] **C — menu.** One top-level subtree per plugin, label i18n (`en_US`
   required + optional tags), menu-invoke dispatch, structural bounds,
   menu-bar width handling.

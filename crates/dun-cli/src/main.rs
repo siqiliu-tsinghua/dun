@@ -41,6 +41,7 @@ mod dialogs;
 mod files;
 mod help;
 mod i18n_loading;
+mod plugin_windows;
 mod plugins;
 mod terminal;
 mod ui_text;
