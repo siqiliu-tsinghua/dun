@@ -63,10 +63,8 @@ pub(crate) const STATUS_COMMAND_CONFIG_SECTION_ARITY: TextKey = (
     "status.command.config-section-arity",
     "Command failed: config expects zero args or one of {}",
 );
-pub(crate) const STATUS_PLUGIN_NOT_CONFIGURED: TextKey = (
-    "status.plugin.not-configured",
-    "No syntax-highlight plugin configured",
-);
+pub(crate) const STATUS_PLUGIN_NOT_CONFIGURED: TextKey =
+    ("status.plugin.not-configured", "No plugin host configured");
 pub(crate) const STATUS_PLUGIN_IS_LOADED: TextKey =
     ("status.plugin.is-loaded", "Plugin {} is loaded");
 pub(crate) const STATUS_PLUGIN_IS_UNLOADED: TextKey =
@@ -76,8 +74,14 @@ pub(crate) const STATUS_PLUGIN_LOADED: TextKey = (
     "status.plugin.loaded",
     "Plugin {} loaded (starts on the next edit)",
 );
-pub(crate) const STATUS_PLUGIN_USAGE: TextKey =
-    ("status.plugin.usage", "Usage: plugin [load|unload]");
+pub(crate) const STATUS_PLUGIN_LOADED_EAGER: TextKey =
+    ("status.plugin.loaded-eager", "Plugin {} loaded");
+pub(crate) const STATUS_PLUGIN_USAGE: TextKey = (
+    "status.plugin.usage",
+    "Usage: plugin [load|unload] [plugin-id]",
+);
+pub(crate) const STATUS_PLUGIN_UNKNOWN_ID: TextKey =
+    ("status.plugin.unknown-id", "No plugin named {}");
 pub(crate) const STATUS_PLUGIN_FAILED: TextKey = ("status.plugin.failed", "Plugin {} failed: {}");
 pub(crate) const STATUS_THEME_CHANGED: TextKey = ("status.theme.changed", "Theme: {}");
 pub(crate) const STATUS_THEME_CURRENT: TextKey = ("status.theme.current", "Theme: {} ({})");
@@ -188,8 +192,9 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_COMMAND_RESULTS_ARITY, STATUS_COMMAND_OPEN_ARITY, STATUS_COMMAND_SAVE_ARITY, STATUS_COMMAND_SAVE_AS_ARITY,
     STATUS_COMMAND_NO_ARGUMENTS, STATUS_COMMAND_FIND_ARITY, STATUS_COMMAND_REPLACE_ARITY, STATUS_COMMAND_GO_TO_LINE_ARITY,
     STATUS_COMMAND_CONFIG_SECTION, STATUS_COMMAND_CONFIG_SECTION_ARITY, STATUS_PLUGIN_NOT_CONFIGURED, STATUS_PLUGIN_IS_LOADED,
-    STATUS_PLUGIN_IS_UNLOADED, STATUS_PLUGIN_UNLOADED, STATUS_PLUGIN_LOADED, STATUS_PLUGIN_USAGE,
-    STATUS_PLUGIN_FAILED, STATUS_THEME_CHANGED, STATUS_THEME_CURRENT, STATUS_THEME_UNKNOWN,
+    STATUS_PLUGIN_IS_UNLOADED, STATUS_PLUGIN_UNLOADED, STATUS_PLUGIN_LOADED, STATUS_PLUGIN_LOADED_EAGER,
+    STATUS_PLUGIN_USAGE, STATUS_PLUGIN_UNKNOWN_ID, STATUS_PLUGIN_FAILED, STATUS_THEME_CHANGED,
+    STATUS_THEME_CURRENT, STATUS_THEME_UNKNOWN,
     STATUS_CONFIG_RELOAD_FAILED, STATUS_CONFIG_RELOADED_DISABLED, STATUS_CONFIG_RELOADED_PATH, STATUS_CONFIG_RELOADED_ENVIRONMENT,
     STATUS_CONFIG_RELOADED_DEFAULTS, STATUS_SHELL_ESCAPE, STATUS_SHELL_RETURNED, STATUS_RUN_FOCUSED_WINDOW_MISSING,
     STATUS_RUN_OUTPUT_WINDOW_MISSING, STATUS_RUN_RUNNING, STATUS_RUN_FAILED, STATUS_RUN_RETURNED,

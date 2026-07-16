@@ -1,9 +1,12 @@
+use std::thread;
 use std::time::{Duration, Instant};
 
-use dun_plugin::{StyleId, StyleSpan};
+use dun_config::{PluginEntry, PluginRole, PluginTrust};
+use dun_plugin::json::{self, Json};
+use dun_plugin::{GrantedCapabilities, PluginMenu, Role, StyleId, StyleSpan, TrustClass};
 
 use super::support::app_with_text;
-use crate::plugins::{PluginActivity, WorkerMessage, next_worker_job_for_tests};
+use crate::plugins::{PluginActivity, PluginHost, WorkerMessage, next_worker_action_for_tests};
 use crate::*;
 
 fn span(line: u32, start_col: u32, end_col: u32) -> StyleSpan {
@@ -23,6 +26,26 @@ fn job(revision: u64, first_line: usize, line_count: usize) -> HighlightJob {
         first_line,
         lines: vec!["fn main() {}".to_string(); line_count],
     }
+}
+
+/// The grant of a trusted log-filter host: holds `menu` and `window`, so the
+/// host launches eagerly.
+fn eager_grant() -> GrantedCapabilities {
+    GrantedCapabilities::for_roles(&[Role::LogFilter], TrustClass::UserTrustedExternal)
+}
+
+fn sample_menu() -> PluginMenu {
+    let payload = json::obj([
+        ("top_label", json::obj([("en_US", json::str("Tools"))])),
+        (
+            "items",
+            Json::Arr(vec![json::obj([
+                ("label", json::obj([("en_US", json::str("Run"))])),
+                ("action_id", json::str("run")),
+            ])]),
+        ),
+    ]);
+    PluginMenu::from_payload(&payload).expect("valid menu payload")
 }
 
 #[test]
@@ -173,118 +196,235 @@ fn highlight_failure_leaves_buffer_and_prior_highlight_untouched() {
 
 #[test]
 fn schedule_dedupes_identical_snapshots_and_sends_changed_ones() {
-    let (mut highlighter, jobs, _outcomes) = PluginHighlighter::for_tests();
+    let (mut host, jobs, _events) = PluginHost::for_tests();
 
-    assert!(highlighter.schedule(job(0, 0, 3)));
+    assert!(host.schedule(job(0, 0, 3)));
     assert_eq!(jobs.try_recv().ok(), Some(WorkerMessage::Job(job(0, 0, 3))));
 
-    assert!(!highlighter.schedule(job(0, 0, 3)));
+    assert!(!host.schedule(job(0, 0, 3)));
     assert!(jobs.try_recv().is_err());
 
-    assert!(highlighter.schedule(job(1, 0, 3)));
+    assert!(host.schedule(job(1, 0, 3)));
     assert_eq!(jobs.try_recv().ok(), Some(WorkerMessage::Job(job(1, 0, 3))));
 
-    assert!(highlighter.schedule(job(1, 5, 3)));
+    assert!(host.schedule(job(1, 5, 3)));
     assert_eq!(jobs.try_recv().ok(), Some(WorkerMessage::Job(job(1, 5, 3))));
 }
 
 #[test]
 fn plugin_activity_tracks_jobs_failures_unload_and_disabled_idle_threshold() {
-    let (mut highlighter, _messages, outcomes) = PluginHighlighter::for_tests();
+    let (mut host, _messages, events) = PluginHost::for_tests();
 
-    assert!(highlighter.schedule(job(0, 0, 3)));
+    assert!(host.schedule(job(0, 0, 3)));
     let active_now = Instant::now();
     assert_eq!(
-        highlighter.activity_at(active_now, Some(Duration::from_secs(10))),
+        host.activity_at(active_now, Some(Duration::from_secs(10))),
         PluginActivity::Active
     );
     assert_eq!(
-        highlighter.activity_at(
+        host.activity_at(
             active_now + Duration::from_secs(11),
             Some(Duration::from_secs(10))
         ),
         PluginActivity::Idle
     );
 
-    outcomes
-        .send(HighlightOutcome {
+    events
+        .send(HostEvent::Highlight(HighlightOutcome {
             buffer_id: BufferId(1),
             revision: 0,
             result: Err("failed".to_string()),
-        })
+        }))
         .unwrap();
-    assert_eq!(highlighter.poll().len(), 1);
+    assert_eq!(host.poll().len(), 1);
     assert_eq!(
-        highlighter.activity_at(Instant::now(), Some(Duration::from_secs(10))),
+        host.activity_at(Instant::now(), Some(Duration::from_secs(10))),
         PluginActivity::Error
     );
 
-    highlighter.unload();
+    host.unload();
     assert_eq!(
-        highlighter.activity_at(Instant::now(), Some(Duration::from_secs(10))),
+        host.activity_at(Instant::now(), Some(Duration::from_secs(10))),
         PluginActivity::Off
     );
 
-    highlighter.load();
+    host.load();
     assert_eq!(
-        highlighter.activity_at(Instant::now() + Duration::from_secs(60), None),
+        host.activity_at(Instant::now() + Duration::from_secs(60), None),
         PluginActivity::Active
     );
 }
 
 #[test]
 fn unload_then_load_resets_dedupe_so_next_snapshot_resends() {
-    let (mut highlighter, messages, _outcomes) = PluginHighlighter::for_tests();
+    let (mut host, messages, _events) = PluginHost::for_tests();
     let snapshot = job(7, 2, 4);
 
-    assert!(highlighter.schedule(snapshot.clone()));
+    assert!(host.schedule(snapshot.clone()));
     assert_eq!(
         messages.try_recv().ok(),
         Some(WorkerMessage::Job(snapshot.clone()))
     );
-    assert!(!highlighter.schedule(snapshot.clone()));
+    assert!(!host.schedule(snapshot.clone()));
 
-    highlighter.unload();
-    assert!(!highlighter.is_loaded());
+    host.unload();
+    assert!(!host.is_loaded());
     assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Unload));
 
-    highlighter.load();
-    assert!(highlighter.is_loaded());
+    host.load();
+    assert!(host.is_loaded());
     assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Load));
+    assert!(
+        messages.try_recv().is_err(),
+        "a host without UI grants must not request an eager launch"
+    );
 
-    assert!(highlighter.schedule(snapshot.clone()));
+    assert!(host.schedule(snapshot.clone()));
     assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Job(snapshot)));
 }
 
 #[test]
 fn worker_unload_drops_jobs_until_load_reenables_them() {
-    let (mut highlighter, messages, _outcomes) = PluginHighlighter::for_tests();
+    let (mut host, messages, _events) = PluginHost::for_tests();
     let snapshot = job(3, 0, 2);
     let mut worker_unloaded = false;
 
-    highlighter.unload();
-    assert!(highlighter.schedule(snapshot.clone()));
+    host.unload();
+    assert!(host.schedule(snapshot.clone()));
     assert_eq!(
-        next_worker_job_for_tests(&messages, &mut worker_unloaded).unwrap(),
-        None,
+        next_worker_action_for_tests(&messages, &mut worker_unloaded).unwrap(),
+        (false, None),
         "an unloaded worker must not return a job to the launch/request path"
     );
     assert!(worker_unloaded);
 
-    highlighter.load();
-    assert!(highlighter.schedule(snapshot.clone()));
+    host.load();
+    assert!(host.schedule(snapshot.clone()));
     assert_eq!(
-        next_worker_job_for_tests(&messages, &mut worker_unloaded).unwrap(),
-        Some(snapshot)
+        next_worker_action_for_tests(&messages, &mut worker_unloaded).unwrap(),
+        (false, Some(snapshot))
     );
     assert!(!worker_unloaded);
 }
 
 #[test]
-fn plugin_command_reports_and_controls_the_highlighter() {
+fn eager_host_load_requests_an_immediate_launch() {
+    let (mut host, messages, _events) = PluginHost::for_tests_granted("menu-host", eager_grant());
+    assert!(host.launches_eagerly());
+
+    host.load();
+    assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Load));
+    assert_eq!(
+        messages.try_recv().ok(),
+        Some(WorkerMessage::Launch),
+        "a host with UI grants must relaunch on load, not wait for an edit"
+    );
+}
+
+#[test]
+fn started_event_installs_the_menu_and_unload_clears_it() {
+    let (mut host, _messages, events) = PluginHost::for_tests_granted("menu-host", eager_grant());
+    let menu = sample_menu();
+    events
+        .send(HostEvent::Started {
+            menu: Some(menu.clone()),
+        })
+        .unwrap();
+    assert!(host.poll().is_empty(), "handshake events are absorbed");
+
+    let mut hosts = PluginHosts::for_tests(vec![host]);
+    assert_eq!(
+        hosts.menus().collect::<Vec<_>>(),
+        vec![("menu-host", &menu)]
+    );
+
+    hosts.get_mut("menu-host").unwrap().unload();
+    assert_eq!(
+        hosts.menus().count(),
+        0,
+        "an unloaded host must contribute no menu"
+    );
+}
+
+#[test]
+fn start_failed_event_reports_status_and_error_activity() {
     let mut app = AppState::new();
-    let (highlighter, messages, _outcomes) = PluginHighlighter::for_tests();
-    app.highlighter = Some(highlighter);
+    let (host, _messages, events) = PluginHost::for_tests_granted("menu-host", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+
+    events
+        .send(HostEvent::StartFailed {
+            error: "spawn failed".to_string(),
+        })
+        .unwrap();
+    app.pump_plugins();
+
+    assert_eq!(
+        app.status_message,
+        Some("Plugin menu-host failed: spawn failed".to_string())
+    );
+    let host = app.plugin_hosts.iter().next().unwrap();
+    assert_eq!(
+        host.activity_at(Instant::now(), None),
+        PluginActivity::Error
+    );
+}
+
+#[test]
+fn from_entries_launches_an_eager_host_without_any_edit() {
+    // A trusted log-filter entry holds `menu`/`window`, so construction alone
+    // must attempt the launch; the nonexistent command turns that attempt
+    // into an observable StartFailed event. No job or edit is ever issued.
+    let entry = PluginEntry {
+        id: "logf".to_string(),
+        command: PathBuf::from("/nonexistent/dun-eager-launch-fixture"),
+        trust: PluginTrust::UserTrustedExternal,
+        roles: vec![PluginRole::LogFilter],
+        timeout_ms: 500,
+        max_frame_bytes: 64 * 1024,
+    };
+    let mut hosts = PluginHosts::from_entries(&[entry]);
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let error = loop {
+        let failure = hosts
+            .iter_mut()
+            .next()
+            .unwrap()
+            .poll()
+            .into_iter()
+            .find_map(|event| match event {
+                HostEvent::StartFailed { error } => Some(error),
+                _ => None,
+            });
+        if let Some(error) = failure {
+            break error;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "an eager host must surface its launch failure as StartFailed"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert!(
+        error.contains("failed to launch plugin host"),
+        "unexpected launch error: {error}"
+    );
+    assert_eq!(
+        hosts
+            .iter()
+            .next()
+            .unwrap()
+            .activity_at(Instant::now(), None),
+        PluginActivity::Error
+    );
+}
+
+#[test]
+fn plugin_command_reports_and_controls_a_single_host() {
+    let mut app = AppState::new();
+    let (host, messages, _events) = PluginHost::for_tests();
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
 
     app.run_command_line("plugin");
     assert_eq!(
@@ -315,15 +455,81 @@ fn plugin_command_reports_and_controls_the_highlighter() {
     app.run_command_line("plugin restart");
     assert_eq!(
         app.status_message,
-        Some("Usage: plugin [load|unload]".to_string())
+        Some("Usage: plugin [load|unload] [plugin-id]".to_string())
     );
+}
+
+#[test]
+fn plugin_command_addresses_hosts_by_id() {
+    let mut app = AppState::new();
+    let (alpha, alpha_messages, _alpha_events) =
+        PluginHost::for_tests_granted("alpha", GrantedCapabilities::default());
+    let (beta, beta_messages, _beta_events) =
+        PluginHost::for_tests_granted("beta", GrantedCapabilities::default());
+    app.plugin_hosts = PluginHosts::for_tests(vec![alpha, beta]);
+
+    app.run_command_line("plugin");
+    assert_eq!(
+        app.status_message,
+        Some("Plugin alpha is loaded; Plugin beta is loaded".to_string())
+    );
+
+    app.run_command_line("plugin unload beta");
+    assert_eq!(app.status_message, Some("Plugin beta unloaded".to_string()));
+    assert_eq!(beta_messages.try_recv().ok(), Some(WorkerMessage::Unload));
+    assert!(
+        alpha_messages.try_recv().is_err(),
+        "addressing beta must not touch alpha"
+    );
+
+    app.run_command_line("plugin");
+    assert_eq!(
+        app.status_message,
+        Some("Plugin alpha is loaded; Plugin beta is unloaded".to_string())
+    );
+
+    // With several hosts a bare load/unload is ambiguous.
+    app.run_command_line("plugin load");
+    assert_eq!(
+        app.status_message,
+        Some("Usage: plugin [load|unload] [plugin-id]".to_string())
+    );
+
+    app.run_command_line("plugin load nosuch");
+    assert_eq!(
+        app.status_message,
+        Some("No plugin named nosuch".to_string())
+    );
+
+    app.run_command_line("plugin load beta");
+    assert_eq!(
+        app.status_message,
+        Some("Plugin beta loaded (starts on the next edit)".to_string())
+    );
+    assert_eq!(beta_messages.try_recv().ok(), Some(WorkerMessage::Load));
+}
+
+#[test]
+fn plugin_command_reports_eager_load_without_the_edit_hint() {
+    let mut app = AppState::new();
+    let (host, messages, _events) = PluginHost::for_tests_granted("menu-host", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+
+    app.run_command_line("plugin load");
+    assert_eq!(
+        app.status_message,
+        Some("Plugin menu-host loaded".to_string()),
+        "an eager host launches now; '(starts on the next edit)' would be wrong"
+    );
+    assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Load));
+    assert_eq!(messages.try_recv().ok(), Some(WorkerMessage::Launch));
 }
 
 #[test]
 fn plugin_indicator_is_hidden_when_the_toggle_is_off() {
     let mut app = AppState::new();
-    let (highlighter, _messages, _outcomes) = PluginHighlighter::for_tests();
-    app.highlighter = Some(highlighter);
+    let (host, _messages, _events) = PluginHost::for_tests();
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
 
     assert_eq!(app.plugin_indicator(), None);
 }
@@ -338,10 +544,9 @@ fn plugin_indicator_flags_an_idle_host_when_the_toggle_is_on() {
         ..Config::default()
     };
     let mut app = AppState::from_config(config);
-    let (mut highlighter, _messages, _outcomes) = PluginHighlighter::for_tests();
-    highlighter
-        .set_last_activity_for_tests(Instant::now().checked_sub(Duration::from_secs(2)).unwrap());
-    app.highlighter = Some(highlighter);
+    let (mut host, _messages, _events) = PluginHost::for_tests();
+    host.set_last_activity_for_tests(Instant::now().checked_sub(Duration::from_secs(2)).unwrap());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
 
     let indicator = app.plugin_indicator().unwrap();
     assert!(indicator.alert);
@@ -349,14 +554,36 @@ fn plugin_indicator_flags_an_idle_host_when_the_toggle_is_on() {
 }
 
 #[test]
-fn plugin_command_reports_when_no_highlighter_is_configured() {
+fn plugin_indicator_concatenates_every_host_in_config_order() {
+    let config = Config {
+        plugin_status: dun_config::PluginStatusConfig {
+            status_bar: true,
+            idle_after_ms: 1_000,
+        },
+        ..Config::default()
+    };
+    let mut app = AppState::from_config(config);
+    let (alpha, _alpha_messages, _alpha_events) =
+        PluginHost::for_tests_granted("alpha", GrantedCapabilities::default());
+    let (mut beta, _beta_messages, _beta_events) =
+        PluginHost::for_tests_granted("beta", GrantedCapabilities::default());
+    beta.set_last_activity_for_tests(Instant::now().checked_sub(Duration::from_secs(2)).unwrap());
+    app.plugin_hosts = PluginHosts::for_tests(vec![alpha, beta]);
+
+    let indicator = app.plugin_indicator().unwrap();
+    assert_eq!(indicator.text, "[alpha][beta idle]");
+    assert!(indicator.alert, "any alerting host alerts the indicator");
+}
+
+#[test]
+fn plugin_command_reports_when_no_host_is_configured() {
     let mut app = AppState::new();
 
     for command in ["plugin", "plugin load", "plugin unload"] {
         app.run_command_line(command);
         assert_eq!(
             app.status_message,
-            Some("No syntax-highlight plugin configured".to_string())
+            Some("No plugin host configured".to_string())
         );
     }
 }

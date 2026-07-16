@@ -8,47 +8,63 @@ use crate::*;
 
 impl AppState {
     pub(crate) fn plugin_indicator(&self) -> Option<PluginIndicator> {
-        if !self.plugin_status.status_bar {
+        if !self.plugin_status.status_bar || self.plugin_hosts.is_empty() {
             return None;
         }
-        let highlighter = self.highlighter.as_ref()?;
         let idle_after = match self.plugin_status.idle_after_ms {
             0 => None,
             ms => Some(Duration::from_millis(ms)),
         };
-        let id = highlighter.plugin_id();
-        let (suffix, alert) = match highlighter.activity_at(Instant::now(), idle_after) {
-            PluginActivity::Off => (" off", false),
-            PluginActivity::Active => ("", false),
-            PluginActivity::Idle => (" idle", true),
-            PluginActivity::Error => (" error", true),
-        };
-        Some(PluginIndicator {
-            text: format!("[{id}{suffix}]"),
-            alert,
-        })
+        let now = Instant::now();
+        let mut text = String::new();
+        let mut alert = false;
+        for host in self.plugin_hosts.iter() {
+            let (suffix, host_alert) = match host.activity_at(now, idle_after) {
+                PluginActivity::Off => (" off", false),
+                PluginActivity::Active => ("", false),
+                PluginActivity::Idle => (" idle", true),
+                PluginActivity::Error => (" error", true),
+            };
+            text.push_str(&format!("[{}{suffix}]", host.plugin_id()));
+            alert |= host_alert;
+        }
+        Some(PluginIndicator { text, alert })
     }
 
-    /// One editor tick of plugin work: apply any finished highlight results,
+    /// One editor tick of plugin work: apply any finished worker events,
     /// then request a snapshot for the focused buffer if its content or
     /// viewport changed. Called from the event loop; never blocks (host I/O
-    /// lives on the highlighter's worker thread).
+    /// lives on each host's worker thread).
     pub(crate) fn pump_plugins(&mut self) {
-        self.apply_highlight_outcomes();
+        self.apply_plugin_events();
         self.schedule_focused_highlight();
     }
 
-    fn apply_highlight_outcomes(&mut self) {
-        let Some(highlighter) = self.highlighter.as_mut() else {
-            return;
-        };
-        let outcomes = highlighter.poll();
-        if outcomes.is_empty() {
-            return;
+    /// Polls every host. Each host absorbs its own handshake results while
+    /// polling; what remains — launch failures, highlight outcomes — is
+    /// applied here, after the hosts borrow ends.
+    fn apply_plugin_events(&mut self) {
+        let mut pending: Vec<(String, HostEvent)> = Vec::new();
+        for host in self.plugin_hosts.iter_mut() {
+            let events = host.poll();
+            if events.is_empty() {
+                continue;
+            }
+            let plugin_id = host.plugin_id().to_string();
+            pending.extend(events.into_iter().map(|event| (plugin_id.clone(), event)));
         }
-        let plugin_id = highlighter.plugin_id().to_string();
-        for outcome in outcomes {
-            self.apply_highlight_outcome(&plugin_id, outcome);
+        for (plugin_id, event) in pending {
+            match event {
+                HostEvent::Started { .. } => {}
+                HostEvent::StartFailed { error } => {
+                    self.set_status(ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PLUGIN_FAILED,
+                        &[&plugin_id, &error],
+                    ));
+                }
+                HostEvent::Highlight(outcome) => self.apply_highlight_outcome(&plugin_id, outcome),
+            }
         }
     }
 
@@ -82,7 +98,7 @@ impl AppState {
     }
 
     fn schedule_focused_highlight(&mut self) {
-        if self.highlighter.is_none() {
+        if self.plugin_hosts.highlighter().is_none() {
             return;
         }
         let Ok(window) = self.workspace.focused_window() else {
@@ -116,8 +132,8 @@ impl AppState {
             first_line,
             lines,
         };
-        if let Some(highlighter) = self.highlighter.as_mut() {
-            highlighter.schedule(job);
+        if let Some(host) = self.plugin_hosts.highlighter_mut() {
+            host.schedule(job);
         }
     }
 }

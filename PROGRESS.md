@@ -1233,3 +1233,28 @@ This is an append-only progress log. Keep new entries dated and factual.
   the external-resource design.
   The i18n stage is complete. What remains is additive (more languages, from
   contributors) and the owed Debian measurements.
+- Landed C-spine ordered chunk 1, the host-layer generalization (2026-07-17,
+  Claude-authored). `PluginHighlighter` became `PluginHost` — one per
+  configured entry, carrying its worker channel, protocol roles, trust-gated
+  `GrantedCapabilities`, and the menu contribution its handshake delivered —
+  collected in `PluginHosts`, which replaces `AppState.highlighter`. Highlight
+  scheduling is now one facet, routed to the first `syntax-highlight`-role
+  host; the worker reports each successful launch to the main thread as a
+  `Started` event carrying the client's validated menu, which installs on the
+  host, clears on unload, and reinstalls on the relaunch handshake.
+  Launch timing is the hybrid decided on 2026-07-16: highlight-only hosts keep
+  the lazy first-edit launch, while hosts granted `menu`/`window` (a trusted
+  log-filter entry) launch eagerly at startup and on `plugin load`, since only
+  a completed handshake can advertise a menu. An eager launch failure surfaces
+  as a `StartFailed` event: bounded status text plus the indicator's error
+  state, proven end to end by launching a nonexistent command from
+  `PluginHosts::from_entries` with no edit ever issued.
+  The `plugin` command now reports every host and `plugin load|unload` takes
+  an optional `plugin-id` (required only when several hosts are configured);
+  the status-bar indicator concatenates one chip per host in config order.
+  Two status keys reworded, two added (`status.plugin.loaded-eager`,
+  `status.plugin.unknown-id`), all ten translations updated in the same
+  change. Five implementation mutations each named by a failing test (eager
+  gate, menu install, menu clear-on-unload, StartFailed error flag, get_mut
+  addressing). macOS budget build 658,132 bytes (+4,120); the Debian
+  measurement stays owed at the C-spine integration milestone as planned.

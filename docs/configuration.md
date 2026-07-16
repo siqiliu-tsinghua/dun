@@ -177,15 +177,16 @@ query OSC 52 paste data or call platform clipboard commands.
 
 ## Plugin status indicator
 
-A plugin host is a resident process. `plugins.status_bar = true` shows the
-loaded host at the right edge of the status bar so an idle one can be spotted
-and unloaded (`plugin unload`) — useful on a small remote box. It is off by
-default. The indicator has four states:
+A plugin host is a resident process. `plugins.status_bar = true` shows every
+configured host at the right edge of the status bar so an idle one can be
+spotted and unloaded (`plugin unload [plugin-id]`) — useful on a small remote
+box. It is off by default. Each host contributes one chip with four states,
+concatenated in configuration order (`[pyg][logf idle]`):
 
 ```text
 [pyg]          loaded, recently active
 [pyg idle]     loaded but no activity for plugins.idle_after_ms   (highlighted)
-[pyg error]    the host's last request failed                     (highlighted)
+[pyg error]    the host's last request or launch failed           (highlighted)
 [pyg off]      unloaded via `plugin unload`
 ```
 
@@ -268,10 +269,15 @@ byte units as other byte-valued settings.
 
 Keys for one identifier accumulate into a single entry, and a later value for
 the same key replaces the earlier value. This also applies when overlaying
-configuration onto an already parsed `Config`. The command value is a path for
-the future process launcher to execute directly, without a shell. Parsing this
-section only builds and validates typed configuration; it does not launch a
-plugin host.
+configuration onto an already parsed `Config`. The command value is a path the
+editor executes directly, without a shell. Parsing this section only builds
+and validates typed configuration; launching is the editor's decision: each
+entry runs as its own host, syntax-highlight-only hosts launch on their first
+edit, and hosts whose grant carries UI contributions (`menu`/`window`, i.e. a
+trusted `log-filter` entry) launch eagerly at startup so their handshake can
+advertise what they contribute. The `plugin` command reports every host;
+`plugin load <plugin-id>` and `plugin unload <plugin-id>` address one host,
+with the id optional while only one host is configured.
 
 ## UI language
 

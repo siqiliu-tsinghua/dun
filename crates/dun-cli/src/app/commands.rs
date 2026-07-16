@@ -211,7 +211,7 @@ impl AppState {
     }
 
     fn apply_loaded_config(&mut self, loaded_config: LoadedConfig) -> Option<String> {
-        self.highlighter = PluginHighlighter::from_entries(&loaded_config.config.plugins);
+        self.plugin_hosts = PluginHosts::from_entries(&loaded_config.config.plugins);
         self.pending_keys.clear();
         self.mouse_drag = None;
         self.clear_active_menu();

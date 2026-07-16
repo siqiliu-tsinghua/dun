@@ -111,7 +111,7 @@ use help::text::{
     numbered_list_rows, parse_config_diagnostics_section, search_results_text,
 };
 pub(crate) use i18n_loading::load_ui_catalog;
-use plugins::{HighlightJob, HighlightOutcome, PluginHighlighter, language_hint};
+use plugins::{HighlightJob, HighlightOutcome, HostEvent, PluginHosts, language_hint};
 #[cfg(test)]
 use terminal::rewrite_16_color_sgr;
 use terminal::{

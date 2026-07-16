@@ -382,25 +382,23 @@ deltas non-additive).
     handshake-carried menu contribution — honored only when the host holds
     `menu`, ignored otherwise (capability gate mutation-proven). macOS +8 to
     654,012.
-  - Spine remaining — **designed 2026-07-16, not yet built** (next session
-    starts here). Decision: **generalize the dun-cli host layer (option A)** so
-    it manages any-role hosts, not just syntax-highlight. Ordered chunks:
-    1. **Host-layer generalization (atomic).** `PluginHighlighter` →
-       `PluginHost` (per configured entry: worker channel, client lifecycle,
-       `plugin_id`, `granted`, and `menu: Option<PluginMenu>`), collected in
-       `PluginHosts(Vec<PluginHost>)` replacing
-       `AppState.highlighter: Option<PluginHighlighter>`. Highlight scheduling
-       becomes one facet (routed to the highlight-role host); menus are
-       gathered from every host that holds `menu`; `plugin`/`load`/`unload` and
-       the status indicator address hosts by `plugin_id`. The worker sends the
-       launched client's `menu()` back to the main thread via a new startup
-       outcome. **Launch timing (decided): hybrid** — highlight-only hosts stay
-       lazy (launch on first edit, preserving the memory-saving behavior);
-       hosts holding `menu`/`window` launch eagerly (no edit trigger, must
-       handshake to advertise their menu). This is an atomic edit: it forces
-       every call site together — `app/state.rs` (field), `app/bootstrap.rs` +
-       `app/commands.rs` (construct/reload), `app/command_line.rs` (plugin
-       commands), `app/highlight.rs` (status/poll/schedule).
+  - Ordered chunk 1 landed 2026-07-17 (Claude-authored): **host-layer
+    generalization (option A, atomic)** — `PluginHighlighter` → `PluginHost`
+    (per configured entry: worker channel, client lifecycle, `plugin_id`,
+    `granted`, `menu: Option<PluginMenu>`), collected in `PluginHosts`
+    replacing `AppState.highlighter`. Highlight scheduling is one facet
+    (routed to the first `syntax-highlight`-role host); the worker ships the
+    launched client's menu to the main thread via a `Started` event (installed
+    on the host, cleared on unload, reinstalled by relaunch);
+    `PluginHosts::menus()` gathers contributions for chunk-3 injection
+    (`#[allow(dead_code)]` until then). **Hybrid launch built as decided**:
+    highlight-only hosts stay lazy, `menu`/`window`-granted hosts launch
+    eagerly at startup and on `plugin load`. `plugin`/`load`/`unload` and the
+    status indicator now address hosts by `plugin_id` (bare load/unload stays
+    valid for a single host; two new status keys + two reworded, all ten
+    translations updated). Five mutations killed (eager gate, menu install,
+    menu clear-on-unload, StartFailed flag, get_mut addressing).
+  - Spine remaining — ordered chunks (next session starts at 2):
     2. **dun-core typed variants.** `WindowKind::PluginSurface` and
        `EditorCommand::PluginMenuAction { plugin_id, action_id }`, with the
        exhaustive-match arms (`dun-config::command_id` returns a generic static
@@ -412,8 +410,9 @@ deltas non-additive).
        open/close path reusing `PluginWindows` + `WindowKind::PluginSurface`
        (this also completes B's window path).
     4. **One binding Debian measurement** for the whole C spine at this
-       integration milestone (VM). Note: chunk 1 (`d2fe8df`) already added +8
-       macOS to 654,012 with the binding measurement still owed here.
+       integration milestone (VM). Owed so far: the handshake chunk
+       (`d2fe8df`) added +8 macOS to 654,012; the host-layer generalization
+       (2026-07-17) added +4,120 macOS to 658,132.
 - [ ] **D — keybinding.** Leader prefix + the event-loop pending-prefix
   state machine (the one runtime piece the keymap model lacks; `KeySequence`
   is already `Vec<KeyStroke>`), plus leader-collision validation.

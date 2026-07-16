@@ -54,7 +54,7 @@ impl AppState {
         let mouse_enabled = loaded_config.config.mouse.enabled;
         let plugin_status = loaded_config.config.plugin_status;
 
-        let highlighter = PluginHighlighter::from_entries(&loaded_config.config.plugins);
+        let plugin_hosts = PluginHosts::from_entries(&loaded_config.config.plugins);
         let mut workspace = Workspace::new_untitled();
         let initial_window = workspace.focused;
         if let Ok(window) = workspace.window_mut(initial_window) {
@@ -62,7 +62,7 @@ impl AppState {
         }
 
         let mut app = Self {
-            highlighter,
+            plugin_hosts,
             workspace,
             buffers: vec![BufferState::new(BufferId(1), TextBuffer::new_untitled())],
             config_request,

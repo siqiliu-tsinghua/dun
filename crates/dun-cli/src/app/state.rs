@@ -34,5 +34,5 @@ pub(crate) struct AppState {
     pub(crate) kill_ring: Option<String>,
     pub(crate) recent_file_dialog_input: Option<String>,
     pub(crate) runtime_action: Option<RuntimeAction>,
-    pub(crate) highlighter: Option<PluginHighlighter>,
+    pub(crate) plugin_hosts: PluginHosts,
 }

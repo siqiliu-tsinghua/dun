@@ -100,9 +100,13 @@ eligible for automatic granting of read-only and validated-write capabilities
 (buffer/stream reads, overlay and surface writes). Capabilities that are
 UI-invasive or that execute user-authored code in the host — window,
 scratch-input/execute, menu, keybinding — require `user-trusted-external` plus an
-explicit config opt-in. (Trust is currently recorded at handshake but not yet
-cross-checked against the config-declared value, nor used to branch enforcement;
-wiring it as the grant gate is part of the capability-model work.)
+explicit config opt-in — today, declaring the role together with
+`user-trusted-external` trust in config is that opt-in. The gate is wired
+live: after the handshake `dun` computes the granted set from the
+config-declared roles and trust (`GrantedCapabilities::for_roles`), rejects a
+host whose self-declared trust class exceeds the configured one, and refuses
+ungranted channels (an `overlay-write` request without its grant fails; a menu
+contribution without the `menu` grant is ignored).
 
 ## Process Launch Rules
 
@@ -121,10 +125,16 @@ For `user-trusted-external` fixture and development hosts:
 These controls do not make the host sandboxed. They protect `dun`'s own state,
 terminal, memory budget, and UI responsiveness.
 
-A configured `syntax-highlight` host launches lazily when its first job
-arrives. From the command prompt, `plugin unload` gracefully shuts it down and
-suppresses relaunches to free memory; `plugin load` re-enables lazy launch on
-the next edit, and `plugin` reports the current state.
+Every configured entry runs as its own host on its own worker thread. Launch
+timing is hybrid, decided per host by its grant: a host granted `menu` or
+`window` launches eagerly at startup (and on `plugin load`), because only its
+handshake can advertise the UI it contributes, while a highlight-only host
+keeps the memory-saving lazy launch on its first job. From the command prompt,
+`plugin unload [plugin-id]` gracefully shuts one host down and suppresses
+relaunches to free memory (its menu contribution is removed with it);
+`plugin load [plugin-id]` re-enables it — lazily for highlight-only hosts,
+immediately for eager ones — and `plugin` reports every host's state. The id
+is optional when exactly one host is configured.
 
 ## Message Families
 
@@ -295,7 +305,11 @@ field). `dun` parses it with the `menu` capability's validator and honors it
 only when the host was granted `menu` (see Capability Model); an ungranted host
 that advertises a menu is ignored, and a malformed menu from a granted host
 fails the handshake. Menus are therefore static, fixed at launch; a dynamic
-`MenuContribute` message is deferred until a real need appears.
+`MenuContribute` message is deferred until a real need appears. On the editor
+side each worker ships the validated contribution to the main thread with its
+launch report, where it lives on the host's `PluginHost` entry (cleared on
+unload, reinstalled by the relaunch handshake); injecting it into the menu bar
+and dispatching its actions is the next build step (TODO.md "C — menu").
 
 | Role | Input snapshot | Allowed output |
 | --- | --- | --- |

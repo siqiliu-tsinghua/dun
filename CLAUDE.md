@@ -47,18 +47,20 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **654,012 bytes** at `d2fe8df` (2026-07-16, C-spine chunk 1; +8 over
-  `c0f610e`). Last binding-measured macOS value was 654,004 at `c0f610e`.
+- macOS: **658,132 bytes** (2026-07-17, C-spine ordered chunk 1 — the
+  host-layer generalization; +4,120 over `d2fe8df`). Last binding-measured
+  macOS value was 654,004 at `c0f610e`.
 - Debian: **715,136 bytes** at `c0f610e` — **binding platform**, margin
   333,440 bytes (2026-07-16, last measured). Byte-identical to `744c843`: the
   capability machinery through `c0f610e` (slice A primitives, the window
   registry, the live grant) cost the binding binary zero net bytes — the
   +4,104 macOS delta did not translate to Debian (non-additive fat-LTO;
   measure per batch).
-- **Debian measurement owed:** commit `d2fe8df` (C-spine chunk 1, +8 macOS)
-  is not yet measured on the VM. One binding measurement is planned for the
-  whole C spine at its integration milestone (TODO.md "C — menu", chunk 4);
-  until then the last measured binding baseline remains `c0f610e`.
+- **Debian measurement owed:** the C-spine commits since `c0f610e` (`d2fe8df`
+  +8 macOS; the 2026-07-17 host-layer generalization +4,120 macOS) are not yet
+  measured on the VM. One binding measurement is planned for the whole C spine
+  at its integration milestone (TODO.md "C — menu", chunk 4); until then the
+  last measured binding baseline remains `c0f610e`.
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to

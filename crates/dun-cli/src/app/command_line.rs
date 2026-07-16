@@ -92,60 +92,27 @@ impl AppState {
         }
     }
 
+    /// `plugin` reports every configured host; `plugin load|unload [id]`
+    /// addresses one host by its `plugin_id`. The id is optional only while
+    /// it is unambiguous, i.e. exactly one host is configured.
     fn run_plugin_command(&mut self, args: &[String]) {
-        match args {
-            [] => {
-                let Some(highlighter) = self.highlighter.as_ref() else {
-                    self.set_status(
-                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_NOT_CONFIGURED)
-                            .to_string(),
-                    );
-                    return;
-                };
-                let plugin_id = highlighter.plugin_id().to_string();
-                let key = if highlighter.is_loaded() {
-                    ui_text::STATUS_PLUGIN_IS_LOADED
-                } else {
-                    ui_text::STATUS_PLUGIN_IS_UNLOADED
-                };
-                self.set_status(ui_text::tr_fmt(&self.shell.catalog, key, &[&plugin_id]));
-            }
-            [action] if action == "unload" => {
-                let Some(highlighter) = self.highlighter.as_mut() else {
-                    self.set_status(
-                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_NOT_CONFIGURED)
-                            .to_string(),
-                    );
-                    return;
-                };
-                let plugin_id = highlighter.plugin_id().to_string();
-                highlighter.unload();
-                self.set_status(ui_text::tr_fmt(
-                    &self.shell.catalog,
-                    ui_text::STATUS_PLUGIN_UNLOADED,
-                    &[&plugin_id],
-                ));
-            }
-            [action] if action == "load" => {
-                let Some(highlighter) = self.highlighter.as_mut() else {
-                    self.set_status(
-                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_NOT_CONFIGURED)
-                            .to_string(),
-                    );
-                    return;
-                };
-                let plugin_id = highlighter.plugin_id().to_string();
-                highlighter.load();
-                self.set_status(ui_text::tr_fmt(
-                    &self.shell.catalog,
-                    ui_text::STATUS_PLUGIN_LOADED,
-                    &[&plugin_id],
-                ));
-            }
-            _ => self.set_status(
-                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_USAGE).to_string(),
+        let message = match args {
+            [] => plugin_hosts_report(&self.plugin_hosts, &self.shell.catalog),
+            [action] if action == "load" || action == "unload" => plugin_control(
+                &mut self.plugin_hosts,
+                &self.shell.catalog,
+                None,
+                action == "load",
             ),
-        }
+            [action, id] if action == "load" || action == "unload" => plugin_control(
+                &mut self.plugin_hosts,
+                &self.shell.catalog,
+                Some(id),
+                action == "load",
+            ),
+            _ => ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_USAGE).to_string(),
+        };
+        self.set_status(message);
     }
 
     fn run_external_command_line(&mut self, args: &[String]) {
@@ -315,5 +282,69 @@ impl AppState {
                 .to_string(),
             ),
         }
+    }
+}
+
+/// One status line covering every configured host, in configuration order.
+fn plugin_hosts_report(hosts: &PluginHosts, catalog: &TextCatalog) -> String {
+    if hosts.is_empty() {
+        return ui_text::tr(catalog, ui_text::STATUS_PLUGIN_NOT_CONFIGURED).to_string();
+    }
+    let parts: Vec<String> = hosts
+        .iter()
+        .map(|host| {
+            let key = if host.is_loaded() {
+                ui_text::STATUS_PLUGIN_IS_LOADED
+            } else {
+                ui_text::STATUS_PLUGIN_IS_UNLOADED
+            };
+            ui_text::tr_fmt(catalog, key, &[host.plugin_id()])
+        })
+        .collect();
+    parts.join("; ")
+}
+
+/// Applies `plugin load`/`plugin unload` to the addressed host and returns
+/// the status message. A free function so the hosts and the catalog can be
+/// borrowed independently of the rest of the application state.
+fn plugin_control(
+    hosts: &mut PluginHosts,
+    catalog: &TextCatalog,
+    plugin_id: Option<&str>,
+    load: bool,
+) -> String {
+    if hosts.is_empty() {
+        return ui_text::tr(catalog, ui_text::STATUS_PLUGIN_NOT_CONFIGURED).to_string();
+    }
+    let host = match plugin_id {
+        Some(id) => {
+            let Some(host) = hosts.get_mut(id) else {
+                return ui_text::tr_fmt(catalog, ui_text::STATUS_PLUGIN_UNKNOWN_ID, &[id]);
+            };
+            host
+        }
+        None => {
+            let Some(host) = hosts.only_host_mut() else {
+                // Several hosts and no id: the command is ambiguous.
+                return ui_text::tr(catalog, ui_text::STATUS_PLUGIN_USAGE).to_string();
+            };
+            host
+        }
+    };
+    if load {
+        host.load();
+        let key = if host.launches_eagerly() {
+            ui_text::STATUS_PLUGIN_LOADED_EAGER
+        } else {
+            ui_text::STATUS_PLUGIN_LOADED
+        };
+        ui_text::tr_fmt(catalog, key, &[host.plugin_id()])
+    } else {
+        host.unload();
+        ui_text::tr_fmt(
+            catalog,
+            ui_text::STATUS_PLUGIN_UNLOADED,
+            &[host.plugin_id()],
+        )
     }
 }
