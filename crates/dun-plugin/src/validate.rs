@@ -1,4 +1,9 @@
-//! Input snapshot and output validation for the `SyntaxHighlight` role.
+//! Input snapshots and the `overlay-write` capability's output validator.
+//!
+//! Validators are keyed by capability, not by role: `validate_spans` is the
+//! validator for `Capability::OverlayWrite`, the channel `SyntaxHighlight`
+//! returns through (`Role::output_capability`). Later slices add each new
+//! output capability's validator beside this one (e.g. `surface-write`).
 //!
 //! Rejected output must leave editor state unchanged; validation therefore
 //! returns an error message instead of applying anything.

@@ -12,12 +12,14 @@
 //! editor-level `plugin load`/`unload` commands manage it). Revisit only if
 //! multi-plugin hosts become a real need.
 
+pub mod capability;
 pub mod client;
 pub mod frame;
 pub mod json;
 pub mod proto;
 pub mod validate;
 
+pub use capability::{Capability, GrantedCapabilities};
 pub use client::{HostClient, PluginError};
 pub use proto::{Policy, Role, TrustClass};
 pub use validate::{InputSnapshot, StyleId, StyleSpan};

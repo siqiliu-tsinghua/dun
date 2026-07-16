@@ -335,16 +335,27 @@ been built against once. Each slice ships a minimal fixture host + protocol
 tests + a Debian size measurement (capability cost attributed per batch;
 deltas non-additive).
 
-- [ ] **A — mechanism spine.** Capability vocabulary as types; role as a
-  named capability bundle; config `roles` → capabilities; handshake advertise
-  + trust-gated grant; per-capability validation dispatch (generalize the
-  per-role `validate.rs`); `plugin_id` ownership tagging + unload reaping.
-  Prove with `buffer-read`/`stream-read` in, `overlay-write`/`surface-write`
-  out.
+- [x] **A — mechanism spine (primitives; landed 2026-07-16, hand-written).**
+  In `dun-plugin`, zero binary delta (dead-stripped until B links it; macOS
+  budget build byte-identical at 649,900): the `Capability` vocabulary as
+  types, `Role` as a named capability bundle (`Role::capabilities`) plus
+  `Role::output_capability`, `GrantedCapabilities` (trust-gated grant,
+  unit-tested including the denial branch, mutation-proven), and `validate.rs`
+  reframed as the `overlay-write` capability's validator. **Deferred into B**
+  (tautological/untestable until a gated capability or owned surface exists,
+  and linking them early adds binary weight for no functional gain): the live
+  handshake grant + `dun-cli` role→capability wiring, `plugin_id` ownership
+  tagging + unload reaping, and the sum-typed per-capability validator
+  dispatch (one validator today).
 - [ ] **B — windows + scratch input.** `window` lifecycle (≤2/plugin +
   aggregate/terminal fallback, own-only destroy); `scratch-input` = a
   `dun`-native editable buffer + `execute` submit (snippet runs in the host
-  interpreter, never in `dun`; no keystroke routing).
+  interpreter, never in `dun`; no keystroke routing). **Also inherits from A:**
+  the live handshake trust-gated grant + `dun-cli` role→capability wiring,
+  `plugin_id` ownership tagging + unload reaping, and the sum-typed validator
+  dispatch — all first become non-tautological here (the `window`/`scratch`
+  gated capabilities and owned surfaces), and this is where the first Debian
+  size measurement of the capability machinery is taken.
 - [ ] **C — menu.** One top-level subtree per plugin, label i18n (`en_US`
   required + optional tags), menu-invoke dispatch, structural bounds,
   menu-bar width handling.
