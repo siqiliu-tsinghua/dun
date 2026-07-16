@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use dun_plugin::frame::FrameError;
 use dun_plugin::proto::ProtocolError;
-use dun_plugin::{HostClient, InputSnapshot, PluginError, Policy, StyleId, TrustClass};
+use dun_plugin::{HostClient, InputSnapshot, PluginError, Policy, Role, StyleId, TrustClass};
 
 const FIXTURE_HOST: &str = env!("CARGO_BIN_EXE_fixture-host");
 const REVISION: u64 = 41;
@@ -28,7 +28,13 @@ fn snapshot(language: &str) -> InputSnapshot {
 }
 
 fn launch(policy: Policy) -> HostClient {
-    match HostClient::launch(Path::new(FIXTURE_HOST), "highlight", policy) {
+    match HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy,
+        &[Role::SyntaxHighlight],
+        TrustClass::UserTrustedExternal,
+    ) {
         Ok(client) => client,
         Err(error) => panic!("fixture host launches: {error}"),
     }
@@ -46,7 +52,13 @@ fn handshake_error(mode: &str) -> PluginError {
     let launcher = ModeLauncher::new(mode);
     // Handshake-mode hosts reply (or die) immediately; the generous timeout
     // only absorbs process-spawn latency under parallel test load.
-    match HostClient::launch(launcher.path(), "highlight", policy(Duration::from_secs(5))) {
+    match HostClient::launch(
+        launcher.path(),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::SyntaxHighlight],
+        TrustClass::UserTrustedExternal,
+    ) {
         Ok(client) => {
             drop(client);
             panic!("{mode} unexpectedly completed the handshake");
@@ -184,6 +196,51 @@ fn malformed_json_response_reports_protocol_error() {
     );
 }
 
+#[test]
+fn highlight_without_overlay_write_grant_is_rejected() {
+    // A host launched with no roles holds no capabilities, so the overlay
+    // path refuses before it is ever contacted.
+    let mut client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("handshake succeeds even with no roles granted");
+    match client.request_highlight(&snapshot("rust")) {
+        Err(PluginError::PolicyViolation(message)) => {
+            assert!(
+                message.contains("overlay-write"),
+                "unexpected message: {message}"
+            );
+        }
+        other => panic!("expected an overlay-write policy violation, got {other:?}"),
+    }
+}
+
+#[test]
+fn host_over_claiming_trust_is_rejected_at_launch() {
+    // The fixture declares `user-trusted-external`; configuring it as
+    // `pure-sandbox` means the host claims more authority than granted.
+    match HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::SyntaxHighlight],
+        TrustClass::PureSandbox,
+    ) {
+        Err(PluginError::Handshake(message)) => {
+            assert!(
+                message.contains("exceeds configured trust"),
+                "unexpected message: {message}"
+            );
+        }
+        Err(other) => panic!("expected a trust-exceeds handshake error, got {other:?}"),
+        Ok(_) => panic!("expected the launch to be rejected, but the handshake succeeded"),
+    }
+}
+
 /// Diagnostic for the handshake-latency-spike investigation. Measures full
 /// `HostClient::launch` (spawn + reader threads + hello/hello-ack) latency
 /// sequentially and then with a burst of concurrent launches, to attribute
@@ -198,11 +255,27 @@ fn measure_handshake_latency_sequential_vs_parallel() {
     let host = Path::new(FIXTURE_HOST);
     // Warm up so the first-exec scan / page-cache fill is not charged to the
     // first measured launch.
-    drop(HostClient::launch(host, "highlight", policy(Duration::from_secs(5))).unwrap());
+    drop(
+        HostClient::launch(
+            host,
+            "highlight",
+            policy(Duration::from_secs(5)),
+            &[Role::SyntaxHighlight],
+            TrustClass::UserTrustedExternal,
+        )
+        .unwrap(),
+    );
 
     let time_one = || {
         let start = Instant::now();
-        let client = HostClient::launch(host, "highlight", policy(Duration::from_secs(5))).unwrap();
+        let client = HostClient::launch(
+            host,
+            "highlight",
+            policy(Duration::from_secs(5)),
+            &[Role::SyntaxHighlight],
+            TrustClass::UserTrustedExternal,
+        )
+        .unwrap();
         let elapsed = start.elapsed();
         drop(client);
         elapsed
@@ -215,9 +288,14 @@ fn measure_handshake_latency_sequential_vs_parallel() {
             .map(|_| {
                 thread::spawn(move || {
                     let start = Instant::now();
-                    let client =
-                        HostClient::launch(host, "highlight", policy(Duration::from_secs(5)))
-                            .unwrap();
+                    let client = HostClient::launch(
+                        host,
+                        "highlight",
+                        policy(Duration::from_secs(5)),
+                        &[Role::SyntaxHighlight],
+                        TrustClass::UserTrustedExternal,
+                    )
+                    .unwrap();
                     let elapsed = start.elapsed();
                     drop(client);
                     elapsed

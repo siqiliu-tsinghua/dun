@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::capability::{Capability, GrantedCapabilities};
 use crate::frame::{FrameError, read_frame, write_frame};
 use crate::json::{self, Json};
 use crate::proto::{Envelope, MessageKind, Policy, ProtocolError, Role, TrustClass};
@@ -79,13 +80,20 @@ pub struct HostClient {
     next_request_id: u64,
     host_id: String,
     trust: TrustClass,
+    granted: GrantedCapabilities,
 }
 
 impl HostClient {
+    /// Launch a configured host. `roles` are the host's declared roles and
+    /// `config_trust` is the trust class the user granted it in config; the
+    /// two together decide the capability grant, computed after a successful
+    /// handshake. The host's self-declared trust may not exceed `config_trust`.
     pub fn launch(
         command_path: &Path,
         plugin_id: &str,
         policy: Policy,
+        roles: &[Role],
+        config_trust: TrustClass,
     ) -> Result<Self, PluginError> {
         let mut child = Command::new(command_path)
             .stdin(Stdio::piped())
@@ -139,12 +147,23 @@ impl HostClient {
             next_request_id: 1,
             host_id: String::new(),
             trust: TrustClass::UserTrustedExternal,
+            granted: GrantedCapabilities::default(),
         };
 
         if let Err(error) = client.handshake() {
             client.kill();
             return Err(error);
         }
+        // A host may under-claim its trust, never over-claim it: the grant is
+        // computed from the user's configured trust, and a host asserting more
+        // authority than that is rejected rather than silently clamped.
+        if client.trust.authority_rank() > config_trust.authority_rank() {
+            client.kill();
+            return Err(PluginError::Handshake(
+                "host trust class exceeds configured trust",
+            ));
+        }
+        client.granted = GrantedCapabilities::for_roles(roles, config_trust);
         Ok(client)
     }
 
@@ -191,6 +210,13 @@ impl HostClient {
         &mut self,
         snapshot: &InputSnapshot,
     ) -> Result<Vec<StyleSpan>, PluginError> {
+        // Overlay spans are the only channel this request applies, so a host
+        // that was not granted `overlay-write` is never asked for them.
+        if !self.granted.holds(Capability::OverlayWrite) {
+            return Err(PluginError::PolicyViolation(
+                "overlay-write capability not granted",
+            ));
+        }
         if snapshot.lines.len() > self.policy.max_snapshot_lines {
             return Err(PluginError::PolicyViolation("snapshot exceeds line budget"));
         }

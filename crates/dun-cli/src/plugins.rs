@@ -11,9 +11,9 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use dun_config::{PluginEntry, PluginRole};
+use dun_config::{PluginEntry, PluginRole, PluginTrust};
 use dun_core::BufferId;
-use dun_plugin::{HostClient, InputSnapshot, Policy, StyleSpan};
+use dun_plugin::{HostClient, InputSnapshot, Policy, Role, StyleSpan, TrustClass};
 
 /// Do not relaunch a failed host more often than this; failures otherwise
 /// turn every editor tick into a spawn attempt.
@@ -76,6 +76,13 @@ impl PluginHighlighter {
             max_frame_bytes: entry.max_frame_bytes,
             ..Policy::default()
         };
+        let roles: Vec<Role> = entry
+            .roles
+            .iter()
+            .copied()
+            .filter_map(plugin_role)
+            .collect();
+        let trust = plugin_trust(entry.trust);
         let (job_sender, job_receiver) = mpsc::channel::<WorkerMessage>();
         let (outcome_sender, outcome_receiver) = mpsc::channel::<HighlightOutcome>();
         let command = entry.command.clone();
@@ -86,6 +93,8 @@ impl PluginHighlighter {
                 &command,
                 &worker_plugin_id,
                 policy,
+                &roles,
+                trust,
                 &job_receiver,
                 &outcome_sender,
             );
@@ -165,10 +174,30 @@ impl PluginHighlighter {
     }
 }
 
+/// Map a configured role name to the protocol `Role`, if the protocol models
+/// it yet. Config accepts role names ahead of the protocol client (`LogFilter`,
+/// `TextTransform`, `ConfigHelper` have no `Role` variant yet); those grant no
+/// capabilities until their slice lands, so they map to `None`.
+fn plugin_role(role: PluginRole) -> Option<Role> {
+    match role {
+        PluginRole::SyntaxHighlight => Some(Role::SyntaxHighlight),
+        PluginRole::LogFilter | PluginRole::TextTransform | PluginRole::ConfigHelper => None,
+    }
+}
+
+fn plugin_trust(trust: PluginTrust) -> TrustClass {
+    match trust {
+        PluginTrust::PureSandbox => TrustClass::PureSandbox,
+        PluginTrust::UserTrustedExternal => TrustClass::UserTrustedExternal,
+    }
+}
+
 fn highlight_worker(
     command: &Path,
     plugin_id: &str,
     policy: Policy,
+    roles: &[Role],
+    trust: TrustClass,
     messages: &mpsc::Receiver<WorkerMessage>,
     outcomes: &mpsc::Sender<HighlightOutcome>,
 ) {
@@ -187,7 +216,7 @@ fn highlight_worker(
             if last_failure.is_some_and(|failed| failed.elapsed() < RELAUNCH_COOLDOWN) {
                 continue;
             }
-            match HostClient::launch(command, plugin_id, policy.clone()) {
+            match HostClient::launch(command, plugin_id, policy.clone(), roles, trust) {
                 Ok(launched) => client = Some(launched),
                 Err(error) => {
                     last_failure = Some(Instant::now());

@@ -84,6 +84,16 @@ impl TrustClass {
             _ => None,
         }
     }
+
+    /// How much OS-facing authority the class implies, for comparison. A host
+    /// that self-declares a higher rank than its configured trust is
+    /// over-claiming and is rejected at the handshake.
+    pub const fn authority_rank(self) -> u8 {
+        match self {
+            Self::PureSandbox => 0,
+            Self::UserTrustedExternal => 1,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
