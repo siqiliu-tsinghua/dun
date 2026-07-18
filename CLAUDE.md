@@ -121,19 +121,30 @@ verbatim evidence — it never commits, branches, or pushes.
   requires a newer version of Codex" — the dispatcher prints the remedy.
   First seen in rum 2026-07-01 (hang) and dun 2026-07-10 (fast fail).
 
-## Debian Measurement VM
+## Test / Measurement VMs
 
-VirtualBox VM `debvbox`; connection details and working conventions are in
-[docs/debian-vm.md](./docs/debian-vm.md). Use the tracked wrapper scripts —
-`vm-test/vm-run [command]` to execute on the VM and `vm-test/vm-sync [ref]`
-to sync a clean commit archive (`--worktree` rsyncs the dirty tree for
-iteration only) — instead of raw ssh. Passwordless sudo is available on the
-VM. The VM is started manually by the user — ask when a binding measurement
-is needed. Measurement procedure: repeat checklist in
-[docs/release-size-audit.md](./docs/release-size-audit.md) (clean git archive
-to the VM, locked release build, `stat`/`file`/`ldd`, `--version` and
-`--dump-config` smoke). Use dated scratch dirs on the VM and delete them
-after recording results.
+Two local VirtualBox VMs, both started manually by the user and reachable
+through the tracked `vm-test/` wrappers with a target selector (`-t NAME` /
+`DUN_VM_TARGET`; default `debian`):
+
+- **`debian` (port 2222, `debvbox`)** — the **binding** size/measurement
+  platform ([docs/debian-vm.md](./docs/debian-vm.md)); with macOS it is the
+  1 MiB size budget.
+- **`freebsd` (port 2233, FreeBSD 15.1)** — a **portability / functional** test
+  env ([docs/freebsd-vm.md](./docs/freebsd-vm.md)), NOT a size-budget platform
+  (LLVM/lld + `pkg` rust ≠ the 1.85 budget baseline; its size is a reference
+  only). More targets may be added later.
+
+Use `vm-test/vm-run [-t NAME] [command]` and `vm-test/vm-sync [-t NAME] [ref]`
+(`--worktree` rsyncs the dirty tree for iteration only) instead of raw ssh;
+passwordless sudo is available on both. The wrappers keep a repo-local,
+gitignored `vm-test/known_hosts`. **When a change needs VM testing, ask the
+user to start every relevant VM (both Debian and FreeBSD today), then run
+against each with its target** — do not assume any VM is up. Binding size
+measurement (Debian) uses the repeat checklist in
+[docs/release-size-audit.md](./docs/release-size-audit.md) (clean git archive,
+locked release build, `stat`/`file`/`ldd`, `--version`/`--dump-config` smoke).
+Use dated scratch dirs and delete them after recording results.
 
 ## Active Plan (decided 2026-07-10; resequenced 2026-07-13)
 

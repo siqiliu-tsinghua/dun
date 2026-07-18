@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
-# Run a command on the debvbox measurement VM, or open an interactive shell.
+# Run a command on a local test VM, or open an interactive shell.
 #
 # Usage:
-#   vm-test/vm-run                          interactive shell
-#   vm-test/vm-run sudo whoami              run a command
+#   vm-test/vm-run                          interactive shell (default target)
+#   vm-test/vm-run -t freebsd sudo whoami   run a command on a chosen target
 #   vm-test/vm-run 'cd ~/dun-abc && ls'     shell string for pipes/cd/&&
 #
-# Arguments are joined by ssh and run through the remote login shell, so
-# quote metacharacters as you would for plain ssh.
+# Target selection: a leading `-t NAME` / `--target NAME` (or DUN_VM_TARGET)
+# picks the VM; default is debian. Known targets: debian (2222), freebsd (2233).
+# Remaining arguments are joined by ssh and run through the remote login shell,
+# so quote metacharacters as you would for plain ssh.
 set -euo pipefail
+
+if [ "${1:-}" = "-t" ] || [ "${1:-}" = "--target" ]; then
+    export DUN_VM_TARGET="${2:?vm-run: -t requires a target name}"
+    shift 2
+fi
 
 source "$(dirname "$0")/vm-common.sh"
 

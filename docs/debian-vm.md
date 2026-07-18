@@ -5,6 +5,13 @@ The Debian VirtualBox VM `debvbox` is the binding measurement environment for
 and the external SSH / low-capability terminal matrix all record their Debian
 results from this machine.
 
+It is the default target of the `vm-test/` wrapper scripts, which support
+several local VMs through a target selector (`-t NAME` / `DUN_VM_TARGET`;
+default `debian`). The FreeBSD portability VM is the other target today — see
+[freebsd-vm.md](./freebsd-vm.md). When a change needs cross-platform testing,
+ask the project owner to start every relevant VM (both Debian and FreeBSD
+today), then run against each with its target.
+
 ## Connection
 
 - VirtualBox VM name: `debvbox` (Debian 13 amd64, system `rustc`/`cargo`
@@ -39,9 +46,12 @@ vm-test/vm-sync --worktree
 ```
 
 Binding measurements must build from a `vm-test/vm-sync` clean-commit
-directory, never from `~/dun-worktree`. The raw connection, should the
-scripts be unavailable, is `ssh -i vm-test/dun-vm-test -p 2222 fft@localhost`;
-port and destination can be overridden with `DUN_VM_PORT` / `DUN_VM_DEST`.
+directory, never from `~/dun-worktree`. The wrappers keep a repo-local,
+gitignored `vm-test/known_hosts` (accept-new) because every target shares
+`localhost`. The raw connection, should the scripts be unavailable, is
+`ssh -i vm-test/dun-vm-test -p 2222 fft@localhost`; the target's port and
+destination can be overridden with `DUN_VM_TARGET` / `DUN_VM_PORT` /
+`DUN_VM_DEST`.
 
 ## Working Conventions
 

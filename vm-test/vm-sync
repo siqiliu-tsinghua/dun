@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync dun sources to the debvbox measurement VM.
+# Sync dun sources to a local test VM.
 #
 # Usage:
 #   vm-test/vm-sync [REF]        clean `git archive` of REF (default HEAD)
@@ -10,16 +10,24 @@
 #                                ~/dun-worktree. For iteration only — binding
 #                                measurements must use a clean REF sync.
 #
+# A leading `-t NAME` / `--target NAME` (or DUN_VM_TARGET) picks the VM;
+# default is debian. Known targets: debian (2222), freebsd (2233).
 # Prints the remote directory on success. Clean up remote directories after
-# recording results (docs/debian-vm.md).
+# recording results (docs/debian-vm.md, docs/freebsd-vm.md).
 set -euo pipefail
+
+if [ "${1:-}" = "-t" ] || [ "${1:-}" = "--target" ]; then
+    export DUN_VM_TARGET="${2:?vm-sync: -t requires a target name}"
+    shift 2
+fi
 
 source "$(dirname "$0")/vm-common.sh"
 
 if [ "${1:-}" = "--worktree" ]; then
     if ! ssh "${VM_SSH_OPTS[@]}" "$VM_DEST" 'command -v rsync >/dev/null'; then
-        echo "vm-sync: rsync missing on the VM; install it first:" >&2
-        echo "  vm-test/vm-run sudo apt-get install -y rsync" >&2
+        echo "vm-sync: rsync missing on the VM; install it first, e.g.:" >&2
+        echo "  vm-test/vm-run -t $VM_TARGET sudo pkg install -y rsync   # FreeBSD" >&2
+        echo "  vm-test/vm-run -t $VM_TARGET sudo apt-get install -y rsync   # Debian" >&2
         exit 1
     fi
     rsync -az --delete \
@@ -27,7 +35,7 @@ if [ "${1:-}" = "--worktree" ]; then
         --exclude '/vm-test/' --exclude '.DS_Store' \
         -e "ssh ${VM_SSH_OPTS[*]}" \
         "$REPO_ROOT/" "$VM_DEST:dun-worktree/"
-    echo "synced working tree -> ~/dun-worktree (not a clean commit; no binding measurements)"
+    echo "synced working tree -> ~/dun-worktree ($VM_TARGET; not a clean commit; no binding measurements)"
     exit 0
 fi
 
@@ -42,4 +50,4 @@ git -C "$REPO_ROOT" archive --format=tar "$ref" \
 if [ "$ref" = "HEAD" ] && ! git -C "$REPO_ROOT" diff --quiet HEAD 2>/dev/null; then
     echo "note: local working tree is dirty; the archive contains only commit $sha" >&2
 fi
-echo "synced $ref ($sha) -> ~/$dest"
+echo "synced $ref ($sha) -> ~/$dest ($VM_TARGET)"
