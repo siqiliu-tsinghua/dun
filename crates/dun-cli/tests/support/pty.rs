@@ -343,6 +343,25 @@ pub fn command_on_path(name: &str) -> Option<PathBuf> {
         .find(|path| path.is_file())
 }
 
+/// Locate Microsoft Edit on PATH, confirming the `edit` binary really is
+/// Microsoft Edit and not another editor exposed under the same name — FreeBSD's
+/// `/usr/bin/edit` is `ee`, which would otherwise make the differential tests
+/// drive the wrong editor and fail spuriously. Returns `None` (skip) when no
+/// Microsoft Edit is present.
+pub fn microsoft_edit_on_path() -> Option<PathBuf> {
+    let edit = command_on_path("edit")?;
+    let output = Command::new(&edit)
+        .arg("--help")
+        .stdin(Stdio::null())
+        .output()
+        .ok()?;
+    let help = String::from_utf8_lossy(&output.stdout);
+    (output.status.success()
+        && help.contains("Usage: edit")
+        && help.contains("FILE[:LINE[:COLUMN]]"))
+    .then_some(edit)
+}
+
 pub fn temp_path(prefix: &str, suffix: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

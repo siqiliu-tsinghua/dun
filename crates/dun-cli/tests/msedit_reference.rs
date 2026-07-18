@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 #[test]
 fn microsoft_edit_cli_reference_contract_when_available() -> io::Result<()> {
@@ -15,17 +15,19 @@ fn microsoft_edit_cli_reference_contract_when_available() -> io::Result<()> {
         return Ok(());
     };
 
-    let output = Command::new(edit).arg("--help").output()?;
-    assert!(
-        output.status.success(),
-        "edit --help failed with status {:?}",
-        output.status
-    );
+    let output = Command::new(edit)
+        .arg("--help")
+        .stdin(Stdio::null())
+        .output()?;
     let help = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        help.contains("Usage: edit"),
-        "edit help did not contain expected usage\n{help}"
-    );
+    // An `edit` on PATH that is not Microsoft Edit — e.g. FreeBSD's `/usr/bin/edit`,
+    // which is `ee` — is not our reference: skip rather than fail against it.
+    if !output.status.success() || !help.contains("Usage: edit") {
+        eprintln!(
+            "skipping Microsoft Edit CLI reference test: `edit` on PATH is not Microsoft Edit"
+        );
+        return Ok(());
+    }
     assert!(
         help.contains("-h, --help") && help.contains("-v, --version"),
         "edit help did not expose help/version options\n{help}"

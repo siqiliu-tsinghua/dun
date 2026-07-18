@@ -8,7 +8,7 @@ use std::time::Duration;
 
 mod support;
 
-use support::pty::{command_on_path, temp_path};
+use support::pty::{microsoft_edit_on_path, temp_path};
 use support::terminal_grid::TerminalGrid;
 use support::tmux::{TmuxSession, tmux_test_guard};
 
@@ -32,8 +32,11 @@ struct EditorProjection {
 #[test]
 fn microsoft_edit_diff_open_file_and_basic_cursor_motion_when_available() -> io::Result<()> {
     let _guard = tmux_test_guard();
-    let Some(edit) = command_on_path("edit") else {
-        eprintln!("skipping Microsoft Edit differential test: edit is not on PATH");
+    let Some(edit) = microsoft_edit_on_path() else {
+        eprintln!(
+            "skipping Microsoft Edit differential test: no Microsoft Edit on PATH \
+             (a non-Edit `edit`, e.g. FreeBSD's `ee`, does not count)"
+        );
         return Ok(());
     };
 
