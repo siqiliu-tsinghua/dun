@@ -1,10 +1,8 @@
 //! Per-plugin window ownership bookkeeping for the invariants in
-//! `docs/plugin-protocol.md`. This module holds no workspace state and is not
-//! yet wired; its temporary `#![allow(dead_code)]` is removed when a later slice
-//! adds the grant-gated workspace wiring.
-
-// Temporary scaffolding until the grant-gated workspace wiring lands.
-#![allow(dead_code)]
+//! `docs/plugin-protocol.md`. This module holds no workspace state; `AppState`
+//! owns the registry and mirrors every entry against a real `WindowId` in the
+//! workspace (open on menu-invoke, `release` on a user close, `take_all` on
+//! unload/reap).
 
 use dun_core::WindowId;
 
@@ -88,6 +86,28 @@ impl PluginWindows {
             .position(|entry| entry.plugin_id == plugin_id)
             .map_or_else(Vec::new, |index| self.entries.remove(index).windows)
     }
+
+    /// Every plugin that currently owns at least one window, so the caller can
+    /// reconcile the registry against the set of loaded hosts.
+    pub(crate) fn plugin_ids(&self) -> impl Iterator<Item = &str> {
+        self.entries.iter().map(|entry| entry.plugin_id.as_str())
+    }
+
+    /// Drop `window` from whichever plugin owns it — a user-initiated close of a
+    /// plugin surface. Returns whether it was a tracked plugin window.
+    pub(crate) fn release(&mut self, window: WindowId) -> bool {
+        let Some(plugin_id) = self.owner_of(window).map(str::to_owned) else {
+            return false;
+        };
+        self.record_closed(&plugin_id, window)
+    }
+
+    fn owner_of(&self, window: WindowId) -> Option<&str> {
+        self.entries
+            .iter()
+            .find(|entry| entry.windows.contains(&window))
+            .map(|entry| entry.plugin_id.as_str())
+    }
 }
 
 #[cfg(test)]
@@ -134,6 +154,37 @@ mod tests {
         assert_eq!(windows.count("a"), 0);
         assert!(windows.owns("b", WindowId(3)));
         assert_eq!(windows.count("b"), 1);
+    }
+
+    #[test]
+    fn release_drops_a_window_from_its_owner_only() {
+        let mut windows = PluginWindows::default();
+        assert!(windows.record_opened("a", WindowId(1)));
+        assert!(windows.record_opened("b", WindowId(2)));
+
+        assert!(windows.release(WindowId(1)));
+        assert_eq!(windows.count("a"), 0);
+        assert!(windows.owns("b", WindowId(2)));
+
+        // Releasing frees the per-plugin cap so the owner can open again.
+        assert!(windows.can_open("a"));
+        // An untracked window id is a no-op.
+        assert!(!windows.release(WindowId(99)));
+    }
+
+    #[test]
+    fn plugin_ids_lists_only_plugins_that_own_windows() {
+        let mut windows = PluginWindows::default();
+        assert!(windows.plugin_ids().next().is_none());
+
+        assert!(windows.record_opened("a", WindowId(1)));
+        assert!(windows.record_opened("b", WindowId(2)));
+        let mut ids: Vec<&str> = windows.plugin_ids().collect();
+        ids.sort_unstable();
+        assert_eq!(ids, vec!["a", "b"]);
+
+        windows.take_all("a");
+        assert_eq!(windows.plugin_ids().collect::<Vec<_>>(), vec!["b"]);
     }
 
     #[test]

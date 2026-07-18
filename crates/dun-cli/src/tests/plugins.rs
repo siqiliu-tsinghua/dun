@@ -398,6 +398,111 @@ fn unloading_a_host_removes_its_injected_menu() {
     );
 }
 
+fn menu_action(plugin_id: &str, action_id: &str) -> EditorCommand {
+    EditorCommand::PluginMenuAction {
+        plugin_id: plugin_id.into(),
+        action_id: action_id.into(),
+    }
+}
+
+fn surface_window_count(app: &AppState) -> usize {
+    app.workspace
+        .windows
+        .iter()
+        .filter(|window| window.kind == WindowKind::PluginSurface)
+        .count()
+}
+
+#[test]
+fn plugin_menu_action_opens_a_surface_window_only_when_window_is_granted() {
+    // A host without the `window` capability opens nothing when its action is
+    // invoked; the grant is the gate.
+    let mut app = AppState::new();
+    let (ungranted, _m, _e) =
+        PluginHost::for_tests_granted("no-window", GrantedCapabilities::default());
+    app.plugin_hosts = PluginHosts::for_tests(vec![ungranted]);
+    app.handle_command(&menu_action("no-window", "open"));
+    assert_eq!(surface_window_count(&app), 0);
+    assert_eq!(app.plugin_windows.count("no-window"), 0);
+
+    // A window-granted host opens a read-only PluginSurface it owns.
+    let mut app = AppState::new();
+    let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
+    app.handle_command(&menu_action("winhost", "open"));
+    assert_eq!(surface_window_count(&app), 1);
+    assert_eq!(app.plugin_windows.count("winhost"), 1);
+    let surface = app
+        .workspace
+        .windows
+        .iter()
+        .find(|window| window.kind == WindowKind::PluginSurface)
+        .unwrap();
+    assert_eq!(surface.title, "winhost: open");
+    assert!(
+        app.buffer_state(surface.buffer_id)
+            .unwrap()
+            .buffer
+            .is_read_only(),
+        "a surface is read-only to the user until surface-write lands"
+    );
+}
+
+#[test]
+fn plugin_menu_action_respects_the_two_window_cap() {
+    let mut app = AppState::new();
+    let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
+
+    app.handle_command(&menu_action("winhost", "open"));
+    app.handle_command(&menu_action("winhost", "open"));
+    assert_eq!(app.plugin_windows.count("winhost"), 2);
+    assert_eq!(surface_window_count(&app), 2);
+
+    // The third invoke is refused at the cap; no window is opened and the user
+    // is told why.
+    app.handle_command(&menu_action("winhost", "open"));
+    assert_eq!(app.plugin_windows.count("winhost"), 2);
+    assert_eq!(surface_window_count(&app), 2);
+    assert_eq!(
+        app.status_message,
+        Some("Plugin winhost reached its window limit".to_string())
+    );
+}
+
+#[test]
+fn unloading_a_host_reaps_its_surface_windows() {
+    let mut app = AppState::new();
+    let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
+    app.handle_command(&menu_action("winhost", "open"));
+    assert_eq!(surface_window_count(&app), 1);
+
+    app.run_command_line("plugin unload");
+
+    assert_eq!(surface_window_count(&app), 0, "unload reaps the surface");
+    assert_eq!(app.plugin_windows.count("winhost"), 0);
+}
+
+#[test]
+fn closing_a_plugin_surface_frees_the_slot() {
+    let mut app = AppState::new();
+    let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
+    app.handle_command(&menu_action("winhost", "open"));
+    app.handle_command(&menu_action("winhost", "open"));
+    assert_eq!(app.plugin_windows.count("winhost"), 2);
+
+    // The last opened surface is focused; closing it releases its slot.
+    app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+    assert_eq!(app.plugin_windows.count("winhost"), 1);
+
+    // The freed slot lets the plugin open another surface.
+    app.handle_command(&menu_action("winhost", "open"));
+    assert_eq!(app.plugin_windows.count("winhost"), 2);
+    assert_eq!(surface_window_count(&app), 2);
+}
+
 #[test]
 fn start_failed_event_reports_status_and_error_activity() {
     let mut app = AppState::new();

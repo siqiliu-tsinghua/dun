@@ -12,6 +12,7 @@ mod helper_panes;
 mod highlight;
 mod menus;
 mod mouse;
+mod plugin_surface;
 mod prompt_dialogs;
 mod search;
 mod search_replace;

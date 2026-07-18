@@ -13,9 +13,10 @@ impl AppState {
             }
             EditorCommand::Window(command) => self.handle_window_command(command),
             EditorCommand::File(command) => self.handle_file_command(command),
-            // Dispatch to the grant-gated window open/close path is wired in
-            // C-spine chunk 3; nothing constructs this variant yet.
-            EditorCommand::PluginMenuAction { .. } => {}
+            EditorCommand::PluginMenuAction {
+                plugin_id,
+                action_id,
+            } => self.dispatch_plugin_menu_action(plugin_id, action_id),
         }
     }
 
@@ -214,6 +215,9 @@ impl AppState {
     }
 
     fn apply_loaded_config(&mut self, loaded_config: LoadedConfig) -> Option<String> {
+        // The host layer is rebuilt from scratch; drop the old surface windows
+        // before their owners are replaced.
+        self.reap_all_plugin_windows();
         self.plugin_hosts = PluginHosts::from_entries(&loaded_config.config.plugins);
         self.pending_keys.clear();
         self.mouse_drag = None;

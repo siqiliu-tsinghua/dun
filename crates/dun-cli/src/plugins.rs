@@ -158,6 +158,12 @@ impl PluginHost {
         self.granted.holds(Capability::Menu) || self.granted.holds(Capability::Window)
     }
 
+    /// Whether the host may open and own `dun` windows. The `menu` grant lets
+    /// its menu items appear; opening a surface is separately gated on this.
+    pub(crate) fn holds_window(&self) -> bool {
+        self.granted.holds(Capability::Window)
+    }
+
     fn highlights(&self) -> bool {
         self.roles.contains(&Role::SyntaxHighlight)
     }
@@ -269,6 +275,10 @@ impl PluginHosts {
 
     pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut PluginHost> {
         self.hosts.iter_mut()
+    }
+
+    pub(crate) fn get(&self, plugin_id: &str) -> Option<&PluginHost> {
+        self.hosts.iter().find(|host| host.plugin_id == plugin_id)
     }
 
     pub(crate) fn get_mut(&mut self, plugin_id: &str) -> Option<&mut PluginHost> {

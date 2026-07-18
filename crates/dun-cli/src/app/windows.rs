@@ -259,6 +259,7 @@ impl AppState {
     pub(crate) fn close_focused_window_unchecked(&mut self) {
         let focused = self.workspace.focused_window().ok().cloned();
         let closing_buffer_id = focused.as_ref().map(|window| window.buffer_id);
+        let closing_window_id = focused.as_ref().map(|window| window.id);
         let return_buffer_id = focused
             .as_ref()
             .and_then(|window| self.auxiliary_return_buffer_id(window));
@@ -266,6 +267,10 @@ impl AppState {
             Ok(_) => {
                 if let Some(buffer_id) = closing_buffer_id {
                     self.drop_buffer_if_unreferenced(buffer_id);
+                }
+                // Free a plugin's window slot when the user closes its surface.
+                if let Some(window_id) = closing_window_id {
+                    self.plugin_windows.release(window_id);
                 }
                 if let Some(buffer_id) = return_buffer_id {
                     self.focus_window_for_buffer(buffer_id);
@@ -307,6 +312,8 @@ impl AppState {
                 let closed = removed.len();
                 for window in removed {
                     self.drop_buffer_if_unreferenced(window.buffer_id);
+                    // Free the slot of any plugin surface closed by "only".
+                    self.plugin_windows.release(window.id);
                 }
                 self.set_status(ui_text::tr_fmt(
                     &self.shell.catalog,

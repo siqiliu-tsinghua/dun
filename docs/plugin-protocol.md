@@ -308,13 +308,16 @@ fails the handshake. Menus are therefore static, fixed at launch; a dynamic
 `MenuContribute` message is deferred until a real need appears. On the editor
 side each worker ships the validated contribution to the main thread with its
 launch report, where it lives on the host's `PluginHost` entry (cleared on
-unload, reinstalled by the relaunch handshake). The dun-core scaffolding for
-dispatch now exists: an invoked item becomes an `EditorCommand::PluginMenuAction
-{ plugin_id, action_id }` (not user-bindable — it has a generic `command_id`,
-`plugin.menu_action`, and no `command_from_id` round-trip), and a plugin-owned
-pane is a `WindowKind::PluginSurface`. Injecting the contribution into the menu
-bar and routing `PluginMenuAction` to the grant-gated window path is the next
-build step (TODO.md "C — menu", chunk 3).
+unload, reinstalled by the relaunch handshake). `dun` resolves it (labels
+against the active locale) into the menu bar after the built-in menus; an
+invoked item is an `EditorCommand::PluginMenuAction { plugin_id, action_id }`
+(not user-bindable — a generic `command_id`, `plugin.menu_action`, no
+`command_from_id` round-trip). Dispatch is gated on the host holding `window`
+and opens a read-only `WindowKind::PluginSurface` the plugin owns (≤2 per
+plugin, reaped on unload/reload, released on a user close). At this build stage
+every invoke opens a fresh surface; a richer per-action request round-trip to
+the host is deferred until the first real consumer, where the surface is filled
+by `surface-write`.
 
 | Role | Input snapshot | Allowed output |
 | --- | --- | --- |

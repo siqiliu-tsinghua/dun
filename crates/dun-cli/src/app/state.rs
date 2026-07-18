@@ -39,4 +39,7 @@ pub(crate) struct AppState {
     /// (empty falls back to the required `en_US`, matching the English-on-ASCII
     /// and `--no-config` rules for `dun`'s own UI text).
     pub(crate) plugin_menu_tags: Vec<String>,
+    /// Per-plugin ownership of the surface windows opened from plugin menus,
+    /// mirrored against real `WindowId`s in the workspace.
+    pub(crate) plugin_windows: PluginWindows,
 }

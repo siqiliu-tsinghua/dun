@@ -103,6 +103,7 @@ impl AppState {
             recent_file_dialog_input: None,
             runtime_action: None,
             plugin_menu_tags,
+            plugin_windows: PluginWindows::default(),
         };
         if let Some(diagnostic) = catalog_diagnostic {
             app.set_status(diagnostic);
