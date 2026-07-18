@@ -398,21 +398,32 @@ deltas non-additive).
     valid for a single host; two new status keys + two reworded, all ten
     translations updated). Five mutations killed (eager gate, menu install,
     menu clear-on-unload, StartFailed flag, get_mut addressing).
-  - Spine remaining — ordered chunks (next session starts at 2):
-    2. **dun-core typed variants.** `WindowKind::PluginSurface` and
-       `EditorCommand::PluginMenuAction { plugin_id, action_id }`, with the
-       exhaustive-match arms (`dun-config::command_id` returns a generic static
-       id for `PluginMenuAction` — plugin actions are never user-bindable, so
-       an id/from_id round-trip is not needed).
+  - Ordered chunk 2 landed 2026-07-18 (Claude-authored): **dun-core typed
+    variants** — `WindowKind::PluginSurface` and
+    `EditorCommand::PluginMenuAction { plugin_id, action_id }` added with every
+    exhaustive-match arm. `dun-config::command_id` maps every `PluginMenuAction`
+    to the generic `plugin.menu_action` id (deliberately absent from
+    `ALL_COMMAND_IDS`, no `command_from_id` round-trip — plugin actions are
+    never user-bindable); the top-level `handle_command` dispatch arm is a no-op
+    placeholder until chunk 3. No other exhaustive match needed touching
+    (`WindowKind` sites all carry a wildcard; editability is a `BufferKind`
+    decision and highlight already skips non-`Edit` panes). One new
+    mutation-proven test pins the generic-id / non-bindable contract
+    (`plugin_menu_action_has_a_generic_non_bindable_id`). macOS budget build
+    +4,120 to 662,252 (owned-`String` payload adds drop/clone glue across
+    `EditorCommand`'s pervasive use; proxy — folded into the owed chunk-4 Debian
+    measurement).
+  - Spine remaining — ordered chunks (next session starts at 3):
     3. **Inject + dispatch + window path.** Inject each host's menu into the
        menu bar (`MenuItem`/`MenuEntry` with `command = PluginMenuAction`);
        dispatch `PluginMenuAction` to the grant-gated (`holds(Window)`) window
        open/close path reusing `PluginWindows` + `WindowKind::PluginSurface`
        (this also completes B's window path).
     4. **One binding Debian measurement** for the whole C spine at this
-       integration milestone (VM). Owed so far: the handshake chunk
-       (`d2fe8df`) added +8 macOS to 654,012; the host-layer generalization
-       (2026-07-17) added +4,120 macOS to 658,132.
+       integration milestone (VM). Owed so far (macOS proxies): the handshake
+       chunk (`d2fe8df`) added +8 to 654,012; the host-layer generalization
+       (2026-07-17) added +4,120 to 658,132; the dun-core typed variants
+       (chunk 2, 2026-07-18) added +4,120 to 662,252.
 - [ ] **D — keybinding.** Leader prefix + the event-loop pending-prefix
   state machine (the one runtime piece the keymap model lacks; `KeySequence`
   is already `Vec<KeyStroke>`), plus leader-collision validation.

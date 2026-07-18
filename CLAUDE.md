@@ -47,8 +47,11 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **658,132 bytes** (2026-07-17, C-spine ordered chunk 1 — the
-  host-layer generalization; +4,120 over `d2fe8df`). Last binding-measured
+- macOS: **662,252 bytes** (2026-07-18, C-spine ordered chunk 2 — the dun-core
+  typed variants `WindowKind::PluginSurface` +
+  `EditorCommand::PluginMenuAction`; +4,120 over `01d184d`, the owned-`String`
+  payload's drop/clone glue across `EditorCommand`'s pervasive use). Prior:
+  658,132 at `01d184d` (host-layer generalization). Last binding-measured
   macOS value was 654,004 at `c0f610e`.
 - Debian: **715,136 bytes** at `c0f610e` — **binding platform**, margin
   333,440 bytes (2026-07-16, last measured). Byte-identical to `744c843`: the
@@ -57,10 +60,11 @@ x86_64 AND Debian x86_64.
   +4,104 macOS delta did not translate to Debian (non-additive fat-LTO;
   measure per batch).
 - **Debian measurement owed:** the C-spine commits since `c0f610e` (`d2fe8df`
-  +8 macOS; the 2026-07-17 host-layer generalization +4,120 macOS) are not yet
-  measured on the VM. One binding measurement is planned for the whole C spine
-  at its integration milestone (TODO.md "C — menu", chunk 4); until then the
-  last measured binding baseline remains `c0f610e`.
+  +8 macOS; the 2026-07-17 host-layer generalization +4,120 macOS; the
+  2026-07-18 dun-core typed variants +4,120 macOS) are not yet measured on the
+  VM. One binding measurement is planned for the whole C spine at its
+  integration milestone (TODO.md "C — menu", chunk 4); until then the last
+  measured binding baseline remains `c0f610e`.
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to

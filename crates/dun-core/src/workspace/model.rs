@@ -123,6 +123,9 @@ pub enum WindowKind {
     SearchResults,
     StatusHistory,
     Prompt,
+    /// A surface owned by a plugin host (see the `window` capability). Like any
+    /// non-`Edit` pane it is not editable and syntax highlighting skips it.
+    PluginSurface,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

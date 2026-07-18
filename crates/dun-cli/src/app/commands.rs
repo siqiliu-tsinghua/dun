@@ -13,6 +13,9 @@ impl AppState {
             }
             EditorCommand::Window(command) => self.handle_window_command(command),
             EditorCommand::File(command) => self.handle_file_command(command),
+            // Dispatch to the grant-gated window open/close path is wired in
+            // C-spine chunk 3; nothing constructs this variant yet.
+            EditorCommand::PluginMenuAction { .. } => {}
         }
     }
 

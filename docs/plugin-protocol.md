@@ -308,8 +308,13 @@ fails the handshake. Menus are therefore static, fixed at launch; a dynamic
 `MenuContribute` message is deferred until a real need appears. On the editor
 side each worker ships the validated contribution to the main thread with its
 launch report, where it lives on the host's `PluginHost` entry (cleared on
-unload, reinstalled by the relaunch handshake); injecting it into the menu bar
-and dispatching its actions is the next build step (TODO.md "C — menu").
+unload, reinstalled by the relaunch handshake). The dun-core scaffolding for
+dispatch now exists: an invoked item becomes an `EditorCommand::PluginMenuAction
+{ plugin_id, action_id }` (not user-bindable — it has a generic `command_id`,
+`plugin.menu_action`, and no `command_from_id` round-trip), and a plugin-owned
+pane is a `WindowKind::PluginSurface`. Injecting the contribution into the menu
+bar and routing `PluginMenuAction` to the grant-gated window path is the next
+build step (TODO.md "C — menu", chunk 3).
 
 | Role | Input snapshot | Allowed output |
 | --- | --- | --- |

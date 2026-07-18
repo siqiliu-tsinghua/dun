@@ -1,9 +1,12 @@
 use dun_core::{AppCommand, EditCommand, EditorCommand, FileCommand, WindowCommand};
 
-/// Every command id, in one list, so contract tests can iterate the whole
-/// command surface. Adding an `EditorCommand` variant makes `command_id` fail
-/// to compile until an arm is added; the length assertion in
-/// `all_command_ids_round_trip` is the tripwire that this list was updated too.
+/// Every user-bindable command id, in one list, so contract tests can iterate
+/// the whole command surface. Adding a user-bindable `EditorCommand` variant
+/// makes `command_id` fail to compile until an arm is added; the length
+/// assertion in `all_command_ids_round_trip` is the tripwire that this list was
+/// updated too. `EditorCommand::PluginMenuAction` is deliberately absent: it is
+/// not user-bindable, so it has a generic `command_id` and no `command_from_id`
+/// round-trip (see the arms below).
 pub const ALL_COMMAND_IDS: &[&str] = &[
     "file.new",
     "file.open",
@@ -195,6 +198,9 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::App(AppCommand::ShellEscape) => "app.shell_escape",
         EditorCommand::App(AppCommand::StatusHistory) => "app.status_history",
         EditorCommand::App(AppCommand::Quit) => "app.quit",
+        // Plugin menu actions are never user-bindable, so every instance
+        // collapses to one generic id and has no `command_from_id` round-trip.
+        EditorCommand::PluginMenuAction { .. } => "plugin.menu_action",
     }
 }
 
