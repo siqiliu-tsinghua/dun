@@ -104,6 +104,8 @@ pub struct Policy {
     pub max_frame_bytes: usize,
     pub max_snapshot_lines: usize,
     pub max_spans: usize,
+    /// Cap on the lines a host may write into its own surface (`surface-write`).
+    pub max_surface_lines: usize,
     pub max_stderr_bytes: usize,
     pub max_diagnostics: usize,
     pub timeout: Duration,
@@ -115,6 +117,7 @@ impl Default for Policy {
             max_frame_bytes: 256 * 1024,
             max_snapshot_lines: 512,
             max_spans: 4096,
+            max_surface_lines: 4096,
             max_stderr_bytes: 8 * 1024,
             max_diagnostics: 16,
             timeout: Duration::from_millis(2_000),

@@ -319,6 +319,47 @@ fn keybinding_from_ungranted_host_is_ignored() {
     );
 }
 
+#[test]
+fn surface_write_granted_host_returns_validated_lines() {
+    // A log-filter role holds `surface-write`, so an action request is answered
+    // with the lines to show in the host's surface window.
+    let mut client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::LogFilter],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("log-filter host launches");
+    let lines = client
+        .request_surface("show")
+        .expect("a surface-write host returns lines");
+    assert_eq!(lines, vec!["surface for action: show", "second line"]);
+}
+
+#[test]
+fn surface_write_from_ungranted_host_is_refused() {
+    // A syntax-highlight role has no `surface-write` capability, so the request
+    // is refused by construction before any bytes reach the host.
+    let mut client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::SyntaxHighlight],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("syntax-highlight host launches");
+    assert!(
+        matches!(
+            client.request_surface("show"),
+            Err(PluginError::PolicyViolation(
+                "surface-write capability not granted"
+            ))
+        ),
+        "a host without surface-write must be refused"
+    );
+}
+
 /// Diagnostic for the handshake-latency-spike investigation. Measures full
 /// `HostClient::launch` (spawn + reader threads + hello/hello-ack) latency
 /// sequentially and then with a burst of concurrent launches, to attribute

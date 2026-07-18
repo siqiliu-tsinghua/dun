@@ -20,7 +20,7 @@ use crate::json::{self, Json};
 use crate::keybinding::PluginKeybinding;
 use crate::menu::PluginMenu;
 use crate::proto::{Envelope, MessageKind, Policy, ProtocolError, Role, TrustClass};
-use crate::validate::{InputSnapshot, StyleSpan, validate_spans};
+use crate::validate::{InputSnapshot, StyleSpan, validate_spans, validate_surface};
 
 const SHUTDOWN_GRACE: Duration = Duration::from_millis(500);
 const MAX_HOST_ERROR_CHARS: usize = 200;
@@ -343,6 +343,83 @@ impl HostClient {
                         });
                     }
                     return validate_spans(snapshot, &envelope.payload, &self.policy)
+                        .map_err(PluginError::PolicyViolation);
+                }
+                MessageKind::Error => {
+                    let message = envelope
+                        .payload
+                        .get("message")
+                        .and_then(Json::as_str)
+                        .unwrap_or("unspecified");
+                    return Err(PluginError::HostError(bounded_message(message)));
+                }
+                _ => {
+                    self.kill();
+                    return Err(PluginError::PolicyViolation("unexpected message kind"));
+                }
+            }
+        }
+    }
+
+    /// Invoke a plugin action and collect the surface content the host returns
+    /// for its own window (`surface-write`). Mirrors `request_highlight`'s
+    /// transport (bounded diagnostics, timeout+cancel, kill on violation) but
+    /// carries no role or revision: the action id is the whole request, and the
+    /// response is a bounded list of validated text lines.
+    pub fn request_surface(&mut self, action_id: &str) -> Result<Vec<String>, PluginError> {
+        if !self.granted.holds(Capability::SurfaceWrite) {
+            return Err(PluginError::PolicyViolation(
+                "surface-write capability not granted",
+            ));
+        }
+        let request_id = self.next_request_id;
+        self.next_request_id += 1;
+        self.send(&Envelope {
+            kind: MessageKind::Request,
+            request_id,
+            plugin_id: self.plugin_id.clone(),
+            role: None,
+            revision: None,
+            payload: json::obj([("action_id", json::str(action_id))]),
+        })?;
+
+        let mut diagnostics_seen = 0usize;
+        let deadline = Instant::now() + self.policy.timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let envelope = match self.recv(remaining) {
+                Ok(envelope) => envelope,
+                Err(PluginError::Timeout) => {
+                    let _ = self.send(&Envelope {
+                        kind: MessageKind::CancelRequest,
+                        request_id,
+                        plugin_id: self.plugin_id.clone(),
+                        role: None,
+                        revision: None,
+                        payload: Json::Null,
+                    });
+                    self.kill();
+                    return Err(PluginError::Timeout);
+                }
+                Err(error) => {
+                    self.kill();
+                    return Err(error);
+                }
+            };
+            match envelope.kind {
+                MessageKind::Diagnostic => {
+                    diagnostics_seen += 1;
+                    if diagnostics_seen > self.policy.max_diagnostics {
+                        self.kill();
+                        return Err(PluginError::PolicyViolation("diagnostic flood"));
+                    }
+                }
+                MessageKind::Response => {
+                    if envelope.request_id != request_id {
+                        self.kill();
+                        return Err(PluginError::PolicyViolation("response for unknown request"));
+                    }
+                    return validate_surface(&envelope.payload, &self.policy)
                         .map_err(PluginError::PolicyViolation);
                 }
                 MessageKind::Error => {

@@ -109,6 +109,28 @@ fn main() -> io::Result<()> {
 fn handle_request(message: &Json, request_id: u64, output: &mut impl Write) -> io::Result<()> {
     let revision = message.get("revision").and_then(Json::as_u64).unwrap_or(0);
     let payload = message.get("payload");
+
+    // A surface-write action request carries `action_id` (no `language`); the
+    // host answers with the lines to show in its own surface window.
+    if let Some(action_id) = payload
+        .and_then(|value| value.get("action_id"))
+        .and_then(Json::as_str)
+    {
+        let reply = envelope(
+            "response",
+            request_id,
+            None,
+            json::obj([(
+                "lines",
+                Json::Arr(vec![
+                    json::str(&format!("surface for action: {action_id}")),
+                    json::str("second line"),
+                ]),
+            )]),
+        );
+        return write_frame(output, &reply);
+    }
+
     let language = payload
         .and_then(|value| value.get("language"))
         .and_then(Json::as_str)

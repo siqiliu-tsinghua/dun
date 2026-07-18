@@ -69,6 +69,27 @@ pub fn validate_spans(
     Ok(validated)
 }
 
+/// The `surface-write` capability's output validator: a bounded list of text
+/// lines the host wants shown in its own surface window. Control bytes are not
+/// rejected here — the lines enter a `dun` buffer and are escaped by the
+/// `DisplaySanitizer` at render time, exactly like any other buffer text; this
+/// validator only bounds the line count and rejects non-string entries.
+pub fn validate_surface(payload: &Json, policy: &Policy) -> Result<Vec<String>, &'static str> {
+    let lines = payload
+        .get("lines")
+        .and_then(Json::as_arr)
+        .ok_or("surface payload has no line list")?;
+    if lines.len() > policy.max_surface_lines {
+        return Err("surface line count exceeds policy limit");
+    }
+    let mut validated = Vec::with_capacity(lines.len());
+    for line in lines {
+        let text = line.as_str().ok_or("surface line is not a string")?;
+        validated.push(text.to_string());
+    }
+    Ok(validated)
+}
+
 fn validate_span(snapshot: &InputSnapshot, span: &Json) -> Result<StyleSpan, &'static str> {
     let line = span_field(span, "line")?;
     let start_col = span_field(span, "start_col")?;
@@ -182,5 +203,33 @@ mod tests {
         )]);
         assert!(validate_spans(&snapshot(), &payload, &policy).is_err());
         assert!(validate_spans(&snapshot(), &Json::Null, &policy).is_err());
+    }
+
+    fn surface_payload(lines: &[&str]) -> Json {
+        json::obj([(
+            "lines",
+            Json::Arr(lines.iter().map(|line| json::str(line)).collect()),
+        )])
+    }
+
+    #[test]
+    fn surface_accepts_a_bounded_line_list() {
+        let lines = validate_surface(&surface_payload(&["a", "b"]), &Policy::default())
+            .expect("valid surface lines");
+        assert_eq!(lines, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn surface_rejects_flood_non_strings_and_missing_list() {
+        let policy = Policy {
+            max_surface_lines: 1,
+            ..Policy::default()
+        };
+        assert!(validate_surface(&surface_payload(&["a", "b"]), &policy).is_err());
+
+        let non_string = json::obj([("lines", Json::Arr(vec![json::num(1)]))]);
+        assert!(validate_surface(&non_string, &Policy::default()).is_err());
+
+        assert!(validate_surface(&Json::Null, &Policy::default()).is_err());
     }
 }

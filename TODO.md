@@ -481,9 +481,28 @@ deltas non-additive).
     `pty_smoke` pass, `strings` 0. Recorded in docs/release-size-audit.md
     (2026-07-18). **The D (keybinding) stage is complete; no measurement debt.**
     With A–D done, the capability mechanism + open APIs are all built.
-- [ ] Wire trust as the grant gate (also add the missing config↔handshake
-  trust cross-check) and record every protocol enhancement in
-  docs/plugin-protocol.md as it lands.
+- [x] Wire trust as the grant gate + the config↔handshake trust cross-check —
+  landed `c0f610e`: `Capability::trust_gate_cleared` gates `GrantedCapabilities`,
+  and `HostClient::launch` rejects a host whose declared trust exceeds the
+  configured trust (tested at protocol.rs "exceeds configured trust"). Protocol
+  enhancements continue to be recorded in docs/plugin-protocol.md as they land.
+
+- [ ] **Remaining v0 capability data channels** (the trigger/UI layer — menu,
+  keybinding, window open/close, overlay highlight — is done; these three
+  output/input channels give a host actual content, and none were wired by
+  A–D). Build API-first, fixture-driven, one at a time (user decision
+  2026-07-19), each with tests + a Debian measurement:
+  - **surface-write** (host fills its own window). Part 1 landed (dun-plugin):
+    `Policy::max_surface_lines`, `validate_surface` beside `validate_spans`,
+    `HostClient::request_surface(action_id)` (gated on `surface-write`, reuses
+    the request/response transport, no role/revision), fixture answers an
+    `action_id` request with lines. 2 protocol + 2 validator tests; gate and
+    line-cap mutation-proven. Pending: dun-cli wiring (action → request →
+    render into an open-or-reused `PluginSurface`, resolving the fresh-window
+    interim) + Debian measurement.
+  - **stream-read** (feed command-output stream chunks to a host) — not started.
+  - **scratch-input + execute** (dun-native editable buffer + submit its text to
+    the host) — not started; this is B's unfinished half.
 
 ## Completed Stage: v0.1 Release Hardening
 
