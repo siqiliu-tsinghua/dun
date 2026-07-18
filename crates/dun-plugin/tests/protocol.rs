@@ -280,6 +280,45 @@ fn menu_from_ungranted_host_is_ignored() {
     );
 }
 
+#[test]
+fn keybinding_granted_host_contributes_its_leader_and_chords() {
+    // A log-filter role is granted `keybinding`, so the fixture's advertised
+    // leader + chords are parsed and exposed.
+    let client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::LogFilter],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("log-filter host launches");
+    let keybinding = client
+        .keybinding()
+        .expect("a keybinding-granted host contributes a leader");
+    assert_eq!(keybinding.leader, "Ctrl+J");
+    assert_eq!(keybinding.chords.len(), 1);
+    assert_eq!(keybinding.chords[0].key, "p");
+    assert_eq!(keybinding.chords[0].action_id, "ping");
+}
+
+#[test]
+fn keybinding_from_ungranted_host_is_ignored() {
+    // A syntax-highlight role has no `keybinding` capability, so the same
+    // advertised leader is dropped rather than honored.
+    let client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::SyntaxHighlight],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("syntax-highlight host launches");
+    assert!(
+        client.keybinding().is_none(),
+        "a host without the keybinding capability must not contribute a leader"
+    );
+}
+
 /// Diagnostic for the handshake-latency-spike investigation. Measures full
 /// `HostClient::launch` (spawn + reader threads + hello/hello-ack) latency
 /// sequentially and then with a burst of concurrent launches, to attribute

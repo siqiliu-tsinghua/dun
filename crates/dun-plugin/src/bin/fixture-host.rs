@@ -196,6 +196,20 @@ fn hello_payload(trust: &str) -> Json {
         ("host_id", json::str("fixture")),
         ("trust", json::str(trust)),
         ("menu", menu_contribution()),
+        ("keybinding", keybinding_contribution()),
+    ])
+}
+
+fn keybinding_contribution() -> Json {
+    json::obj([
+        ("leader", json::str("Ctrl+J")),
+        (
+            "chords",
+            Json::Arr(vec![json::obj([
+                ("key", json::str("p")),
+                ("action_id", json::str("ping")),
+            ])]),
+        ),
     ])
 }
 

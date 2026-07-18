@@ -17,6 +17,7 @@ use std::time::{Duration, Instant};
 use crate::capability::{Capability, GrantedCapabilities};
 use crate::frame::{FrameError, read_frame, write_frame};
 use crate::json::{self, Json};
+use crate::keybinding::PluginKeybinding;
 use crate::menu::PluginMenu;
 use crate::proto::{Envelope, MessageKind, Policy, ProtocolError, Role, TrustClass};
 use crate::validate::{InputSnapshot, StyleSpan, validate_spans};
@@ -83,6 +84,14 @@ pub struct HostClient {
     trust: TrustClass,
     granted: GrantedCapabilities,
     menu: Option<PluginMenu>,
+    keybinding: Option<PluginKeybinding>,
+}
+
+/// The raw UI contributions a host advertises in its `HelloAck`, parsed and
+/// grant-gated after the handshake completes.
+struct AdvertisedUi {
+    menu: Option<Json>,
+    keybinding: Option<Json>,
 }
 
 impl HostClient {
@@ -151,10 +160,11 @@ impl HostClient {
             trust: TrustClass::UserTrustedExternal,
             granted: GrantedCapabilities::default(),
             menu: None,
+            keybinding: None,
         };
 
-        let advertised_menu = match client.handshake() {
-            Ok(menu) => menu,
+        let advertised = match client.handshake() {
+            Ok(advertised) => advertised,
             Err(error) => {
                 client.kill();
                 return Err(error);
@@ -170,11 +180,11 @@ impl HostClient {
             ));
         }
         client.granted = GrantedCapabilities::for_roles(roles, config_trust);
-        // A menu contribution is honored only from a host granted the `menu`
+        // A UI contribution is honored only from a host granted the matching
         // capability; an ungranted host that advertises one is simply ignored.
-        // A malformed menu from a granted host is a protocol violation.
+        // A malformed contribution from a granted host is a protocol violation.
         if client.granted.holds(Capability::Menu) {
-            if let Some(payload) = advertised_menu {
+            if let Some(payload) = advertised.menu {
                 match PluginMenu::from_payload(&payload) {
                     Ok(menu) => client.menu = Some(menu),
                     Err(_) => {
@@ -184,10 +194,21 @@ impl HostClient {
                 }
             }
         }
+        if client.granted.holds(Capability::Keybinding) {
+            if let Some(payload) = advertised.keybinding {
+                match PluginKeybinding::from_payload(&payload) {
+                    Ok(keybinding) => client.keybinding = Some(keybinding),
+                    Err(_) => {
+                        client.kill();
+                        return Err(PluginError::Handshake("invalid keybinding contribution"));
+                    }
+                }
+            }
+        }
         Ok(client)
     }
 
-    fn handshake(&mut self) -> Result<Option<Json>, PluginError> {
+    fn handshake(&mut self) -> Result<AdvertisedUi, PluginError> {
         self.send(&Envelope {
             kind: MessageKind::Hello,
             request_id: 0,
@@ -215,7 +236,10 @@ impl HostClient {
             .ok_or(PluginError::Handshake("unsupported trust class"))?;
         self.host_id = host_id.to_string();
         self.trust = trust;
-        Ok(ack.payload.get("menu").cloned())
+        Ok(AdvertisedUi {
+            menu: ack.payload.get("menu").cloned(),
+            keybinding: ack.payload.get("keybinding").cloned(),
+        })
     }
 
     pub fn host_id(&self) -> &str {
@@ -230,6 +254,13 @@ impl HostClient {
     /// granted the `menu` capability and advertised a valid menu at handshake.
     pub fn menu(&self) -> Option<&PluginMenu> {
         self.menu.as_ref()
+    }
+
+    /// The host's validated keybinding contribution, present only when the host
+    /// was granted the `keybinding` capability and advertised a valid leader +
+    /// chords at handshake.
+    pub fn keybinding(&self) -> Option<&PluginKeybinding> {
+        self.keybinding.as_ref()
     }
 
     pub fn request_highlight(
