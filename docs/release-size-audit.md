@@ -526,3 +526,33 @@ session: `tmux_grid` (5), `msedit_diff` (1), release `test-panic-hook`
 `pty_smoke` (10) all pass; macOS `strings` panic-trigger check 0; `--version` /
 `--dump-config` clean. VM scratch directory removed after recording. Margin on
 the binding platform is 312,960 bytes; the C (menu) stage is complete.
+
+## 2026-07-18 D: keybinding capability (b7111ef)
+
+Binding measurement for the `keybinding` capability slice, span
+`bbc3fa7..b7111ef`: the `PluginMenuAction` -> `PluginAction` rename
+(`1aa6bf8`), the `PluginKeybinding` contribution model + handshake parse
+(`1273794`), and the dun-cli install + collision check + event-loop
+pending-prefix integration (`b7111ef`).
+
+| Platform | bbc3fa7 | b7111ef | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 670,492 | 674,596 | +4,104 | 373,980 |
+| Debian x86_64 | 735,616 | 739,712 | +4,096 | 308,864 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `b7111ef`
+(`scripts/release-build.sh`, build-std, Debian `rust-src`; build finished in
+50s; archive verified to contain `keybinding.rs`, `resolved_keybindings`, and
+the `plugin_keymap` field before trusting the result). Toolchain `rustc 1.85.0`,
+`cargo 1.85.0`, `Linux debvbox 6.12.95+deb13-amd64`. The whole keybinding slice
+costs the binding binary +4,096 bytes; Debian/macOS ratio ~1.0x for this span.
+
+Smoke on the measured Debian binary: `file` reports ELF 64-bit PIE, stripped;
+`ldd` unchanged (`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, `ld-linux`);
+`--version` printed `dun 0.1.0`; `--dump-config` emitted the 181-line default
+config; `strings | grep -c DUN_TEST_PANIC` and `rust_begin_short_backtrace`
+both 0. macOS gate this session: `tmux_grid` (5), `msedit_diff` (1), release
+`test-panic-hook` `pty_smoke` (10) all pass; macOS `strings` panic-trigger
+check 0. VM scratch directory removed after recording. Margin on the binding
+platform is 308,864 bytes; the D (keybinding) stage is complete, and with it
+the four capability slices A–D of the Distinctive Plugins stage.

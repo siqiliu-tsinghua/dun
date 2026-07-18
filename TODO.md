@@ -473,8 +473,14 @@ deltas non-additive).
     collision, two-plugins-same-leader, unload clears); collision + both
     event-loop consultations mutation-proven. macOS budget build +4,104 over
     the C spine to 674,596.
-  - **Owed:** one binding Debian VM measurement + release smoke for the D span,
-    at the D milestone (see the size budget in CLAUDE.md).
+  - D-4 (`b7111ef` measured): binding Debian measurement + smoke for the D span.
+    On a clean `vm-sync` archive of `b7111ef`, `scripts/release-build.sh`
+    measured **739,712 bytes** (margin 308,864), +4,096 over `bbc3fa7`. Debian
+    smoke: ELF PIE stripped, `ldd` unchanged, `--version`/`--dump-config` clean,
+    `strings` panic-trigger 0. macOS gate: `tmux_grid`/`msedit_diff`/release
+    `pty_smoke` pass, `strings` 0. Recorded in docs/release-size-audit.md
+    (2026-07-18). **The D (keybinding) stage is complete; no measurement debt.**
+    With A–D done, the capability mechanism + open APIs are all built.
 - [ ] Wire trust as the grant gate (also add the missing config↔handshake
   trust cross-check) and record every protocol enhancement in
   docs/plugin-protocol.md as it lands.
