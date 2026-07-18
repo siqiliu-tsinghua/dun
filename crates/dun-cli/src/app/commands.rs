@@ -27,13 +27,23 @@ impl AppState {
             strokes: self.pending_keys.clone(),
         };
 
-        if let Some(command) = self.shell.command_for_sequence(&sequence).cloned() {
+        // Built-in bindings win; a plugin leader is a free prefix (collision
+        // checked at install), so consulting the plugin keymap second can never
+        // shadow a built-in binding.
+        let command = self
+            .shell
+            .command_for_sequence(&sequence)
+            .or_else(|| self.shell.plugin_keymap.command_for_sequence(&sequence))
+            .cloned();
+        if let Some(command) = command {
             self.pending_keys.clear();
             self.handle_command(&command);
             return true;
         }
 
-        if self.shell.keymap.has_sequence_prefix(&sequence) {
+        if self.shell.keymap.has_sequence_prefix(&sequence)
+            || self.shell.plugin_keymap.has_sequence_prefix(&sequence)
+        {
             return true;
         }
 

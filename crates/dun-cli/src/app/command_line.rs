@@ -124,12 +124,12 @@ impl AppState {
                 false,
             ),
         };
-        // `unload` drops a host's menu immediately and its surface windows are
-        // reaped; `load` re-advertises the menu via a later `Started` event.
-        // Refresh and reap now so the change is visible at once.
+        // `unload` drops a host's contributions immediately and its surface
+        // windows are reaped; `load` re-advertises them via a later `Started`
+        // event. Refresh and reap now so the change is visible at once.
         if controlled {
             self.reconcile_plugin_windows();
-            self.refresh_plugin_menus();
+            self.refresh_plugin_contributions();
         }
         self.set_status(message);
     }

@@ -15,11 +15,13 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use dun_config::{PluginEntry, PluginRole, PluginTrust};
+use dun_config::{
+    KeyBinding, KeySequence, KeyStroke, Keymap, PluginEntry, PluginRole, PluginTrust,
+};
 use dun_core::{BufferId, EditorCommand};
 use dun_plugin::{
-    Capability, GrantedCapabilities, HostClient, InputSnapshot, PluginMenu, Policy, Role,
-    StyleSpan, TrustClass,
+    Capability, GrantedCapabilities, HostClient, InputSnapshot, PluginKeybinding, PluginMenu,
+    Policy, Role, StyleSpan, TrustClass,
 };
 use dun_ui::{MenuEntry, MenuItem};
 
@@ -56,10 +58,11 @@ pub(crate) struct HighlightOutcome {
 /// What a worker reports back to the main thread.
 #[derive(Debug)]
 pub(crate) enum HostEvent {
-    /// A launch completed its handshake; carries the host's validated menu
-    /// contribution when the grant allowed one.
+    /// A launch completed its handshake; carries the host's validated UI
+    /// contributions when the grant allowed them.
     Started {
         menu: Option<PluginMenu>,
+        keybinding: Option<PluginKeybinding>,
     },
     /// A launch failed with no job owed an answer (the eager path); job-tied
     /// launch failures surface as failed `Highlight` outcomes instead.
@@ -89,6 +92,7 @@ pub(crate) struct PluginHost {
     roles: Vec<Role>,
     granted: GrantedCapabilities,
     menu: Option<PluginMenu>,
+    keybinding: Option<PluginKeybinding>,
     jobs: mpsc::Sender<WorkerMessage>,
     events: mpsc::Receiver<HostEvent>,
     last_request: Option<HighlightRequestKey>,
@@ -135,6 +139,7 @@ impl PluginHost {
             roles,
             granted,
             menu: None,
+            keybinding: None,
             jobs: job_sender,
             events: event_receiver,
             last_request: None,
@@ -175,9 +180,10 @@ impl PluginHost {
     pub(crate) fn unload(&mut self) {
         let _ = self.jobs.send(WorkerMessage::Unload);
         self.unloaded = true;
-        // An unloaded host contributes no UI; the menu returns with the
+        // An unloaded host contributes no UI; the contributions return with the
         // relaunch handshake.
         self.menu = None;
+        self.keybinding = None;
         self.last_request = None;
         self.last_activity = Instant::now();
         self.failed = false;
@@ -217,8 +223,9 @@ impl PluginHost {
         for event in self.events.try_iter() {
             any = true;
             match event {
-                HostEvent::Started { menu } => {
+                HostEvent::Started { menu, keybinding } => {
                     self.menu = menu;
+                    self.keybinding = keybinding;
                     self.failed = false;
                 }
                 HostEvent::StartFailed { .. } => {
@@ -325,6 +332,79 @@ impl PluginHosts {
             .map(|(plugin_id, menu)| resolve_plugin_menu(plugin_id, menu, tags))
             .collect()
     }
+
+    /// Keybinding contributions gathered from every host that advertised one
+    /// under the `keybinding` grant, in configuration order.
+    fn keybindings(&self) -> impl Iterator<Item = (&str, &PluginKeybinding)> {
+        self.hosts.iter().filter_map(|host| {
+            host.keybinding
+                .as_ref()
+                .map(|keybinding| (host.plugin_id.as_str(), keybinding))
+        })
+    }
+
+    /// Every host's keybinding contribution resolved into a plugin keymap of
+    /// `[leader, chord] -> PluginAction` bindings, consulted after the built-in
+    /// keymap. `base` is the editor's live keymap: a plugin leader that fails to
+    /// parse, is already a binding or the prefix of one in `base`, or was
+    /// already claimed by an earlier plugin this pass is rejected — its whole
+    /// contribution is dropped — so a plugin can never shadow an existing
+    /// binding or another plugin's leader.
+    pub(crate) fn resolved_keybindings(&self, base: &Keymap) -> Keymap {
+        let mut bindings: Vec<KeyBinding> = Vec::new();
+        let mut claimed_leaders: Vec<KeyStroke> = Vec::new();
+        for (plugin_id, keybinding) in self.keybindings() {
+            let Some(resolved) =
+                resolve_plugin_keybinding(plugin_id, keybinding, base, &claimed_leaders)
+            else {
+                continue;
+            };
+            claimed_leaders.push(resolved.leader);
+            bindings.extend(resolved.bindings);
+        }
+        Keymap { bindings }
+    }
+}
+
+struct ResolvedKeybinding {
+    leader: KeyStroke,
+    bindings: Vec<KeyBinding>,
+}
+
+/// Parse and collision-check one host's keybinding contribution. Returns `None`
+/// — dropping the whole contribution — when the leader is unparseable, collides
+/// with the base keymap, was already claimed this pass, or any chord key fails
+/// to parse.
+fn resolve_plugin_keybinding(
+    plugin_id: &str,
+    keybinding: &PluginKeybinding,
+    base: &Keymap,
+    claimed_leaders: &[KeyStroke],
+) -> Option<ResolvedKeybinding> {
+    let leader: KeyStroke = keybinding.leader.parse().ok()?;
+    // The leader must be an entirely free prefix: not a complete binding, not
+    // the start of any existing sequence, and not already taken by a plugin.
+    let leader_seq = KeySequence::single(leader);
+    if base.command_for_sequence(&leader_seq).is_some()
+        || base.has_sequence_prefix(&leader_seq)
+        || claimed_leaders.contains(&leader)
+    {
+        return None;
+    }
+    let mut bindings = Vec::with_capacity(keybinding.chords.len());
+    for chord in &keybinding.chords {
+        let key: KeyStroke = chord.key.parse().ok()?;
+        bindings.push(KeyBinding {
+            sequence: KeySequence {
+                strokes: vec![leader, key],
+            },
+            command: EditorCommand::PluginAction {
+                plugin_id: plugin_id.to_string(),
+                action_id: chord.action_id.clone(),
+            },
+        });
+    }
+    Some(ResolvedKeybinding { leader, bindings })
 }
 
 /// Resolve a validated plugin menu contribution into a dun-ui menu item. Each
@@ -401,6 +481,7 @@ fn host_worker(
                 Ok(launched) => {
                     let _ = events.send(HostEvent::Started {
                         menu: launched.menu().cloned(),
+                        keybinding: launched.keybinding().cloned(),
                     });
                     client = Some(launched);
                     last_failure = None;
@@ -545,6 +626,7 @@ impl PluginHost {
                 roles: vec![Role::SyntaxHighlight],
                 granted,
                 menu: None,
+                keybinding: None,
                 jobs: job_sender,
                 events: event_receiver,
                 last_request: None,

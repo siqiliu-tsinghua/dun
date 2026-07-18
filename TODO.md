@@ -448,9 +448,33 @@ deltas non-additive).
     panic-trigger 0. macOS gate: `tmux_grid`/`msedit_diff`/release
     `pty_smoke` pass, `strings` 0. Recorded in docs/release-size-audit.md
     (2026-07-18). **The C (menu) stage is complete; no Debian measurement debt.**
-- [ ] **D — keybinding.** Leader prefix + the event-loop pending-prefix
-  state machine (the one runtime piece the keymap model lacks; `KeySequence`
-  is already `Vec<KeyStroke>`), plus leader-collision validation.
+- **D — keybinding.** Code landed 2026-07-18 (Claude-authored), three commits;
+  one binding Debian measurement + smoke owed (see below).
+  - D-1 (`1aa6bf8`): renamed `EditorCommand::PluginMenuAction` -> `PluginAction`
+    (`plugin.menu_action` -> `plugin.action`) — a menu item and a leader chord
+    produce the same "invoke plugin action" command.
+  - D-2 (`1273794`, dun-plugin): `keybinding.rs` `PluginKeybinding` model (one
+    leader keystroke spec + bounded, distinct chords; keys are opaque strings
+    parsed by dun) + validator; `HostClient` parses a `keybinding` HelloAck
+    field alongside `menu`, gated on the `keybinding` grant; fixture host
+    advertises `Ctrl+J`/`p`->`ping`; 2 protocol + 8 model tests, gate + dup
+    guard mutation-proven.
+  - D-3 (dun-cli): the worker ships the keybinding to the main thread via
+    `Started`; `PluginHost` stores it (cleared on unload); `resolved_keybindings`
+    parses each leader/chord into a `[leader, chord] -> PluginAction`
+    `plugin_keymap` on `UiShell`, **collision-checked** — a leader that is a
+    built-in binding or prefix, another plugin's leader, or unparseable drops
+    the whole contribution. `handle_key_stroke` consults `plugin_keymap` after
+    the built-in keymap (reusing the existing `pending_keys` +
+    `has_sequence_prefix` machine — the default keymap already uses `Ctrl+X,*`
+    multi-stroke leaders, so it was live), so built-ins can never be shadowed.
+    `refresh_plugin_menus` became `refresh_plugin_contributions` (menus +
+    keymap). Five tests (dispatch, pending-then-unbound cancel, built-in
+    collision, two-plugins-same-leader, unload clears); collision + both
+    event-loop consultations mutation-proven. macOS budget build +4,104 over
+    the C spine to 674,596.
+  - **Owed:** one binding Debian VM measurement + release smoke for the D span,
+    at the D milestone (see the size budget in CLAUDE.md).
 - [ ] Wire trust as the grant gate (also add the missing config↔handshake
   trust cross-check) and record every protocol enhancement in
   docs/plugin-protocol.md as it lands.

@@ -3,7 +3,9 @@ use std::time::{Duration, Instant};
 
 use dun_config::{PluginEntry, PluginRole, PluginTrust};
 use dun_plugin::json::{self, Json};
-use dun_plugin::{GrantedCapabilities, PluginMenu, Role, StyleId, StyleSpan, TrustClass};
+use dun_plugin::{
+    GrantedCapabilities, PluginKeybinding, PluginMenu, Role, StyleId, StyleSpan, TrustClass,
+};
 
 use super::support::app_with_text;
 use crate::plugins::{PluginActivity, PluginHost, WorkerMessage, next_worker_action_for_tests};
@@ -328,6 +330,7 @@ fn started_event_installs_the_menu_and_unload_clears_it() {
     events
         .send(HostEvent::Started {
             menu: Some(menu.clone()),
+            keybinding: None,
         })
         .unwrap();
     assert!(host.poll().is_empty(), "handshake events are absorbed");
@@ -353,6 +356,7 @@ fn started_event_injects_the_resolved_menu_into_the_menu_bar() {
     events
         .send(HostEvent::Started {
             menu: Some(sample_menu()),
+            keybinding: None,
         })
         .unwrap();
     assert!(host.poll().is_empty(), "handshake events are absorbed");
@@ -383,6 +387,7 @@ fn unloading_a_host_removes_its_injected_menu() {
     events
         .send(HostEvent::Started {
             menu: Some(sample_menu()),
+            keybinding: None,
         })
         .unwrap();
     assert!(host.poll().is_empty());
@@ -501,6 +506,122 @@ fn closing_a_plugin_surface_frees_the_slot() {
     app.handle_command(&plugin_action("winhost", "open"));
     assert_eq!(app.plugin_windows.count("winhost"), 2);
     assert_eq!(surface_window_count(&app), 2);
+}
+
+fn keybinding(leader: &str, key: &str, action_id: &str) -> PluginKeybinding {
+    let payload = json::obj([
+        ("leader", json::str(leader)),
+        (
+            "chords",
+            Json::Arr(vec![json::obj([
+                ("key", json::str(key)),
+                ("action_id", json::str(action_id)),
+            ])]),
+        ),
+    ]);
+    PluginKeybinding::from_payload(&payload).expect("valid keybinding")
+}
+
+/// A window+keybinding-granted host with its leader contribution installed on
+/// the shell (as a launch handshake would deliver it).
+fn app_with_keybinding_host(plugin_id: &str, keybinding: PluginKeybinding) -> AppState {
+    let mut app = AppState::new();
+    let (mut host, _messages, events) = PluginHost::for_tests_granted(plugin_id, eager_grant());
+    events
+        .send(HostEvent::Started {
+            menu: None,
+            keybinding: Some(keybinding),
+        })
+        .unwrap();
+    assert!(host.poll().is_empty(), "handshake events are absorbed");
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+    app.pump_plugins();
+    app
+}
+
+fn stroke(spec: &str) -> KeyStroke {
+    spec.parse().expect("valid keystroke spec")
+}
+
+#[test]
+fn keybinding_leader_chord_dispatches_a_plugin_action() {
+    let mut app = app_with_keybinding_host("logf", keybinding("Ctrl+J", "o", "open"));
+    assert_eq!(app.shell.plugin_keymap.bindings.len(), 1);
+
+    // The leader alone is a pending prefix: consumed, nothing dispatched.
+    assert!(app.handle_key_stroke(stroke("Ctrl+J")));
+    assert_eq!(surface_window_count(&app), 0);
+
+    // The chord completes the sequence and dispatches the plugin action, which
+    // opens the plugin's surface window (the host holds `window`).
+    assert!(app.handle_key_stroke(stroke("o")));
+    assert_eq!(surface_window_count(&app), 1);
+    assert_eq!(app.plugin_windows.count("logf"), 1);
+}
+
+#[test]
+fn keybinding_leader_then_unbound_key_cancels_without_dispatch() {
+    let mut app = app_with_keybinding_host("logf", keybinding("Ctrl+J", "o", "open"));
+
+    assert!(app.handle_key_stroke(stroke("Ctrl+J")));
+    // A key that is not a chord under the leader cancels the pending prefix.
+    app.handle_key_stroke(stroke("z"));
+    assert_eq!(surface_window_count(&app), 0);
+    assert_eq!(app.plugin_windows.count("logf"), 0);
+}
+
+#[test]
+fn keybinding_leader_colliding_with_a_built_in_prefix_is_rejected() {
+    // `Ctrl+X` is the built-in leader for many bindings, so a plugin claiming it
+    // would shadow them; its whole contribution is dropped.
+    let app = app_with_keybinding_host("logf", keybinding("Ctrl+X", "o", "open"));
+    assert!(
+        app.shell.plugin_keymap.bindings.is_empty(),
+        "a leader that collides with a built-in prefix must not install"
+    );
+}
+
+#[test]
+fn two_plugins_cannot_claim_the_same_leader() {
+    let mut app = AppState::new();
+    let (mut alpha, _am, alpha_events) = PluginHost::for_tests_granted("alpha", eager_grant());
+    let (mut beta, _bm, beta_events) = PluginHost::for_tests_granted("beta", eager_grant());
+    alpha_events
+        .send(HostEvent::Started {
+            menu: None,
+            keybinding: Some(keybinding("Ctrl+J", "a", "alpha-open")),
+        })
+        .unwrap();
+    beta_events
+        .send(HostEvent::Started {
+            menu: None,
+            keybinding: Some(keybinding("Ctrl+J", "b", "beta-open")),
+        })
+        .unwrap();
+    assert!(alpha.poll().is_empty());
+    assert!(beta.poll().is_empty());
+    app.plugin_hosts = PluginHosts::for_tests(vec![alpha, beta]);
+    app.pump_plugins();
+
+    // Only the first claimant (config order) keeps the leader.
+    assert_eq!(app.shell.plugin_keymap.bindings.len(), 1);
+    assert_eq!(
+        app.shell.plugin_keymap.bindings[0].command,
+        plugin_action("alpha", "alpha-open")
+    );
+}
+
+#[test]
+fn unloading_a_host_removes_its_keybindings() {
+    let mut app = app_with_keybinding_host("logf", keybinding("Ctrl+J", "o", "open"));
+    assert_eq!(app.shell.plugin_keymap.bindings.len(), 1);
+
+    app.run_command_line("plugin unload");
+
+    assert!(
+        app.shell.plugin_keymap.bindings.is_empty(),
+        "an unloaded host contributes no keybindings"
+    );
 }
 
 #[test]

@@ -277,10 +277,18 @@ Slices, each with a fixture host, protocol tests, and a Debian size measurement:
 - **C — menu.** `menu` contribution (one top-level subtree, label i18n,
   menu-invoke dispatch, structural bounds, menu-bar width handling). Fixture
   host contributes a top-level menu whose items dispatch requests.
-- **D — keybinding.** `keybinding` contribution (leader prefix plus the
-  event-loop pending-prefix state machine — the one runtime piece the keymap
-  model does not yet have — and collision validation). Fixture host registers a
-  leader chord that dispatches a request.
+- **D — keybinding (landed 2026-07-18).** A `keybinding` contribution reserves
+  one leader prefix keystroke and binds chords beneath it (Emacs `C-x` style).
+  The host advertises it in the HelloAck (`keybinding` field: `leader` + `chords`
+  of `{ key, action_id }`), honored only under the `keybinding` grant. `dun`
+  parses each leader/chord string into a real keystroke and installs a
+  `[leader, chord] -> PluginAction` plugin keymap consulted after the built-in
+  keymap, reusing the event loop's existing pending-prefix handling
+  (`pending_keys` + `has_sequence_prefix`). Collision validation drops a whole
+  contribution whose leader is already a built-in binding or prefix, is claimed
+  by another plugin, or fails to parse — a plugin can never shadow a built-in
+  binding. The fixture host registers a `Ctrl+J` leader with a `p -> ping`
+  chord.
 
 The first real product plugin (a `log-filter`-shaped host is the intended first:
 `{ stream-read, surface-write, window, scratch-input, menu, keybinding }`) is

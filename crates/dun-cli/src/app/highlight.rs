@@ -55,8 +55,8 @@ impl AppState {
         }
         for (plugin_id, event) in pending {
             match event {
-                // A handshake's menu contribution is absorbed inside `poll` and
-                // never surfaces here; `refresh_plugin_menus` below picks it up.
+                // A handshake's contributions are absorbed inside `poll` and
+                // never surface here; the refresh below picks them up.
                 HostEvent::Started { .. } => {}
                 HostEvent::StartFailed { error } => {
                     self.set_status(ui_text::tr_fmt(
@@ -68,21 +68,25 @@ impl AppState {
                 HostEvent::Highlight(outcome) => self.apply_highlight_outcome(&plugin_id, outcome),
             }
         }
-        self.refresh_plugin_menus();
+        self.refresh_plugin_contributions();
     }
 
-    /// Rebuilds the plugin-contributed menus shown after the built-in ones from
-    /// the hosts' current contributions. Cheap and idempotent: a handshake
-    /// (`Started`) is absorbed inside `poll` without surfacing an event, so
-    /// rather than track that, every pump recomputes and only reassigns on an
-    /// actual change (`menus` skips hosts with no contribution). `plugin
-    /// load`/`unload` call it directly for a synchronous refresh.
-    pub(crate) fn refresh_plugin_menus(&mut self) {
+    /// Rebuilds the plugin-contributed menus and keybindings from the hosts'
+    /// current contributions. Cheap and idempotent: a handshake (`Started`) is
+    /// absorbed inside `poll` without surfacing an event, so rather than track
+    /// that, every pump recomputes and only reassigns on an actual change (the
+    /// gatherers skip hosts with no contribution). `plugin load`/`unload` call
+    /// it directly for a synchronous refresh.
+    pub(crate) fn refresh_plugin_contributions(&mut self) {
         let items = self
             .plugin_hosts
             .resolved_menu_items(&self.plugin_menu_tags);
         if items != self.shell.plugin_menu_items {
             self.shell.plugin_menu_items = items;
+        }
+        let keymap = self.plugin_hosts.resolved_keybindings(&self.shell.keymap);
+        if keymap.bindings != self.shell.plugin_keymap.bindings {
+            self.shell.plugin_keymap = keymap;
         }
     }
 

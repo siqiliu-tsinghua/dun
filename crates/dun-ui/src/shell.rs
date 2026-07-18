@@ -20,6 +20,11 @@ pub struct UiShell {
     /// after the built-in menus, so rendering, hit testing, and keyboard
     /// dispatch all see one consistent menu list.
     pub plugin_menu_items: Vec<MenuItem>,
+    /// Plugin-contributed keybindings (`[leader, chord] -> PluginAction`),
+    /// resolved and collision-checked by the caller. The event loop consults
+    /// this after the built-in keymap, so a plugin leader can never shadow a
+    /// built-in binding.
+    pub plugin_keymap: Keymap,
 }
 
 impl UiShell {
@@ -40,6 +45,7 @@ impl UiShell {
             display_sanitizer,
             catalog: TextCatalog::empty(),
             plugin_menu_items: Vec::new(),
+            plugin_keymap: Keymap::empty(),
         }
     }
 

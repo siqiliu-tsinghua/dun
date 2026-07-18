@@ -47,18 +47,18 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **670,492 bytes** (2026-07-18, C-spine complete at `bbc3fa7`; +16,488
-  over the last binding-measured `c0f610e` = 654,004). Intermediate macOS
-  proxies: 658,132 at `01d184d` (host-layer generalization), 662,252 at chunk 2
-  (dun-core typed variants), 670,492 at chunk 3 (menu inject + dispatch +
-  window).
+- macOS: **674,596 bytes** (2026-07-18, D keybinding slice; +4,104 over the
+  C-spine baseline 670,492 at `bbc3fa7`). Last binding-measured macOS value was
+  670,492 at `bbc3fa7`.
 - Debian: **735,616 bytes** at `bbc3fa7` — **binding platform**, margin
-  312,960 bytes (2026-07-18, last measured). The whole C spine since `c0f610e`
-  (handshake menu grant, host-layer generalization, dun-core typed variants,
-  menu inject + dispatch + plugin surface window path) cost the binding binary
-  +20,480 bytes; the ten `status.plugin.window-limit` translations were free
-  (external files). Debian/macOS ratio for the span ~1.24x. **No Debian
-  measurement debt:** the C spine is measured through HEAD.
+  312,960 bytes (2026-07-18, last measured, C spine complete). The whole C spine
+  since `c0f610e` cost the binding binary +20,480 bytes; the ten
+  `status.plugin.window-limit` translations were free. Debian/macOS ratio ~1.24x.
+- **Debian measurement owed:** the D keybinding slice (`1aa6bf8` rename,
+  `1273794` dun-plugin model, and the dun-cli integration; +4,104 macOS proxy to
+  674,596) is not yet measured on the VM. One binding measurement + smoke is
+  planned at the D milestone; until then the last measured binding baseline
+  remains `bbc3fa7` (735,616).
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to
