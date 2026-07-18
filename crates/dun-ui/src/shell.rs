@@ -15,7 +15,7 @@ pub struct UiShell {
     /// the caller's job (rendering stays free of file I/O).
     pub catalog: TextCatalog,
     /// Plugin-contributed top-level menus, already resolved to display
-    /// labels and `PluginMenuAction` commands by the caller (dun-cli owns
+    /// labels and `PluginAction` commands by the caller (dun-cli owns
     /// the locale and the `dun-plugin` types). `menu_bar` appends these
     /// after the built-in menus, so rendering, hit testing, and keyboard
     /// dispatch all see one consistent menu list.

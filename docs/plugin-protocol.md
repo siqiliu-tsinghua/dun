@@ -310,9 +310,10 @@ side each worker ships the validated contribution to the main thread with its
 launch report, where it lives on the host's `PluginHost` entry (cleared on
 unload, reinstalled by the relaunch handshake). `dun` resolves it (labels
 against the active locale) into the menu bar after the built-in menus; an
-invoked item is an `EditorCommand::PluginMenuAction { plugin_id, action_id }`
-(not user-bindable — a generic `command_id`, `plugin.menu_action`, no
-`command_from_id` round-trip). Dispatch is gated on the host holding `window`
+invoked item is an `EditorCommand::PluginAction { plugin_id, action_id }`
+(not user-bindable — a generic `command_id`, `plugin.action`, no
+`command_from_id` round-trip; the same command a `keybinding` leader chord
+produces). Dispatch is gated on the host holding `window`
 and opens a read-only `WindowKind::PluginSurface` the plugin owns (≤2 per
 plugin, reaped on unload/reload, released on a user close). At this build stage
 every invoke opens a fresh surface; a richer per-action request round-trip to

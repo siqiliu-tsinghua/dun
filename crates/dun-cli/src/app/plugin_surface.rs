@@ -1,14 +1,15 @@
 use crate::*;
 
 impl AppState {
-    /// Route an invoked plugin menu item. For now every action opens a
-    /// plugin-owned surface window; a richer per-action request round-trip is
-    /// deferred until the first real consumer (docs/plugin-protocol.md).
-    pub(crate) fn dispatch_plugin_menu_action(&mut self, plugin_id: &str, action_id: &str) {
-        // The `menu` grant put the item on the bar; opening a `dun` window is
-        // the separate `window` capability. The only role that grants `menu`
-        // (LogFilter) also grants `window`, so this gate is defense in depth: an
-        // action from a host without `window` opens nothing.
+    /// Route an invoked plugin action (from a menu item or a leader chord). For
+    /// now every action opens a plugin-owned surface window; a richer per-action
+    /// request round-trip is deferred until the first real consumer
+    /// (docs/plugin-protocol.md).
+    pub(crate) fn dispatch_plugin_action(&mut self, plugin_id: &str, action_id: &str) {
+        // The `menu`/`keybinding` grant let the trigger appear; opening a `dun`
+        // window is the separate `window` capability. The only role that grants
+        // `menu`/`keybinding` (LogFilter) also grants `window`, so this gate is
+        // defense in depth: an action from a host without `window` opens nothing.
         if !self
             .plugin_hosts
             .get(plugin_id)

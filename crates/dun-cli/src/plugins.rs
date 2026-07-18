@@ -328,7 +328,7 @@ impl PluginHosts {
 }
 
 /// Resolve a validated plugin menu contribution into a dun-ui menu item. Each
-/// entry carries a [`EditorCommand::PluginMenuAction`] tagged by `plugin_id`
+/// entry carries a [`EditorCommand::PluginAction`] tagged by `plugin_id`
 /// and the item's `action_id`, so dispatch can route the invocation back to
 /// the owning host. Labels are resolved against the active locale `tags`; the
 /// display sanitizer still runs at render time.
@@ -339,7 +339,7 @@ fn resolve_plugin_menu(plugin_id: &str, menu: &PluginMenu, tags: &[String]) -> M
         .map(|item| {
             MenuEntry::new(
                 item.label.resolve(tags).to_string(),
-                EditorCommand::PluginMenuAction {
+                EditorCommand::PluginAction {
                     plugin_id: plugin_id.to_string(),
                     action_id: item.action_id.clone(),
                 },

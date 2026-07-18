@@ -4,13 +4,15 @@ pub enum EditorCommand {
     Edit(EditCommand),
     Window(WindowCommand),
     App(AppCommand),
-    /// A menu item contributed by a plugin host (see the `menu` capability). It
+    /// An action a plugin host contributed, invoked from its menu subtree (the
+    /// `menu` capability) or a leader chord (the `keybinding` capability). It
     /// carries the owning host's `plugin_id` and the item's `action_id` so
     /// dispatch can route the invocation back to that host. Plugin actions are
-    /// never user-bindable: `command_id` collapses every instance to one generic
-    /// static id and there is no `command_from_id` round-trip, so a
-    /// `PluginMenuAction` never appears in a keymap.
-    PluginMenuAction {
+    /// never *user*-bindable: `command_id` collapses every instance to one
+    /// generic static id and there is no `command_from_id` round-trip, so a
+    /// `PluginAction` never appears in a user keymap (a plugin's own leader
+    /// chords are injected as a separate keymap, not parsed from config).
+    PluginAction {
         plugin_id: String,
         action_id: String,
     },

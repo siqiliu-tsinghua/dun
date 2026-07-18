@@ -13,10 +13,10 @@ impl AppState {
             }
             EditorCommand::Window(command) => self.handle_window_command(command),
             EditorCommand::File(command) => self.handle_file_command(command),
-            EditorCommand::PluginMenuAction {
+            EditorCommand::PluginAction {
                 plugin_id,
                 action_id,
-            } => self.dispatch_plugin_menu_action(plugin_id, action_id),
+            } => self.dispatch_plugin_action(plugin_id, action_id),
         }
     }
 

@@ -269,29 +269,29 @@ fn all_command_ids_round_trip() {
     }
 }
 
-/// Plugin menu actions carry a `plugin_id`/`action_id` pair but are not
+/// Plugin actions carry a `plugin_id`/`action_id` pair but are not
 /// user-bindable: every instance collapses to one generic `command_id`, that id
 /// is deliberately absent from `ALL_COMMAND_IDS`, and it does not round-trip
-/// back through `command_from_id` (a keymap can never name one).
+/// back through `command_from_id` (a user keymap can never name one).
 #[test]
-fn plugin_menu_action_has_a_generic_non_bindable_id() {
-    let action = EditorCommand::PluginMenuAction {
+fn plugin_action_has_a_generic_non_bindable_id() {
+    let action = EditorCommand::PluginAction {
         plugin_id: "log-filter".into(),
         action_id: "run".into(),
     };
-    let other = EditorCommand::PluginMenuAction {
+    let other = EditorCommand::PluginAction {
         plugin_id: "notes".into(),
         action_id: "clear".into(),
     };
 
-    assert_eq!(command_id(&action), "plugin.menu_action");
+    assert_eq!(command_id(&action), "plugin.action");
     assert_eq!(command_id(&other), command_id(&action));
 
-    assert!(!ALL_COMMAND_IDS.contains(&"plugin.menu_action"));
+    assert!(!ALL_COMMAND_IDS.contains(&"plugin.action"));
     assert_eq!(
-        command_from_id("plugin.menu_action"),
+        command_from_id("plugin.action"),
         Err(CommandParseError::UnknownCommand(
-            "plugin.menu_action".to_string()
+            "plugin.action".to_string()
         ))
     );
 }

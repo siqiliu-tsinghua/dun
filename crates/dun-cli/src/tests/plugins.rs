@@ -362,14 +362,14 @@ fn started_event_injects_the_resolved_menu_into_the_menu_bar() {
 
     // The handshake's menu is resolved onto the shell (dun-ui's own tests cover
     // that these items trail the built-in menus in the rendered bar). The entry
-    // carries a PluginMenuAction tagged by plugin and action id.
+    // carries a PluginAction tagged by plugin and action id.
     assert_eq!(app.shell.plugin_menu_items.len(), 1);
     let injected = &app.shell.plugin_menu_items[0];
     assert_eq!(injected.label, "Tools");
     assert_eq!(injected.entries[0].label, "Run");
     assert_eq!(
         injected.entries[0].command,
-        EditorCommand::PluginMenuAction {
+        EditorCommand::PluginAction {
             plugin_id: "menu-host".into(),
             action_id: "run".into(),
         }
@@ -398,8 +398,8 @@ fn unloading_a_host_removes_its_injected_menu() {
     );
 }
 
-fn menu_action(plugin_id: &str, action_id: &str) -> EditorCommand {
-    EditorCommand::PluginMenuAction {
+fn plugin_action(plugin_id: &str, action_id: &str) -> EditorCommand {
+    EditorCommand::PluginAction {
         plugin_id: plugin_id.into(),
         action_id: action_id.into(),
     }
@@ -414,14 +414,14 @@ fn surface_window_count(app: &AppState) -> usize {
 }
 
 #[test]
-fn plugin_menu_action_opens_a_surface_window_only_when_window_is_granted() {
+fn plugin_action_opens_a_surface_window_only_when_window_is_granted() {
     // A host without the `window` capability opens nothing when its action is
     // invoked; the grant is the gate.
     let mut app = AppState::new();
     let (ungranted, _m, _e) =
         PluginHost::for_tests_granted("no-window", GrantedCapabilities::default());
     app.plugin_hosts = PluginHosts::for_tests(vec![ungranted]);
-    app.handle_command(&menu_action("no-window", "open"));
+    app.handle_command(&plugin_action("no-window", "open"));
     assert_eq!(surface_window_count(&app), 0);
     assert_eq!(app.plugin_windows.count("no-window"), 0);
 
@@ -429,7 +429,7 @@ fn plugin_menu_action_opens_a_surface_window_only_when_window_is_granted() {
     let mut app = AppState::new();
     let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
     app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
-    app.handle_command(&menu_action("winhost", "open"));
+    app.handle_command(&plugin_action("winhost", "open"));
     assert_eq!(surface_window_count(&app), 1);
     assert_eq!(app.plugin_windows.count("winhost"), 1);
     let surface = app
@@ -449,19 +449,19 @@ fn plugin_menu_action_opens_a_surface_window_only_when_window_is_granted() {
 }
 
 #[test]
-fn plugin_menu_action_respects_the_two_window_cap() {
+fn plugin_action_respects_the_two_window_cap() {
     let mut app = AppState::new();
     let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
     app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
 
-    app.handle_command(&menu_action("winhost", "open"));
-    app.handle_command(&menu_action("winhost", "open"));
+    app.handle_command(&plugin_action("winhost", "open"));
+    app.handle_command(&plugin_action("winhost", "open"));
     assert_eq!(app.plugin_windows.count("winhost"), 2);
     assert_eq!(surface_window_count(&app), 2);
 
     // The third invoke is refused at the cap; no window is opened and the user
     // is told why.
-    app.handle_command(&menu_action("winhost", "open"));
+    app.handle_command(&plugin_action("winhost", "open"));
     assert_eq!(app.plugin_windows.count("winhost"), 2);
     assert_eq!(surface_window_count(&app), 2);
     assert_eq!(
@@ -475,7 +475,7 @@ fn unloading_a_host_reaps_its_surface_windows() {
     let mut app = AppState::new();
     let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
     app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
-    app.handle_command(&menu_action("winhost", "open"));
+    app.handle_command(&plugin_action("winhost", "open"));
     assert_eq!(surface_window_count(&app), 1);
 
     app.run_command_line("plugin unload");
@@ -489,8 +489,8 @@ fn closing_a_plugin_surface_frees_the_slot() {
     let mut app = AppState::new();
     let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
     app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
-    app.handle_command(&menu_action("winhost", "open"));
-    app.handle_command(&menu_action("winhost", "open"));
+    app.handle_command(&plugin_action("winhost", "open"));
+    app.handle_command(&plugin_action("winhost", "open"));
     assert_eq!(app.plugin_windows.count("winhost"), 2);
 
     // The last opened surface is focused; closing it releases its slot.
@@ -498,7 +498,7 @@ fn closing_a_plugin_surface_frees_the_slot() {
     assert_eq!(app.plugin_windows.count("winhost"), 1);
 
     // The freed slot lets the plugin open another surface.
-    app.handle_command(&menu_action("winhost", "open"));
+    app.handle_command(&plugin_action("winhost", "open"));
     assert_eq!(app.plugin_windows.count("winhost"), 2);
     assert_eq!(surface_window_count(&app), 2);
 }

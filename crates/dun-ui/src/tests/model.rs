@@ -542,7 +542,7 @@ fn plugin_menu_items_trail_the_built_in_menus() {
         "Tools",
         vec![MenuEntry::new(
             "Run",
-            EditorCommand::PluginMenuAction {
+            EditorCommand::PluginAction {
                 plugin_id: "log-filter".into(),
                 action_id: "run".into(),
             },
@@ -556,7 +556,7 @@ fn plugin_menu_items_trail_the_built_in_menus() {
     assert_eq!(injected.entries[0].label, "Run");
     assert_eq!(
         injected.entries[0].command,
-        EditorCommand::PluginMenuAction {
+        EditorCommand::PluginAction {
             plugin_id: "log-filter".into(),
             action_id: "run".into(),
         }
