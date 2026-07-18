@@ -2,6 +2,8 @@ use dun_config::{Config, KeySequence, KeyStroke, Keymap, TextCatalog};
 use dun_core::{DisplaySanitizer, EditorCommand, Workspace};
 use dun_term::{EncodingProfile, GlyphSet, TerminalProfile, Theme};
 
+use crate::MenuItem;
+
 #[derive(Clone, Debug)]
 pub struct UiShell {
     pub profile: TerminalProfile,
@@ -12,6 +14,12 @@ pub struct UiShell {
     /// Loaded UI translations; empty means built-in English. Loading is
     /// the caller's job (rendering stays free of file I/O).
     pub catalog: TextCatalog,
+    /// Plugin-contributed top-level menus, already resolved to display
+    /// labels and `PluginMenuAction` commands by the caller (dun-cli owns
+    /// the locale and the `dun-plugin` types). `menu_bar` appends these
+    /// after the built-in menus, so rendering, hit testing, and keyboard
+    /// dispatch all see one consistent menu list.
+    pub plugin_menu_items: Vec<MenuItem>,
 }
 
 impl UiShell {
@@ -31,6 +39,7 @@ impl UiShell {
             keymap: config.keybindings.clone(),
             display_sanitizer,
             catalog: TextCatalog::empty(),
+            plugin_menu_items: Vec::new(),
         }
     }
 

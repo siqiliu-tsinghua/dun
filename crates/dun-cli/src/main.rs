@@ -110,7 +110,7 @@ use help::text::{
     ConfigDiagnosticsSection, line_with_exact_text, numbered_list_index_for_line,
     numbered_list_rows, parse_config_diagnostics_section, search_results_text,
 };
-pub(crate) use i18n_loading::load_ui_catalog;
+pub(crate) use i18n_loading::{load_ui_catalog, locale_value};
 use plugins::{HighlightJob, HighlightOutcome, HostEvent, PluginHosts, language_hint};
 #[cfg(test)]
 use terminal::rewrite_16_color_sgr;

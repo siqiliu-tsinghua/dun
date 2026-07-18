@@ -55,6 +55,13 @@ impl AppState {
         let plugin_status = loaded_config.config.plugin_status;
 
         let plugin_hosts = PluginHosts::from_entries(&loaded_config.config.plugins);
+        // Plugin menu labels resolve against the same locale chain as `dun`'s
+        // own UI text, and stay English on ASCII terminals and with config
+        // disabled (the sanitizer would only escape non-ASCII labels there).
+        let plugin_menu_tags = match (&loaded_config.source, shell.profile.encoding) {
+            (ConfigSource::Disabled, _) | (_, EncodingProfile::Ascii) => Vec::new(),
+            _ => dun_config::locale_candidates(&locale_value().unwrap_or_default()),
+        };
         let mut workspace = Workspace::new_untitled();
         let initial_window = workspace.focused;
         if let Ok(window) = workspace.window_mut(initial_window) {
@@ -95,6 +102,7 @@ impl AppState {
             kill_ring: None,
             recent_file_dialog_input: None,
             runtime_action: None,
+            plugin_menu_tags,
         };
         if let Some(diagnostic) = catalog_diagnostic {
             app.set_status(diagnostic);

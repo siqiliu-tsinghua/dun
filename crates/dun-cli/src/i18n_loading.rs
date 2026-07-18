@@ -58,7 +58,7 @@ pub(crate) fn i18n_dir_for_source(source: &ConfigSource) -> Option<PathBuf> {
     Some(config_path.parent()?.join("i18n"))
 }
 
-fn locale_value() -> Option<String> {
+pub(crate) fn locale_value() -> Option<String> {
     ["LC_ALL", "LC_MESSAGES", "LANG"]
         .iter()
         .filter_map(env::var_os)

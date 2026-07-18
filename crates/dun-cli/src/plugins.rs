@@ -16,11 +16,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use dun_config::{PluginEntry, PluginRole, PluginTrust};
-use dun_core::BufferId;
+use dun_core::{BufferId, EditorCommand};
 use dun_plugin::{
     Capability, GrantedCapabilities, HostClient, InputSnapshot, PluginMenu, Policy, Role,
     StyleSpan, TrustClass,
 };
+use dun_ui::{MenuEntry, MenuItem};
 
 /// Do not relaunch a failed host more often than this; failures otherwise
 /// turn every editor tick into a spawn attempt.
@@ -296,11 +297,7 @@ impl PluginHosts {
     }
 
     /// Menu contributions gathered from every host that advertised one under
-    /// the `menu` grant, in configuration order. Consumed by the menu-bar
-    /// injection (TODO.md "C — menu" chunk 3); the state and its delivery
-    /// land with the host layer so the handshake result has a home on the
-    /// main thread.
-    #[allow(dead_code)]
+    /// the `menu` grant, in configuration order.
     pub(crate) fn menus(&self) -> impl Iterator<Item = (&str, &PluginMenu)> {
         self.hosts.iter().filter_map(|host| {
             host.menu
@@ -308,6 +305,38 @@ impl PluginHosts {
                 .map(|menu| (host.plugin_id.as_str(), menu))
         })
     }
+
+    /// Every host's menu contribution resolved into a dun-ui menu item, in
+    /// configuration order, ready to append after the built-in menus. `tags`
+    /// is the active locale chain used to pick each label (empty falls back to
+    /// the required `en_US`).
+    pub(crate) fn resolved_menu_items(&self, tags: &[String]) -> Vec<MenuItem> {
+        self.menus()
+            .map(|(plugin_id, menu)| resolve_plugin_menu(plugin_id, menu, tags))
+            .collect()
+    }
+}
+
+/// Resolve a validated plugin menu contribution into a dun-ui menu item. Each
+/// entry carries a [`EditorCommand::PluginMenuAction`] tagged by `plugin_id`
+/// and the item's `action_id`, so dispatch can route the invocation back to
+/// the owning host. Labels are resolved against the active locale `tags`; the
+/// display sanitizer still runs at render time.
+fn resolve_plugin_menu(plugin_id: &str, menu: &PluginMenu, tags: &[String]) -> MenuItem {
+    let entries = menu
+        .items
+        .iter()
+        .map(|item| {
+            MenuEntry::new(
+                item.label.resolve(tags).to_string(),
+                EditorCommand::PluginMenuAction {
+                    plugin_id: plugin_id.to_string(),
+                    action_id: item.action_id.clone(),
+                },
+            )
+        })
+        .collect();
+    MenuItem::new(menu.top_label.resolve(tags).to_string(), entries)
 }
 
 /// Map a configured role name to the protocol `Role`, if the protocol models

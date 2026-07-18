@@ -35,4 +35,8 @@ pub(crate) struct AppState {
     pub(crate) recent_file_dialog_input: Option<String>,
     pub(crate) runtime_action: Option<RuntimeAction>,
     pub(crate) plugin_hosts: PluginHosts,
+    /// Active locale chain used to resolve plugin-contributed menu labels
+    /// (empty falls back to the required `en_US`, matching the English-on-ASCII
+    /// and `--no-config` rules for `dun`'s own UI text).
+    pub(crate) plugin_menu_tags: Vec<String>,
 }

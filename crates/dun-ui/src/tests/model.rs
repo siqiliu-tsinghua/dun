@@ -534,6 +534,36 @@ fn menu_exposes_help_and_quit_commands() {
 }
 
 #[test]
+fn plugin_menu_items_trail_the_built_in_menus() {
+    let mut shell = UiShell::default();
+    let built_in = shell.menu_bar(None).items.len();
+
+    shell.plugin_menu_items = vec![MenuItem::new(
+        "Tools",
+        vec![MenuEntry::new(
+            "Run",
+            EditorCommand::PluginMenuAction {
+                plugin_id: "log-filter".into(),
+                action_id: "run".into(),
+            },
+        )],
+    )];
+
+    let menu = shell.menu_bar(None);
+    assert_eq!(menu.items.len(), built_in + 1);
+    let injected = menu.items.last().unwrap();
+    assert_eq!(injected.label, "Tools");
+    assert_eq!(injected.entries[0].label, "Run");
+    assert_eq!(
+        injected.entries[0].command,
+        EditorCommand::PluginMenuAction {
+            plugin_id: "log-filter".into(),
+            action_id: "run".into(),
+        }
+    );
+}
+
+#[test]
 fn menu_mnemonics_are_unique_within_each_menu() {
     let menu = UiShell::default().menu_bar(None);
 

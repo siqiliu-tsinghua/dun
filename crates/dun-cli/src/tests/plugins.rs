@@ -347,6 +347,58 @@ fn started_event_installs_the_menu_and_unload_clears_it() {
 }
 
 #[test]
+fn started_event_injects_the_resolved_menu_into_the_menu_bar() {
+    let mut app = AppState::new();
+    let (mut host, _messages, events) = PluginHost::for_tests_granted("menu-host", eager_grant());
+    events
+        .send(HostEvent::Started {
+            menu: Some(sample_menu()),
+        })
+        .unwrap();
+    assert!(host.poll().is_empty(), "handshake events are absorbed");
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+
+    app.pump_plugins();
+
+    // The handshake's menu is resolved onto the shell (dun-ui's own tests cover
+    // that these items trail the built-in menus in the rendered bar). The entry
+    // carries a PluginMenuAction tagged by plugin and action id.
+    assert_eq!(app.shell.plugin_menu_items.len(), 1);
+    let injected = &app.shell.plugin_menu_items[0];
+    assert_eq!(injected.label, "Tools");
+    assert_eq!(injected.entries[0].label, "Run");
+    assert_eq!(
+        injected.entries[0].command,
+        EditorCommand::PluginMenuAction {
+            plugin_id: "menu-host".into(),
+            action_id: "run".into(),
+        }
+    );
+}
+
+#[test]
+fn unloading_a_host_removes_its_injected_menu() {
+    let mut app = AppState::new();
+    let (mut host, _messages, events) = PluginHost::for_tests_granted("menu-host", eager_grant());
+    events
+        .send(HostEvent::Started {
+            menu: Some(sample_menu()),
+        })
+        .unwrap();
+    assert!(host.poll().is_empty());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+    app.pump_plugins();
+    assert_eq!(app.shell.plugin_menu_items.len(), 1);
+
+    app.run_command_line("plugin unload");
+
+    assert!(
+        app.shell.plugin_menu_items.is_empty(),
+        "an unloaded host's menu must disappear from the bar at once"
+    );
+}
+
+#[test]
 fn start_failed_event_reports_status_and_error_activity() {
     let mut app = AppState::new();
     let (host, _messages, events) = PluginHost::for_tests_granted("menu-host", eager_grant());

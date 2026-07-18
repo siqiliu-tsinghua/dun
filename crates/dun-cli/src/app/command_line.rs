@@ -96,22 +96,40 @@ impl AppState {
     /// addresses one host by its `plugin_id`. The id is optional only while
     /// it is unambiguous, i.e. exactly one host is configured.
     fn run_plugin_command(&mut self, args: &[String]) {
-        let message = match args {
-            [] => plugin_hosts_report(&self.plugin_hosts, &self.shell.catalog),
-            [action] if action == "load" || action == "unload" => plugin_control(
-                &mut self.plugin_hosts,
-                &self.shell.catalog,
-                None,
-                action == "load",
+        let (message, controlled) = match args {
+            [] => (
+                plugin_hosts_report(&self.plugin_hosts, &self.shell.catalog),
+                false,
             ),
-            [action, id] if action == "load" || action == "unload" => plugin_control(
-                &mut self.plugin_hosts,
-                &self.shell.catalog,
-                Some(id),
-                action == "load",
+            [action] if action == "load" || action == "unload" => (
+                plugin_control(
+                    &mut self.plugin_hosts,
+                    &self.shell.catalog,
+                    None,
+                    action == "load",
+                ),
+                true,
             ),
-            _ => ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_USAGE).to_string(),
+            [action, id] if action == "load" || action == "unload" => (
+                plugin_control(
+                    &mut self.plugin_hosts,
+                    &self.shell.catalog,
+                    Some(id),
+                    action == "load",
+                ),
+                true,
+            ),
+            _ => (
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PLUGIN_USAGE).to_string(),
+                false,
+            ),
         };
+        // `unload` drops a host's menu immediately; `load` re-advertises it via
+        // a later `Started` event. Refresh now so an unloaded host's menu
+        // disappears at once.
+        if controlled {
+            self.refresh_plugin_menus();
+        }
         self.set_status(message);
     }
 

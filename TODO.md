@@ -413,12 +413,23 @@ deltas non-additive).
     +4,120 to 662,252 (owned-`String` payload adds drop/clone glue across
     `EditorCommand`'s pervasive use; proxy — folded into the owed chunk-4 Debian
     measurement).
-  - Spine remaining — ordered chunks (next session starts at 3):
-    3. **Inject + dispatch + window path.** Inject each host's menu into the
-       menu bar (`MenuItem`/`MenuEntry` with `command = PluginMenuAction`);
-       dispatch `PluginMenuAction` to the grant-gated (`holds(Window)`) window
-       open/close path reusing `PluginWindows` + `WindowKind::PluginSurface`
-       (this also completes B's window path).
+  - Ordered chunk 3 in progress (2026-07-18, Claude-authored). Part 1 —
+    **menu injection** — landed: `UiShell` gains a `plugin_menu_items:
+    Vec<MenuItem>` that `menu_bar()` appends after the built-in menus, so
+    rendering, hit testing, and keyboard/mouse dispatch see one consistent
+    list. dun-cli resolves each host's `PluginMenu` into a `MenuItem` whose
+    entries carry `EditorCommand::PluginMenuAction { plugin_id, action_id }`
+    (`PluginHosts::resolved_menu_items`, labels resolved against the active
+    locale chain — empty/`en_US` on ASCII or `--no-config`). `refresh_plugin_menus`
+    recomputes each pump (a handshake is absorbed inside `poll` without
+    surfacing) and on `plugin load`/`unload`, reassigning only on change. Two
+    tests (dun-ui injection order, dun-cli end-to-end inject + unload-clears).
+    Dispatch is still the chunk-2 no-op placeholder — Part 2 wires it.
+  - Spine remaining — ordered chunks (next session starts at 3, part 2):
+    3. **Dispatch + window path (part 2).** Dispatch `PluginMenuAction` to the
+       grant-gated (`holds(Window)`) window open/close path reusing
+       `PluginWindows` + `WindowKind::PluginSurface` (this also completes B's
+       window path).
     4. **One binding Debian measurement** for the whole C spine at this
        integration milestone (VM). Owed so far (macOS proxies): the handshake
        chunk (`d2fe8df`) added +8 to 654,012; the host-layer generalization

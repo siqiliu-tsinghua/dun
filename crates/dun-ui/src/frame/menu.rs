@@ -321,25 +321,26 @@ impl UiShell {
     }
 
     pub(crate) fn menu_bar(&self, active: Option<MenuSelection>) -> MenuBar {
-        MenuBar {
-            active,
-            items: MENUS
-                .iter()
-                .map(|menu| {
-                    MenuItem::new(
-                        self.menu_label(menu.key, menu.english),
-                        menu.entries
-                            .iter()
-                            .map(|entry| {
-                                MenuEntry::new(
-                                    self.entry_label(entry.key, entry.english),
-                                    entry.command.clone(),
-                                )
-                            })
-                            .collect(),
-                    )
-                })
-                .collect(),
-        }
+        let mut items: Vec<MenuItem> = MENUS
+            .iter()
+            .map(|menu| {
+                MenuItem::new(
+                    self.menu_label(menu.key, menu.english),
+                    menu.entries
+                        .iter()
+                        .map(|entry| {
+                            MenuEntry::new(
+                                self.entry_label(entry.key, entry.english),
+                                entry.command.clone(),
+                            )
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+        // Plugin menus are pre-resolved by the caller; they trail the built-in
+        // menus so their menu indices are stable for dispatch and hit testing.
+        items.extend(self.plugin_menu_items.iter().cloned());
+        MenuBar { active, items }
     }
 }
