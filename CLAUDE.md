@@ -47,24 +47,18 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **670,492 bytes** (2026-07-18, C-spine ordered chunk 3 — menu inject +
-  dispatch + plugin surface window path; +8,240 over chunk 2's 662,252).
-  Prior: 662,252 at chunk 2 (dun-core typed variants, +4,120 over `01d184d`);
-  658,132 at `01d184d` (host-layer generalization). Last binding-measured
-  macOS value was 654,004 at `c0f610e`.
-- Debian: **715,136 bytes** at `c0f610e` — **binding platform**, margin
-  333,440 bytes (2026-07-16, last measured). Byte-identical to `744c843`: the
-  capability machinery through `c0f610e` (slice A primitives, the window
-  registry, the live grant) cost the binding binary zero net bytes — the
-  +4,104 macOS delta did not translate to Debian (non-additive fat-LTO;
-  measure per batch).
-- **Debian measurement owed:** the C-spine commits since `c0f610e` (`d2fe8df`
-  +8 macOS; the 2026-07-17 host-layer generalization +4,120 macOS; the
-  2026-07-18 dun-core typed variants +4,120 macOS; the 2026-07-18 menu inject +
-  dispatch + window path +8,240 macOS) are not yet measured on the VM. One
-  binding measurement is planned for the whole C spine at its integration
-  milestone (TODO.md "C — menu", chunk 4); until then the last measured binding
-  baseline remains `c0f610e`.
+- macOS: **670,492 bytes** (2026-07-18, C-spine complete at `bbc3fa7`; +16,488
+  over the last binding-measured `c0f610e` = 654,004). Intermediate macOS
+  proxies: 658,132 at `01d184d` (host-layer generalization), 662,252 at chunk 2
+  (dun-core typed variants), 670,492 at chunk 3 (menu inject + dispatch +
+  window).
+- Debian: **735,616 bytes** at `bbc3fa7` — **binding platform**, margin
+  312,960 bytes (2026-07-18, last measured). The whole C spine since `c0f610e`
+  (handshake menu grant, host-layer generalization, dun-core typed variants,
+  menu inject + dispatch + plugin surface window path) cost the binding binary
+  +20,480 bytes; the ten `status.plugin.window-limit` translations were free
+  (external files). Debian/macOS ratio for the span ~1.24x. **No Debian
+  measurement debt:** the C spine is measured through HEAD.
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to

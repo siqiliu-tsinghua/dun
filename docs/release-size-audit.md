@@ -492,3 +492,37 @@ Smoke on the measured Debian binary: `file` reports ELF 64-bit PIE, stripped;
 `--version` printed `dun 0.1.0`; `--dump-config` emitted the default config. VM
 scratch directory removed after recording. Margin on the binding platform is
 unchanged at 333,440 bytes.
+
+## 2026-07-18 C spine: menu contribution (bbc3fa7)
+
+Binding measurement for the whole C-spine ("C — menu") integration milestone,
+paying off the four commits owed on the VM since `c0f610e`: the handshake-carried
+menu grant (`d2fe8df`), the host-layer generalization `PluginHost`/`PluginHosts`
+(`01d184d`), the dun-core typed variants `WindowKind::PluginSurface` +
+`EditorCommand::PluginMenuAction` (chunk 2, `ee876d2`), and the menu inject +
+dispatch + plugin surface window path (chunk 3, `5a4fc06` + `bbc3fa7`).
+
+| Platform | c0f610e | bbc3fa7 | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 654,004 | 670,492 | +16,488 | 378,084 |
+| Debian x86_64 | 715,136 | 735,616 | +20,480 | 312,960 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `bbc3fa7`
+(`scripts/release-build.sh`, build-std, Debian `rust-src`; build finished in 50s;
+archive verified to contain `plugin_surface.rs`, the `PluginMenuAction` variant,
+and the new `status.plugin.window-limit` translation before trusting the result).
+Toolchain `rustc 1.85.0 (4d91de4e4 2025-02-17)` (built from a source tarball),
+`cargo 1.85.0`, `Linux debvbox 6.12.95+deb13-amd64`. The whole C spine costs the
+binding binary +20,480 bytes; the ten `status.plugin.window-limit` translations
+are external `i18n/*.conf` files and cost the binary nothing. Debian/macOS ratio
+for this span is ~1.24x. Both platforms stay well under budget.
+
+Smoke on the measured Debian binary: `file` reports ELF 64-bit PIE, stripped;
+`ldd` unchanged (`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, `ld-linux`);
+`--version` printed `dun 0.1.0`; `--dump-config` emitted the 181-line default
+config; `strings | grep -c DUN_TEST_PANIC` and `rust_begin_short_backtrace` both
+0 (build-std still strips the panic-backtrace machinery). macOS gate this
+session: `tmux_grid` (5), `msedit_diff` (1), release `test-panic-hook`
+`pty_smoke` (10) all pass; macOS `strings` panic-trigger check 0; `--version` /
+`--dump-config` clean. VM scratch directory removed after recording. Margin on
+the binding platform is 312,960 bytes; the C (menu) stage is complete.

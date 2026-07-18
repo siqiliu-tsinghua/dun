@@ -437,14 +437,17 @@ deltas non-additive).
       One new i18n key (`status.plugin.window-limit`, all ten translations).
       Five mutations killed (window gate, ≤2 cap ×2, unload reap, close
       release). macOS budget build +8,240 over chunk 2 to 670,492.
-  - Spine remaining — ordered chunks (next session starts at 4):
-    4. **One binding Debian measurement** for the whole C spine at this
-       integration milestone (VM), plus the release smoke checklist. Owed so
-       far (macOS proxies): the handshake chunk (`d2fe8df`) added +8 to
-       654,012; the host-layer generalization (2026-07-17) added +4,120 to
-       658,132; the dun-core typed variants (chunk 2) added +4,120 to 662,252;
-       the menu inject + dispatch + window path (chunk 3) added +8,240 to
-       670,492.
+  - Ordered chunk 4 landed 2026-07-18: **binding Debian measurement + release
+    smoke for the whole C spine.** On a clean `vm-sync` archive of `bbc3fa7`,
+    `scripts/release-build.sh` measured **735,616 bytes** (margin 312,960),
+    +20,480 over the last binding baseline `c0f610e` (715,136) for the whole
+    span (handshake menu grant, host-layer generalization, dun-core typed
+    variants, menu inject + dispatch + window path); the ten
+    `status.plugin.window-limit` translations were free. Debian smoke: ELF PIE
+    stripped, `ldd` unchanged, `--version`/`--dump-config` clean, `strings`
+    panic-trigger 0. macOS gate: `tmux_grid`/`msedit_diff`/release
+    `pty_smoke` pass, `strings` 0. Recorded in docs/release-size-audit.md
+    (2026-07-18). **The C (menu) stage is complete; no Debian measurement debt.**
 - [ ] **D — keybinding.** Leader prefix + the event-loop pending-prefix
   state machine (the one runtime piece the keymap model lacks; `KeySequence`
   is already `Vec<KeyStroke>`), plus leader-collision validation.
