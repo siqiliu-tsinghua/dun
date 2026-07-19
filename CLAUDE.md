@@ -123,7 +123,7 @@ verbatim evidence — it never commits, branches, or pushes.
 
 ## Test / Measurement VMs
 
-Two local VirtualBox VMs, both started manually by the user and reachable
+Three local VirtualBox VMs, all started manually by the user and reachable
 through the tracked `vm-test/` wrappers with a target selector (`-t NAME` /
 `DUN_VM_TARGET`; default `debian`):
 
@@ -132,14 +132,18 @@ through the tracked `vm-test/` wrappers with a target selector (`-t NAME` /
   1 MiB size budget.
 - **`freebsd` (port 2233, FreeBSD 15.1)** — a **portability / functional** test
   env ([docs/freebsd-vm.md](./docs/freebsd-vm.md)), NOT a size-budget platform
-  (LLVM/lld + `pkg` rust ≠ the 1.85 budget baseline; its size is a reference
-  only). More targets may be added later.
+  (LLVM/lld + `pkg` rust ≠ the 1.85 budget baseline; size is a reference only).
+- **`solaris` (port 2244, Oracle Solaris 11.4)** — a **portability / functional**
+  env ([docs/solaris-vm.md](./docs/solaris-vm.md)), NOT a size-budget platform
+  (native Solaris `ld`, multilib, `pkg` rust 1.87 with `rust-src` linked from
+  `/opt`). Known open issue: `tmux_grid` fails there on a real Solaris
+  width-detection bug in `dun`/crossterm (not masked). More targets may be added.
 
 Use `vm-test/vm-run [-t NAME] [command]` and `vm-test/vm-sync [-t NAME] [ref]`
 (`--worktree` rsyncs the dirty tree for iteration only) instead of raw ssh;
-passwordless sudo is available on both. The wrappers keep a repo-local,
+passwordless sudo is available on all three. The wrappers keep a repo-local,
 gitignored `vm-test/known_hosts`. **When a change needs VM testing, ask the
-user to start every relevant VM (both Debian and FreeBSD today), then run
+user to start every relevant VM (Debian, FreeBSD, Solaris today), then run
 against each with its target** — do not assume any VM is up. Binding size
 measurement (Debian) uses the repeat checklist in
 [docs/release-size-audit.md](./docs/release-size-audit.md) (clean git archive,

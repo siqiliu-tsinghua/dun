@@ -16,8 +16,9 @@ VM_TARGET="${DUN_VM_TARGET:-debian}"
 case "$VM_TARGET" in
     debian) VM_DEFAULT_PORT=2222 ;;
     freebsd) VM_DEFAULT_PORT=2233 ;;
+    solaris) VM_DEFAULT_PORT=2244 ;;
     *)
-        echo "vm-test: unknown target '$VM_TARGET' (known: debian, freebsd)" >&2
+        echo "vm-test: unknown target '$VM_TARGET' (known: debian, freebsd, solaris)" >&2
         echo "vm-test: select one with '-t NAME' or DUN_VM_TARGET=NAME." >&2
         exit 1
         ;;

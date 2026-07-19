@@ -43,9 +43,12 @@ ref="${1:-HEAD}"
 sha="$(git -C "$REPO_ROOT" rev-parse --short "$ref")"
 dest="dun-$sha"
 
+# `cd … && tar -xf -` is portable across GNU, BSD, and Solaris tar: Solaris
+# tar reads a tape device unless given `-f -`, and its `-C` differs, so avoid
+# both by changing directory first and reading stdin explicitly.
 git -C "$REPO_ROOT" archive --format=tar "$ref" \
     | ssh "${VM_SSH_OPTS[@]}" "$VM_DEST" \
-        "rm -rf ~/$dest && mkdir -p ~/$dest && tar -x -C ~/$dest"
+        "rm -rf ~/$dest && mkdir -p ~/$dest && cd ~/$dest && tar -xf -"
 
 if [ "$ref" = "HEAD" ] && ! git -C "$REPO_ROOT" diff --quiet HEAD 2>/dev/null; then
     echo "note: local working tree is dirty; the archive contains only commit $sha" >&2
