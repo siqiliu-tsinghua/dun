@@ -492,14 +492,26 @@ deltas non-additive).
   output/input channels give a host actual content, and none were wired by
   A–D). Build API-first, fixture-driven, one at a time (user decision
   2026-07-19), each with tests + a Debian measurement:
-  - **surface-write** (host fills its own window). Part 1 landed (dun-plugin):
-    `Policy::max_surface_lines`, `validate_surface` beside `validate_spans`,
-    `HostClient::request_surface(action_id)` (gated on `surface-write`, reuses
-    the request/response transport, no role/revision), fixture answers an
-    `action_id` request with lines. 2 protocol + 2 validator tests; gate and
-    line-cap mutation-proven. Pending: dun-cli wiring (action → request →
-    render into an open-or-reused `PluginSurface`, resolving the fresh-window
-    interim) + Debian measurement.
+  - **surface-write** (host fills its own window). Parts 1–2 landed; Debian
+    measurement owed.
+    - sw-1 `e319d0e` (dun-plugin): `Policy::max_surface_lines`,
+      `validate_surface` beside `validate_spans`,
+      `HostClient::request_surface(action_id)` (gated on `surface-write`, reuses
+      the request/response transport, no role/revision), fixture answers an
+      `action_id` request with lines. 2 protocol + 2 validator tests; gate and
+      line-cap mutation-proven.
+    - sw-2 (dun-cli): worker gains `WorkerMessage::Surface`/`HostEvent::Surface`
+      (host_worker refactored into `serve_job`/`serve_surface`/
+      `report_launch_failure` for clean per-item borrows). `dispatch_plugin_action`
+      now opens-or-**reuses** the plugin's surface (resolving the fresh-window
+      interim: one surface per plugin) and, when the host holds `surface-write`,
+      sends a surface request; `apply_surface_outcome` fills the window with the
+      host's validated lines on the next pump (resolving the per-action
+      round-trip interim). A `window`-only host still gets an empty surface.
+      Three chunk-3 window tests reworked for reuse + three new tests
+      (fill-on-response, window-only-no-request, reuse); the surface-write
+      dispatch gate, the render, and the reuse are each mutation-proven. macOS
+      budget build 678,708 (+4,112 over the D baseline `b7111ef`).
   - **stream-read** (feed command-output stream chunks to a host) — not started.
   - **scratch-input + execute** (dun-native editable buffer + submit its text to
     the host) — not started; this is B's unfinished half.

@@ -4,7 +4,8 @@ use std::time::{Duration, Instant};
 use dun_config::{PluginEntry, PluginRole, PluginTrust};
 use dun_plugin::json::{self, Json};
 use dun_plugin::{
-    GrantedCapabilities, PluginKeybinding, PluginMenu, Role, StyleId, StyleSpan, TrustClass,
+    Capability, GrantedCapabilities, PluginKeybinding, PluginMenu, Role, StyleId, StyleSpan,
+    TrustClass,
 };
 
 use super::support::app_with_text;
@@ -454,24 +455,77 @@ fn plugin_action_opens_a_surface_window_only_when_window_is_granted() {
 }
 
 #[test]
-fn plugin_action_respects_the_two_window_cap() {
+fn invoking_an_action_reuses_the_plugins_surface_window() {
     let mut app = AppState::new();
     let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
     app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
 
+    // Repeated invokes reuse the one surface rather than spawning a window each
+    // time; the per-plugin cap itself is unit-tested on the registry.
     app.handle_command(&plugin_action("winhost", "open"));
+    app.handle_command(&plugin_action("winhost", "filter"));
     app.handle_command(&plugin_action("winhost", "open"));
-    assert_eq!(app.plugin_windows.count("winhost"), 2);
-    assert_eq!(surface_window_count(&app), 2);
+    assert_eq!(surface_window_count(&app), 1);
+    assert_eq!(app.plugin_windows.count("winhost"), 1);
+    // The reused window's title tracks the latest action.
+    let surface = app
+        .workspace
+        .windows
+        .iter()
+        .find(|window| window.kind == WindowKind::PluginSurface)
+        .unwrap();
+    assert_eq!(surface.title, "winhost: open");
+}
 
-    // The third invoke is refused at the cap; no window is opened and the user
-    // is told why.
-    app.handle_command(&plugin_action("winhost", "open"));
-    assert_eq!(app.plugin_windows.count("winhost"), 2);
-    assert_eq!(surface_window_count(&app), 2);
+#[test]
+fn surface_write_response_fills_the_plugins_window() {
+    let mut app = AppState::new();
+    let (host, messages, events) = PluginHost::for_tests_granted("winhost", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+
+    // Invoking sends a surface request to the worker and opens the surface.
+    app.handle_command(&plugin_action("winhost", "show"));
+    assert_eq!(surface_window_count(&app), 1);
     assert_eq!(
-        app.status_message,
-        Some("Plugin winhost reached its window limit".to_string())
+        messages.try_recv().ok(),
+        Some(WorkerMessage::Surface("show".to_string()))
+    );
+
+    // The host's response fills the surface on the next pump.
+    events
+        .send(HostEvent::Surface {
+            action_id: "show".to_string(),
+            result: Ok(vec!["alpha".to_string(), "beta".to_string()]),
+        })
+        .unwrap();
+    app.pump_plugins();
+
+    let surface = app
+        .workspace
+        .windows
+        .iter()
+        .find(|window| window.kind == WindowKind::PluginSurface)
+        .unwrap();
+    let buffer = &app.buffer_state(surface.buffer_id).unwrap().buffer;
+    assert_eq!(buffer.line(0), Some("alpha"));
+    assert_eq!(buffer.line(1), Some("beta"));
+    assert!(buffer.is_read_only());
+}
+
+#[test]
+fn window_only_host_gets_an_empty_surface_and_sends_no_request() {
+    let mut app = AppState::new();
+    // Granted `window` but not `surface-write`: the surface opens but stays empty
+    // and no surface request is issued.
+    let grant = GrantedCapabilities::grant([Capability::Window], TrustClass::UserTrustedExternal);
+    let (host, messages, _events) = PluginHost::for_tests_granted("winhost", grant);
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+
+    app.handle_command(&plugin_action("winhost", "open"));
+    assert_eq!(surface_window_count(&app), 1);
+    assert!(
+        messages.try_recv().is_err(),
+        "a host without surface-write must not be asked for content"
     );
 }
 
@@ -495,17 +549,17 @@ fn closing_a_plugin_surface_frees_the_slot() {
     let (granted, _m, _e) = PluginHost::for_tests_granted("winhost", eager_grant());
     app.plugin_hosts = PluginHosts::for_tests(vec![granted]);
     app.handle_command(&plugin_action("winhost", "open"));
-    app.handle_command(&plugin_action("winhost", "open"));
-    assert_eq!(app.plugin_windows.count("winhost"), 2);
-
-    // The last opened surface is focused; closing it releases its slot.
-    app.handle_command(&EditorCommand::Window(WindowCommand::Close));
     assert_eq!(app.plugin_windows.count("winhost"), 1);
 
-    // The freed slot lets the plugin open another surface.
+    // Closing the surface releases the slot from the registry.
+    app.handle_command(&EditorCommand::Window(WindowCommand::Close));
+    assert_eq!(app.plugin_windows.count("winhost"), 0);
+    assert_eq!(surface_window_count(&app), 0);
+
+    // The plugin can open a fresh surface again afterward.
     app.handle_command(&plugin_action("winhost", "open"));
-    assert_eq!(app.plugin_windows.count("winhost"), 2);
-    assert_eq!(surface_window_count(&app), 2);
+    assert_eq!(app.plugin_windows.count("winhost"), 1);
+    assert_eq!(surface_window_count(&app), 1);
 }
 
 fn keybinding(leader: &str, key: &str, action_id: &str) -> PluginKeybinding {

@@ -1,47 +1,115 @@
 use crate::*;
 
 impl AppState {
-    /// Route an invoked plugin action (from a menu item or a leader chord). For
-    /// now every action opens a plugin-owned surface window; a richer per-action
-    /// request round-trip is deferred until the first real consumer
-    /// (docs/plugin-protocol.md).
+    /// Route an invoked plugin action (from a menu item or a leader chord).
+    /// Opens (or reuses) the plugin's surface window, then — if the host holds
+    /// `surface-write` — asks it for the content to show; the response fills the
+    /// window on the next pump (`apply_surface_outcome`). A host with `window`
+    /// but not `surface-write` gets an empty surface.
     pub(crate) fn dispatch_plugin_action(&mut self, plugin_id: &str, action_id: &str) {
         // The `menu`/`keybinding` grant let the trigger appear; opening a `dun`
         // window is the separate `window` capability. The only role that grants
         // `menu`/`keybinding` (LogFilter) also grants `window`, so this gate is
         // defense in depth: an action from a host without `window` opens nothing.
-        if !self
-            .plugin_hosts
-            .get(plugin_id)
-            .is_some_and(|host| host.holds_window())
+        let Some(host) = self.plugin_hosts.get(plugin_id) else {
+            return;
+        };
+        if !host.holds_window() {
+            return;
+        }
+        let holds_surface_write = host.holds_surface_write();
+        if self
+            .ensure_plugin_surface_window(plugin_id, action_id)
+            .is_none()
         {
             return;
         }
-        self.open_plugin_surface_window(plugin_id, action_id);
+        if holds_surface_write {
+            if let Some(host) = self.plugin_hosts.get_mut(plugin_id) {
+                host.send_surface_request(action_id);
+            }
+        }
     }
 
-    /// Split off a read-only surface window owned by `plugin_id`, subject to the
-    /// per-plugin window cap. The surface starts empty; `surface-write` fills it
-    /// once that capability is wired.
-    fn open_plugin_surface_window(&mut self, plugin_id: &str, action_id: &str) {
-        if !self.plugin_windows.can_open(plugin_id) {
-            self.set_status(ui_text::tr_fmt(
-                &self.shell.catalog,
-                ui_text::STATUS_PLUGIN_WINDOW_LIMIT,
-                &[plugin_id],
-            ));
-            return;
-        }
-
-        // FocusMissing is effectively unreachable (there is always a focused
-        // window); if the split cannot happen, nothing is opened or recorded.
-        let Ok(window_id) = self.workspace.split_focused(Axis::Horizontal) else {
+    /// Apply a surface-write response: fill the plugin's surface window with the
+    /// host's lines, or surface the error. Runs after the request round-trip.
+    pub(crate) fn apply_surface_outcome(
+        &mut self,
+        plugin_id: &str,
+        action_id: &str,
+        result: Result<Vec<String>, String>,
+    ) {
+        let lines = match result {
+            Ok(lines) => lines,
+            Err(message) => {
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_PLUGIN_FAILED,
+                    &[plugin_id, &message],
+                ));
+                return;
+            }
+        };
+        let Some(window_id) = self.ensure_plugin_surface_window(plugin_id, action_id) else {
             return;
         };
         let Ok(window) = self.workspace.window(window_id) else {
             return;
         };
         let buffer_id = window.buffer_id;
+        let surface = BufferState::new(
+            buffer_id,
+            TextBuffer::from_text_with_kind(BufferKind::ReadOnly, &lines.join("\n")),
+        );
+        if let Some(existing) = self.buffer_state_mut(buffer_id) {
+            *existing = surface;
+        } else {
+            self.buffers.push(surface);
+        }
+    }
+
+    /// The plugin's existing surface window, if one is still open.
+    fn plugin_surface_window(&self, plugin_id: &str) -> Option<WindowId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| {
+                window.kind == WindowKind::PluginSurface
+                    && self.plugin_windows.owns(plugin_id, window.id)
+            })
+            .map(|window| window.id)
+    }
+
+    /// Return the plugin's surface window, reusing an open one or splitting off a
+    /// new read-only one (subject to the per-plugin cap). Reuse means a plugin
+    /// keeps a single surface rather than spawning one per invoke.
+    fn ensure_plugin_surface_window(
+        &mut self,
+        plugin_id: &str,
+        action_id: &str,
+    ) -> Option<WindowId> {
+        if let Some(window_id) = self.plugin_surface_window(plugin_id) {
+            if let Ok(window) = self.workspace.window_mut(window_id) {
+                window.title = format!("{plugin_id}: {action_id}");
+                window.collapsed = false;
+            }
+            self.workspace.focused = window_id;
+            return Some(window_id);
+        }
+
+        if !self.plugin_windows.can_open(plugin_id) {
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_PLUGIN_WINDOW_LIMIT,
+                &[plugin_id],
+            ));
+            return None;
+        }
+
+        // FocusMissing is effectively unreachable (there is always a focused
+        // window); if the split cannot happen, nothing is opened or recorded.
+        let window_id = self.workspace.split_focused(Axis::Horizontal).ok()?;
+        let buffer_id = self.workspace.window(window_id).ok()?.buffer_id;
         let surface = BufferState::new(
             buffer_id,
             TextBuffer::from_text_with_kind(BufferKind::ReadOnly, ""),
@@ -58,6 +126,7 @@ impl AppState {
             window.collapsed = false;
         }
         self.plugin_windows.record_opened(plugin_id, window_id);
+        Some(window_id)
     }
 
     /// Reap the surface windows of any plugin no longer loaded — unloaded by

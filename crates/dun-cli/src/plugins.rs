@@ -41,6 +41,9 @@ pub(crate) struct HighlightJob {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum WorkerMessage {
     Job(HighlightJob),
+    /// A plugin action was invoked; ask the host for its surface content
+    /// (`surface-write`). Carries the invoked `action_id`.
+    Surface(String),
     /// Launch the host now if it is not running: the eager path for hosts
     /// whose handshake carries UI contributions.
     Launch,
@@ -70,6 +73,12 @@ pub(crate) enum HostEvent {
         error: String,
     },
     Highlight(HighlightOutcome),
+    /// A surface-write action's result: the lines the host returned for its own
+    /// window, or an error string. Paired with the plugin id by the poller.
+    Surface {
+        action_id: String,
+        result: Result<Vec<String>, String>,
+    },
 }
 
 /// A request key identifying work already in flight or applied; used to
@@ -169,6 +178,11 @@ impl PluginHost {
         self.granted.holds(Capability::Window)
     }
 
+    /// Whether the host may fill its own surface window (`surface-write`).
+    pub(crate) fn holds_surface_write(&self) -> bool {
+        self.granted.holds(Capability::SurfaceWrite)
+    }
+
     fn highlights(&self) -> bool {
         self.roles.contains(&Role::SyntaxHighlight)
     }
@@ -214,6 +228,15 @@ impl PluginHost {
         self.jobs.send(WorkerMessage::Job(job)).is_ok()
     }
 
+    /// Ask the worker to fetch this host's surface content for an invoked
+    /// action (`surface-write`). Returns whether the request was sent.
+    pub(crate) fn send_surface_request(&mut self, action_id: &str) -> bool {
+        self.last_activity = Instant::now();
+        self.jobs
+            .send(WorkerMessage::Surface(action_id.to_string()))
+            .is_ok()
+    }
+
     /// Drains worker events. Handshake results are absorbed here (the menu
     /// contribution installs or reinstalls); events the application layer
     /// must act on — launch failures, highlight outcomes — are returned.
@@ -235,6 +258,10 @@ impl PluginHost {
                 HostEvent::Highlight(outcome) => {
                     self.failed = outcome.result.is_err();
                     kept.push(HostEvent::Highlight(outcome));
+                }
+                HostEvent::Surface { action_id, result } => {
+                    self.failed = result.is_err();
+                    kept.push(HostEvent::Surface { action_id, result });
                 }
             }
         }
@@ -448,11 +475,18 @@ fn plugin_trust(trust: PluginTrust) -> TrustClass {
     }
 }
 
-/// One gathered round of worker input: the newest job wins, plus whether an
-/// eager launch was requested.
+/// One gathered round of worker input: the newest highlight job wins, every
+/// surface action is kept in order, plus whether an eager launch was requested.
 struct WorkerAction {
     launch: bool,
     job: Option<HighlightJob>,
+    surface: Vec<String>,
+}
+
+impl WorkerAction {
+    fn is_empty(&self) -> bool {
+        !self.launch && self.job.is_none() && self.surface.is_empty()
+    }
 }
 
 fn host_worker(
@@ -469,7 +503,7 @@ fn host_worker(
     let mut unloaded = false;
 
     while let Ok(action) = next_worker_action(messages, &mut client, &mut unloaded) {
-        if !action.launch && action.job.is_none() {
+        if action.is_empty() {
             continue;
         }
 
@@ -488,56 +522,119 @@ fn host_worker(
                 }
                 Err(error) => {
                     last_failure = Some(Instant::now());
-                    let event = match &action.job {
-                        Some(job) => HostEvent::Highlight(failure_outcome(job, &error.to_string())),
-                        None => HostEvent::StartFailed {
-                            error: error.to_string(),
-                        },
-                    };
-                    let _ = events.send(event);
+                    report_launch_failure(&action, &error.to_string(), events);
                     continue;
                 }
             }
         }
-        let Some(active) = client.as_mut() else {
-            continue;
-        };
-        let Some(job) = action.job else {
-            continue;
-        };
 
-        let Ok(first_line) = u32::try_from(job.first_line) else {
+        if let Some(job) = action.job {
+            serve_job(&mut client, job, events, &mut last_failure);
+        }
+        for action_id in action.surface {
+            serve_surface(&mut client, action_id, events, &mut last_failure);
+        }
+    }
+}
+
+/// Report a launch failure to every piece of work the round owed an answer: a
+/// failed highlight job, each surface action, or — for a bare eager launch —
+/// a single `StartFailed`.
+fn report_launch_failure(action: &WorkerAction, error: &str, events: &mpsc::Sender<HostEvent>) {
+    let mut reported = false;
+    if let Some(job) = &action.job {
+        let _ = events.send(HostEvent::Highlight(failure_outcome(job, error)));
+        reported = true;
+    }
+    for action_id in &action.surface {
+        let _ = events.send(HostEvent::Surface {
+            action_id: action_id.clone(),
+            result: Err(error.to_string()),
+        });
+        reported = true;
+    }
+    if !reported {
+        let _ = events.send(HostEvent::StartFailed {
+            error: error.to_string(),
+        });
+    }
+}
+
+/// Run one highlight job against the launched client. A protocol violation
+/// kills the host (dropping the client) so the next job relaunches after the
+/// cooldown.
+fn serve_job(
+    client: &mut Option<HostClient>,
+    job: HighlightJob,
+    events: &mpsc::Sender<HostEvent>,
+    last_failure: &mut Option<Instant>,
+) {
+    let Some(active) = client.as_mut() else {
+        return;
+    };
+    let Ok(first_line) = u32::try_from(job.first_line) else {
+        let _ = events.send(HostEvent::Highlight(failure_outcome(
+            &job,
+            "snapshot start exceeds u32 lines",
+        )));
+        return;
+    };
+    let snapshot = InputSnapshot {
+        buffer_revision: job.revision,
+        language: job.language.clone(),
+        first_line,
+        lines: job.lines.clone(),
+    };
+    match active.request_highlight(&snapshot) {
+        Ok(spans) => {
+            *last_failure = None;
+            let _ = events.send(HostEvent::Highlight(HighlightOutcome {
+                buffer_id: job.buffer_id,
+                revision: job.revision,
+                result: Ok(spans),
+            }));
+        }
+        Err(error) => {
+            *client = None;
+            *last_failure = Some(Instant::now());
             let _ = events.send(HostEvent::Highlight(failure_outcome(
                 &job,
-                "snapshot start exceeds u32 lines",
+                &error.to_string(),
             )));
-            continue;
-        };
-        let snapshot = InputSnapshot {
-            buffer_revision: job.revision,
-            language: job.language.clone(),
-            first_line,
-            lines: job.lines.clone(),
-        };
-        match active.request_highlight(&snapshot) {
-            Ok(spans) => {
-                last_failure = None;
-                let _ = events.send(HostEvent::Highlight(HighlightOutcome {
-                    buffer_id: job.buffer_id,
-                    revision: job.revision,
-                    result: Ok(spans),
-                }));
-            }
-            Err(error) => {
-                // The client kills the host on protocol violations; drop it
-                // so the next job relaunches after the cooldown.
-                client = None;
-                last_failure = Some(Instant::now());
-                let _ = events.send(HostEvent::Highlight(failure_outcome(
-                    &job,
-                    &error.to_string(),
-                )));
-            }
+        }
+    }
+}
+
+/// Run one surface-write action request against the launched client. Like
+/// `serve_job`, a violation kills the host so the next request relaunches.
+fn serve_surface(
+    client: &mut Option<HostClient>,
+    action_id: String,
+    events: &mpsc::Sender<HostEvent>,
+    last_failure: &mut Option<Instant>,
+) {
+    let Some(active) = client.as_mut() else {
+        let _ = events.send(HostEvent::Surface {
+            action_id,
+            result: Err("plugin host unavailable".to_string()),
+        });
+        return;
+    };
+    match active.request_surface(&action_id) {
+        Ok(lines) => {
+            *last_failure = None;
+            let _ = events.send(HostEvent::Surface {
+                action_id,
+                result: Ok(lines),
+            });
+        }
+        Err(error) => {
+            *client = None;
+            *last_failure = Some(Instant::now());
+            let _ = events.send(HostEvent::Surface {
+                action_id,
+                result: Err(error.to_string()),
+            });
         }
     }
 }
@@ -550,6 +647,7 @@ fn next_worker_action(
     let mut action = WorkerAction {
         launch: false,
         job: None,
+        surface: Vec::new(),
     };
     apply_worker_message(messages.recv()?, client, unloaded, &mut action);
     while let Ok(message) = messages.try_recv() {
@@ -560,6 +658,7 @@ fn next_worker_action(
         Ok(WorkerAction {
             launch: false,
             job: None,
+            surface: Vec::new(),
         })
     } else {
         Ok(action)
@@ -574,6 +673,7 @@ fn apply_worker_message(
 ) {
     match message {
         WorkerMessage::Job(job) => action.job = Some(job),
+        WorkerMessage::Surface(action_id) => action.surface.push(action_id),
         WorkerMessage::Launch => action.launch = true,
         WorkerMessage::Load => *unloaded = false,
         WorkerMessage::Unload => {
@@ -583,6 +683,7 @@ fn apply_worker_message(
             *unloaded = true;
             action.launch = false;
             action.job = None;
+            action.surface.clear();
         }
     }
 }

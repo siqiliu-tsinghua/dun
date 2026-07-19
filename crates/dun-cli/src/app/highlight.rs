@@ -66,6 +66,9 @@ impl AppState {
                     ));
                 }
                 HostEvent::Highlight(outcome) => self.apply_highlight_outcome(&plugin_id, outcome),
+                HostEvent::Surface { action_id, result } => {
+                    self.apply_surface_outcome(&plugin_id, &action_id, result)
+                }
             }
         }
         self.refresh_plugin_contributions();
