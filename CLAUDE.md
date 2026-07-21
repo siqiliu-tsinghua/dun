@@ -47,13 +47,13 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **678,708 bytes** (2026-07-19, surface-write slice at `aa8b852`;
-  +4,112 over the D baseline 674,596 at `b7111ef`).
-- Debian: **743,808 bytes** at `aa8b852` — **binding platform**, margin
-  304,768 bytes (2026-07-19, last measured; capability slices A–D plus the
-  surface-write data channel). The surface-write slice since `b7111ef` cost the
-  binding binary +4,096 bytes; Debian/macOS ratio ~1.0x. **No Debian
-  measurement debt:** measured through HEAD.
+- macOS: **682,820 bytes** (2026-07-19, stream-read slice at `e438a13`;
+  +4,112 over the surface-write baseline 678,708 at `aa8b852`).
+- Debian: **747,904 bytes** at `e438a13` — **binding platform**, margin
+  300,672 bytes (2026-07-19, last measured; capability slices A–D plus the
+  surface-write and stream-read data channels). The stream-read slice since
+  `aa8b852` cost the binding binary +4,096 bytes; Debian/macOS ratio ~1.0x.
+  **No Debian measurement debt:** measured through HEAD.
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to

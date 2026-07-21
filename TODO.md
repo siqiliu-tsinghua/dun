@@ -517,8 +517,12 @@ deltas non-additive).
       (fill-on-response, window-only-no-request, reuse); the surface-write
       dispatch gate, the render, and the reuse are each mutation-proven. macOS
       budget build 678,708 (+4,112 over the D baseline `b7111ef`).
-  - **stream-read** (feed command-output stream chunks to a host). sr-1/sr-2
-    landed; Debian measurement owed.
+  - **stream-read** (feed command-output stream chunks to a host). DONE —
+    sr-1/sr-2 landed, sr-3 measured (`e438a13`, 2026-07-19): binding Debian
+    **747,904 bytes**, margin 300,672, +4,096 over the surface-write baseline;
+    smoke passed. Cross-platform functional: macOS 700/0, FreeBSD 700/0,
+    Solaris 696/4 (the 4 = the root-caused Solaris ambiguous-width quirk). No
+    measurement debt.
     - sr-1 `72d2d9e` (dun-plugin): `StreamChunk { stream_id, chunk_index, lines,
       final_chunk }`, `validate_stream_verdict` (one keep/drop boolean per input
       line), `HostClient::request_stream_filter` (gated on `stream-read`, reuses

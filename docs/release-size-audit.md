@@ -586,3 +586,33 @@ reference sizes not budget gates): **macOS 693/0, FreeBSD 693/0, Solaris 689/4**
 ambiguous-width `wcwidth` policy, not a `dun` defect — see docs/solaris-vm.md).
 VM scratch removed after recording. Margin on the binding platform is 304,768
 bytes.
+
+## 2026-07-19 stream-read capability (e438a13)
+
+Binding measurement for the `stream-read` capability slice (sr-1 `72d2d9e`
+dun-plugin request/validate path + sr-2 `e438a13` dun-cli command-output feed →
+verdict → surface wiring).
+
+| Platform | aa8b852 | e438a13 | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 678,708 | 682,820 | +4,112 | 365,756 |
+| Debian x86_64 | 743,808 | 747,904 | +4,096 | 300,672 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `e438a13`
+(`scripts/release-build.sh`, build-std, Debian `rust-src`). Toolchain
+`rustc 1.85.0`, `cargo 1.85.0`, `Linux debvbox 6.12.95+deb13-amd64`. The
+stream-read slice costs the binding binary +4,096 bytes; Debian/macOS ratio
+~1.0x. Both platforms stay well under budget.
+
+Smoke on the measured Debian binary: ELF 64-bit PIE stripped; `ldd` unchanged
+(`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, `ld-linux`); `--version` printed
+`dun 0.1.0`; `--dump-config` 181 lines; `strings` panic-trigger checks both 0.
+macOS gate (on an idle machine — the real-terminal `tmux_grid`/`msedit_diff`
+tests flake under concurrent VM load, verified by re-running once idle):
+`tmux_grid` (5), `msedit_diff` (1), release `test-panic-hook` `pty_smoke` (10)
+all pass, `strings` 0.
+
+Cross-platform functional runs this session (full `cargo test --workspace`):
+**macOS 700/0, FreeBSD 700/0, Solaris 696/4** (the 4 Solaris failures are the
+root-caused ambiguous-width `tmux_grid` quirk, not a defect). VM scratch removed
+after recording. Margin on the binding platform is 300,672 bytes.
