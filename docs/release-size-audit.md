@@ -556,3 +556,33 @@ both 0. macOS gate this session: `tmux_grid` (5), `msedit_diff` (1), release
 check 0. VM scratch directory removed after recording. Margin on the binding
 platform is 308,864 bytes; the D (keybinding) stage is complete, and with it
 the four capability slices A–D of the Distinctive Plugins stage.
+
+## 2026-07-19 surface-write capability (aa8b852)
+
+Binding measurement for the `surface-write` capability slice (sw-1 `e319d0e`
+dun-plugin request/validate path + sw-2 `22b2dd4` dun-cli action→request→render
+wiring; `aa8b852` adds only Solaris docs, byte-identical runtime).
+
+| Platform | b7111ef | aa8b852 | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 674,596 | 678,708 | +4,112 | 369,868 |
+| Debian x86_64 | 739,712 | 743,808 | +4,096 | 304,768 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `aa8b852`
+(`scripts/release-build.sh`, build-std, Debian `rust-src`). Toolchain
+`rustc 1.85.0`, `cargo 1.85.0`, `Linux debvbox 6.12.95+deb13-amd64`. The
+surface-write slice costs the binding binary +4,096 bytes; Debian/macOS ratio
+~1.0x. Both platforms stay well under budget.
+
+Smoke on the measured Debian binary: ELF 64-bit PIE stripped; `ldd` unchanged
+(`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, `ld-linux`); `--version` printed
+`dun 0.1.0`; `--dump-config` 181 lines; `strings` panic-trigger checks both 0.
+macOS gate: `tmux_grid` (5), `msedit_diff` (1), release `test-panic-hook`
+`pty_smoke` (10) all pass, `strings` 0.
+
+Cross-platform functional runs this session (full `cargo test --workspace`,
+reference sizes not budget gates): **macOS 693/0, FreeBSD 693/0, Solaris 689/4**
+(the 4 Solaris failures are all `tmux_grid`, root-caused to the platform's
+ambiguous-width `wcwidth` policy, not a `dun` defect — see docs/solaris-vm.md).
+VM scratch removed after recording. Margin on the binding platform is 304,768
+bytes.

@@ -492,8 +492,13 @@ deltas non-additive).
   output/input channels give a host actual content, and none were wired by
   A–D). Build API-first, fixture-driven, one at a time (user decision
   2026-07-19), each with tests + a Debian measurement:
-  - **surface-write** (host fills its own window). Parts 1–2 landed; Debian
-    measurement owed.
+  - **surface-write** (host fills its own window). DONE — sw-1/sw-2 landed,
+    sw-3 measured. Binding Debian measurement (`aa8b852`, 2026-07-19):
+    **743,808 bytes**, margin 304,768, +4,096 over the D baseline `b7111ef`;
+    smoke passed (ELF PIE stripped, `ldd` unchanged, `--version`/`--dump-config`,
+    `strings` panic-trigger 0). Cross-platform functional runs: macOS 693/0,
+    FreeBSD 693/0, Solaris 689/4 (the 4 = the root-caused Solaris ambiguous-width
+    `wcwidth` quirk, not a defect). No measurement debt.
     - sw-1 `e319d0e` (dun-plugin): `Policy::max_surface_lines`,
       `validate_surface` beside `validate_spans`,
       `HostClient::request_surface(action_id)` (gated on `surface-write`, reuses
