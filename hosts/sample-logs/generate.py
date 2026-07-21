@@ -175,21 +175,55 @@ def gen_ssh_bruteforce(rng, sessions):
 
 
 def gen_mcp_probes(rng, sessions):
-    """Access log for an exposed MCP server: legitimate JSON-RPC traffic mixed
-    with path scanners and exploit probes."""
+    """Access log for an exposed MCP server, in `<ts> IP - "METHOD path HTTP"
+    status size "ua"` form so a fail2ban failregex anchored on `<HOST> - "..."`
+    can match it. Legitimate traffic hits the allow-listed endpoints (bare `/`,
+    `/mcp`, `/oauth`, `/.well-known`, `/favicon.ico`) and *sometimes* gets a 4xx
+    (a failed token, an unauthenticated /mcp, a missing favicon) that must NOT be
+    banned; scanners hit everything else and get 401/403/404 — the ban signal.
+    The mix is what forces an allow-list (negative-lookahead) rule rather than a
+    naive "ban all 4xx"."""
     lines = []
-    nets = [n for n in ATTACKER_NETS]
+    nets = ATTACKER_NETS
     weights = [n[2] for n in nets]
-    # Legitimate MCP sessions.
-    for _ in range(max(3, sessions // 8)):
+
+    def emit(t, ip, method, path, status, ua):
+        iso = t.strftime("%Y-%m-%dT%H:%M:%SZ")
+        size = rng.randint(120, 4000) if status < 400 else 0
+        lines.append((t, f'{iso} {ip} - "{method} {path} HTTP/1.1" {status} {size} "{ua}"'))
+
+    # Legitimate MCP clients: discover .well-known, run the OAuth dance, then
+    # use /mcp. A few steps legitimately 4xx yet sit on allow-listed paths.
+    for _ in range(max(4, sessions // 6)):
         ip = rng.choice(LEGIT_MCP_IPS)
-        times = session_times(rng, rng.randint(4, 12))
-        for t in times:
-            method = rng.choice(MCP_METHODS)
-            body = json.dumps({"jsonrpc": "2.0", "method": method, "id": rng.randint(1, 9999)})
-            iso = t.strftime("%Y-%m-%dT%H:%M:%SZ")
-            lines.append((t, f'{iso} {ip} "POST /mcp HTTP/1.1" 200 {len(body)} "{LEGIT_UA}" {body}'))
-    # Scanner / sniffer sessions.
+        times = session_times(rng, rng.randint(6, 14))
+        seq = [
+            ("GET", "/.well-known/oauth-protected-resource", 200),
+            ("GET", "/.well-known/oauth-authorization-server", 200),
+            ("GET", "/oauth/authorize?response_type=code&client_id=mcp", 302),
+            ("POST", "/oauth/token", rng.choice([200, 200, 200, 401])),
+        ]
+        i = 0
+        for method, path, status in seq:
+            if i >= len(times):
+                break
+            emit(times[i], ip, method, path, status, LEGIT_UA)
+            i += 1
+        while i < len(times):
+            status = 401 if rng.random() < 0.15 else 200  # unauth /mcp: allow-listed, not banned
+            emit(times[i], ip, "POST", "/mcp", status, LEGIT_UA)
+            i += 1
+
+    # Ordinary browsers: the bare root and a missing favicon (a 404 that must
+    # not be banned because /favicon.ico is allow-listed).
+    for _ in range(max(3, sessions // 8)):
+        prefix, _label, _w = rng.choices(nets, weights=weights, k=1)[0]
+        ip = ip_from(prefix, rng)
+        t = session_times(rng, 1)[0]
+        emit(t, ip, "GET", "/", rng.choice([200, 200, 302]), "Mozilla/5.0 (compatible)")
+        emit(t + dt.timedelta(seconds=1), ip, "GET", "/favicon.ico", 404, "Mozilla/5.0 (compatible)")
+
+    # Scanner / sniffer sessions: non-allow-listed paths, 401/403/404.
     for _ in range(sessions):
         prefix, _label, _w = rng.choices(nets, weights=weights, k=1)[0]
         ip = ip_from(prefix, rng)
@@ -199,9 +233,9 @@ def gen_mcp_probes(rng, sessions):
         for i in range(probes):
             path, _cls = rng.choice(PROBE_PATHS)
             method = rng.choice(["GET", "GET", "GET", "POST", "HEAD"])
-            status = rng.choice([404, 404, 404, 403, 400, 301])
-            iso = times[i].strftime("%Y-%m-%dT%H:%M:%SZ")
-            lines.append((times[i], f'{iso} {ip} "{method} {path} HTTP/1.1" {status} 0 "{ua}"'))
+            status = rng.choice([404, 404, 404, 403, 401])
+            emit(times[i], ip, method, path, status, ua)
+
     lines.sort(key=lambda pair: pair[0])
     return [line for _t, line in lines]
 

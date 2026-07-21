@@ -1,60 +1,60 @@
-2026-06-01T00:00:11.299Z INFO  auth: request handled
-2026-06-01T00:00:40.625Z INFO  worker: cache hit
-2026-06-01T00:00:42.083Z DEBUG auth: lock acquired
-2026-06-01T00:00:57.649Z INFO  auth: connection established
-2026-06-01T00:01:21.127Z INFO  http: job started
-2026-06-01T00:01:48.620Z DEBUG auth: payload decoded
-2026-06-01T00:02:11.521Z INFO  db: cache hit
-2026-06-01T00:02:46.740Z DEBUG cache: payload decoded
-2026-06-01T00:03:03.248Z DEBUG db: span closed
-2026-06-01T00:03:12.481Z WARN  cache: slow query 1.8s
-2026-06-01T00:03:15.966Z DEBUG http: payload decoded
-2026-06-01T00:03:22.014Z INFO  scheduler: job started
-2026-06-01T00:03:30.476Z INFO  scheduler: cache hit
-2026-06-01T00:03:57.700Z INFO  auth: request handled
-2026-06-01T00:04:34.241Z INFO  auth: request handled
-2026-06-01T00:05:02.669Z ERROR worker: timeout after 30s
-2026-06-01T00:05:21.209Z WARN  cache: cache miss storm
-2026-06-01T00:05:53.643Z DEBUG cache: entering handler
-2026-06-01T00:06:21.576Z DEBUG auth: entering handler
-2026-06-01T00:06:54.026Z WARN  http: slow query 1.8s
-2026-06-01T00:07:27.810Z ERROR http: timeout after 30s
-2026-06-01T00:07:36.597Z DEBUG db: lock acquired
-2026-06-01T00:07:42.421Z INFO  db: cache hit
-2026-06-01T00:08:07.608Z INFO  auth: job started
-2026-06-01T00:08:45.636Z WARN  db: slow query 1.8s
-2026-06-01T00:09:05.935Z INFO  auth: cache hit
-2026-06-01T00:09:23.782Z WARN  worker: slow query 1.8s
-2026-06-01T00:09:49.998Z INFO  db: request handled
-2026-06-01T00:09:57.035Z ERROR scheduler: 500 from upstream
-2026-06-01T00:10:29.297Z INFO  http: request handled
-2026-06-01T00:10:30.778Z INFO  worker: connection established
-2026-06-01T00:10:41.190Z INFO  auth: connection established
-2026-06-01T00:10:43.182Z DEBUG scheduler: span closed
-2026-06-01T00:11:07.867Z INFO  scheduler: job started
-2026-06-01T00:11:31.008Z WARN  worker: cache miss storm
-2026-06-01T00:11:32.410Z ERROR http: 500 from upstream
-2026-06-01T00:11:40.445Z ERROR db: deadlock detected
-2026-06-01T00:11:43.273Z DEBUG http: payload decoded
-2026-06-01T00:12:18.929Z INFO  worker: request handled
-2026-06-01T00:12:41.176Z INFO  db: connection established
-2026-06-01T00:13:17.151Z INFO  scheduler: cache hit
-2026-06-01T00:13:48.081Z WARN  scheduler: cache miss storm
-2026-06-01T00:14:12.738Z DEBUG http: entering handler
-2026-06-01T00:14:27.986Z DEBUG scheduler: payload decoded
-2026-06-01T00:14:40.929Z ERROR scheduler: 500 from upstream
-2026-06-01T00:14:52.439Z INFO  auth: job started
-2026-06-01T00:15:24.648Z INFO  http: job started
-2026-06-01T00:15:51.036Z INFO  auth: cache hit
-2026-06-01T00:16:29.907Z ERROR worker: connection refused
-2026-06-01T00:16:32.693Z INFO  scheduler: connection established
-2026-06-01T00:16:56.246Z INFO  cache: connection established
-2026-06-01T00:17:19.726Z INFO  worker: request handled
-2026-06-01T00:17:44.874Z ERROR scheduler: connection refused
-2026-06-01T00:18:21.967Z INFO  auth: request handled
-2026-06-01T00:18:44.422Z INFO  http: request handled
-2026-06-01T00:19:14.877Z WARN  worker: pool near limit
-2026-06-01T00:19:51.492Z INFO  db: cache hit
-2026-06-01T00:20:09.502Z WARN  auth: retrying upstream
-2026-06-01T00:20:29.878Z WARN  scheduler: pool near limit
-2026-06-01T00:20:47.291Z ERROR http: deadlock detected
+2026-06-01T00:00:20.199Z WARN  cache: slow query 1.8s
+2026-06-01T00:00:22.595Z INFO  scheduler: job started
+2026-06-01T00:00:35.901Z INFO  scheduler: connection established
+2026-06-01T00:01:05.649Z DEBUG db: payload decoded
+2026-06-01T00:01:36.770Z INFO  worker: connection established
+2026-06-01T00:02:11.417Z INFO  worker: cache hit
+2026-06-01T00:02:29.075Z INFO  db: cache hit
+2026-06-01T00:03:04.141Z INFO  worker: request handled
+2026-06-01T00:03:29.537Z DEBUG db: span closed
+2026-06-01T00:03:35.837Z WARN  worker: cache miss storm
+2026-06-01T00:03:56.758Z ERROR http: deadlock detected
+2026-06-01T00:04:06.185Z INFO  auth: job started
+2026-06-01T00:04:07.645Z DEBUG db: entering handler
+2026-06-01T00:04:24.647Z ERROR scheduler: deadlock detected
+2026-06-01T00:04:48.698Z INFO  auth: request handled
+2026-06-01T00:04:51.290Z ERROR worker: timeout after 30s
+2026-06-01T00:04:57.457Z INFO  worker: request handled
+2026-06-01T00:05:28.922Z DEBUG worker: entering handler
+2026-06-01T00:06:03.756Z ERROR db: connection refused
+2026-06-01T00:06:12.705Z ERROR cache: deadlock detected
+2026-06-01T00:06:38.881Z INFO  db: connection established
+2026-06-01T00:06:51.806Z INFO  db: cache hit
+2026-06-01T00:06:57.266Z DEBUG db: payload decoded
+2026-06-01T00:07:07.749Z DEBUG cache: entering handler
+2026-06-01T00:07:14.800Z INFO  worker: connection established
+2026-06-01T00:07:30.566Z INFO  scheduler: cache hit
+2026-06-01T00:07:55.313Z WARN  db: slow query 1.8s
+2026-06-01T00:08:15.416Z INFO  worker: request handled
+2026-06-01T00:08:23.598Z WARN  scheduler: slow query 1.8s
+2026-06-01T00:09:00.549Z INFO  cache: job started
+2026-06-01T00:09:10.649Z INFO  auth: job started
+2026-06-01T00:09:47.721Z INFO  scheduler: job started
+2026-06-01T00:10:08.834Z INFO  scheduler: connection established
+2026-06-01T00:10:12.448Z DEBUG worker: payload decoded
+2026-06-01T00:10:19.561Z WARN  auth: pool near limit
+2026-06-01T00:10:44.608Z DEBUG db: payload decoded
+2026-06-01T00:10:51.357Z INFO  db: job started
+2026-06-01T00:11:23.046Z INFO  http: job started
+2026-06-01T00:11:48.962Z INFO  worker: request handled
+2026-06-01T00:12:21.252Z INFO  cache: cache hit
+2026-06-01T00:12:29.669Z DEBUG cache: payload decoded
+2026-06-01T00:13:02.210Z INFO  cache: job started
+2026-06-01T00:13:16.810Z INFO  worker: connection established
+2026-06-01T00:13:50.315Z INFO  db: connection established
+2026-06-01T00:14:00.156Z DEBUG cache: lock acquired
+2026-06-01T00:14:08.382Z INFO  worker: connection established
+2026-06-01T00:14:46.088Z ERROR auth: deadlock detected
+2026-06-01T00:14:59.615Z INFO  http: request handled
+2026-06-01T00:15:31.704Z ERROR worker: timeout after 30s
+2026-06-01T00:15:33.118Z INFO  scheduler: job started
+2026-06-01T00:15:57.685Z INFO  db: request handled
+2026-06-01T00:16:02.135Z INFO  worker: connection established
+2026-06-01T00:16:25.052Z DEBUG db: lock acquired
+2026-06-01T00:16:41.358Z INFO  http: connection established
+2026-06-01T00:16:44.856Z INFO  db: job started
+2026-06-01T00:17:19.369Z ERROR http: 500 from upstream
+2026-06-01T00:17:41.577Z ERROR cache: timeout after 30s
+2026-06-01T00:17:55.091Z ERROR cache: connection refused
+2026-06-01T00:17:57.913Z DEBUG http: lock acquired
+2026-06-01T00:18:29.749Z INFO  db: request handled

@@ -54,30 +54,48 @@ to a single prolific IP to isolate that attacker's whole session, or to
 ## Scenario 2 — MCP server sniffing (`mcp-probes.log`)
 
 A server exposing an MCP endpoint faces the same background sniffing as any web
-service. The dataset interleaves **legitimate MCP traffic** (JSON-RPC
-`initialize` / `tools/list` / `tools/call` … over `POST /mcp`, from a few known
-clients) with scanner sessions probing for **secrets** (`/.env`, `/.git/config`,
-`/.aws/credentials`), **CMS/admin** panels (`/wp-login.php`, `/phpmyadmin/`),
-and **exploit** paths (path traversal, `think\app` RCE, a log4shell string
-smuggled in the User-Agent).
+service. The log is written as `<ts> IP - "METHOD path HTTP/1.1" status size
+"ua"` — the `IP - "…"` shape a fail2ban `failregex` anchors on via `<HOST>` —
+and interleaves:
 
-The triage that suggests fail2ban rules:
+- **legitimate traffic** on the allow-listed endpoints: the bare `/`, `/mcp`
+  (JSON-RPC), the OAuth dance (`/oauth/authorize`, `/oauth/token`), and
+  `/.well-known/oauth-*` discovery, from a few known clients. Crucially, *some
+  of it legitimately returns 4xx* — a failed `/oauth/token` 401, an
+  unauthenticated `/mcp` 401, a missing `/favicon.ico` 404;
+- **scanner sessions** probing everything else — secrets (`/.env`,
+  `/.git/config`, `/.aws/credentials`), CMS/admin panels, exploit paths
+  (traversal, `think\app` RCE, a log4shell string in the User-Agent) —
+  returning 401/403/404.
 
-```sh
-# Sources hammering non-existent paths (404 storms) — prime ban candidates
-grep '" 404 ' mcp-probes.log | awk '{print $2}' | sort | uniq -c | sort -rn | head
+That mix is the whole point: a naive "ban every IP that gets a 4xx" bans your
+own clients (the favicon 404, the unauthenticated `/mcp`). The rule has to
+**allow-list the real endpoints** and ban 4xx only elsewhere — which is exactly
+the real failregex this dataset was built to reproduce:
 
-# Anyone probing for secrets — a high-confidence ban signal
-grep -E '/\.env|/\.git|/\.aws|credentials' mcp-probes.log | awk '{print $2}' | sort -u
-
-# Scanner user-agents (a UA-based jail)
-grep -oE '"(zgrab|masscan|Nuclei|python-requests|Go-http-client)[^"]*"' mcp-probes.log \
-  | sort | uniq -c | sort -rn
+```
+failregex = ^.*\b<HOST>(?::\d+)?\s+-\s+"[A-Z]+\s+/(?!(?:$|mcp(?:[/? ]|$)|oauth[/? ]|\.well-known[/? ]|favicon\.ico(?:[? ]|$)))\S+\s+HTTP/\d(?:\.\d+)?"\s+(?:401|403|404)\b
 ```
 
-Filtering these classes apart — legit `/mcp` vs `404` scanners vs the secrets
-probes — is what a `log-filter` plugin is for: each class becomes a substring
-(or, once patterns land, a regex) that a fail2ban `failregex` can mirror.
+On the committed set that failregex matches **499 lines / 89 distinct IPs** (the
+scanners) and **spares 23 allow-listed 4xx** (favicon 404, unauthenticated
+`/mcp`, failed `/oauth/token`) — the lines a naive 4xx rule would wrongly ban.
+Verify with the exact regex (`<HOST>` → an IP group):
+
+```sh
+python3 - <<'EOF'
+import re
+rx = re.compile(r'^.*\b(?P<h>(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?\s+-\s+"[A-Z]+\s+/'
+                r'(?!(?:$|mcp(?:[/? ]|$)|oauth[/? ]|\.well-known[/? ]|favicon\.ico(?:[? ]|$)))'
+                r'\S+\s+HTTP/\d(?:\.\d+)?"\s+(?:401|403|404)\b')
+ban = {rx.search(l).group("h") for l in open("mcp-probes.log") if rx.search(l)}
+print(len(ban), "IPs to ban")
+EOF
+```
+
+Triaging those classes apart — legit `/mcp` vs the secrets probes vs the CMS
+scanners — is what a `log-filter` plugin is for: each class is a substring (or,
+once patterns land, a regex) that a `failregex` like the one above mirrors.
 
 ## Regenerating
 
