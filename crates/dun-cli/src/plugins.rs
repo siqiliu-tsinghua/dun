@@ -10,6 +10,7 @@
 //! because only its handshake can advertise the UI it contributes, while
 //! highlight-only hosts keep the memory-saving lazy launch on their first job.
 
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::thread;
@@ -119,9 +120,24 @@ pub(crate) struct PluginHost {
     last_activity: Instant,
     failed: bool,
     unloaded: bool,
-    /// The stream lines last fed to this host (`stream-read`), awaiting a
-    /// verdict; applied positionally when the verdict arrives.
-    pending_stream: (String, Vec<String>),
+    /// The chunk size dun splits a stream into before feeding it (the host's
+    /// `max_snapshot_lines`); a chunk over this is rejected by the client.
+    stream_chunk_lines: usize,
+    /// Stream chunks fed to this host (`stream-read`) awaiting a verdict, in
+    /// send order. Each verdict is matched to the front chunk and applied
+    /// positionally; verdicts arrive in the same order (one worker, FIFO
+    /// channels).
+    pending_stream: VecDeque<StreamPending>,
+    /// Kept lines accumulated across the chunks of the current stream, so the
+    /// surface grows chunk by chunk instead of showing only the last one.
+    stream_kept: Vec<String>,
+}
+
+/// One stream chunk fed to a host, remembered until its verdict returns.
+struct StreamPending {
+    stream_id: String,
+    chunk_index: u64,
+    lines: Vec<String>,
 }
 
 impl PluginHost {
@@ -131,6 +147,7 @@ impl PluginHost {
             max_frame_bytes: entry.max_frame_bytes,
             ..Policy::default()
         };
+        let stream_chunk_lines = policy.max_snapshot_lines;
         let roles: Vec<Role> = entry
             .roles
             .iter()
@@ -169,7 +186,9 @@ impl PluginHost {
             last_activity: Instant::now(),
             failed: false,
             unloaded: false,
-            pending_stream: (String::new(), Vec::new()),
+            stream_chunk_lines,
+            pending_stream: VecDeque::new(),
+            stream_kept: Vec::new(),
         };
         if host.launches_eagerly() {
             let _ = host.jobs.send(WorkerMessage::Launch);
@@ -227,6 +246,11 @@ impl PluginHost {
         self.last_request = None;
         self.last_activity = Instant::now();
         self.failed = false;
+        // Unload drops any in-flight stream chunks worker-side, so their
+        // verdicts never arrive; clear the pending queue so a later feed's
+        // verdicts are not matched against stale chunks.
+        self.pending_stream.clear();
+        self.stream_kept.clear();
     }
 
     pub(crate) fn load(&mut self) {
@@ -276,22 +300,63 @@ impl PluginHost {
     /// Feed an output-stream chunk to the host (`stream-read`), remembering the
     /// lines so the verdict can be applied positionally. Returns whether the
     /// request was sent.
-    pub(crate) fn send_stream_request(&mut self, stream_id: &str, lines: &[String]) -> bool {
+    pub(crate) fn send_stream_chunks(&mut self, stream_id: &str, lines: &[String]) -> bool {
         self.last_activity = Instant::now();
-        self.pending_stream = (stream_id.to_string(), lines.to_vec());
-        let chunk = StreamChunk {
-            stream_id: stream_id.to_string(),
-            chunk_index: 0,
-            lines: lines.to_vec(),
-            final_chunk: true,
-        };
-        self.jobs.send(WorkerMessage::Stream(chunk)).is_ok()
+        if lines.is_empty() {
+            return true;
+        }
+        // Split into chunks no larger than the client's line budget; the last
+        // one is flagged `final_chunk`. Sending one oversized chunk is what the
+        // client rejects, so a large command output must be chunked here.
+        let batches: Vec<&[String]> = lines.chunks(self.stream_chunk_lines.max(1)).collect();
+        let last = batches.len() - 1;
+        let mut sent = true;
+        for (index, batch) in batches.into_iter().enumerate() {
+            self.pending_stream.push_back(StreamPending {
+                stream_id: stream_id.to_string(),
+                chunk_index: index as u64,
+                lines: batch.to_vec(),
+            });
+            let chunk = StreamChunk {
+                stream_id: stream_id.to_string(),
+                chunk_index: index as u64,
+                lines: batch.to_vec(),
+                final_chunk: index == last,
+            };
+            sent &= self.jobs.send(WorkerMessage::Stream(chunk)).is_ok();
+        }
+        sent
     }
 
-    /// Take the lines last fed for a stream verdict (`stream_id`, lines),
-    /// clearing them.
-    pub(crate) fn take_pending_stream(&mut self) -> (String, Vec<String>) {
-        std::mem::take(&mut self.pending_stream)
+    /// Apply one stream verdict to the front pending chunk: accumulate the kept
+    /// lines (resetting at `chunk_index == 0`, the start of a new stream) and
+    /// return the stream id plus the lines kept so far. A verdict whose length
+    /// no longer matches the chunk (a stale or racing feed) drops the chunk and
+    /// returns `None`.
+    pub(crate) fn apply_stream_chunk_verdict(
+        &mut self,
+        keep: &[bool],
+    ) -> Option<(String, Vec<String>)> {
+        let pending = self.pending_stream.pop_front()?;
+        if keep.len() != pending.lines.len() {
+            return None;
+        }
+        if pending.chunk_index == 0 {
+            self.stream_kept.clear();
+        }
+        for (line, &keep) in pending.lines.into_iter().zip(keep) {
+            if keep {
+                self.stream_kept.push(line);
+            }
+        }
+        Some((pending.stream_id, self.stream_kept.clone()))
+    }
+
+    /// Discard the front pending chunk without applying it — for a failed
+    /// verdict, which still answers exactly one sent chunk, so the queue stays
+    /// aligned with the verdict stream.
+    pub(crate) fn discard_pending_stream_chunk(&mut self) {
+        self.pending_stream.pop_front();
     }
 
     /// Drains worker events. Handshake results are absorbed here (the menu
@@ -905,7 +970,9 @@ impl PluginHost {
                 last_activity: Instant::now(),
                 failed: false,
                 unloaded: false,
-                pending_stream: (String::new(), Vec::new()),
+                stream_chunk_lines: Policy::default().max_snapshot_lines,
+                pending_stream: VecDeque::new(),
+                stream_kept: Vec::new(),
             },
             job_receiver,
             event_sender,

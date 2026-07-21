@@ -131,13 +131,14 @@ impl AppState {
             if !host.holds_stream_read() {
                 continue;
             }
-            host.send_stream_request(stream_id, lines);
+            host.send_stream_chunks(stream_id, lines);
         }
     }
 
-    /// Apply a stream-read verdict: keep the fed lines the host marked, and show
-    /// them in the host's surface window. A verdict whose length no longer
-    /// matches the remembered lines (a stale or racing feed) is dropped.
+    /// Apply one stream-read chunk verdict: accumulate the kept lines across the
+    /// stream's chunks and show the running result in the host's surface window.
+    /// A failed verdict still answers one sent chunk, so it discards that chunk
+    /// to keep the queue aligned; a length-mismatched verdict drops its chunk.
     pub(crate) fn apply_stream_verdict(
         &mut self,
         plugin_id: &str,
@@ -146,6 +147,9 @@ impl AppState {
         let keep = match result {
             Ok(keep) => keep,
             Err(message) => {
+                if let Some(host) = self.plugin_hosts.get_mut(plugin_id) {
+                    host.discard_pending_stream_chunk();
+                }
                 self.set_status(ui_text::tr_fmt(
                     &self.shell.catalog,
                     ui_text::STATUS_PLUGIN_FAILED,
@@ -157,16 +161,10 @@ impl AppState {
         let Some(host) = self.plugin_hosts.get_mut(plugin_id) else {
             return;
         };
-        let (stream_id, fed) = host.take_pending_stream();
-        if keep.len() != fed.len() {
+        let Some((stream_id, accumulated)) = host.apply_stream_chunk_verdict(&keep) else {
             return;
-        }
-        let kept: Vec<String> = fed
-            .into_iter()
-            .zip(keep)
-            .filter_map(|(line, keep)| keep.then_some(line))
-            .collect();
-        self.fill_plugin_surface(plugin_id, &stream_id, &kept);
+        };
+        self.fill_plugin_surface(plugin_id, &stream_id, &accumulated);
     }
 
     /// The plugin's existing surface window, if one is still open.

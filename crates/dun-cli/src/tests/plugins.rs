@@ -651,6 +651,101 @@ fn stream_verdict_with_mismatched_length_is_dropped() {
     assert_eq!(surface_window_count(&app), 0);
 }
 
+#[test]
+fn a_large_stream_is_split_into_bounded_chunks() {
+    // Command output larger than the 512-line budget must be fed as several
+    // chunks (index rising, final on the last), not one oversized chunk the
+    // client would reject.
+    let mut app = AppState::new();
+    let (filter, msgs, _e) = PluginHost::for_tests_granted("logf", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![filter]);
+
+    let lines: Vec<String> = (0..1200).map(|i| format!("line {i}")).collect();
+    app.feed_stream_to_filters("command-output", &lines);
+
+    let chunks: Vec<_> = std::iter::from_fn(|| match msgs.try_recv() {
+        Ok(WorkerMessage::Stream(chunk)) => Some(chunk),
+        _ => None,
+    })
+    .collect();
+    // 1200 lines / 512 = three chunks: 512, 512, 176.
+    assert_eq!(chunks.len(), 3);
+    assert_eq!(chunks[0].lines.len(), 512);
+    assert_eq!(chunks[1].lines.len(), 512);
+    assert_eq!(chunks[2].lines.len(), 176);
+    assert_eq!(
+        chunks.iter().map(|c| c.chunk_index).collect::<Vec<_>>(),
+        vec![0, 1, 2]
+    );
+    assert_eq!(
+        chunks.iter().map(|c| c.final_chunk).collect::<Vec<_>>(),
+        vec![false, false, true]
+    );
+    // No line is lost or duplicated across the chunks.
+    let flat: Vec<&String> = chunks.iter().flat_map(|c| c.lines.iter()).collect();
+    assert_eq!(flat.len(), 1200);
+    assert_eq!(flat[0], "line 0");
+    assert_eq!(flat[1199], "line 1199");
+}
+
+#[test]
+fn stream_verdicts_accumulate_across_chunks_in_the_surface() {
+    // Each chunk's kept lines append to the surface; the window shows the whole
+    // filtered stream, not just the last chunk.
+    let mut app = AppState::new();
+    let (filter, _m, events) = PluginHost::for_tests_granted("logf", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![filter]);
+
+    // Two chunks worth of lines (600 > 512).
+    let lines: Vec<String> = (0..600).map(|i| format!("line {i}")).collect();
+    app.feed_stream_to_filters("command-output", &lines);
+
+    // Chunk 0 (512 lines): keep only the first. Chunk 1 (88 lines): keep only
+    // the first. The surface should end up with one line from each.
+    let mut keep0 = vec![false; 512];
+    keep0[0] = true;
+    let mut keep1 = vec![false; 88];
+    keep1[0] = true;
+    events
+        .send(HostEvent::StreamVerdict { result: Ok(keep0) })
+        .unwrap();
+    events
+        .send(HostEvent::StreamVerdict { result: Ok(keep1) })
+        .unwrap();
+    app.pump_plugins();
+
+    assert_eq!(surface_window_count(&app), 1);
+    // "line 0" from chunk 0 and "line 512" from chunk 1, accumulated.
+    assert_eq!(surface_buffer_text(&app, "logf"), "line 0\nline 512");
+}
+
+#[test]
+fn a_new_stream_resets_the_accumulated_surface() {
+    // The first chunk of a fresh stream (chunk_index 0) resets the accumulator,
+    // so a second command's filtered output replaces the first, not appends.
+    let mut app = AppState::new();
+    let (filter, _m, events) = PluginHost::for_tests_granted("logf", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![filter]);
+
+    app.feed_stream_to_filters("command-output", &["a".into(), "b".into(), "c".into()]);
+    events
+        .send(HostEvent::StreamVerdict {
+            result: Ok(vec![true, true, true]),
+        })
+        .unwrap();
+    app.pump_plugins();
+    assert_eq!(surface_buffer_text(&app, "logf"), "a\nb\nc");
+
+    app.feed_stream_to_filters("command-output", &["x".into(), "y".into()]);
+    events
+        .send(HostEvent::StreamVerdict {
+            result: Ok(vec![true, true]),
+        })
+        .unwrap();
+    app.pump_plugins();
+    assert_eq!(surface_buffer_text(&app, "logf"), "x\ny");
+}
+
 fn scratch_window_count(app: &AppState) -> usize {
     app.workspace
         .windows
