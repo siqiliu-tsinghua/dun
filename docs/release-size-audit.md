@@ -648,3 +648,26 @@ ambiguous-width `tmux_grid` quirk, not a defect). With this, all v0 capability
 data channels (`overlay-write`, `surface-write`, `stream-read`,
 `scratch-input`/`execute`) are built and measured. VM scratch removed after
 recording. Margin on the binding platform is 292,480 bytes.
+
+## 2026-07-19 stream-read chunking fix (4a841e2)
+
+Binding measurement for the stream-read chunking fix (the first API-review fix
+from the log-filter acceptance: large command output is now fed as bounded
+chunks instead of one oversized chunk the client rejects).
+
+| Platform | 988902e | 4a841e2 | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 691,028 | 691,036 | +8 | 357,540 |
+| Debian x86_64 | 756,096 | 756,096 | 0 | 292,480 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `4a841e2`
+(`scripts/release-build.sh`, build-std, Debian `rust-src`). The fix is
+byte-neutral on the binding platform (opt-level=z + fat LTO absorb the added
+chunk loop and FIFO queue); macOS grew 8 bytes. Debian smoke: ELF PIE stripped,
+`ldd` unchanged, `--version` / `--dump-config` clean, `strings` panic-trigger 0.
+macOS gate (idle): `tmux_grid` (5), `msedit_diff` (1), release `test-panic-hook`
+`pty_smoke` (10) all pass, `strings` 0.
+
+Cross-platform functional runs (full `cargo test --workspace`): **macOS 709/0,
+FreeBSD 709/0, Solaris 705/4** (the 4 Solaris failures are the root-caused
+ambiguous-width `tmux_grid` quirk). No measurement debt.
