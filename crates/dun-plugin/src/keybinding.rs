@@ -8,6 +8,7 @@
 //! collisions against the live keymap.
 
 use crate::json::Json;
+use crate::menu::PluginActionKind;
 
 pub const KEYBINDING_MAX_CHORDS: usize = 32;
 pub const KEYBINDING_MAX_KEY_CHARS: usize = 32;
@@ -18,6 +19,7 @@ pub struct PluginChord {
     /// A keystroke spec string (e.g. `"f"`, `"Ctrl+F"`), parsed by `dun`.
     pub key: String,
     pub action_id: String,
+    pub kind: PluginActionKind,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -78,9 +80,11 @@ impl PluginKeybinding {
             if validated.iter().any(|existing| existing.key == key) {
                 return Err("keybinding chord key is duplicated");
             }
+            let kind = PluginActionKind::from_field(chord.get("kind"))?;
             validated.push(PluginChord {
                 key: key.to_string(),
                 action_id: action_id.to_string(),
+                kind,
             });
         }
 

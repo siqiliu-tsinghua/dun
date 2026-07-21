@@ -34,10 +34,37 @@ impl LabelSet {
     }
 }
 
+/// What an invoked plugin action does, declared by the host on each menu item
+/// or leader chord via an optional `kind` field. Defaults to `Surface`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PluginActionKind {
+    #[default]
+    Surface,
+    Scratch,
+    Execute,
+}
+
+impl PluginActionKind {
+    /// Parse an optional `kind` field. Absent means the default (`Surface`); a
+    /// present-but-unknown value is a validation error.
+    pub(crate) fn from_field(value: Option<&Json>) -> Result<Self, &'static str> {
+        match value {
+            None => Ok(Self::Surface),
+            Some(value) => match value.as_str() {
+                Some("surface") => Ok(Self::Surface),
+                Some("scratch") => Ok(Self::Scratch),
+                Some("execute") => Ok(Self::Execute),
+                _ => Err("action kind is not one of surface/scratch/execute"),
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PluginMenuItem {
     pub label: LabelSet,
     pub action_id: String,
+    pub kind: PluginActionKind,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,9 +113,11 @@ impl PluginMenu {
             if !action_id.chars().all(|ch| ch.is_ascii_graphic()) {
                 return Err("menu action_id contains a non-graphic character");
             }
+            let kind = PluginActionKind::from_field(item.get("kind"))?;
             validated.push(PluginMenuItem {
                 label,
                 action_id: action_id.to_string(),
+                kind,
             });
         }
 
@@ -166,6 +195,31 @@ mod tests {
         let menu = PluginMenu::from_payload(&payload).expect("valid menu");
         assert_eq!(menu.items.len(), 2);
         assert_eq!(menu.items[1].action_id, "stop");
+        // An item with no `kind` field defaults to Surface.
+        assert_eq!(menu.items[0].kind, PluginActionKind::Surface);
+    }
+
+    #[test]
+    fn parses_and_rejects_the_action_kind_field() {
+        let with_kind = json::obj([
+            ("label", english_label("Run")),
+            ("action_id", json::str("run")),
+            ("kind", json::str("execute")),
+        ]);
+        let good = payload(bilingual_labels(), vec![with_kind]);
+        let menu = PluginMenu::from_payload(&good).expect("valid menu");
+        assert_eq!(menu.items[0].kind, PluginActionKind::Execute);
+
+        let bad_kind = json::obj([
+            ("label", english_label("Run")),
+            ("action_id", json::str("run")),
+            ("kind", json::str("delete-everything")),
+        ]);
+        let bad = payload(bilingual_labels(), vec![bad_kind]);
+        assert_eq!(
+            error(&bad),
+            "action kind is not one of surface/scratch/execute"
+        );
     }
 
     #[test]

@@ -278,10 +278,12 @@ fn plugin_action_has_a_generic_non_bindable_id() {
     let action = EditorCommand::PluginAction {
         plugin_id: "log-filter".into(),
         action_id: "run".into(),
+        kind: dun_core::PluginActionKind::Surface,
     };
     let other = EditorCommand::PluginAction {
         plugin_id: "notes".into(),
         action_id: "clear".into(),
+        kind: dun_core::PluginActionKind::Execute,
     };
 
     assert_eq!(command_id(&action), "plugin.action");

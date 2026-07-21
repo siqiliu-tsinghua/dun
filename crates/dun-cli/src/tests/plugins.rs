@@ -377,6 +377,7 @@ fn started_event_injects_the_resolved_menu_into_the_menu_bar() {
         EditorCommand::PluginAction {
             plugin_id: "menu-host".into(),
             action_id: "run".into(),
+            kind: PluginActionKind::Surface,
         }
     );
 }
@@ -405,9 +406,14 @@ fn unloading_a_host_removes_its_injected_menu() {
 }
 
 fn plugin_action(plugin_id: &str, action_id: &str) -> EditorCommand {
+    plugin_action_kind(plugin_id, action_id, PluginActionKind::Surface)
+}
+
+fn plugin_action_kind(plugin_id: &str, action_id: &str, kind: PluginActionKind) -> EditorCommand {
     EditorCommand::PluginAction {
         plugin_id: plugin_id.into(),
         action_id: action_id.into(),
+        kind,
     }
 }
 
@@ -643,6 +649,120 @@ fn stream_verdict_with_mismatched_length_is_dropped() {
     app.pump_plugins();
 
     assert_eq!(surface_window_count(&app), 0);
+}
+
+fn scratch_window_count(app: &AppState) -> usize {
+    app.workspace
+        .windows
+        .iter()
+        .filter(|window| window.kind == WindowKind::PluginScratch)
+        .count()
+}
+
+#[test]
+fn scratch_action_opens_an_editable_window_only_with_the_grant() {
+    // A window-only host (no scratch-input): a Scratch action opens nothing.
+    let mut app = AppState::new();
+    let grant = GrantedCapabilities::grant([Capability::Window], TrustClass::UserTrustedExternal);
+    let (host, _m, _e) = PluginHost::for_tests_granted("winhost", grant);
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+    app.handle_command(&plugin_action_kind(
+        "winhost",
+        "input",
+        PluginActionKind::Scratch,
+    ));
+    assert_eq!(scratch_window_count(&app), 0);
+
+    // A scratch-input host (log-filter grant): the editable scratch window opens.
+    let mut app = AppState::new();
+    let (host, _m, _e) = PluginHost::for_tests_granted("logf", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+    app.handle_command(&plugin_action_kind(
+        "logf",
+        "input",
+        PluginActionKind::Scratch,
+    ));
+    assert_eq!(scratch_window_count(&app), 1);
+    assert_eq!(app.plugin_windows.count("logf"), 1);
+    let scratch = app
+        .workspace
+        .windows
+        .iter()
+        .find(|window| window.kind == WindowKind::PluginScratch)
+        .unwrap();
+    assert_eq!(scratch.title, "logf: input");
+    assert!(
+        !app.buffer_state(scratch.buffer_id)
+            .unwrap()
+            .buffer
+            .is_read_only(),
+        "a scratch window is editable"
+    );
+}
+
+#[test]
+fn execute_action_submits_scratch_text_and_shows_the_result() {
+    let mut app = AppState::new();
+    let (host, messages, events) = PluginHost::for_tests_granted("logf", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+
+    // Open the scratch window and type into its buffer.
+    app.handle_command(&plugin_action_kind(
+        "logf",
+        "input",
+        PluginActionKind::Scratch,
+    ));
+    let scratch_buffer = app
+        .workspace
+        .windows
+        .iter()
+        .find(|window| window.kind == WindowKind::PluginScratch)
+        .unwrap()
+        .buffer_id;
+    app.buffer_state_mut(scratch_buffer)
+        .unwrap()
+        .buffer
+        .insert_str("level:error")
+        .unwrap();
+
+    // Execute submits the whole scratch text as one blob to the worker.
+    app.handle_command(&plugin_action_kind(
+        "logf",
+        "run",
+        PluginActionKind::Execute,
+    ));
+    assert_eq!(
+        messages.try_recv().ok(),
+        Some(WorkerMessage::Execute("level:error".to_string()))
+    );
+
+    // The host's result fills the surface window on the next pump.
+    events
+        .send(HostEvent::Surface {
+            action_id: "execute".to_string(),
+            result: Ok(vec!["ran ok".to_string()]),
+        })
+        .unwrap();
+    app.pump_plugins();
+    assert_eq!(surface_buffer_text(&app, "logf"), "ran ok");
+}
+
+#[test]
+fn execute_without_a_scratch_window_sends_nothing() {
+    let mut app = AppState::new();
+    let (host, messages, _e) = PluginHost::for_tests_granted("logf", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+
+    // No scratch window open yet: execute submits nothing.
+    app.handle_command(&plugin_action_kind(
+        "logf",
+        "run",
+        PluginActionKind::Execute,
+    ));
+    assert!(
+        messages.try_recv().is_err(),
+        "execute with no scratch window must not submit"
+    );
 }
 
 fn keybinding(leader: &str, key: &str, action_id: &str) -> PluginKeybinding {

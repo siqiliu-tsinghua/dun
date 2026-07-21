@@ -16,7 +16,8 @@ impl AppState {
             EditorCommand::PluginAction {
                 plugin_id,
                 action_id,
-            } => self.dispatch_plugin_action(plugin_id, action_id),
+                kind,
+            } => self.dispatch_plugin_action(plugin_id, action_id, *kind),
         }
     }
 

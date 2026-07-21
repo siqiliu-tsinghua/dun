@@ -540,7 +540,26 @@ deltas non-additive).
       the feed gate, the keep filter, and the length guard mutation-proven.
       macOS budget build 682,820 (+4,112 over the surface-write baseline).
   - **scratch-input + execute** (dun-native editable buffer + submit its text to
-    the host) — not started; this is B's unfinished half.
+    the host). si-1/si-2 landed; Debian measurement owed.
+    - si-1 `32f0b52` (dun-plugin): `HostClient::request_execute(snippet)` sends
+      `{ snippet }` (gated on `scratch-input`, reuses the transport), returns
+      the host's result lines via `validate_surface`; fixture echoes a summary.
+      2 protocol tests, gate mutation-proven.
+    - si-2 (dun-core/plugin/cli): plugin actions gain a **kind**
+      (`PluginActionKind { Surface, Scratch, Execute }`) — dun-core on
+      `EditorCommand::PluginAction`, dun-plugin's `PluginMenuItem`/`PluginChord`
+      parse an optional `kind` field (default Surface; unknown rejected),
+      dun-cli maps wire→core. Dispatch routes by kind: Surface (unchanged),
+      Scratch opens the plugin's editable `WindowKind::PluginScratch` window
+      (BufferKind::Untitled, user edits with dun's engine), Execute submits the
+      scratch buffer's whole text via `send_execute_request` →
+      `WorkerMessage::Execute` → `serve_execute` → the result fills the surface
+      window (reusing the surface path). Scratch/execute gated on
+      `scratch-input`. Tests: menu kind parse/reject, scratch opens editable
+      only with grant, execute submits scratch text + shows result, execute
+      with no scratch window sends nothing. Four mutations killed (kind
+      validator, scratch gate, execute submit, plus si-1 gate). macOS budget
+      build 691,028 (+8,208 over the stream-read baseline for si-1+si-2).
 
 ## Completed Stage: v0.1 Release Hardening
 

@@ -545,6 +545,7 @@ fn plugin_menu_items_trail_the_built_in_menus() {
             EditorCommand::PluginAction {
                 plugin_id: "log-filter".into(),
                 action_id: "run".into(),
+                kind: dun_core::PluginActionKind::Surface,
             },
         )],
     )];
@@ -559,6 +560,7 @@ fn plugin_menu_items_trail_the_built_in_menus() {
         EditorCommand::PluginAction {
             plugin_id: "log-filter".into(),
             action_id: "run".into(),
+            kind: dun_core::PluginActionKind::Surface,
         }
     );
 }

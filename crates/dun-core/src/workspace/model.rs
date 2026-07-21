@@ -126,6 +126,10 @@ pub enum WindowKind {
     /// A surface owned by a plugin host (see the `window` capability). Like any
     /// non-`Edit` pane it is not editable and syntax highlighting skips it.
     PluginSurface,
+    /// An editable scratch pane owned by a plugin host (see the `scratch-input`
+    /// capability): the user edits it with `dun`'s engine and an `execute`
+    /// action submits its whole text to the host.
+    PluginScratch,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

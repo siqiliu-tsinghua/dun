@@ -1,23 +1,39 @@
 use crate::*;
 
 impl AppState {
-    /// Route an invoked plugin action (from a menu item or a leader chord).
-    /// Opens (or reuses) the plugin's surface window, then — if the host holds
-    /// `surface-write` — asks it for the content to show; the response fills the
-    /// window on the next pump (`apply_surface_outcome`). A host with `window`
-    /// but not `surface-write` gets an empty surface.
-    pub(crate) fn dispatch_plugin_action(&mut self, plugin_id: &str, action_id: &str) {
-        // The `menu`/`keybinding` grant let the trigger appear; opening a `dun`
-        // window is the separate `window` capability. The only role that grants
-        // `menu`/`keybinding` (LogFilter) also grants `window`, so this gate is
-        // defense in depth: an action from a host without `window` opens nothing.
+    /// Route an invoked plugin action (from a menu item or a leader chord) by
+    /// its kind: `Surface` opens/refreshes the read-only surface, `Scratch`
+    /// opens the editable scratch window, `Execute` submits the scratch text to
+    /// the host. All three require the `window` capability — the gate the
+    /// `menu`/`keybinding` trigger does not itself grant.
+    pub(crate) fn dispatch_plugin_action(
+        &mut self,
+        plugin_id: &str,
+        action_id: &str,
+        kind: PluginActionKind,
+    ) {
         let Some(host) = self.plugin_hosts.get(plugin_id) else {
             return;
         };
         if !host.holds_window() {
             return;
         }
-        let holds_surface_write = host.holds_surface_write();
+        match kind {
+            PluginActionKind::Surface => self.dispatch_surface_action(plugin_id, action_id),
+            PluginActionKind::Scratch => self.dispatch_scratch_action(plugin_id, action_id),
+            PluginActionKind::Execute => self.dispatch_execute_action(plugin_id),
+        }
+    }
+
+    /// A `Surface`-kind action: open (or reuse) the read-only surface window and,
+    /// if the host holds `surface-write`, ask it for content (filled by
+    /// `apply_surface_outcome` on the next pump). A `window`-only host gets an
+    /// empty surface.
+    fn dispatch_surface_action(&mut self, plugin_id: &str, action_id: &str) {
+        let holds_surface_write = self
+            .plugin_hosts
+            .get(plugin_id)
+            .is_some_and(|host| host.holds_surface_write());
         if self
             .ensure_plugin_surface_window(plugin_id, action_id)
             .is_none()
@@ -28,6 +44,38 @@ impl AppState {
             if let Some(host) = self.plugin_hosts.get_mut(plugin_id) {
                 host.send_surface_request(action_id);
             }
+        }
+    }
+
+    /// A `Scratch`-kind action: open (or reuse) the plugin's editable scratch
+    /// window (`scratch-input`). Ignored for a host without that grant.
+    fn dispatch_scratch_action(&mut self, plugin_id: &str, action_id: &str) {
+        if !self
+            .plugin_hosts
+            .get(plugin_id)
+            .is_some_and(|host| host.holds_scratch_input())
+        {
+            return;
+        }
+        self.ensure_plugin_scratch_window(plugin_id, action_id);
+    }
+
+    /// An `Execute`-kind action: submit the plugin's scratch buffer text to the
+    /// host (`execute`); the result fills its surface window on the next pump
+    /// (`apply_surface_outcome`). Ignored without a scratch window or the grant.
+    fn dispatch_execute_action(&mut self, plugin_id: &str) {
+        if !self
+            .plugin_hosts
+            .get(plugin_id)
+            .is_some_and(|host| host.holds_scratch_input())
+        {
+            return;
+        }
+        let Some(snippet) = self.plugin_scratch_text(plugin_id) else {
+            return;
+        };
+        if let Some(host) = self.plugin_hosts.get_mut(plugin_id) {
+            host.send_execute_request(&snippet);
         }
     }
 
@@ -180,6 +228,73 @@ impl AppState {
         }
         self.plugin_windows.record_opened(plugin_id, window_id);
         Some(window_id)
+    }
+
+    /// The plugin's existing editable scratch window, if one is still open.
+    fn plugin_scratch_window(&self, plugin_id: &str) -> Option<WindowId> {
+        self.workspace
+            .windows
+            .iter()
+            .find(|window| {
+                window.kind == WindowKind::PluginScratch
+                    && self.plugin_windows.owns(plugin_id, window.id)
+            })
+            .map(|window| window.id)
+    }
+
+    /// Open (or focus) the plugin's editable scratch window (`scratch-input`),
+    /// subject to the per-plugin window cap. Unlike a surface, the buffer is an
+    /// editable `dun`-native buffer the user types into.
+    fn ensure_plugin_scratch_window(
+        &mut self,
+        plugin_id: &str,
+        action_id: &str,
+    ) -> Option<WindowId> {
+        if let Some(window_id) = self.plugin_scratch_window(plugin_id) {
+            if let Ok(window) = self.workspace.window_mut(window_id) {
+                window.collapsed = false;
+            }
+            self.workspace.focused = window_id;
+            return Some(window_id);
+        }
+
+        if !self.plugin_windows.can_open(plugin_id) {
+            self.set_status(ui_text::tr_fmt(
+                &self.shell.catalog,
+                ui_text::STATUS_PLUGIN_WINDOW_LIMIT,
+                &[plugin_id],
+            ));
+            return None;
+        }
+
+        let window_id = self.workspace.split_focused(Axis::Horizontal).ok()?;
+        let buffer_id = self.workspace.window(window_id).ok()?.buffer_id;
+        let scratch = BufferState::new(
+            buffer_id,
+            TextBuffer::from_text_with_kind(BufferKind::Untitled, ""),
+        );
+        if let Some(existing) = self.buffer_state_mut(buffer_id) {
+            *existing = scratch;
+        } else {
+            self.buffers.push(scratch);
+        }
+        if let Ok(window) = self.workspace.window_mut(window_id) {
+            window.title = format!("{plugin_id}: {action_id}");
+            window.kind = WindowKind::PluginScratch;
+            window.buffer_kind = BufferKind::Untitled;
+            window.collapsed = false;
+        }
+        self.workspace.focused = window_id;
+        self.plugin_windows.record_opened(plugin_id, window_id);
+        Some(window_id)
+    }
+
+    /// The whole text of the plugin's scratch buffer, if a scratch window is
+    /// open — the blob an `execute` action submits.
+    fn plugin_scratch_text(&self, plugin_id: &str) -> Option<String> {
+        let window_id = self.plugin_scratch_window(plugin_id)?;
+        let buffer_id = self.workspace.window(window_id).ok()?.buffer_id;
+        Some(self.buffer_state(buffer_id)?.buffer.to_text())
     }
 
     /// Reap the surface windows of any plugin no longer loaded — unloaded by

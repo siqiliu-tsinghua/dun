@@ -18,10 +18,10 @@ use std::time::{Duration, Instant};
 use dun_config::{
     KeyBinding, KeySequence, KeyStroke, Keymap, PluginEntry, PluginRole, PluginTrust,
 };
-use dun_core::{BufferId, EditorCommand};
+use dun_core::{BufferId, EditorCommand, PluginActionKind};
 use dun_plugin::{
-    Capability, GrantedCapabilities, HostClient, InputSnapshot, PluginKeybinding, PluginMenu,
-    Policy, Role, StreamChunk, StyleSpan, TrustClass,
+    Capability, GrantedCapabilities, HostClient, InputSnapshot, PluginActionKind as WireActionKind,
+    PluginKeybinding, PluginMenu, Policy, Role, StreamChunk, StyleSpan, TrustClass,
 };
 use dun_ui::{MenuEntry, MenuItem};
 
@@ -47,6 +47,9 @@ pub(crate) enum WorkerMessage {
     /// Feed an output-stream chunk to the host and collect its keep/drop verdict
     /// (`stream-read`).
     Stream(StreamChunk),
+    /// Submit scratch buffer text to the host (`execute`); the result comes back
+    /// as a `Surface` event.
+    Execute(String),
     /// Launch the host now if it is not running: the eager path for hosts
     /// whose handshake carries UI contributions.
     Launch,
@@ -200,6 +203,12 @@ impl PluginHost {
         self.granted.holds(Capability::StreamRead)
     }
 
+    /// Whether the host owns an editable scratch window and accepts `execute`
+    /// submissions (`scratch-input`).
+    pub(crate) fn holds_scratch_input(&self) -> bool {
+        self.granted.holds(Capability::ScratchInput)
+    }
+
     fn highlights(&self) -> bool {
         self.roles.contains(&Role::SyntaxHighlight)
     }
@@ -251,6 +260,16 @@ impl PluginHost {
         self.last_activity = Instant::now();
         self.jobs
             .send(WorkerMessage::Surface(action_id.to_string()))
+            .is_ok()
+    }
+
+    /// Submit the scratch buffer text to the host (`execute`). The result
+    /// arrives as a `Surface` event and fills the host's surface window.
+    /// Returns whether the request was sent.
+    pub(crate) fn send_execute_request(&mut self, snippet: &str) -> bool {
+        self.last_activity = Instant::now();
+        self.jobs
+            .send(WorkerMessage::Execute(snippet.to_string()))
             .is_ok()
     }
 
@@ -470,10 +489,21 @@ fn resolve_plugin_keybinding(
             command: EditorCommand::PluginAction {
                 plugin_id: plugin_id.to_string(),
                 action_id: chord.action_id.clone(),
+                kind: action_kind(chord.kind),
             },
         });
     }
     Some(ResolvedKeybinding { leader, bindings })
+}
+
+/// Map the wire action kind to the dun-core kind (two identical enums kept in
+/// separate crates because `dun-plugin` has no `dun-core` dependency).
+fn action_kind(kind: WireActionKind) -> PluginActionKind {
+    match kind {
+        WireActionKind::Surface => PluginActionKind::Surface,
+        WireActionKind::Scratch => PluginActionKind::Scratch,
+        WireActionKind::Execute => PluginActionKind::Execute,
+    }
 }
 
 /// Resolve a validated plugin menu contribution into a dun-ui menu item. Each
@@ -491,6 +521,7 @@ fn resolve_plugin_menu(plugin_id: &str, menu: &PluginMenu, tags: &[String]) -> M
                 EditorCommand::PluginAction {
                     plugin_id: plugin_id.to_string(),
                     action_id: item.action_id.clone(),
+                    kind: action_kind(item.kind),
                 },
             )
         })
@@ -525,11 +556,16 @@ struct WorkerAction {
     job: Option<HighlightJob>,
     surface: Vec<String>,
     stream: Vec<StreamChunk>,
+    execute: Vec<String>,
 }
 
 impl WorkerAction {
     fn is_empty(&self) -> bool {
-        !self.launch && self.job.is_none() && self.surface.is_empty() && self.stream.is_empty()
+        !self.launch
+            && self.job.is_none()
+            && self.surface.is_empty()
+            && self.stream.is_empty()
+            && self.execute.is_empty()
     }
 }
 
@@ -581,6 +617,9 @@ fn host_worker(
         for chunk in action.stream {
             serve_stream(&mut client, chunk, events, &mut last_failure);
         }
+        for snippet in action.execute {
+            serve_execute(&mut client, snippet, events, &mut last_failure);
+        }
     }
 }
 
@@ -602,6 +641,13 @@ fn report_launch_failure(action: &WorkerAction, error: &str, events: &mpsc::Send
     }
     for _ in &action.stream {
         let _ = events.send(HostEvent::StreamVerdict {
+            result: Err(error.to_string()),
+        });
+        reported = true;
+    }
+    for _ in &action.execute {
+        let _ = events.send(HostEvent::Surface {
+            action_id: "execute".to_string(),
             result: Err(error.to_string()),
         });
         reported = true;
@@ -721,6 +767,41 @@ fn serve_stream(
     }
 }
 
+/// Submit one scratch snippet to the launched client (`execute`) and report the
+/// host's result lines as a `Surface` event so they fill the surface window.
+/// Like `serve_job`, a violation kills the host so the next request relaunches.
+fn serve_execute(
+    client: &mut Option<HostClient>,
+    snippet: String,
+    events: &mpsc::Sender<HostEvent>,
+    last_failure: &mut Option<Instant>,
+) {
+    let Some(active) = client.as_mut() else {
+        let _ = events.send(HostEvent::Surface {
+            action_id: "execute".to_string(),
+            result: Err("plugin host unavailable".to_string()),
+        });
+        return;
+    };
+    match active.request_execute(&snippet) {
+        Ok(lines) => {
+            *last_failure = None;
+            let _ = events.send(HostEvent::Surface {
+                action_id: "execute".to_string(),
+                result: Ok(lines),
+            });
+        }
+        Err(error) => {
+            *client = None;
+            *last_failure = Some(Instant::now());
+            let _ = events.send(HostEvent::Surface {
+                action_id: "execute".to_string(),
+                result: Err(error.to_string()),
+            });
+        }
+    }
+}
+
 fn next_worker_action(
     messages: &mpsc::Receiver<WorkerMessage>,
     client: &mut Option<HostClient>,
@@ -731,6 +812,7 @@ fn next_worker_action(
         job: None,
         surface: Vec::new(),
         stream: Vec::new(),
+        execute: Vec::new(),
     };
     apply_worker_message(messages.recv()?, client, unloaded, &mut action);
     while let Ok(message) = messages.try_recv() {
@@ -743,6 +825,7 @@ fn next_worker_action(
             job: None,
             surface: Vec::new(),
             stream: Vec::new(),
+            execute: Vec::new(),
         })
     } else {
         Ok(action)
@@ -759,6 +842,7 @@ fn apply_worker_message(
         WorkerMessage::Job(job) => action.job = Some(job),
         WorkerMessage::Surface(action_id) => action.surface.push(action_id),
         WorkerMessage::Stream(chunk) => action.stream.push(chunk),
+        WorkerMessage::Execute(snippet) => action.execute.push(snippet),
         WorkerMessage::Launch => action.launch = true,
         WorkerMessage::Load => *unloaded = false,
         WorkerMessage::Unload => {
@@ -770,6 +854,7 @@ fn apply_worker_message(
             action.job = None;
             action.surface.clear();
             action.stream.clear();
+            action.execute.clear();
         }
     }
 }

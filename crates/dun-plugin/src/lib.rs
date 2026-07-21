@@ -24,6 +24,6 @@ pub mod validate;
 pub use capability::{Capability, GrantedCapabilities};
 pub use client::{HostClient, PluginError};
 pub use keybinding::{PluginChord, PluginKeybinding};
-pub use menu::{LabelSet, PluginMenu, PluginMenuItem};
+pub use menu::{LabelSet, PluginActionKind, PluginMenu, PluginMenuItem};
 pub use proto::{Policy, Role, TrustClass};
 pub use validate::{InputSnapshot, StreamChunk, StyleId, StyleSpan};

@@ -21,9 +21,9 @@ use dun_config::{
 use dun_config::{Config, parse_config};
 use dun_core::{
     AppCommand, Axis, BufferError, BufferId, BufferKind, Direction, EditCommand, EditorCommand,
-    FileCommand, FileTextEncoding, LineEnding, Position, Rect, SearchMatch, SearchOptions,
-    Selection, SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind, WindowState,
-    Workspace, WorkspaceError, decode_file_text,
+    FileCommand, FileTextEncoding, LineEnding, PluginActionKind, Position, Rect, SearchMatch,
+    SearchOptions, Selection, SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind,
+    WindowState, Workspace, WorkspaceError, decode_file_text,
 };
 use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
 use dun_ui::{

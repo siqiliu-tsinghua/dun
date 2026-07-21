@@ -10,7 +10,9 @@ pub use buffer::{
     BufferError, BufferId, BufferKind, Cursor, EditTransaction, LineEnding, Position, SearchMatch,
     SearchOptions, Selection, TextBuffer, TextEdit, TextRange,
 };
-pub use command::{AppCommand, EditCommand, EditorCommand, FileCommand, WindowCommand};
+pub use command::{
+    AppCommand, EditCommand, EditorCommand, FileCommand, PluginActionKind, WindowCommand,
+};
 pub use display::{DisplayClass, DisplaySanitizer, DisplaySegment, SanitizedLine};
 pub use file_text::{DecodedFileText, FileTextEncoding, decode_file_text};
 pub use workspace::{
