@@ -50,7 +50,14 @@ impl AppState {
                 return;
             }
         };
-        let Some(window_id) = self.ensure_plugin_surface_window(plugin_id, action_id) else {
+        self.fill_plugin_surface(plugin_id, action_id, &lines);
+    }
+
+    /// Open-or-reuse the plugin's surface window and fill its read-only buffer
+    /// with `lines`. Shared by the surface-write response and the stream-read
+    /// filter output.
+    fn fill_plugin_surface(&mut self, plugin_id: &str, title_action: &str, lines: &[String]) {
+        let Some(window_id) = self.ensure_plugin_surface_window(plugin_id, title_action) else {
             return;
         };
         let Ok(window) = self.workspace.window(window_id) else {
@@ -66,6 +73,52 @@ impl AppState {
         } else {
             self.buffers.push(surface);
         }
+    }
+
+    /// Feed a stream of output lines to every host granted `stream-read`,
+    /// remembering the lines so the returned verdict can be applied
+    /// positionally. Each host filters the whole stream as one chunk.
+    pub(crate) fn feed_stream_to_filters(&mut self, stream_id: &str, lines: &[String]) {
+        for host in self.plugin_hosts.iter_mut() {
+            if !host.holds_stream_read() {
+                continue;
+            }
+            host.send_stream_request(stream_id, lines);
+        }
+    }
+
+    /// Apply a stream-read verdict: keep the fed lines the host marked, and show
+    /// them in the host's surface window. A verdict whose length no longer
+    /// matches the remembered lines (a stale or racing feed) is dropped.
+    pub(crate) fn apply_stream_verdict(
+        &mut self,
+        plugin_id: &str,
+        result: Result<Vec<bool>, String>,
+    ) {
+        let keep = match result {
+            Ok(keep) => keep,
+            Err(message) => {
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_PLUGIN_FAILED,
+                    &[plugin_id, &message],
+                ));
+                return;
+            }
+        };
+        let Some(host) = self.plugin_hosts.get_mut(plugin_id) else {
+            return;
+        };
+        let (stream_id, fed) = host.take_pending_stream();
+        if keep.len() != fed.len() {
+            return;
+        }
+        let kept: Vec<String> = fed
+            .into_iter()
+            .zip(keep)
+            .filter_map(|(line, keep)| keep.then_some(line))
+            .collect();
+        self.fill_plugin_surface(plugin_id, &stream_id, &kept);
     }
 
     /// The plugin's existing surface window, if one is still open.

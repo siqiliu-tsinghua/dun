@@ -21,7 +21,7 @@ use dun_config::{
 use dun_core::{BufferId, EditorCommand};
 use dun_plugin::{
     Capability, GrantedCapabilities, HostClient, InputSnapshot, PluginKeybinding, PluginMenu,
-    Policy, Role, StyleSpan, TrustClass,
+    Policy, Role, StreamChunk, StyleSpan, TrustClass,
 };
 use dun_ui::{MenuEntry, MenuItem};
 
@@ -44,6 +44,9 @@ pub(crate) enum WorkerMessage {
     /// A plugin action was invoked; ask the host for its surface content
     /// (`surface-write`). Carries the invoked `action_id`.
     Surface(String),
+    /// Feed an output-stream chunk to the host and collect its keep/drop verdict
+    /// (`stream-read`).
+    Stream(StreamChunk),
     /// Launch the host now if it is not running: the eager path for hosts
     /// whose handshake carries UI contributions.
     Launch,
@@ -79,6 +82,11 @@ pub(crate) enum HostEvent {
         action_id: String,
         result: Result<Vec<String>, String>,
     },
+    /// A stream-read verdict: one keep/drop boolean per fed line, or an error.
+    /// The poller pairs it with the plugin id and its remembered fed lines.
+    StreamVerdict {
+        result: Result<Vec<bool>, String>,
+    },
 }
 
 /// A request key identifying work already in flight or applied; used to
@@ -108,6 +116,9 @@ pub(crate) struct PluginHost {
     last_activity: Instant,
     failed: bool,
     unloaded: bool,
+    /// The stream lines last fed to this host (`stream-read`), awaiting a
+    /// verdict; applied positionally when the verdict arrives.
+    pending_stream: (String, Vec<String>),
 }
 
 impl PluginHost {
@@ -155,6 +166,7 @@ impl PluginHost {
             last_activity: Instant::now(),
             failed: false,
             unloaded: false,
+            pending_stream: (String::new(), Vec::new()),
         };
         if host.launches_eagerly() {
             let _ = host.jobs.send(WorkerMessage::Launch);
@@ -181,6 +193,11 @@ impl PluginHost {
     /// Whether the host may fill its own surface window (`surface-write`).
     pub(crate) fn holds_surface_write(&self) -> bool {
         self.granted.holds(Capability::SurfaceWrite)
+    }
+
+    /// Whether the host may receive output-stream chunks (`stream-read`).
+    pub(crate) fn holds_stream_read(&self) -> bool {
+        self.granted.holds(Capability::StreamRead)
     }
 
     fn highlights(&self) -> bool {
@@ -237,6 +254,27 @@ impl PluginHost {
             .is_ok()
     }
 
+    /// Feed an output-stream chunk to the host (`stream-read`), remembering the
+    /// lines so the verdict can be applied positionally. Returns whether the
+    /// request was sent.
+    pub(crate) fn send_stream_request(&mut self, stream_id: &str, lines: &[String]) -> bool {
+        self.last_activity = Instant::now();
+        self.pending_stream = (stream_id.to_string(), lines.to_vec());
+        let chunk = StreamChunk {
+            stream_id: stream_id.to_string(),
+            chunk_index: 0,
+            lines: lines.to_vec(),
+            final_chunk: true,
+        };
+        self.jobs.send(WorkerMessage::Stream(chunk)).is_ok()
+    }
+
+    /// Take the lines last fed for a stream verdict (`stream_id`, lines),
+    /// clearing them.
+    pub(crate) fn take_pending_stream(&mut self) -> (String, Vec<String>) {
+        std::mem::take(&mut self.pending_stream)
+    }
+
     /// Drains worker events. Handshake results are absorbed here (the menu
     /// contribution installs or reinstalls); events the application layer
     /// must act on — launch failures, highlight outcomes — are returned.
@@ -262,6 +300,10 @@ impl PluginHost {
                 HostEvent::Surface { action_id, result } => {
                     self.failed = result.is_err();
                     kept.push(HostEvent::Surface { action_id, result });
+                }
+                HostEvent::StreamVerdict { result } => {
+                    self.failed = result.is_err();
+                    kept.push(HostEvent::StreamVerdict { result });
                 }
             }
         }
@@ -476,16 +518,18 @@ fn plugin_trust(trust: PluginTrust) -> TrustClass {
 }
 
 /// One gathered round of worker input: the newest highlight job wins, every
-/// surface action is kept in order, plus whether an eager launch was requested.
+/// surface action and stream chunk is kept in order, plus whether an eager
+/// launch was requested.
 struct WorkerAction {
     launch: bool,
     job: Option<HighlightJob>,
     surface: Vec<String>,
+    stream: Vec<StreamChunk>,
 }
 
 impl WorkerAction {
     fn is_empty(&self) -> bool {
-        !self.launch && self.job.is_none() && self.surface.is_empty()
+        !self.launch && self.job.is_none() && self.surface.is_empty() && self.stream.is_empty()
     }
 }
 
@@ -534,6 +578,9 @@ fn host_worker(
         for action_id in action.surface {
             serve_surface(&mut client, action_id, events, &mut last_failure);
         }
+        for chunk in action.stream {
+            serve_stream(&mut client, chunk, events, &mut last_failure);
+        }
     }
 }
 
@@ -549,6 +596,12 @@ fn report_launch_failure(action: &WorkerAction, error: &str, events: &mpsc::Send
     for action_id in &action.surface {
         let _ = events.send(HostEvent::Surface {
             action_id: action_id.clone(),
+            result: Err(error.to_string()),
+        });
+        reported = true;
+    }
+    for _ in &action.stream {
+        let _ = events.send(HostEvent::StreamVerdict {
             result: Err(error.to_string()),
         });
         reported = true;
@@ -639,6 +692,35 @@ fn serve_surface(
     }
 }
 
+/// Run one stream-read chunk against the launched client. Like `serve_job`, a
+/// violation kills the host so the next request relaunches.
+fn serve_stream(
+    client: &mut Option<HostClient>,
+    chunk: StreamChunk,
+    events: &mpsc::Sender<HostEvent>,
+    last_failure: &mut Option<Instant>,
+) {
+    let Some(active) = client.as_mut() else {
+        let _ = events.send(HostEvent::StreamVerdict {
+            result: Err("plugin host unavailable".to_string()),
+        });
+        return;
+    };
+    match active.request_stream_filter(&chunk) {
+        Ok(keep) => {
+            *last_failure = None;
+            let _ = events.send(HostEvent::StreamVerdict { result: Ok(keep) });
+        }
+        Err(error) => {
+            *client = None;
+            *last_failure = Some(Instant::now());
+            let _ = events.send(HostEvent::StreamVerdict {
+                result: Err(error.to_string()),
+            });
+        }
+    }
+}
+
 fn next_worker_action(
     messages: &mpsc::Receiver<WorkerMessage>,
     client: &mut Option<HostClient>,
@@ -648,6 +730,7 @@ fn next_worker_action(
         launch: false,
         job: None,
         surface: Vec::new(),
+        stream: Vec::new(),
     };
     apply_worker_message(messages.recv()?, client, unloaded, &mut action);
     while let Ok(message) = messages.try_recv() {
@@ -659,6 +742,7 @@ fn next_worker_action(
             launch: false,
             job: None,
             surface: Vec::new(),
+            stream: Vec::new(),
         })
     } else {
         Ok(action)
@@ -674,6 +758,7 @@ fn apply_worker_message(
     match message {
         WorkerMessage::Job(job) => action.job = Some(job),
         WorkerMessage::Surface(action_id) => action.surface.push(action_id),
+        WorkerMessage::Stream(chunk) => action.stream.push(chunk),
         WorkerMessage::Launch => action.launch = true,
         WorkerMessage::Load => *unloaded = false,
         WorkerMessage::Unload => {
@@ -684,6 +769,7 @@ fn apply_worker_message(
             action.launch = false;
             action.job = None;
             action.surface.clear();
+            action.stream.clear();
         }
     }
 }
@@ -734,6 +820,7 @@ impl PluginHost {
                 last_activity: Instant::now(),
                 failed: false,
                 unloaded: false,
+                pending_stream: (String::new(), Vec::new()),
             },
             job_receiver,
             event_sender,

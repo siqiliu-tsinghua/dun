@@ -95,6 +95,7 @@ impl AppState {
             Ok(result) => {
                 let status = command_run_status(&self.shell.catalog, &result);
                 self.open_command_output_screen(&result);
+                self.feed_command_output_to_filters(&result);
                 self.set_status(status);
             }
             Err(error) => {
@@ -105,5 +106,17 @@ impl AppState {
                 ));
             }
         }
+    }
+
+    /// Feed a finished command's stdout to any `stream-read` host so a log-filter
+    /// plugin can show a filtered view in its own surface window. Additive: the
+    /// normal command-output window still opens.
+    fn feed_command_output_to_filters(&mut self, result: &CommandRunResult) {
+        if result.stdout.bytes.is_empty() {
+            return;
+        }
+        let text = dun_core::decode_file_text(result.stdout.bytes.clone()).text;
+        let lines: Vec<String> = text.lines().map(str::to_string).collect();
+        self.feed_stream_to_filters("command-output", &lines);
     }
 }

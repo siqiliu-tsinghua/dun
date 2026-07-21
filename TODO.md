@@ -517,7 +517,24 @@ deltas non-additive).
       (fill-on-response, window-only-no-request, reuse); the surface-write
       dispatch gate, the render, and the reuse are each mutation-proven. macOS
       budget build 678,708 (+4,112 over the D baseline `b7111ef`).
-  - **stream-read** (feed command-output stream chunks to a host) — not started.
+  - **stream-read** (feed command-output stream chunks to a host). sr-1/sr-2
+    landed; Debian measurement owed.
+    - sr-1 `72d2d9e` (dun-plugin): `StreamChunk { stream_id, chunk_index, lines,
+      final_chunk }`, `validate_stream_verdict` (one keep/drop boolean per input
+      line), `HostClient::request_stream_filter` (gated on `stream-read`, reuses
+      the transport, input bounded by `max_snapshot_lines`), `Json::as_bool` /
+      `json::bool`, fixture keeps non-empty lines. 2 protocol + 2 validator
+      tests; gate and verdict-length check mutation-proven.
+    - sr-2 (dun-cli): worker `Stream` message / `StreamVerdict` event /
+      `serve_stream`; `PluginHost` remembers the fed lines (`pending_stream`).
+      A finished command's stdout is fed to every `stream-read` host
+      (`feed_command_output_to_filters` → `feed_stream_to_filters`, additive —
+      the normal output window still opens); `apply_stream_verdict` keeps the
+      marked lines and shows them in the host's surface window (shared
+      `fill_plugin_surface` with surface-write), dropping a length-mismatched
+      verdict. Three tests (feed gate, kept-lines-in-surface, mismatch-dropped);
+      the feed gate, the keep filter, and the length guard mutation-proven.
+      macOS budget build 682,820 (+4,112 over the surface-write baseline).
   - **scratch-input + execute** (dun-native editable buffer + submit its text to
     the host) — not started; this is B's unfinished half.
 

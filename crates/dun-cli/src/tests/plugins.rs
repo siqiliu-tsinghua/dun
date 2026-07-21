@@ -562,6 +562,89 @@ fn closing_a_plugin_surface_frees_the_slot() {
     assert_eq!(surface_window_count(&app), 1);
 }
 
+fn surface_buffer_text(app: &AppState, plugin_id: &str) -> String {
+    let window = app
+        .workspace
+        .windows
+        .iter()
+        .find(|window| {
+            window.kind == WindowKind::PluginSurface
+                && app.plugin_windows.owns(plugin_id, window.id)
+        })
+        .expect("plugin surface window");
+    let buffer = &app.buffer_state(window.buffer_id).unwrap().buffer;
+    (0..buffer.line_count())
+        .map(|i| buffer.line(i).unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn stream_read_feed_sends_a_chunk_only_to_stream_read_hosts() {
+    let mut app = AppState::new();
+    let (filter, filter_msgs, _fe) = PluginHost::for_tests_granted("logf", eager_grant());
+    let (plain, plain_msgs, _pe) =
+        PluginHost::for_tests_granted("plain", GrantedCapabilities::default());
+    app.plugin_hosts = PluginHosts::for_tests(vec![filter, plain]);
+
+    app.feed_stream_to_filters("command-output", &["a".into(), "b".into()]);
+
+    // The stream-read host gets a chunk; the ungranted host gets nothing.
+    match filter_msgs.try_recv() {
+        Ok(WorkerMessage::Stream(chunk)) => {
+            assert_eq!(chunk.stream_id, "command-output");
+            assert_eq!(chunk.lines, vec!["a".to_string(), "b".to_string()]);
+            assert!(chunk.final_chunk);
+        }
+        other => panic!("expected a stream chunk, got {other:?}"),
+    }
+    assert!(
+        plain_msgs.try_recv().is_err(),
+        "a host without stream-read must not be fed"
+    );
+}
+
+#[test]
+fn stream_verdict_shows_kept_lines_in_the_hosts_surface() {
+    let mut app = AppState::new();
+    let (filter, _m, events) = PluginHost::for_tests_granted("logf", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![filter]);
+
+    // Feed three lines, then the host keeps lines 0 and 2.
+    app.feed_stream_to_filters(
+        "command-output",
+        &["alpha".into(), "beta".into(), "gamma".into()],
+    );
+    events
+        .send(HostEvent::StreamVerdict {
+            result: Ok(vec![true, false, true]),
+        })
+        .unwrap();
+    app.pump_plugins();
+
+    assert_eq!(surface_window_count(&app), 1);
+    assert_eq!(surface_buffer_text(&app, "logf"), "alpha\ngamma");
+}
+
+#[test]
+fn stream_verdict_with_mismatched_length_is_dropped() {
+    let mut app = AppState::new();
+    let (filter, _m, events) = PluginHost::for_tests_granted("logf", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![filter]);
+
+    app.feed_stream_to_filters("command-output", &["a".into(), "b".into()]);
+    // A verdict whose length no longer matches the fed lines is ignored: no
+    // window is opened.
+    events
+        .send(HostEvent::StreamVerdict {
+            result: Ok(vec![true]),
+        })
+        .unwrap();
+    app.pump_plugins();
+
+    assert_eq!(surface_window_count(&app), 0);
+}
+
 fn keybinding(leader: &str, key: &str, action_id: &str) -> PluginKeybinding {
     let payload = json::obj([
         ("leader", json::str(leader)),

@@ -69,6 +69,9 @@ impl AppState {
                 HostEvent::Surface { action_id, result } => {
                     self.apply_surface_outcome(&plugin_id, &action_id, result)
                 }
+                HostEvent::StreamVerdict { result } => {
+                    self.apply_stream_verdict(&plugin_id, result)
+                }
             }
         }
         self.refresh_plugin_contributions();
