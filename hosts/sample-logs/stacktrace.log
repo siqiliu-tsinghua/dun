@@ -1,0 +1,14 @@
+2026-06-04T09:15:02Z INFO  http: GET /api/v1/checkout 200
+2026-06-04T09:15:03Z INFO  http: GET /api/v1/cart 200
+2026-06-04T09:15:04Z ERROR http: GET /api/v1/checkout 500
+java.lang.NullPointerException: Cannot invoke "Order.total()" because "order" is null
+	at com.example.checkout.CheckoutService.finalize(CheckoutService.java:88)
+	at com.example.checkout.CheckoutController.post(CheckoutController.java:42)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(Unknown Source)
+2026-06-04T09:15:05Z INFO  http: GET /health 200
+2026-06-04T09:15:10Z WARN  db: slow query 2.1s on orders
+2026-06-04T09:15:12Z ERROR worker: job 8831 failed
+org.postgresql.util.PSQLException: ERROR: deadlock detected
+	at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2725)
+	at com.example.worker.OrderJob.run(OrderJob.java:57)
+2026-06-04T09:15:13Z INFO  worker: job 8832 started
