@@ -13,16 +13,21 @@ hosts: framed stdio (u32 little-endian length + UTF-8 JSON), `hello`/`hello-ack`
 handshake, `request` → `response` with `spans` in **character** columns,
 clean exit on `shutdown` or EOF.
 
-`python-logfilter/` serves the `log-filter` role and is the first reference host
-that exercises the whole capability surface beyond highlighting: its `hello-ack`
-contributes a menu subtree and a `Ctrl+L` keybinding leader, each action tagged
-with a kind (`scratch`/`execute`/`surface`); it owns an editable scratch window
-(the user types a filter substring), an `execute` submit adopts that text as the
-pattern, and each command-output stream chunk is filtered to the lines
-containing the pattern, shown in the host's surface window. Configure it with
-`plugin.logfilter.roles = log-filter`. A Lua log-filter host and a log-filter
-conformance path are planned next; the rum version (the only `pure-sandbox`
-host) waits on rum-ext.
+`python-logfilter/` and `lua-logfilter/` serve the `log-filter` role and are
+the first reference hosts that exercise the whole capability surface beyond
+highlighting. Their `hello-ack` contributes a menu subtree and a `Ctrl+L`
+keybinding leader, each action tagged with a kind (`scratch`/`execute`/
+`surface`); the host owns an editable scratch window (the user types a filter
+substring), an `execute` submit adopts that text as the pattern, and each
+command-output stream chunk is filtered to the lines containing the pattern,
+shown in the host's surface window. Configure with
+`plugin.logfilter.roles = log-filter`. The rum version — the only
+`pure-sandbox` host — waits on rum-ext.
+
+| Host | Language | Notes |
+| --- | --- | --- |
+| `python-logfilter/` | Python 3 | Standard library only. |
+| `lua-logfilter/` | Lua 5.3+ | Zero dependencies, JSON codec in the script. Its encoder handles booleans (the `keep` verdict is an array of them) and nested objects, which the highlight host never needed. |
 
 | Host | Language | Highlighting engine | Notes |
 | --- | --- | --- | --- |
@@ -72,5 +77,14 @@ Exit code 0 prints an `OK` summary; the first violation aborts with `FAIL`.
 Run it with a wrapper script for interpreter-based hosts (it launches the
 command with no arguments and an empty environment, matching the editor).
 
-All three hosts pass the checker on Debian (the binding platform) and the two
-that run locally on macOS (syntect, Pygments) pass there too.
+All three highlight hosts pass the checker on Debian (the binding platform) and
+the two that run locally on macOS (syntect, Pygments) pass there too.
+
+`check-host.py` covers only the `syntax-highlight` role — it does not yet drive
+the log-filter capabilities (menu/keybinding handshake contributions, and the
+`stream-read` / `surface-write` / `execute` requests). Until it does, the two
+log-filter hosts are exercised by driving `hello` → `execute` → a stream chunk
+→ a surface action → `shutdown` directly and checking the replies (the menu and
+leader are advertised, `execute` sets the pattern, a stream chunk filters to
+the matching lines, and the surface action reports status). Extending the
+checker to the log-filter role is the next conformance task.
