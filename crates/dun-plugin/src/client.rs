@@ -529,6 +529,83 @@ impl HostClient {
         }
     }
 
+    /// Submit the whole scratch buffer text to a host granted `scratch-input`
+    /// as one blob (`execute`) and collect the host's result lines. The snippet
+    /// runs in the host's interpreter, never in `dun`; `dun` only sends the
+    /// text and validates the bounded lines that come back (via
+    /// `validate_surface`).
+    pub fn request_execute(&mut self, snippet: &str) -> Result<Vec<String>, PluginError> {
+        if !self.granted.holds(Capability::ScratchInput) {
+            return Err(PluginError::PolicyViolation(
+                "scratch-input capability not granted",
+            ));
+        }
+        let request_id = self.next_request_id;
+        self.next_request_id += 1;
+        self.send(&Envelope {
+            kind: MessageKind::Request,
+            request_id,
+            plugin_id: self.plugin_id.clone(),
+            role: None,
+            revision: None,
+            payload: json::obj([("snippet", json::str(snippet))]),
+        })?;
+
+        let mut diagnostics_seen = 0usize;
+        let deadline = Instant::now() + self.policy.timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let envelope = match self.recv(remaining) {
+                Ok(envelope) => envelope,
+                Err(PluginError::Timeout) => {
+                    let _ = self.send(&Envelope {
+                        kind: MessageKind::CancelRequest,
+                        request_id,
+                        plugin_id: self.plugin_id.clone(),
+                        role: None,
+                        revision: None,
+                        payload: Json::Null,
+                    });
+                    self.kill();
+                    return Err(PluginError::Timeout);
+                }
+                Err(error) => {
+                    self.kill();
+                    return Err(error);
+                }
+            };
+            match envelope.kind {
+                MessageKind::Diagnostic => {
+                    diagnostics_seen += 1;
+                    if diagnostics_seen > self.policy.max_diagnostics {
+                        self.kill();
+                        return Err(PluginError::PolicyViolation("diagnostic flood"));
+                    }
+                }
+                MessageKind::Response => {
+                    if envelope.request_id != request_id {
+                        self.kill();
+                        return Err(PluginError::PolicyViolation("response for unknown request"));
+                    }
+                    return validate_surface(&envelope.payload, &self.policy)
+                        .map_err(PluginError::PolicyViolation);
+                }
+                MessageKind::Error => {
+                    let message = envelope
+                        .payload
+                        .get("message")
+                        .and_then(Json::as_str)
+                        .unwrap_or("unspecified");
+                    return Err(PluginError::HostError(bounded_message(message)));
+                }
+                _ => {
+                    self.kill();
+                    return Err(PluginError::PolicyViolation("unexpected message kind"));
+                }
+            }
+        }
+    }
+
     pub fn shutdown(mut self) -> Result<(), PluginError> {
         let _ = self.send(&Envelope {
             kind: MessageKind::Shutdown,

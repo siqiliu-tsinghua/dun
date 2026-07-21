@@ -155,6 +155,22 @@ fn handle_request(message: &Json, request_id: u64, output: &mut impl Write) -> i
         return write_frame(output, &reply);
     }
 
+    // A scratch-input `execute` request carries `snippet`; the host "runs" it
+    // and answers with result lines (fixture: echo a one-line summary).
+    if let Some(snippet) = payload
+        .and_then(|value| value.get("snippet"))
+        .and_then(Json::as_str)
+    {
+        let summary = format!("executed {} chars", snippet.len());
+        let reply = envelope(
+            "response",
+            request_id,
+            None,
+            json::obj([("lines", Json::Arr(vec![json::str(&summary)]))]),
+        );
+        return write_frame(output, &reply);
+    }
+
     let language = payload
         .and_then(|value| value.get("language"))
         .and_then(Json::as_str)

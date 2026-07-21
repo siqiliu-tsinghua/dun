@@ -411,6 +411,46 @@ fn stream_read_from_ungranted_host_is_refused() {
     );
 }
 
+#[test]
+fn execute_granted_host_runs_the_snippet_and_returns_lines() {
+    // A log-filter role holds `scratch-input`; the fixture echoes a summary.
+    let mut client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::LogFilter],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("log-filter host launches");
+    let lines = client
+        .request_execute("abc")
+        .expect("a scratch-input host returns result lines");
+    assert_eq!(lines, vec!["executed 3 chars"]);
+}
+
+#[test]
+fn execute_from_ungranted_host_is_refused() {
+    // A syntax-highlight role has no `scratch-input` capability, so the request
+    // is refused by construction before any bytes reach the host.
+    let mut client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::SyntaxHighlight],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("syntax-highlight host launches");
+    assert!(
+        matches!(
+            client.request_execute("x"),
+            Err(PluginError::PolicyViolation(
+                "scratch-input capability not granted"
+            ))
+        ),
+        "a host without scratch-input must be refused"
+    );
+}
+
 /// Diagnostic for the handshake-latency-spike investigation. Measures full
 /// `HostClient::launch` (spawn + reader threads + hello/hello-ack) latency
 /// sequentially and then with a burst of concurrent launches, to attribute
