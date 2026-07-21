@@ -20,7 +20,10 @@ use crate::json::{self, Json};
 use crate::keybinding::PluginKeybinding;
 use crate::menu::PluginMenu;
 use crate::proto::{Envelope, MessageKind, Policy, ProtocolError, Role, TrustClass};
-use crate::validate::{InputSnapshot, StyleSpan, validate_spans, validate_surface};
+use crate::validate::{
+    InputSnapshot, StreamChunk, StyleSpan, validate_spans, validate_stream_verdict,
+    validate_surface,
+};
 
 const SHUTDOWN_GRACE: Duration = Duration::from_millis(500);
 const MAX_HOST_ERROR_CHARS: usize = 200;
@@ -420,6 +423,94 @@ impl HostClient {
                         return Err(PluginError::PolicyViolation("response for unknown request"));
                     }
                     return validate_surface(&envelope.payload, &self.policy)
+                        .map_err(PluginError::PolicyViolation);
+                }
+                MessageKind::Error => {
+                    let message = envelope
+                        .payload
+                        .get("message")
+                        .and_then(Json::as_str)
+                        .unwrap_or("unspecified");
+                    return Err(PluginError::HostError(bounded_message(message)));
+                }
+                _ => {
+                    self.kill();
+                    return Err(PluginError::PolicyViolation("unexpected message kind"));
+                }
+            }
+        }
+    }
+
+    /// Feed a bounded output-stream chunk to a host granted `stream-read` and
+    /// collect its per-line keep/drop verdict. Mirrors `request_surface`'s
+    /// transport; the response must carry exactly one boolean per input line
+    /// (enforced by `validate_stream_verdict`).
+    pub fn request_stream_filter(&mut self, chunk: &StreamChunk) -> Result<Vec<bool>, PluginError> {
+        if !self.granted.holds(Capability::StreamRead) {
+            return Err(PluginError::PolicyViolation(
+                "stream-read capability not granted",
+            ));
+        }
+        if chunk.lines.len() > self.policy.max_snapshot_lines {
+            return Err(PluginError::PolicyViolation(
+                "stream chunk exceeds line budget",
+            ));
+        }
+        let line_count = chunk.lines.len();
+        let request_id = self.next_request_id;
+        self.next_request_id += 1;
+        let lines = chunk.lines.iter().map(|line| json::str(line)).collect();
+        self.send(&Envelope {
+            kind: MessageKind::Request,
+            request_id,
+            plugin_id: self.plugin_id.clone(),
+            role: None,
+            revision: None,
+            payload: Json::Obj(vec![
+                ("stream_id".to_string(), json::str(&chunk.stream_id)),
+                ("chunk_index".to_string(), json::num(chunk.chunk_index)),
+                ("lines".to_string(), Json::Arr(lines)),
+                ("final".to_string(), json::bool(chunk.final_chunk)),
+            ]),
+        })?;
+
+        let mut diagnostics_seen = 0usize;
+        let deadline = Instant::now() + self.policy.timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let envelope = match self.recv(remaining) {
+                Ok(envelope) => envelope,
+                Err(PluginError::Timeout) => {
+                    let _ = self.send(&Envelope {
+                        kind: MessageKind::CancelRequest,
+                        request_id,
+                        plugin_id: self.plugin_id.clone(),
+                        role: None,
+                        revision: None,
+                        payload: Json::Null,
+                    });
+                    self.kill();
+                    return Err(PluginError::Timeout);
+                }
+                Err(error) => {
+                    self.kill();
+                    return Err(error);
+                }
+            };
+            match envelope.kind {
+                MessageKind::Diagnostic => {
+                    diagnostics_seen += 1;
+                    if diagnostics_seen > self.policy.max_diagnostics {
+                        self.kill();
+                        return Err(PluginError::PolicyViolation("diagnostic flood"));
+                    }
+                }
+                MessageKind::Response => {
+                    if envelope.request_id != request_id {
+                        self.kill();
+                        return Err(PluginError::PolicyViolation("response for unknown request"));
+                    }
+                    return validate_stream_verdict(&envelope.payload, line_count)
                         .map_err(PluginError::PolicyViolation);
                 }
                 MessageKind::Error => {

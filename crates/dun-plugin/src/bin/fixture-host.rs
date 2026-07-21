@@ -131,6 +131,30 @@ fn handle_request(message: &Json, request_id: u64, output: &mut impl Write) -> i
         return write_frame(output, &reply);
     }
 
+    // A stream-read request carries `stream_id` and a `lines` chunk; the host
+    // answers with one keep/drop verdict per line (fixture rule: keep non-empty
+    // lines).
+    if payload
+        .and_then(|value| value.get("stream_id"))
+        .and_then(Json::as_str)
+        .is_some()
+    {
+        let keep: Vec<Json> = payload
+            .and_then(|value| value.get("lines"))
+            .and_then(Json::as_arr)
+            .unwrap_or(&[])
+            .iter()
+            .map(|line| json::bool(!line.as_str().unwrap_or("").is_empty()))
+            .collect();
+        let reply = envelope(
+            "response",
+            request_id,
+            None,
+            json::obj([("keep", Json::Arr(keep))]),
+        );
+        return write_frame(output, &reply);
+    }
+
     let language = payload
         .and_then(|value| value.get("language"))
         .and_then(Json::as_str)

@@ -57,6 +57,14 @@ impl Json {
             None
         }
     }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        if let Self::Bool(value) = self {
+            Some(*value)
+        } else {
+            None
+        }
+    }
 }
 
 pub fn str(text: &str) -> Json {
@@ -65,6 +73,10 @@ pub fn str(text: &str) -> Json {
 
 pub fn num(value: u64) -> Json {
     Json::Num(value as f64)
+}
+
+pub fn bool(value: bool) -> Json {
+    Json::Bool(value)
 }
 
 pub fn obj<const N: usize>(fields: [(&str, Json); N]) -> Json {

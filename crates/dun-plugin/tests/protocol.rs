@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 
 use dun_plugin::frame::FrameError;
 use dun_plugin::proto::ProtocolError;
-use dun_plugin::{HostClient, InputSnapshot, PluginError, Policy, Role, StyleId, TrustClass};
+use dun_plugin::{
+    HostClient, InputSnapshot, PluginError, Policy, Role, StreamChunk, StyleId, TrustClass,
+};
 
 const FIXTURE_HOST: &str = env!("CARGO_BIN_EXE_fixture-host");
 const REVISION: u64 = 41;
@@ -357,6 +359,55 @@ fn surface_write_from_ungranted_host_is_refused() {
             ))
         ),
         "a host without surface-write must be refused"
+    );
+}
+
+fn stream_chunk(lines: &[&str]) -> StreamChunk {
+    StreamChunk {
+        stream_id: "cmd".to_string(),
+        chunk_index: 0,
+        lines: lines.iter().map(|line| line.to_string()).collect(),
+        final_chunk: true,
+    }
+}
+
+#[test]
+fn stream_read_granted_host_returns_one_verdict_per_line() {
+    // A log-filter role holds `stream-read`; the fixture keeps non-empty lines.
+    let mut client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::LogFilter],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("log-filter host launches");
+    let verdict = client
+        .request_stream_filter(&stream_chunk(&["keep me", "", "and me"]))
+        .expect("a stream-read host returns a verdict");
+    assert_eq!(verdict, vec![true, false, true]);
+}
+
+#[test]
+fn stream_read_from_ungranted_host_is_refused() {
+    // A syntax-highlight role has no `stream-read` capability, so the request is
+    // refused by construction before any bytes reach the host.
+    let mut client = HostClient::launch(
+        Path::new(FIXTURE_HOST),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::SyntaxHighlight],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("syntax-highlight host launches");
+    assert!(
+        matches!(
+            client.request_stream_filter(&stream_chunk(&["x"])),
+            Err(PluginError::PolicyViolation(
+                "stream-read capability not granted"
+            ))
+        ),
+        "a host without stream-read must be refused"
     );
 }
 

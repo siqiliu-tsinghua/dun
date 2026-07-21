@@ -19,6 +19,17 @@ pub struct InputSnapshot {
     pub lines: Vec<String>,
 }
 
+/// A bounded chunk of a `dun`-managed output stream, fed to a host granted the
+/// `stream-read` capability. `stream_id` names the source stream, `chunk_index`
+/// orders chunks within it, and `final_chunk` marks the last one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StreamChunk {
+    pub stream_id: String,
+    pub chunk_index: u64,
+    pub lines: Vec<String>,
+    pub final_chunk: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StyleId {
     Keyword,
@@ -88,6 +99,33 @@ pub fn validate_surface(payload: &Json, policy: &Policy) -> Result<Vec<String>, 
         validated.push(text.to_string());
     }
     Ok(validated)
+}
+
+/// The `stream-read` capability's response validator: a host granted
+/// `stream-read` receives a [`StreamChunk`] and answers with one keep/drop
+/// verdict per input line. The verdict list must have exactly one boolean per
+/// line — a host cannot invent or drop rows — so `dun` can apply the decisions
+/// positionally without trusting a length the host chose.
+pub fn validate_stream_verdict(
+    payload: &Json,
+    line_count: usize,
+) -> Result<Vec<bool>, &'static str> {
+    let keep = payload
+        .get("keep")
+        .and_then(Json::as_arr)
+        .ok_or("stream verdict has no keep list")?;
+    if keep.len() != line_count {
+        return Err("stream verdict length does not match the chunk line count");
+    }
+    let mut verdicts = Vec::with_capacity(keep.len());
+    for value in keep {
+        verdicts.push(
+            value
+                .as_bool()
+                .ok_or("stream verdict entry is not a boolean")?,
+        );
+    }
+    Ok(verdicts)
 }
 
 fn validate_span(snapshot: &InputSnapshot, span: &Json) -> Result<StyleSpan, &'static str> {
@@ -231,5 +269,31 @@ mod tests {
         assert!(validate_surface(&non_string, &Policy::default()).is_err());
 
         assert!(validate_surface(&Json::Null, &Policy::default()).is_err());
+    }
+
+    fn keep_payload(keeps: &[bool]) -> Json {
+        json::obj([(
+            "keep",
+            Json::Arr(keeps.iter().map(|b| json::bool(*b)).collect()),
+        )])
+    }
+
+    #[test]
+    fn stream_verdict_accepts_one_boolean_per_line() {
+        let verdict =
+            validate_stream_verdict(&keep_payload(&[true, false, true]), 3).expect("valid verdict");
+        assert_eq!(verdict, vec![true, false, true]);
+    }
+
+    #[test]
+    fn stream_verdict_rejects_length_mismatch_non_bool_and_missing_list() {
+        // One verdict too few / too many for the chunk's line count.
+        assert!(validate_stream_verdict(&keep_payload(&[true]), 2).is_err());
+        assert!(validate_stream_verdict(&keep_payload(&[true, false]), 1).is_err());
+
+        let non_bool = json::obj([("keep", Json::Arr(vec![json::num(1)]))]);
+        assert!(validate_stream_verdict(&non_bool, 1).is_err());
+
+        assert!(validate_stream_verdict(&Json::Null, 0).is_err());
     }
 }

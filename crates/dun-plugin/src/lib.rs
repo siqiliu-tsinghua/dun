@@ -26,4 +26,4 @@ pub use client::{HostClient, PluginError};
 pub use keybinding::{PluginChord, PluginKeybinding};
 pub use menu::{LabelSet, PluginMenu, PluginMenuItem};
 pub use proto::{Policy, Role, TrustClass};
-pub use validate::{InputSnapshot, StyleId, StyleSpan};
+pub use validate::{InputSnapshot, StreamChunk, StyleId, StyleSpan};
