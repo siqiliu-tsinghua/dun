@@ -78,7 +78,7 @@ def hello_payload():
             ],
         },
         "keybinding": {
-            "leader": "Ctrl+L",
+            "leader": "Ctrl+T",
             "chords": [
                 {"key": "e", "action_id": "edit", "kind": "scratch"},
                 {"key": "a", "action_id": "apply", "kind": "execute"},
@@ -116,7 +116,7 @@ def handle_request(payload, pattern):
             "lines": [
                 status,
                 "",
-                "Ctrl+L e  edit pattern   Ctrl+L a  apply   Ctrl+L s  status",
+                "Ctrl+T e  edit pattern   Ctrl+T a  apply   Ctrl+T s  status",
             ]
         }, pattern
 
