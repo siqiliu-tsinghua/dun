@@ -616,3 +616,35 @@ Cross-platform functional runs this session (full `cargo test --workspace`):
 **macOS 700/0, FreeBSD 700/0, Solaris 696/4** (the 4 Solaris failures are the
 root-caused ambiguous-width `tmux_grid` quirk, not a defect). VM scratch removed
 after recording. Margin on the binding platform is 300,672 bytes.
+
+## 2026-07-19 scratch-input + execute capability (d9c380a)
+
+Binding measurement for the `scratch-input`/`execute` capability slice (si-1
+`32f0b52` dun-plugin execute path + si-2 `d9c380a` action-kind dispatch +
+editable scratch window across dun-core/plugin/cli).
+
+| Platform | e438a13 | d9c380a | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 682,820 | 691,028 | +8,208 | 357,548 |
+| Debian x86_64 | 747,904 | 756,096 | +8,192 | 292,480 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `d9c380a`
+(`scripts/release-build.sh`, build-std, Debian `rust-src`). Toolchain
+`rustc 1.85.0`, `cargo 1.85.0`, `Linux debvbox 6.12.95+deb13-amd64`. This slice
+is the largest capability delta so far (+8,192 vs the ~4 KiB of surface-write
+and stream-read): it adds the `PluginActionKind` machinery across four crates,
+the editable scratch window path, and the execute worker path. Both platforms
+stay well under budget.
+
+Smoke on the measured Debian binary: ELF 64-bit PIE stripped; `ldd` unchanged
+(`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, `ld-linux`); `--version` printed
+`dun 0.1.0`; `--dump-config` 181 lines; `strings` panic-trigger checks both 0.
+macOS gate (idle machine): `tmux_grid` (5), `msedit_diff` (1), release
+`test-panic-hook` `pty_smoke` (10) all pass, `strings` 0.
+
+Cross-platform functional runs (full `cargo test --workspace`): **macOS 706/0,
+FreeBSD 706/0, Solaris 702/4** (the 4 Solaris failures are the root-caused
+ambiguous-width `tmux_grid` quirk, not a defect). With this, all v0 capability
+data channels (`overlay-write`, `surface-write`, `stream-read`,
+`scratch-input`/`execute`) are built and measured. VM scratch removed after
+recording. Margin on the binding platform is 292,480 bytes.

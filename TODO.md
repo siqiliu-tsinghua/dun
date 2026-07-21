@@ -540,7 +540,12 @@ deltas non-additive).
       the feed gate, the keep filter, and the length guard mutation-proven.
       macOS budget build 682,820 (+4,112 over the surface-write baseline).
   - **scratch-input + execute** (dun-native editable buffer + submit its text to
-    the host). si-1/si-2 landed; Debian measurement owed.
+    the host). DONE — si-1/si-2 landed, si-3 measured (`d9c380a`, 2026-07-19):
+    binding Debian **756,096 bytes**, margin 292,480, +8,192 over the
+    stream-read baseline; smoke passed. Cross-platform functional: macOS 706/0,
+    FreeBSD 706/0, Solaris 702/4 (the 4 = the root-caused ambiguous-width
+    quirk). No measurement debt. **All v0 capability data channels are now
+    built and measured.**
     - si-1 `32f0b52` (dun-plugin): `HostClient::request_execute(snippet)` sends
       `{ snippet }` (gated on `scratch-input`, reuses the transport), returns
       the host's result lines via `validate_surface`; fixture echoes a summary.
