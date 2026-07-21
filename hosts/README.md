@@ -8,10 +8,21 @@ of the editor build, the workspace, the CI gates, or the size budget; the only
 in-tree host the tests depend on is the Rust fixture host in
 `crates/dun-plugin/src/bin/fixture-host.rs`.
 
-All three serve the `syntax-highlight` role as `user-trusted-external` hosts:
-framed stdio (u32 little-endian length + UTF-8 JSON), `hello`/`hello-ack`
+The first three serve the `syntax-highlight` role as `user-trusted-external`
+hosts: framed stdio (u32 little-endian length + UTF-8 JSON), `hello`/`hello-ack`
 handshake, `request` → `response` with `spans` in **character** columns,
 clean exit on `shutdown` or EOF.
+
+`python-logfilter/` serves the `log-filter` role and is the first reference host
+that exercises the whole capability surface beyond highlighting: its `hello-ack`
+contributes a menu subtree and a `Ctrl+L` keybinding leader, each action tagged
+with a kind (`scratch`/`execute`/`surface`); it owns an editable scratch window
+(the user types a filter substring), an `execute` submit adopts that text as the
+pattern, and each command-output stream chunk is filtered to the lines
+containing the pattern, shown in the host's surface window. Configure it with
+`plugin.logfilter.roles = log-filter`. A Lua log-filter host and a log-filter
+conformance path are planned next; the rum version (the only `pure-sandbox`
+host) waits on rum-ext.
 
 | Host | Language | Highlighting engine | Notes |
 | --- | --- | --- | --- |
