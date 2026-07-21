@@ -136,8 +136,10 @@ through the tracked `vm-test/` wrappers with a target selector (`-t NAME` /
 - **`solaris` (port 2244, Oracle Solaris 11.4)** — a **portability / functional**
   env ([docs/solaris-vm.md](./docs/solaris-vm.md)), NOT a size-budget platform
   (native Solaris `ld`, multilib, `pkg` rust 1.87 with `rust-src` linked from
-  `/opt`). Known open issue: `tmux_grid` fails there on a real Solaris
-  width-detection bug in `dun`/crossterm (not masked). More targets may be added.
+  `/opt`). Known quirk (root-caused, not a `dun` defect): Solaris tmux renders
+  Unicode ambiguous-width glyphs (box-drawing, `◆`) double-width, so `tmux_grid`
+  fails there; workaround is `terminal.encoding = ascii`. More targets may be
+  added.
 
 Use `vm-test/vm-run [-t NAME] [command]` and `vm-test/vm-sync [-t NAME] [ref]`
 (`--worktree` rsyncs the dirty tree for iteration only) instead of raw ssh;

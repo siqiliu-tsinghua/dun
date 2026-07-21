@@ -85,13 +85,28 @@ platform).
   `LANG=en_US.UTF-8`. The product compiles and links cleanly (crossterm 0.28.1
   builds against the native `ld`); all unit, protocol, PTY, plugin, and
   surface-write tests pass.
-- **KNOWN ISSUE — the 4 failures are all `tmux_grid`**, and they are a real
-  `dun`/crossterm width-detection bug on Solaris, *not* a harness/tmux problem:
-  the tmux pane is correctly sized (verified 80×24), but `dun` renders at
-  roughly 55% width (80→~46, 100→~55) with no menu bar. Suspected crossterm
-  terminal-size detection on Solaris. **Do not mask this by skipping** — it is a
-  genuine portability signal; investigate the size path before calling Solaris a
-  green functional gate.
+- **KNOWN ISSUE — the 4 failures are all `tmux_grid`. Root-caused 2026-07-19:
+  Solaris tmux 3.4 (via Solaris libc `wcwidth`) renders Unicode
+  *ambiguous-width* characters as double-width** — the box-drawing block
+  (U+2500 `─`, U+2502 `│`, corners) and geometric symbols (U+25C6 `◆`) each
+  occupy 2 cells, where `unicode-width` (which `dun` uses) and every other
+  tested terminal (Linux/FreeBSD/macOS) treat them as width 1. So `dun` emits a
+  provably correct 80-column frame, tmux receives it byte-for-byte (verified
+  with `pipe-pane`), but each box-drawing glyph consumes two columns, overflowing
+  the row and clipping the visible border to ~46 columns.
+
+  This is **not a `dun` code defect** — `dun`'s output is correct by Unicode's
+  default (Western) width, and size detection is fine (`crossterm::size()`
+  returns 80, verified). It is a Solaris terminal `wcwidth` policy (Ambiguous →
+  wide), analogous in spirit to the FreeBSD `edit`=`ee` gotcha. Diagnosis method
+  (for re-verification): a pane running `printf '\033[1;1H──────────'` leaves
+  `#{cursor_x}` at 20, not 10.
+
+  **Workaround (verified):** force `dun`'s ASCII border glyphs, which are
+  width-1 everywhere — put `terminal.encoding = ascii` in the config (or run
+  `dun --config <file>` with that line). The border then renders full-width
+  (`+-- * Untitled --…--+`). Do not mask the tmux_grid failures by skipping;
+  they correctly report the platform's ambiguous-width policy.
 - There is no `/usr/bin/edit` on Solaris, so the Microsoft Edit tests skip
   cleanly (they gate on `microsoft_edit_on_path`).
 
