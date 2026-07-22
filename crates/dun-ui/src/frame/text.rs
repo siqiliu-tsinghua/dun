@@ -1,5 +1,5 @@
 use dun_core::{DisplaySanitizer, Rect, SanitizedLine};
-use unicode_width::UnicodeWidthStr;
+use dun_term::str_width;
 
 use crate::{BufferView, UiShell, wrap_line_segments};
 
@@ -57,7 +57,7 @@ impl UiShell {
             } else {
                 0
             };
-            for segment in wrap_line_segments(line, body_width)
+            for segment in wrap_line_segments(line, body_width, self.profile.ambiguous_width)
                 .iter()
                 .skip(start_offset)
             {
@@ -80,7 +80,9 @@ impl UiShell {
         let Some(line) = buffer.buffer.line(line_index) else {
             return 1;
         };
-        wrap_line_segments(line, body_width.max(1)).len().max(1)
+        wrap_line_segments(line, body_width.max(1), self.profile.ambiguous_width)
+            .len()
+            .max(1)
     }
 
     pub(super) fn wrapped_total_visual_rows(
@@ -130,7 +132,10 @@ impl UiShell {
             max_bytes: usize::MAX,
         };
         let display_text = display_sanitizer.sanitize_line(prefix).as_plain_text();
-        Some(UnicodeWidthStr::width(display_text.as_str()))
+        Some(str_width(
+            display_text.as_str(),
+            self.profile.ambiguous_width,
+        ))
     }
 
     pub(crate) fn byte_column_for_display_column(&self, line: &str, target: usize) -> usize {
@@ -149,7 +154,8 @@ impl UiShell {
             let rendered = display_sanitizer
                 .sanitize_line(ch.encode_utf8(&mut raw))
                 .as_plain_text();
-            width = width.saturating_add(UnicodeWidthStr::width(rendered.as_str()));
+            width =
+                width.saturating_add(str_width(rendered.as_str(), self.profile.ambiguous_width));
             if width >= target {
                 return next_index;
             }

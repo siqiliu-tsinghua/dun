@@ -56,7 +56,8 @@ impl UiShell {
     pub fn menu_index_at_column(&self, column: u16) -> Option<usize> {
         let menu = self.menu_bar(None);
         for index in 0..menu.items.len() {
-            let (start, end) = super::menu_item_column_range(&menu, index)?;
+            let (start, end) =
+                super::menu_item_column_range(&menu, index, self.profile.ambiguous_width)?;
             if column >= start && column < end {
                 return Some(index);
             }

@@ -457,12 +457,13 @@ impl UiShell {
 
         let mut spans = Vec::new();
         let mut segment_start = 0usize;
-        for (row_offset, segment) in wrap_line_segments(line, layout.body_width)
-            .iter()
-            .enumerate()
+        for (row_offset, segment) in
+            wrap_line_segments(line, layout.body_width, self.profile.ambiguous_width)
+                .iter()
+                .enumerate()
         {
             let row = layout.visual_y.saturating_add(row_offset as isize);
-            let segment_width = display_width(segment);
+            let segment_width = display_width(segment, self.profile.ambiguous_width);
             let segment_end = segment_start.saturating_add(segment_width);
             if row < 0 {
                 segment_start = segment_end;

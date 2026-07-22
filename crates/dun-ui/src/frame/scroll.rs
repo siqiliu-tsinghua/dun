@@ -110,7 +110,7 @@ impl UiShell {
             .enumerate()
         {
             let line = buffer.buffer.line(line_index).unwrap_or_default();
-            let width = display_width(line);
+            let width = display_width(line, self.profile.ambiguous_width);
             let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
             let body_origin = self.display_column(line, visible_byte_start).unwrap_or(0);
             let left = visible_byte_start > 0;

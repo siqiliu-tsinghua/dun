@@ -38,5 +38,10 @@ pub(crate) fn window_title_for_width(
     }
     title.push(' ');
 
-    fit_text_to_width(&title, max_width, shell.glyphs.indicators.truncation)
+    fit_text_to_width(
+        &title,
+        max_width,
+        shell.glyphs.indicators.truncation,
+        shell.profile.ambiguous_width,
+    )
 }

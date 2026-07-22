@@ -1,4 +1,5 @@
 use dun_core::Rect;
+use dun_term::AmbiguousWidth;
 
 use crate::render::chrome::sanitize_chrome_text;
 use crate::{UiOverlay, UiShell, display_width};
@@ -44,9 +45,11 @@ pub(crate) fn overlay_layout(
         &buttons,
         &list,
         area,
+        shell.profile.ambiguous_width,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn overlay_layout_for_content(
     overlay: &UiOverlay,
     title: &str,
@@ -55,23 +58,24 @@ fn overlay_layout_for_content(
     buttons: &[String],
     list: &[String],
     area: Rect,
+    mode: AmbiguousWidth,
 ) -> Option<OverlayLayout> {
     if area.width < 12 || area.height < 5 {
         return None;
     }
 
-    let mut content_width = display_width(title).saturating_add(4);
+    let mut content_width = display_width(title, mode).saturating_add(4);
     for line in lines {
-        content_width = content_width.max(display_width(line));
+        content_width = content_width.max(display_width(line, mode));
     }
     if let Some(input) = input {
-        content_width = content_width.max(display_width(input).max(32));
+        content_width = content_width.max(display_width(input, mode).max(32));
     }
     for button in buttons {
-        content_width = content_width.max(display_width(button));
+        content_width = content_width.max(display_width(button, mode));
     }
     for entry in list {
-        content_width = content_width.max(display_width(entry));
+        content_width = content_width.max(display_width(entry, mode));
     }
 
     let width = content_width

@@ -25,7 +25,7 @@ pub(crate) fn draw_status(
         .map(|plugin| (sanitize_chrome_text(shell, &plugin.text), plugin.alert));
     let indicator_width = indicator
         .as_ref()
-        .map(|(text, _)| display_width(text))
+        .map(|(text, _)| display_width(text, shell.profile.ambiguous_width))
         .unwrap_or(0);
     let reserved = if indicator_width == 0 || indicator_width.saturating_add(1) > width {
         0

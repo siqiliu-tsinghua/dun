@@ -109,7 +109,7 @@ fn translated_menus_never_overflow_a_narrow_terminal() {
     for y in 0..height {
         let row = surface.row_text(y);
         assert!(
-            display_width(row.trim_end()) <= width as usize,
+            display_width(row.trim_end(), shell.profile.ambiguous_width) <= width as usize,
             "row {y} overflows {width} cols: {row:?}"
         );
     }

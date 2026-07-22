@@ -1,12 +1,17 @@
 use dun_core::Rect;
+use dun_term::AmbiguousWidth;
 
 use crate::render::chrome::sanitize_chrome_text;
 use crate::{MenuBar, MenuEntry, UiShell, display_width, fit_text_to_width, status_text_for_width};
 
-pub(crate) fn menu_item_column_range(menu: &MenuBar, index: usize) -> Option<(u16, u16)> {
+pub(crate) fn menu_item_column_range(
+    menu: &MenuBar,
+    index: usize,
+    mode: AmbiguousWidth,
+) -> Option<(u16, u16)> {
     let mut x = 1usize;
     for (candidate, item) in menu.items.iter().enumerate() {
-        let end = x.saturating_add(display_width(&item.label).saturating_add(2));
+        let end = x.saturating_add(display_width(&item.label, mode).saturating_add(2));
         if candidate == index {
             return Some((
                 x.min(u16::MAX as usize) as u16,
@@ -25,14 +30,14 @@ pub(crate) fn dropdown_rect_for_menu(
     index: usize,
 ) -> Option<Rect> {
     let item = menu.items.get(index)?;
-    let (start, _) = menu_item_column_range(menu, index)?;
+    let (start, _) = menu_item_column_range(menu, index, shell.profile.ambiguous_width)?;
     let content_width = item
         .entries
         .iter()
         .map(|entry| menu_entry_width(shell, entry))
         .max()
         .unwrap_or(1)
-        .max(display_width(&item.label));
+        .max(display_width(&item.label, shell.profile.ambiguous_width));
     let width = content_width.saturating_add(4).min(u16::MAX as usize) as u16;
     let height = item.entries.len().saturating_add(2).min(u16::MAX as usize) as u16;
 
@@ -83,11 +88,11 @@ pub(crate) fn menu_visible_entry_range(
 }
 
 fn menu_entry_width(shell: &UiShell, entry: &MenuEntry) -> usize {
-    let label_width = display_width(&entry.label);
+    let label_width = display_width(&entry.label, shell.profile.ambiguous_width);
     let shortcut_width = shell
         .keymap
         .sequence_for_command(&entry.command)
-        .map(|shortcut| display_width(&shortcut.to_string()))
+        .map(|shortcut| display_width(&shortcut.to_string(), shell.profile.ambiguous_width))
         .unwrap_or(0);
     if shortcut_width == 0 {
         label_width
@@ -106,8 +111,19 @@ pub(crate) fn menu_entry_text(shell: &UiShell, entry: &MenuEntry, width: usize) 
     let shortcut = sanitize_chrome_text(shell, &shortcut);
 
     if shortcut.is_empty() {
-        return fit_text_to_width(&label, width, shell.glyphs.indicators.truncation);
+        return fit_text_to_width(
+            &label,
+            width,
+            shell.glyphs.indicators.truncation,
+            shell.profile.ambiguous_width,
+        );
     }
 
-    status_text_for_width(&label, &shortcut, width, shell.glyphs.indicators.truncation)
+    status_text_for_width(
+        &label,
+        &shortcut,
+        width,
+        shell.glyphs.indicators.truncation,
+        shell.profile.ambiguous_width,
+    )
 }

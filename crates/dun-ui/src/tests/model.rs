@@ -1,4 +1,5 @@
 use super::support::*;
+use dun_term::AmbiguousWidth;
 
 #[test]
 fn shell_resolves_keymap_commands() {
@@ -411,14 +412,15 @@ fn status_text_is_clipped_by_display_width() {
         "Ln 100/200 Col 42 | utf-8/256",
         12,
         '…',
+        AmbiguousWidth::Narrow,
     );
 
-    assert!(display_width(&text) <= 12);
+    assert!(display_width(&text, AmbiguousWidth::Narrow) <= 12);
     assert_eq!(text.chars().last(), Some('…'));
 
-    let text = status_text_for_width("file", "Ln 1", 12, '…');
+    let text = status_text_for_width("file", "Ln 1", 12, '…', AmbiguousWidth::Narrow);
 
-    assert_eq!(display_width(&text), 12);
+    assert_eq!(display_width(&text, AmbiguousWidth::Narrow), 12);
     assert!(text.starts_with("file"));
     assert!(text.ends_with("Ln 1"));
 }
@@ -434,7 +436,7 @@ fn window_title_is_clipped_by_display_width() {
 
     let title = window_title_for_width(&shell, &frame.windows[0], 8);
 
-    assert!(display_width(&title) <= 8);
+    assert!(display_width(&title, shell.profile.ambiguous_width) <= 8);
     assert_eq!(
         title.chars().last(),
         Some(shell.glyphs.indicators.truncation)

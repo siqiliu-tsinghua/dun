@@ -69,6 +69,7 @@ pub(crate) fn draw_overlay(
             &format!(" {title} "),
             title_width,
             shell.glyphs.indicators.truncation,
+            shell.profile.ambiguous_width,
         );
         surface.set_text(rect.x + 2, rect.y, &title, shell.theme.palette.modal_text);
     }
@@ -80,7 +81,12 @@ pub(crate) fn draw_overlay(
         if row >= rect.y + rect.height - 1 {
             break;
         }
-        let text = fit_text_to_width(&line, inner_width, shell.glyphs.indicators.truncation);
+        let text = fit_text_to_width(
+            &line,
+            inner_width,
+            shell.glyphs.indicators.truncation,
+            shell.profile.ambiguous_width,
+        );
         surface.set_text(rect.x + 2, row, &text, shell.theme.palette.modal_text);
         row += 1;
     }
@@ -96,7 +102,12 @@ pub(crate) fn draw_overlay(
                 ' ',
                 input_style,
             );
-            let text = fit_text_to_width(&input, inner_width, shell.glyphs.indicators.truncation);
+            let text = fit_text_to_width(
+                &input,
+                inner_width,
+                shell.glyphs.indicators.truncation,
+                shell.profile.ambiguous_width,
+            );
             surface.set_text(rect.x + 2, row, &text, input_style);
             if let Some(cursor_column) = overlay.cursor_column {
                 let x = rect
@@ -121,7 +132,12 @@ pub(crate) fn draw_overlay(
         if Some(index) == overlay.selected_list_index {
             surface.fill_rect(rect.x + 2, row, rect.width.saturating_sub(4), 1, ' ', style);
         }
-        let text = fit_text_to_width(&entry, inner_width, shell.glyphs.indicators.truncation);
+        let text = fit_text_to_width(
+            &entry,
+            inner_width,
+            shell.glyphs.indicators.truncation,
+            shell.profile.ambiguous_width,
+        );
         surface.set_text(rect.x + 2, row, &text, style);
         row += 1;
     }
@@ -142,10 +158,17 @@ pub(crate) fn draw_overlay(
         if row >= rect.y + rect.height - 1 {
             break;
         }
-        let text = fit_text_to_width(&button, inner_width, shell.glyphs.indicators.truncation);
-        let x = rect
-            .x
-            .saturating_add(rect.width.saturating_sub(display_width(&text) as u16) / 2);
+        let text = fit_text_to_width(
+            &button,
+            inner_width,
+            shell.glyphs.indicators.truncation,
+            shell.profile.ambiguous_width,
+        );
+        let x = rect.x.saturating_add(
+            rect.width
+                .saturating_sub(display_width(&text, shell.profile.ambiguous_width) as u16)
+                / 2,
+        );
         surface.set_text(x, row, &text, shell.theme.palette.modal_text);
         row += 1;
     }

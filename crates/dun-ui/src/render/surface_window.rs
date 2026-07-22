@@ -1,7 +1,6 @@
 use dun_core::Rect as TuiRect;
 use dun_core::{DisplayClass, SanitizedLine};
-use dun_term::Style;
-use unicode_width::UnicodeWidthChar;
+use dun_term::{AmbiguousWidth, Style, char_width};
 
 use crate::render::surface_draw::draw_border;
 use crate::render::window::{offset_rect, window_title_for_width};
@@ -160,7 +159,8 @@ fn draw_sanitized_line(
             DisplayClass::Escape => shell.theme.palette.escape,
             DisplayClass::Truncation => shell.theme.palette.truncation,
         };
-        let (text, clipped) = prefix_for_width(&segment.text, right - column);
+        let (text, clipped) =
+            prefix_for_width(&segment.text, right - column, shell.profile.ambiguous_width);
         column = column.saturating_add(surface.set_text(column, y, text, style));
         if clipped {
             return;
@@ -168,10 +168,10 @@ fn draw_sanitized_line(
     }
 }
 
-fn prefix_for_width(text: &str, max_width: u16) -> (&str, bool) {
+fn prefix_for_width(text: &str, max_width: u16, mode: AmbiguousWidth) -> (&str, bool) {
     let mut width = 0usize;
     for (index, ch) in text.char_indices() {
-        let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+        let char_width = char_width(ch, mode).unwrap_or(0);
         if width.saturating_add(char_width) > usize::from(max_width) {
             return (&text[..index], true);
         }

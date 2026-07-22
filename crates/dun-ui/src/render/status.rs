@@ -8,5 +8,11 @@ pub(crate) fn sanitized_status_text_for_width(
 ) -> String {
     let left = sanitize_chrome_text(shell, &status.left);
     let right = sanitize_chrome_text(shell, &status.right);
-    status_text_for_width(&left, &right, width, shell.glyphs.indicators.truncation)
+    status_text_for_width(
+        &left,
+        &right,
+        width,
+        shell.glyphs.indicators.truncation,
+        shell.profile.ambiguous_width,
+    )
 }
