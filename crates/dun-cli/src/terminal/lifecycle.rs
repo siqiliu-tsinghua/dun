@@ -1,29 +1,40 @@
 use std::io::{self, Write};
+use std::sync::Arc;
 
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-
+use super::Terminal;
 use super::vt::output::{self as vt_output, Sequence};
+
+trait RawMode {
+    fn enter_raw(&self) -> io::Result<()>;
+    fn restore_raw(&self) -> io::Result<()>;
+}
+
+impl RawMode for Terminal {
+    fn enter_raw(&self) -> io::Result<()> {
+        Terminal::enter_raw(self)
+    }
+
+    fn restore_raw(&self) -> io::Result<()> {
+        Terminal::restore_raw(self)
+    }
+}
 
 /// Restore the terminal before the process dies on a panic. The release
 /// profile uses `panic = "abort"`, so `TerminalGuard::drop` never runs on
 /// panic; without this hook any panic leaves the user's terminal in raw
 /// mode on the alternate screen. Panic hooks run before the abort.
-pub(crate) fn install_panic_terminal_restore() {
+pub(crate) fn install_panic_terminal_restore(terminal: Arc<Terminal>) {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let mut stdout = io::stdout();
-        let _ = vt_output::execute(&mut stdout, Sequence::DisableMouseCapture);
-        let _ = vt_output::execute(&mut stdout, Sequence::DisableBracketedPaste);
-        let _ = vt_output::execute(&mut stdout, Sequence::LeaveAlternateScreen);
-        let _ = stdout.flush();
-        let _ = disable_raw_mode();
+        let _ = RestoreExecutor::new(&mut stdout, terminal.as_ref()).run(true, true);
         default_hook(info);
     }));
 }
 
 /// Keep the first error of a best-effort sequence while still running the rest.
-/// A restore path must attempt every step -- above all `disable_raw_mode` -- and
-/// only afterwards report what went wrong.
+/// A restore path must attempt every step -- above all raw-mode restoration --
+/// and only afterwards report what went wrong.
 fn record_first_error(slot: &mut Option<io::Error>, result: io::Result<()>) {
     if let Err(error) = result {
         if slot.is_none() {
@@ -32,45 +43,85 @@ fn record_first_error(slot: &mut Option<io::Error>, result: io::Result<()>) {
     }
 }
 
+struct RestoreExecutor<'a, W: Write + ?Sized, R: RawMode + ?Sized> {
+    writer: &'a mut W,
+    raw_mode: &'a R,
+    first_error: Option<io::Error>,
+}
+
+impl<'a, W: Write + ?Sized, R: RawMode + ?Sized> RestoreExecutor<'a, W, R> {
+    fn new(writer: &'a mut W, raw_mode: &'a R) -> Self {
+        Self {
+            writer,
+            raw_mode,
+            first_error: None,
+        }
+    }
+
+    fn sequence(&mut self, sequence: Sequence) {
+        let result = vt_output::execute(self.writer, sequence);
+        record_first_error(&mut self.first_error, result);
+    }
+
+    fn run(mut self, mouse_enabled: bool, bracketed_paste_enabled: bool) -> io::Result<()> {
+        if mouse_enabled {
+            self.sequence(Sequence::DisableMouseCapture);
+        }
+        if bracketed_paste_enabled {
+            self.sequence(Sequence::DisableBracketedPaste);
+        }
+        self.sequence(Sequence::LeaveAlternateScreen);
+        let flush_result = self.writer.flush();
+        record_first_error(&mut self.first_error, flush_result);
+        let raw_result = self.raw_mode.restore_raw();
+        record_first_error(&mut self.first_error, raw_result);
+
+        match self.first_error {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
+    }
+}
+
+fn enter_modes(writer: &mut (impl Write + ?Sized), mouse_enabled: bool) -> io::Result<()> {
+    vt_output::execute(writer, Sequence::EnterAlternateScreen)?;
+    vt_output::execute(writer, Sequence::EnableBracketedPaste)?;
+    if mouse_enabled {
+        vt_output::execute(writer, Sequence::EnableMouseCapture)?;
+    }
+    Ok(())
+}
+
+fn enter_with(
+    raw_mode: &(impl RawMode + ?Sized),
+    writer: &mut (impl Write + ?Sized),
+    mouse_enabled: bool,
+) -> io::Result<()> {
+    raw_mode.enter_raw()?;
+    if let Err(error) = enter_modes(writer, mouse_enabled) {
+        let _ = raw_mode.restore_raw();
+        return Err(error);
+    }
+    Ok(())
+}
+
 pub(crate) struct TerminalGuard {
+    terminal: Arc<Terminal>,
     mouse_enabled: bool,
     bracketed_paste_enabled: bool,
     active: bool,
 }
 
 impl TerminalGuard {
-    pub(crate) fn enter(mouse_enabled: bool) -> io::Result<Self> {
-        enable_raw_mode()?;
-        if let Err(error) = Self::enter_modes(mouse_enabled) {
-            // A failed escape-sequence write means stdout is already broken --
-            // and every "rollback" would write LeaveAlternateScreen and friends
-            // to that same broken stdout, so it could not succeed. The one undo
-            // that reaches a different fd (raw mode is a tcsetattr on /dev/tty)
-            // and the one piece of state that survives the process is raw mode,
-            // so undo just that and bail. See the module notes on why the
-            // stacked escape rollbacks this replaced were theatre.
-            let _ = disable_raw_mode();
-            return Err(error);
-        }
+    pub(crate) fn enter(terminal: Arc<Terminal>, mouse_enabled: bool) -> io::Result<Self> {
+        let mut stdout = io::stdout();
+        enter_with(terminal.as_ref(), &mut stdout, mouse_enabled)?;
         Ok(Self {
+            terminal,
             mouse_enabled,
             bracketed_paste_enabled: true,
             active: true,
         })
-    }
-
-    /// Switch stdout into the modes an active editor needs. Shared by `enter`
-    /// and `resume`, which used to carry identical copies. Raw mode is the
-    /// caller's responsibility -- it lives on a different fd and a different
-    /// lifecycle.
-    fn enter_modes(mouse_enabled: bool) -> io::Result<()> {
-        let mut stdout = io::stdout();
-        vt_output::execute(&mut stdout, Sequence::EnterAlternateScreen)?;
-        vt_output::execute(&mut stdout, Sequence::EnableBracketedPaste)?;
-        if mouse_enabled {
-            vt_output::execute(&mut stdout, Sequence::EnableMouseCapture)?;
-        }
-        Ok(())
     }
 
     pub(crate) fn set_mouse_enabled(&mut self, enabled: bool) -> io::Result<()> {
@@ -97,40 +148,11 @@ impl TerminalGuard {
             return Ok(());
         }
 
-        // Suspend hands the terminal back to a shell, so like `drop` it must
-        // reach `disable_raw_mode` no matter what: bailing on the first failed
-        // escape write (the previous `?` behaviour) could return with raw mode
-        // still on and `active` still true -- a shell left unusable and a guard
-        // that thinks it still owns the terminal. Attempt every escape sequence,
-        // keep the first error, always undo raw mode, settle the state, then
-        // report. Raw mode is the load-bearing undo; the escape writes are
-        // best-effort because a broken stdout cannot receive them anyway.
         let mut stdout = io::stdout();
-        let mut first_error = None;
-        if self.mouse_enabled {
-            record_first_error(
-                &mut first_error,
-                vt_output::execute(&mut stdout, Sequence::DisableMouseCapture),
-            );
-        }
-        if self.bracketed_paste_enabled {
-            record_first_error(
-                &mut first_error,
-                vt_output::execute(&mut stdout, Sequence::DisableBracketedPaste),
-            );
-        }
-        record_first_error(
-            &mut first_error,
-            vt_output::execute(&mut stdout, Sequence::LeaveAlternateScreen),
-        );
-        record_first_error(&mut first_error, stdout.flush());
-        record_first_error(&mut first_error, disable_raw_mode());
+        let result = RestoreExecutor::new(&mut stdout, self.terminal.as_ref())
+            .run(self.mouse_enabled, self.bracketed_paste_enabled);
         self.active = false;
-
-        match first_error {
-            Some(error) => Err(error),
-            None => Ok(()),
-        }
+        result
     }
 
     pub(crate) fn resume(&mut self, mouse_enabled: bool) -> io::Result<()> {
@@ -139,65 +161,129 @@ impl TerminalGuard {
             return Ok(());
         }
 
-        enable_raw_mode()?;
-        if let Err(error) = Self::enter_modes(mouse_enabled) {
-            let _ = disable_raw_mode();
-            return Err(error);
-        }
+        let mut stdout = io::stdout();
+        enter_with(self.terminal.as_ref(), &mut stdout, mouse_enabled)?;
         self.mouse_enabled = mouse_enabled;
         self.bracketed_paste_enabled = true;
         self.active = true;
         Ok(())
     }
+
+    fn restore(&mut self) -> io::Result<()> {
+        let mut stdout = io::stdout();
+        let result = RestoreExecutor::new(&mut stdout, self.terminal.as_ref())
+            .run(self.mouse_enabled, self.bracketed_paste_enabled);
+        self.active = false;
+        result
+    }
 }
 
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
-        if !self.active {
-            return;
+        if self.active {
+            let _ = self.restore();
         }
-
-        let mut stdout = io::stdout();
-        if self.mouse_enabled {
-            let _ = vt_output::execute(&mut stdout, Sequence::DisableMouseCapture);
-        }
-        if self.bracketed_paste_enabled {
-            let _ = vt_output::execute(&mut stdout, Sequence::DisableBracketedPaste);
-        }
-        let _ = vt_output::execute(&mut stdout, Sequence::LeaveAlternateScreen);
-        let _ = disable_raw_mode();
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::record_first_error;
-    use std::io;
+    use super::{RawMode, RestoreExecutor, enter_with};
+    use std::cell::RefCell;
+    use std::io::{self, Write};
 
-    fn err(kind: io::ErrorKind) -> io::Result<()> {
-        Err(io::Error::new(kind, "boom"))
+    #[derive(Default)]
+    struct RecordingRawMode {
+        calls: RefCell<Vec<&'static str>>,
+        restore_error: Option<io::ErrorKind>,
     }
 
-    /// The restore path's correctness rests on this: it must run every cleanup
-    /// step (above all `disable_raw_mode`) and still surface a failure, keeping
-    /// the *first* one so the earliest, most relevant cause is what the caller
-    /// sees. The `TerminalGuard` methods that use it need a real tty and so
-    /// cannot be unit-tested; this pins the logic they delegate to.
+    impl RawMode for RecordingRawMode {
+        fn enter_raw(&self) -> io::Result<()> {
+            self.calls.borrow_mut().push("enter_raw");
+            Ok(())
+        }
+
+        fn restore_raw(&self) -> io::Result<()> {
+            self.calls.borrow_mut().push("restore_raw");
+            match self.restore_error {
+                Some(kind) => Err(io::Error::new(kind, "raw restore failed")),
+                None => Ok(()),
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct RecordingWriter {
+        attempted_writes: Vec<Vec<u8>>,
+        written: Vec<u8>,
+        flushes: usize,
+        fail_write: Option<(usize, io::ErrorKind)>,
+    }
+
+    impl Write for RecordingWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            let call = self.attempted_writes.len();
+            self.attempted_writes.push(bytes.to_vec());
+            if let Some((failed_call, kind)) = self.fail_write {
+                if call == failed_call {
+                    return Err(io::Error::new(kind, "write failed"));
+                }
+            }
+            self.written.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.flushes += 1;
+            Ok(())
+        }
+    }
+
     #[test]
-    fn record_first_error_keeps_the_first_and_ignores_later_ones() {
-        let mut slot = None;
+    fn failed_mode_entry_rolls_raw_mode_back() {
+        let raw_mode = RecordingRawMode::default();
+        let mut writer = RecordingWriter {
+            fail_write: Some((0, io::ErrorKind::BrokenPipe)),
+            ..RecordingWriter::default()
+        };
 
-        record_first_error(&mut slot, Ok(()));
-        assert!(slot.is_none(), "a success must not set an error");
+        let error = enter_with(&raw_mode, &mut writer, false)
+            .expect_err("alternate-screen entry must fail");
 
-        record_first_error(&mut slot, err(io::ErrorKind::BrokenPipe));
-        record_first_error(&mut slot, err(io::ErrorKind::Other));
-        record_first_error(&mut slot, Ok(()));
-
+        assert_eq!(error.kind(), io::ErrorKind::BrokenPipe);
         assert_eq!(
-            slot.expect("an error was recorded").kind(),
-            io::ErrorKind::BrokenPipe,
-            "the first error must win, and later steps must still have run"
+            raw_mode.calls.into_inner(),
+            vec!["enter_raw", "restore_raw"]
         );
+    }
+
+    #[test]
+    fn cleanup_attempts_every_step_and_returns_the_first_error() {
+        let raw_mode = RecordingRawMode {
+            calls: RefCell::new(Vec::new()),
+            restore_error: Some(io::ErrorKind::PermissionDenied),
+        };
+        let mut writer = RecordingWriter {
+            fail_write: Some((0, io::ErrorKind::BrokenPipe)),
+            ..RecordingWriter::default()
+        };
+
+        let error = RestoreExecutor::new(&mut writer, &raw_mode)
+            .run(true, true)
+            .expect_err("cleanup must report its first failure");
+
+        assert_eq!(error.kind(), io::ErrorKind::BrokenPipe);
+        assert_eq!(
+            writer.attempted_writes,
+            vec![
+                b"\x1b[?1006l\x1b[?1002l\x1b[?1000l".to_vec(),
+                b"\x1b[?2004l".to_vec(),
+                b"\x1b[?1049l".to_vec(),
+            ]
+        );
+        assert_eq!(writer.written, b"\x1b[?2004l\x1b[?1049l");
+        assert_eq!(writer.flushes, 3);
+        assert_eq!(raw_mode.calls.into_inner(), vec!["restore_raw"]);
     }
 }

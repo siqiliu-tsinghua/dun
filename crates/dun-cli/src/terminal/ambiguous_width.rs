@@ -1,30 +1,29 @@
-use std::io::{self, IsTerminal, Read, Write};
-use std::os::fd::AsRawFd;
+use std::io::{self, Write};
 use std::time::{Duration, Instant};
 
 use dun_term::{AmbiguousWidth, EncodingProfile};
-use mio::unix::SourceFd;
-use mio::{Events, Interest, Poll, Token};
 
+use super::sys::{Readiness, Terminal};
 use super::vt::output::{self as vt_output, Sequence};
 
 const PROBE_BYTES: &[u8] = b"\r\xe2\x94\x80\x1b[6n\x1b[c";
 const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 const MAX_RESPONSE_BYTES: usize = 256;
 const MAX_CSI_BYTES: usize = 32;
-const STDIN_TOKEN: Token = Token(0);
 
-pub(crate) fn detect_ambiguous_width(encoding: EncodingProfile) -> AmbiguousWidth {
-    let stdin = io::stdin();
+pub(crate) fn detect_ambiguous_width(
+    terminal: &Terminal,
+    encoding: EncodingProfile,
+) -> AmbiguousWidth {
     let stdout = io::stdout();
-    if !should_probe(encoding, stdin.is_terminal(), stdout.is_terminal()) {
+    if !should_probe(encoding, terminal.stdin_is_tty(), terminal.stdout_is_tty()) {
         return AmbiguousWidth::Narrow;
     }
 
     let deadline = Instant::now() + PROBE_TIMEOUT;
     let mut output = stdout.lock();
     let result = if write_probe(&mut output).is_ok() {
-        read_responses(&stdin, deadline)
+        read_responses(terminal, deadline)
     } else {
         AmbiguousWidth::Narrow
     };
@@ -51,50 +50,22 @@ fn clear_probe(output: &mut impl Write) -> io::Result<()> {
     move_result.and(clear_result).and(flush_result)
 }
 
-fn read_responses(stdin: &io::Stdin, deadline: Instant) -> AmbiguousWidth {
-    let raw_fd = stdin.as_raw_fd();
-    let mut source = SourceFd(&raw_fd);
-    let mut poll = match Poll::new() {
-        Ok(poll) => poll,
-        Err(_) => return AmbiguousWidth::Narrow,
-    };
-    if poll
-        .registry()
-        .register(&mut source, STDIN_TOKEN, Interest::READABLE)
-        .is_err()
-    {
-        return AmbiguousWidth::Narrow;
-    }
-
-    let mut events = Events::with_capacity(1);
-    let mut input = stdin.lock();
+fn read_responses(terminal: &Terminal, deadline: Instant) -> AmbiguousWidth {
     let mut buffer = [0_u8; MAX_RESPONSE_BYTES];
     let mut responses = ProbeResponses::new();
 
     loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return responses.finish();
-        }
-        events.clear();
-        if poll.poll(&mut events, Some(remaining)).is_err() {
-            return AmbiguousWidth::Narrow;
-        }
-        if events.is_empty() {
-            return responses.finish();
-        }
-        if !events
-            .iter()
-            .any(|event| event.token() == STDIN_TOKEN && event.is_readable())
-        {
-            continue;
+        match terminal.poll_readable(deadline) {
+            Ok(Readiness::Readable) => {}
+            Ok(Readiness::TimedOut) => return responses.finish(),
+            Err(_) => return AmbiguousWidth::Narrow,
         }
 
         let capacity = responses.remaining_capacity();
         if capacity == 0 {
             return AmbiguousWidth::Narrow;
         }
-        let count = match input.read(&mut buffer[..capacity]) {
+        let count = match terminal.read(&mut buffer[..capacity]) {
             Ok(0) | Err(_) => return AmbiguousWidth::Narrow,
             Ok(count) => count,
         };

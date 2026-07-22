@@ -60,11 +60,12 @@ Rust outline parser.
 - Plugins return data or command intents only.
 - `dun` validates every plugin result against the plugin role and policy.
 - `dun` performs all actual file operations itself.
-- Startup terminal-response parsing is bounded to 256 bytes total and 32 bytes
-  per CSI under one 500 ms deadline. Only a valid cursor-position report for
-  column 2 or 3 followed by a syntactically valid DA1 sentinel may change the
-  detected ambiguous-width mode; malformed, incomplete, oversized, or failed
-  probes fall back to Narrow without mutating editor state.
+- Startup terminal-response polling uses the in-house Unix `rustix` poll path,
+  and parsing is bounded to 256 bytes total and 32 bytes per CSI under one
+  500 ms deadline. Only a valid cursor-position report for column 2 or 3
+  followed by a syntactically valid DA1 sentinel may change the detected
+  ambiguous-width mode; malformed, incomplete, oversized, or failed probes
+  fall back to Narrow without mutating editor state.
 
 These invariants describe authority mediated by `dun`. A host-neutral protocol
 can prevent a plugin from asking `dun` to exceed its role, but it cannot by

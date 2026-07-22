@@ -23,7 +23,7 @@ dun-core = { path = "crates/dun-core" }
 dun-plugin = { path = "crates/dun-plugin" }
 dun-term = { path = "crates/dun-term" }
 dun-ui = { path = "crates/dun-ui" }
-mio = { version = "1.0", features = ["os-poll", "os-ext"] }
+rustix = { version = "0.38", default-features = false, features = ["std", "stdio", "termios", "event"] }
 unicode-width = "0.2"
 
 [profile.release]

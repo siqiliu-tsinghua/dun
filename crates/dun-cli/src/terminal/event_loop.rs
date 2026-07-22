@@ -5,21 +5,22 @@ use crossterm::event::{self, Event};
 use dun_core::Rect;
 
 use super::{
-    SurfaceBackend, TerminalColorRewrite, TerminalGuard, handle_key_event, handle_mouse_event,
-    handle_runtime_action,
+    SurfaceBackend, Terminal, TerminalColorRewrite, TerminalGuard, handle_key_event,
+    handle_mouse_event, handle_runtime_action,
 };
 use crate::AppState;
 
 pub(crate) fn run_event_loop(
     backend: &mut SurfaceBackend,
     app: &mut AppState,
+    terminal: &Terminal,
     guard: &mut TerminalGuard,
     color_rewrite: &TerminalColorRewrite,
 ) -> io::Result<()> {
     while !app.should_quit {
         guard.set_mouse_enabled(app.mouse_enabled())?;
         color_rewrite.set_profile(app.shell.profile);
-        let (width, height) = crossterm::terminal::size()?;
+        let (width, height) = terminal.size()?;
         let workspace_area = Rect::new(0, 0, width, height.saturating_sub(2));
         app.sync_view_for_area(workspace_area);
         let buffer_views = app.buffer_views();

@@ -35,6 +35,14 @@ detected result. ASCII profiles, non-tty stdin or stdout, malformed or
 oversized responses, timeouts, and I/O failures skip or fail closed to Narrow.
 The response parser accepts at most 256 bytes total and 32 bytes per CSI.
 
+At startup, `dun` uses stdin as its terminal input when stdin is a tty.
+Otherwise it opens `/dev/tty` read/write, matching the prior acquisition
+policy; redirected stdin still does not make the ambiguous-width probe
+eligible. On macOS, `poll(2)` reports `POLLNVAL` for a `/dev/tty` descriptor,
+so a redirected-stdin session cannot use that polling path: `dun` reports a
+clear startup error that a real terminal on stdin is required. Linux, FreeBSD,
+and Solaris can poll the `/dev/tty` fallback normally.
+
 ## Automated Baseline
 
 The default regression gate is:

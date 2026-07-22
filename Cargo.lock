@@ -49,7 +49,7 @@ dependencies = [
  "dun-plugin",
  "dun-term",
  "dun-ui",
- "mio",
+ "rustix",
 ]
 
 [[package]]

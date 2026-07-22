@@ -8,6 +8,7 @@ mod profile;
 mod sgr;
 mod shell;
 mod surface_backend;
+mod sys;
 mod vt;
 
 pub(crate) use action::RuntimeAction;
@@ -27,3 +28,4 @@ pub(crate) use shell::{
     run_command_capture,
 };
 pub(crate) use surface_backend::SurfaceBackend;
+pub(crate) use sys::Terminal;
