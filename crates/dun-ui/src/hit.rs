@@ -1,6 +1,9 @@
 use dun_core::{EditorCommand, Position, Rect, Workspace};
 
-use crate::{BufferView, MenuSelection, UiMouseHit, UiMouseTarget, UiOverlay, UiShell, UiWindow};
+use crate::{
+    BufferView, MenuSelection, UiMouseHit, UiMouseTarget, UiOverlay, UiShell, UiWindow,
+    WindowGeometry,
+};
 
 impl UiShell {
     pub fn hit_test_workspace(
@@ -181,16 +184,17 @@ impl UiShell {
         local_x: u16,
         local_y: u16,
     ) -> UiMouseTarget {
-        if window.collapsed || window.rect.width <= 2 || window.rect.height <= 2 {
+        let geometry = window.geometry;
+        if window.collapsed || geometry.inner.width == 0 || geometry.inner.height == 0 {
             return UiMouseTarget::Chrome;
         }
-        if local_x == window.rect.width.saturating_sub(1)
-            && local_y > 0
-            && local_y < window.rect.height.saturating_sub(1)
-        {
+        let on_right_border = local_x >= geometry.right_border_x;
+        let on_body_row = local_y >= geometry.body.y
+            && local_y < geometry.body.y.saturating_add(geometry.body.height);
+        if on_right_border && on_body_row {
             if let Some(buffer) = buffers.iter().find(|buffer| buffer.id == window.buffer_id) {
                 if let Some((first_line, first_visual_row)) =
-                    self.scrollbar_target_line_for_buffer(buffer, window.rect, local_y)
+                    self.scrollbar_target_line_for_buffer(buffer, geometry, local_y)
                 {
                     return UiMouseTarget::Scrollbar {
                         first_line,
@@ -199,11 +203,7 @@ impl UiShell {
                 }
             }
         }
-        if local_x == 0
-            || local_y == 0
-            || local_x >= window.rect.width.saturating_sub(1)
-            || local_y >= window.rect.height.saturating_sub(1)
-        {
+        if !geometry.inner.contains(local_x, local_y) {
             return UiMouseTarget::Chrome;
         }
 
@@ -211,27 +211,27 @@ impl UiShell {
             return UiMouseTarget::Chrome;
         };
 
-        let inner_width = window.rect.width.saturating_sub(2);
-        let gutter_width = window.gutter_width.min(inner_width);
-        let inner_x = local_x.saturating_sub(1);
-        if inner_x < gutter_width {
+        if geometry.gutter.contains(local_x, local_y) {
             return UiMouseTarget::Gutter;
+        }
+        if !geometry.body.contains(local_x, local_y) {
+            return UiMouseTarget::Chrome;
         }
 
         if buffer.wrap {
-            return self.hit_test_wrapped_body(buffer, window.rect, inner_x, local_y, gutter_width);
+            return self.hit_test_wrapped_body(buffer, geometry, local_x, local_y);
         }
 
         let line_index = buffer
             .first_line
-            .saturating_add(local_y.saturating_sub(1) as usize);
+            .saturating_add(local_y.saturating_sub(geometry.body.y) as usize);
         if line_index >= buffer.buffer.line_count() {
             return UiMouseTarget::Body(super::buffer_end_position(buffer.buffer));
         }
 
         let body_x = buffer
             .first_column
-            .saturating_add(inner_x.saturating_sub(gutter_width) as usize);
+            .saturating_add(local_x.saturating_sub(geometry.body.x) as usize);
         let line = buffer.buffer.line(line_index).unwrap_or_default();
         UiMouseTarget::Body(Position::new(
             line_index,
@@ -242,15 +242,13 @@ impl UiShell {
     fn hit_test_wrapped_body(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
-        inner_x: u16,
+        geometry: WindowGeometry,
+        local_x: u16,
         local_y: u16,
-        gutter_width: u16,
     ) -> UiMouseTarget {
-        let inner_width = rect.width.saturating_sub(2) as usize;
-        let body_width = inner_width.saturating_sub(gutter_width as usize).max(1);
-        let body_x = inner_x.saturating_sub(gutter_width) as usize;
-        let target_row = local_y.saturating_sub(1) as usize;
+        let body_width = usize::from(geometry.body.width).max(1);
+        let body_x = local_x.saturating_sub(geometry.body.x) as usize;
+        let target_row = local_y.saturating_sub(geometry.body.y) as usize;
         let mut visual_row = 0usize;
 
         for line_index in buffer.first_line..buffer.buffer.line_count() {

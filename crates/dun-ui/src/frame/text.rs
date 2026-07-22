@@ -1,21 +1,20 @@
-use dun_core::{DisplaySanitizer, Rect, SanitizedLine};
+use dun_core::{DisplaySanitizer, SanitizedLine};
 use dun_term::str_width;
 
-use crate::{BufferView, UiShell, wrap_line_segments};
+use crate::{BufferView, UiShell, WindowGeometry, wrap_line_segments};
 
 impl UiShell {
     pub(super) fn sanitize_buffer_body(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
-        gutter_width: u16,
+        geometry: WindowGeometry,
     ) -> Vec<SanitizedLine> {
-        let body_height = rect.height.saturating_sub(2) as usize;
+        let body_height = usize::from(geometry.body.height);
         if body_height == 0 {
             return Vec::new();
         }
         if buffer.wrap {
-            return self.sanitize_wrapped_buffer_body(buffer, rect, gutter_width);
+            return self.sanitize_wrapped_buffer_body(buffer, geometry);
         }
 
         let mut lines = Vec::new();
@@ -35,12 +34,10 @@ impl UiShell {
     fn sanitize_wrapped_buffer_body(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
-        gutter_width: u16,
+        geometry: WindowGeometry,
     ) -> Vec<SanitizedLine> {
-        let body_height = rect.height.saturating_sub(2) as usize;
-        let inner_width = rect.width.saturating_sub(2) as usize;
-        let body_width = inner_width.saturating_sub(gutter_width as usize).max(1);
+        let body_height = usize::from(geometry.body.height);
+        let body_width = usize::from(geometry.body.width).max(1);
         let mut lines = Vec::new();
 
         for line_index in buffer.first_line..buffer.buffer.line_count() {

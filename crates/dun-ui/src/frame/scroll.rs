@@ -1,21 +1,19 @@
-use dun_core::Rect;
-
-use crate::{BufferView, UiHorizontalEdgeLine, UiScrollbar, UiShell, display_width};
+use crate::{
+    BufferView, UiHorizontalEdgeLine, UiScrollbar, UiShell, WindowGeometry, display_width,
+};
 
 impl UiShell {
     pub(super) fn scrollbar_for_buffer(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
+        geometry: WindowGeometry,
     ) -> Option<UiScrollbar> {
-        let body_height = rect.height.checked_sub(2)? as usize;
+        let body_height = usize::from(geometry.body.height);
         if body_height == 0 {
             return None;
         }
         let (total, top) = if buffer.wrap {
-            let inner_width = rect.width.saturating_sub(2) as usize;
-            let gutter_width = self.gutter_width_for_buffer(buffer, rect) as usize;
-            let body_width = inner_width.saturating_sub(gutter_width).max(1);
+            let body_width = usize::from(geometry.body.width).max(1);
             (
                 self.wrapped_total_visual_rows(buffer, body_width),
                 self.wrapped_top_visual_row(buffer, body_width),
@@ -41,7 +39,7 @@ impl UiShell {
         };
 
         Some(UiScrollbar {
-            y: 1 + thumb_top as u16,
+            y: geometry.body.y.saturating_add(thumb_top as u16),
             height: thumb_height as u16,
         })
     }
@@ -49,16 +47,14 @@ impl UiShell {
     pub(crate) fn scrollbar_target_line_for_buffer(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
+        geometry: WindowGeometry,
         local_y: u16,
     ) -> Option<(usize, usize)> {
-        let body_height = rect.height.checked_sub(2)? as usize;
+        let body_height = usize::from(geometry.body.height);
         if body_height == 0 {
             return None;
         }
-        let inner_width = rect.width.saturating_sub(2) as usize;
-        let gutter_width = self.gutter_width_for_buffer(buffer, rect) as usize;
-        let body_width = inner_width.saturating_sub(gutter_width).max(1);
+        let body_width = usize::from(geometry.body.width).max(1);
         let total = if buffer.wrap {
             self.wrapped_total_visual_rows(buffer, body_width)
         } else {
@@ -68,7 +64,7 @@ impl UiShell {
             return None;
         }
 
-        let track_y = local_y.saturating_sub(1) as usize;
+        let track_y = local_y.saturating_sub(geometry.body.y) as usize;
         let max_track_y = body_height.saturating_sub(1);
         let max_first_row = total.saturating_sub(body_height);
         if max_track_y == 0 {
@@ -85,21 +81,14 @@ impl UiShell {
     pub(super) fn horizontal_edges_for_buffer(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
-        gutter_width: u16,
+        geometry: WindowGeometry,
     ) -> Vec<UiHorizontalEdgeLine> {
         if buffer.wrap {
             return Vec::new();
         }
 
-        let Some(inner_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
-            return Vec::new();
-        };
-        let gutter_width = gutter_width.min(inner_width as u16) as usize;
-        let body_width = inner_width.saturating_sub(gutter_width);
-        let Some(body_height) = rect.height.checked_sub(2).map(|height| height as usize) else {
-            return Vec::new();
-        };
+        let body_width = usize::from(geometry.body.width);
+        let body_height = usize::from(geometry.body.height);
         if body_width == 0 || body_height == 0 {
             return Vec::new();
         }
@@ -117,7 +106,7 @@ impl UiShell {
             let right = width > body_origin.saturating_add(body_width);
             if left || right {
                 lines.push(UiHorizontalEdgeLine {
-                    y: 1 + visible_y as u16,
+                    y: geometry.body.y.saturating_add(visible_y as u16),
                     left,
                     right,
                 });

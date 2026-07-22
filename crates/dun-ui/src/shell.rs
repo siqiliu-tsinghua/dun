@@ -1,8 +1,8 @@
 use dun_config::{Config, KeySequence, KeyStroke, Keymap, TextCatalog};
-use dun_core::{DisplaySanitizer, EditorCommand, Workspace};
+use dun_core::{DisplaySanitizer, EditorCommand, Rect, Workspace};
 use dun_term::{EncodingProfile, GlyphSet, TerminalProfile, Theme, char_width};
 
-use crate::MenuItem;
+use crate::{MenuItem, WindowGeometry, decimal_digits};
 
 #[derive(Clone, Debug)]
 pub struct UiShell {
@@ -67,6 +67,48 @@ impl UiShell {
             char_width(self.glyphs.border.vertical, self.profile.ambiguous_width).unwrap_or(1),
         )
         .unwrap_or(1)
+    }
+
+    pub fn window_geometry(
+        &self,
+        width: u16,
+        height: u16,
+        line_count: Option<usize>,
+    ) -> WindowGeometry {
+        let border_columns = self.border_columns();
+        let inner = Rect::new(
+            border_columns,
+            1,
+            width.saturating_sub(border_columns.saturating_mul(2)),
+            height.saturating_sub(2),
+        );
+        let separator_width = u16::try_from(
+            char_width(self.glyphs.border.vertical, self.profile.ambiguous_width).unwrap_or(1),
+        )
+        .unwrap_or(1);
+        let gutter_width = line_count
+            .map(|line_count| {
+                u16::try_from(decimal_digits(line_count))
+                    .unwrap_or(u16::MAX)
+                    .saturating_add(separator_width)
+            })
+            .filter(|candidate| inner.width >= candidate.saturating_add(4))
+            .unwrap_or(0);
+        let gutter = Rect::new(inner.x, inner.y, gutter_width, inner.height);
+        let body = Rect::new(
+            inner.x.saturating_add(gutter_width),
+            inner.y,
+            inner.width.saturating_sub(gutter_width),
+            inner.height,
+        );
+
+        WindowGeometry {
+            border_columns,
+            inner,
+            gutter,
+            body,
+            right_border_x: width.saturating_sub(border_columns),
+        }
     }
 
     pub fn describe_workspace(&self, workspace: &Workspace) -> String {

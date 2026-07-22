@@ -65,56 +65,57 @@ impl UiShell {
         buffers: &[BufferView<'_>],
     ) -> UiWindow {
         let buffer = buffers.iter().find(|buffer| buffer.id == window.buffer_id);
-        let gutter_width = match (window.collapsed, buffer) {
-            (false, Some(buffer)) => self.gutter_width_for_buffer(buffer, rect),
-            _ => 0,
+        let line_count = match (window.collapsed, buffer) {
+            (false, Some(buffer)) => Some(buffer.buffer.line_count()),
+            _ => None,
         };
+        let geometry = self.window_geometry(rect.width, rect.height, line_count);
         let body = match (window.collapsed, buffer) {
             (true, _) => Vec::new(),
-            (false, Some(buffer)) => self.sanitize_buffer_body(buffer, rect, gutter_width),
+            (false, Some(buffer)) => self.sanitize_buffer_body(buffer, geometry),
             (false, None) => vec![self.display_sanitizer.sanitize_line("[missing buffer]")],
         };
         let cursor = if window.id == focused && !window.collapsed {
-            buffer.and_then(|buffer| self.cursor_for_buffer(buffer, rect, gutter_width))
+            buffer.and_then(|buffer| self.cursor_for_buffer(buffer, geometry))
         } else {
             None
         };
         let selection = if !window.collapsed {
             buffer
-                .map(|buffer| self.selection_for_buffer(buffer, rect, gutter_width))
+                .map(|buffer| self.selection_for_buffer(buffer, geometry))
                 .unwrap_or_default()
         } else {
             Vec::new()
         };
         let search_matches = if !window.collapsed {
             buffer
-                .map(|buffer| self.search_matches_for_buffer(buffer, rect, gutter_width))
+                .map(|buffer| self.search_matches_for_buffer(buffer, geometry))
                 .unwrap_or_default()
         } else {
             Vec::new()
         };
         let highlights = if !window.collapsed {
             buffer
-                .map(|buffer| self.plugin_highlights_for_buffer(buffer, rect, gutter_width))
+                .map(|buffer| self.plugin_highlights_for_buffer(buffer, geometry))
                 .unwrap_or_default()
         } else {
             Vec::new()
         };
         let horizontal_edges = if !window.collapsed {
             buffer
-                .map(|buffer| self.horizontal_edges_for_buffer(buffer, rect, gutter_width))
+                .map(|buffer| self.horizontal_edges_for_buffer(buffer, geometry))
                 .unwrap_or_default()
         } else {
             Vec::new()
         };
         let scrollbar = if !window.collapsed {
-            buffer.and_then(|buffer| self.scrollbar_for_buffer(buffer, rect))
+            buffer.and_then(|buffer| self.scrollbar_for_buffer(buffer, geometry))
         } else {
             None
         };
         let gutter = if !window.collapsed {
             buffer
-                .map(|buffer| self.gutter_for_buffer(buffer, rect, gutter_width))
+                .map(|buffer| self.gutter_for_buffer(buffer, geometry))
                 .unwrap_or_default()
         } else {
             Vec::new()
@@ -134,7 +135,7 @@ impl UiShell {
                 .map(|buffer| buffer.buffer.is_read_only())
                 .unwrap_or(matches!(window.buffer_kind, dun_core::BufferKind::ReadOnly)),
             border: self.glyphs.border,
-            gutter_width,
+            geometry,
             gutter,
             cursor,
             selection,

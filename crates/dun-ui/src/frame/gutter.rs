@@ -1,43 +1,31 @@
-use dun_core::Rect;
-
-use crate::{BufferView, UiGutterLine, UiShell, decimal_digits};
-
-const MIN_BODY_COLUMNS_WITH_GUTTER: u16 = 4;
+use crate::{BufferView, UiGutterLine, UiShell, WindowGeometry};
 
 impl UiShell {
-    pub(super) fn gutter_width_for_buffer(&self, buffer: &BufferView<'_>, rect: Rect) -> u16 {
-        let inner_width = rect.width.saturating_sub(2);
-        let digits = decimal_digits(buffer.buffer.line_count().max(1));
-        let width = (digits + 1) as u16;
-        if inner_width < width.saturating_add(MIN_BODY_COLUMNS_WITH_GUTTER) {
-            return 0;
-        }
-
-        width
-    }
-
     pub(super) fn gutter_for_buffer(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
-        gutter_width: u16,
+        geometry: WindowGeometry,
     ) -> Vec<UiGutterLine> {
-        let body_height = rect.height.saturating_sub(2) as usize;
-        if gutter_width == 0 || body_height == 0 {
+        let gutter_height = usize::from(geometry.gutter.height);
+        if geometry.gutter.width == 0 || gutter_height == 0 {
             return Vec::new();
         }
 
-        let label_digits = gutter_width.saturating_sub(1) as usize;
+        let label_digits = usize::from(
+            geometry
+                .gutter
+                .width
+                .saturating_sub(geometry.border_columns),
+        );
         let mut lines = Vec::new();
         for line_index in buffer.first_line..buffer.buffer.line_count() {
-            if lines.len() >= body_height {
+            if lines.len() >= gutter_height {
                 break;
             }
 
             let marker = ' ';
             let visual_rows = if buffer.wrap {
-                let inner_width = rect.width.saturating_sub(2) as usize;
-                let body_width = inner_width.saturating_sub(gutter_width as usize).max(1);
+                let body_width = usize::from(geometry.body.width).max(1);
                 self.wrapped_visual_line_count(buffer, line_index, body_width)
             } else {
                 1
@@ -48,7 +36,7 @@ impl UiShell {
                 0
             };
             for row_offset in start_offset..visual_rows {
-                if lines.len() >= body_height {
+                if lines.len() >= gutter_height {
                     break;
                 }
                 let label = if row_offset == 0 {
@@ -57,7 +45,7 @@ impl UiShell {
                     format!("{:>label_digits$} ", "")
                 };
                 lines.push(UiGutterLine {
-                    y: 1 + lines.len() as u16,
+                    y: geometry.gutter.y.saturating_add(lines.len() as u16),
                     label,
                 });
             }

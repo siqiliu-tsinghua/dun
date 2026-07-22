@@ -1,23 +1,21 @@
 use dun_core::Rect;
 
-use crate::{BufferView, UiCursor, UiShell};
+use crate::{BufferView, UiCursor, UiShell, WindowGeometry};
 
 impl UiShell {
     pub(super) fn cursor_for_buffer(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
-        gutter_width: u16,
+        geometry: WindowGeometry,
     ) -> Option<UiCursor> {
-        let inner_width = rect.width.checked_sub(2)? as usize;
-        let gutter_width = gutter_width.min(inner_width as u16) as usize;
-        let body_width = inner_width.saturating_sub(gutter_width);
-        let body_height = rect.height.checked_sub(2)? as usize;
+        let body = geometry.body;
+        let body_width = usize::from(body.width);
+        let body_height = usize::from(body.height);
         if body_width == 0 || body_height == 0 {
             return None;
         }
         if buffer.wrap {
-            return self.wrapped_cursor_for_buffer(buffer, gutter_width, body_width, body_height);
+            return self.wrapped_cursor_for_buffer(buffer, body);
         }
 
         let position = buffer.buffer.cursor_position();
@@ -45,18 +43,14 @@ impl UiShell {
             .min(body_width.saturating_sub(1));
 
         Some(UiCursor {
-            x: 1 + gutter_width as u16 + display_column as u16,
-            y: 1 + visible_line as u16,
+            x: body.x.saturating_add(display_column as u16),
+            y: body.y.saturating_add(visible_line as u16),
         })
     }
 
-    fn wrapped_cursor_for_buffer(
-        &self,
-        buffer: &BufferView<'_>,
-        gutter_width: usize,
-        body_width: usize,
-        body_height: usize,
-    ) -> Option<UiCursor> {
+    fn wrapped_cursor_for_buffer(&self, buffer: &BufferView<'_>, body: Rect) -> Option<UiCursor> {
+        let body_width = usize::from(body.width);
+        let body_height = usize::from(body.height);
         let position = buffer.buffer.cursor_position();
         if position.line < buffer.first_line {
             return None;
@@ -82,8 +76,8 @@ impl UiShell {
         let display_column = display_column % body_width;
 
         Some(UiCursor {
-            x: 1 + gutter_width as u16 + display_column as u16,
-            y: 1 + visual_y as u16,
+            x: body.x.saturating_add(display_column as u16),
+            y: body.y.saturating_add(visual_y as u16),
         })
     }
 }

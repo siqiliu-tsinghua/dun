@@ -45,7 +45,7 @@ fn frame_contains_menu_status_and_sanitized_buffer_content() {
     assert_eq!(frame.windows.len(), 1);
     assert_eq!(frame.windows[0].body[0].as_plain_text(), "safe␛]0;x␇");
     assert!(frame.windows[0].body[0].has_non_text_segments());
-    assert_eq!(frame.windows[0].gutter_width, 2);
+    assert_eq!(frame.windows[0].geometry.gutter.width, 2);
     assert_eq!(
         frame.windows[0].gutter,
         vec![UiGutterLine {
@@ -97,6 +97,82 @@ fn frame_maps_cursor_after_wide_utf8_text() {
         UiShell::default().frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
 
     assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 5, y: 1 }));
+}
+
+#[test]
+fn wide_window_geometry_aligns_gutter_body_cursor_and_spans() {
+    let workspace = Workspace::new_untitled();
+    let mut buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "a─bc");
+    buffer.set_cursor(Position::new(0, "a─".len())).unwrap();
+    let matches = buffer.find_all("─b");
+    let highlights = [BufferHighlightSpan {
+        line: 0,
+        start_column: "a─".len(),
+        end_column: "a─bc".len(),
+        class: HighlightClass::Keyword,
+    }];
+    let buffer_view = BufferView::new(BufferId(1), &buffer)
+        .with_search(&matches, Some(0))
+        .with_highlight_spans(&highlights);
+    let mut shell = UiShell::default();
+
+    let narrow = shell.window_geometry(80, 10, Some(1));
+    assert_eq!(narrow.border_columns, 1);
+    assert_eq!(narrow.inner, Rect::new(1, 1, 78, 8));
+    assert_eq!(narrow.gutter, Rect::new(1, 1, 2, 8));
+    assert_eq!(narrow.body, Rect::new(3, 1, 76, 8));
+    assert_eq!(narrow.right_border_x, 79);
+
+    shell.profile.ambiguous_width = AmbiguousWidth::Wide;
+    let frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
+    let window = &frame.windows[0];
+
+    assert_eq!(window.geometry.border_columns, 2);
+    assert_eq!(window.geometry.inner, Rect::new(2, 1, 76, 8));
+    assert_eq!(window.geometry.gutter, Rect::new(2, 1, 3, 8));
+    assert_eq!(window.geometry.body, Rect::new(5, 1, 73, 8));
+    assert_eq!(window.geometry.right_border_x, 78);
+    assert_eq!(window.cursor, Some(UiCursor { x: 8, y: 1 }));
+    assert_eq!(
+        window.search_matches,
+        vec![UiSearchMatchLine {
+            y: 1,
+            start_x: 6,
+            end_x: 9,
+            active: true,
+        }]
+    );
+    assert_eq!(
+        window.highlights,
+        vec![UiHighlightLine {
+            y: 1,
+            start_x: 8,
+            end_x: 10,
+            class: HighlightClass::Keyword,
+        }]
+    );
+}
+
+#[test]
+fn wide_rendered_window_body_ends_before_right_border() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, &"x".repeat(73));
+    let buffer_view = BufferView::new(BufferId(1), &buffer);
+    let mut shell = UiShell::default();
+    shell.profile.ambiguous_width = AmbiguousWidth::Wide;
+    let frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 3), &[buffer_view]);
+    let mut surface = crate::surface::Surface::new(80, 5, shell.theme.palette.editor)
+        .with_ambiguous_width(AmbiguousWidth::Wide);
+
+    crate::render::surface_frame::render_ui_frame_to_surface(&mut surface, &shell, &frame);
+
+    assert_eq!(frame.windows[0].geometry.body, Rect::new(5, 1, 73, 1));
+    assert_eq!(surface.cell(77, 2).unwrap().symbol, "x");
+    assert_eq!(
+        surface.cell(78, 2).unwrap().symbol,
+        shell.glyphs.border.vertical.to_string()
+    );
+    assert!(surface.cell(79, 2).unwrap().wide_continuation);
 }
 
 #[test]
@@ -358,7 +434,7 @@ fn frame_maps_scrolled_line_number_gutter() {
     let frame =
         UiShell::default().frame_for_workspace(&workspace, Rect::new(0, 0, 80, 6), &[buffer_view]);
 
-    assert_eq!(frame.windows[0].gutter_width, 3);
+    assert_eq!(frame.windows[0].geometry.gutter.width, 3);
     assert_eq!(
         frame.windows[0].gutter,
         vec![
@@ -384,7 +460,7 @@ fn narrow_window_omits_wide_gutter_to_keep_body_columns() {
     let frame =
         UiShell::default().frame_for_workspace(&workspace, Rect::new(0, 0, 8, 6), &[buffer_view]);
 
-    assert_eq!(frame.windows[0].gutter_width, 0);
+    assert_eq!(frame.windows[0].geometry.gutter.width, 0);
     assert!(frame.windows[0].gutter.is_empty());
     assert_eq!(frame.windows[0].body[0].as_plain_text(), "x");
     assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 1, y: 1 }));
@@ -400,7 +476,7 @@ fn tiny_windows_have_no_body_gutter_or_cursor() {
         UiShell::default().frame_for_workspace(&workspace, Rect::new(0, 0, 4, 2), &[buffer_view]);
 
     assert!(frame.windows[0].body.is_empty());
-    assert_eq!(frame.windows[0].gutter_width, 0);
+    assert_eq!(frame.windows[0].geometry.gutter.width, 0);
     assert!(frame.windows[0].gutter.is_empty());
     assert_eq!(frame.windows[0].cursor, None);
 }

@@ -334,6 +334,15 @@ pub struct StatusBar {
     pub focused_window: WindowId,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WindowGeometry {
+    pub border_columns: u16,
+    pub inner: Rect,
+    pub gutter: Rect,
+    pub body: Rect,
+    pub right_border_x: u16,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UiWindow {
     pub id: WindowId,
@@ -345,7 +354,7 @@ pub struct UiWindow {
     pub dirty: bool,
     pub read_only: bool,
     pub border: BorderGlyphs,
-    pub gutter_width: u16,
+    pub geometry: WindowGeometry,
     pub gutter: Vec<UiGutterLine>,
     pub cursor: Option<UiCursor>,
     pub selection: Vec<UiSelectionLine>,

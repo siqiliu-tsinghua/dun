@@ -46,17 +46,19 @@ pub(crate) fn draw_window(
     );
     draw_window_title(surface, shell, window, area);
 
-    if window.collapsed || area.width <= 2 || area.height <= 2 {
+    let inner_area = offset_rect(window.geometry.inner, area);
+    let gutter_area = offset_rect(window.geometry.gutter, area);
+    let body_area = offset_rect(window.geometry.body, area);
+    if window.collapsed || inner_area.width == 0 || inner_area.height == 0 {
         return None;
     }
 
-    let inner_area = TuiRect::new(area.x + 1, area.y + 1, area.width - 2, area.height - 2);
-    let gutter_width = window.gutter_width.min(inner_area.width);
-    if gutter_width > 0 {
+    if gutter_area.width > 0 {
         draw_gutter(
             surface,
             area,
-            gutter_width,
+            gutter_area,
+            window.geometry.border_columns,
             &window.gutter,
             shell.theme.palette.gutter,
             shell.theme.palette.gutter_separator,
@@ -64,12 +66,6 @@ pub(crate) fn draw_window(
         );
     }
 
-    let body_area = TuiRect::new(
-        inner_area.x.saturating_add(gutter_width),
-        inner_area.y,
-        inner_area.width.saturating_sub(gutter_width),
-        inner_area.height,
-    );
     if body_area.width > 0 {
         surface.fill_rect(
             body_area.x,
@@ -98,14 +94,16 @@ pub(crate) fn draw_window(
 
     draw_current_line(
         surface,
+        area,
         body_area,
         window.cursor,
         shell.theme.palette.current_line,
     );
-    draw_plugin_highlights(surface, area, shell, &window.highlights);
+    draw_plugin_highlights(surface, area, body_area, shell, &window.highlights);
     draw_search_matches(
         surface,
         area,
+        body_area,
         &window.search_matches,
         shell.theme.palette.search_match,
         shell.theme.palette.active_search_match,
@@ -113,13 +111,16 @@ pub(crate) fn draw_window(
     draw_selection(
         surface,
         area,
+        body_area,
         &window.selection,
         shell.theme.palette.selection_text,
     );
     draw_horizontal_edges(
         surface,
         shell,
+        area,
         body_area,
+        area.x.saturating_add(window.geometry.right_border_x),
         &window.horizontal_edges,
         shell.theme.palette.truncation,
     );
@@ -127,6 +128,7 @@ pub(crate) fn draw_window(
         surface,
         shell,
         area,
+        window.geometry.right_border_x,
         window.scrollbar.as_ref(),
         shell.theme.palette.scrollbar_thumb,
     );
@@ -202,37 +204,37 @@ fn draw_window_title(surface: &mut Surface, shell: &UiShell, window: &UiWindow, 
 fn draw_gutter(
     surface: &mut Surface,
     window_area: TuiRect,
-    gutter_width: u16,
+    gutter_area: TuiRect,
+    separator_width: u16,
     gutter: &[UiGutterLine],
     style: Style,
     separator_style: Style,
     separator: char,
 ) {
-    let right = window_area
-        .x
-        .saturating_add(window_area.width)
-        .min(window_area.x.saturating_add(1).saturating_add(gutter_width));
+    let right = gutter_area.x.saturating_add(gutter_area.width);
     for line in gutter {
         let y = window_area.y.saturating_add(line.y);
-        if y >= window_area.y.saturating_add(window_area.height) {
+        if y < gutter_area.y || y >= gutter_area.y.saturating_add(gutter_area.height) {
             continue;
         }
 
-        surface.style_run(
-            window_area.x + 1,
-            y,
-            right.saturating_sub(window_area.x + 1),
-            style,
-        );
-        surface.set_text(window_area.x + 1, y, &line.label, style);
-        if gutter_width > 0 && right > window_area.x + 1 {
-            set_char(surface, right - 1, y, separator, separator_style);
+        surface.style_run(gutter_area.x, y, gutter_area.width, style);
+        surface.set_text(gutter_area.x, y, &line.label, style);
+        if gutter_area.width >= separator_width && separator_width > 0 {
+            set_char(
+                surface,
+                right.saturating_sub(separator_width),
+                y,
+                separator,
+                separator_style,
+            );
         }
     }
 }
 
 fn draw_current_line(
     surface: &mut Surface,
+    window_area: TuiRect,
     body_area: TuiRect,
     cursor: Option<UiCursor>,
     style: Style,
@@ -240,11 +242,11 @@ fn draw_current_line(
     let Some(cursor) = cursor else {
         return;
     };
-    if body_area.width == 0 || body_area.height == 0 || cursor.y == 0 {
+    if body_area.width == 0 || body_area.height == 0 {
         return;
     }
-    let y = body_area.y.saturating_add(cursor.y.saturating_sub(1));
-    if y >= body_area.y.saturating_add(body_area.height) {
+    let y = window_area.y.saturating_add(cursor.y);
+    if y < body_area.y || y >= body_area.y.saturating_add(body_area.height) {
         return;
     }
 
@@ -254,6 +256,7 @@ fn draw_current_line(
 fn draw_selection(
     surface: &mut Surface,
     window_area: TuiRect,
+    body_area: TuiRect,
     selection: &[UiSelectionLine],
     style: Style,
 ) {
@@ -261,6 +264,7 @@ fn draw_selection(
         style_window_run(
             surface,
             window_area,
+            body_area,
             line.y,
             line.start_x,
             line.end_x,
@@ -272,6 +276,7 @@ fn draw_selection(
 fn draw_plugin_highlights(
     surface: &mut Surface,
     window_area: TuiRect,
+    body_area: TuiRect,
     shell: &UiShell,
     highlights: &[UiHighlightLine],
 ) {
@@ -287,6 +292,7 @@ fn draw_plugin_highlights(
         style_window_run(
             surface,
             window_area,
+            body_area,
             line.y,
             line.start_x,
             line.end_x,
@@ -298,6 +304,7 @@ fn draw_plugin_highlights(
 fn draw_search_matches(
     surface: &mut Surface,
     window_area: TuiRect,
+    body_area: TuiRect,
     matches: &[UiSearchMatchLine],
     style: Style,
     active_style: Style,
@@ -306,6 +313,7 @@ fn draw_search_matches(
         style_window_run(
             surface,
             window_area,
+            body_area,
             line.y,
             line.start_x,
             line.end_x,
@@ -317,26 +325,30 @@ fn draw_search_matches(
 fn style_window_run(
     surface: &mut Surface,
     window_area: TuiRect,
+    body_area: TuiRect,
     line_y: u16,
     start_x: u16,
     end_x: u16,
     style: Style,
 ) {
     let y = window_area.y.saturating_add(line_y);
-    if y >= window_area.y.saturating_add(window_area.height) {
+    if y < body_area.y || y >= body_area.y.saturating_add(body_area.height) {
         return;
     }
 
-    let start = window_area.x.saturating_add(start_x);
-    let end = window_area.x.saturating_add(end_x);
-    let right = window_area.x.saturating_add(window_area.width);
-    surface.style_run(start, y, end.min(right).saturating_sub(start), style);
+    let start = window_area.x.saturating_add(start_x).max(body_area.x);
+    let end = window_area
+        .x
+        .saturating_add(end_x)
+        .min(body_area.x.saturating_add(body_area.width));
+    surface.style_run(start, y, end.saturating_sub(start), style);
 }
 
 fn draw_scrollbar(
     surface: &mut Surface,
     shell: &UiShell,
     window_area: TuiRect,
+    right_border_x: u16,
     scrollbar: Option<&UiScrollbar>,
     style: Style,
 ) {
@@ -347,10 +359,7 @@ fn draw_scrollbar(
         return;
     }
 
-    let x = window_area
-        .x
-        .saturating_add(window_area.width)
-        .saturating_sub(1);
+    let x = window_area.x.saturating_add(right_border_x);
     let bottom = window_area
         .y
         .saturating_add(window_area.height)
@@ -376,7 +385,9 @@ fn draw_scrollbar(
 fn draw_horizontal_edges(
     surface: &mut Surface,
     shell: &UiShell,
+    window_area: TuiRect,
     body_area: TuiRect,
+    right_border_x: u16,
     edges: &[UiHorizontalEdgeLine],
     style: Style,
 ) {
@@ -389,23 +400,19 @@ fn draw_horizontal_edges(
     } else {
         ('<', '>')
     };
-    let right_x = body_area
-        .x
-        .saturating_add(body_area.width)
-        .saturating_sub(1);
+    let left_width = u16::try_from(surface.glyph_width(left)).unwrap_or(1);
+    let right_width = u16::try_from(surface.glyph_width(right)).unwrap_or(1);
+    let right_x = right_border_x.saturating_sub(right_width);
 
     for edge in edges {
-        if edge.y == 0 {
+        let y = window_area.y.saturating_add(edge.y);
+        if y < body_area.y || y >= body_area.y.saturating_add(body_area.height) {
             continue;
         }
-        let y = body_area.y.saturating_add(edge.y.saturating_sub(1));
-        if y >= body_area.y.saturating_add(body_area.height) {
-            continue;
-        }
-        if edge.left {
+        if edge.left && body_area.width >= left_width {
             set_char(surface, body_area.x, y, left, style);
         }
-        if edge.right {
+        if edge.right && body_area.width >= right_width && right_x >= body_area.x {
             set_char(surface, right_x, y, right, style);
         }
     }

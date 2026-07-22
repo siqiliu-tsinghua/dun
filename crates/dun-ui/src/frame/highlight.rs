@@ -1,47 +1,33 @@
 use dun_core::{Rect, TextRange};
 
 use crate::{
-    BufferView, UiHighlightLine, UiSearchMatchLine, UiSelectionLine, UiShell, display_width,
-    wrap_line_segments,
+    BufferView, UiHighlightLine, UiSearchMatchLine, UiSelectionLine, UiShell, WindowGeometry,
+    display_width, wrap_line_segments,
 };
 
 #[derive(Clone, Copy)]
 struct WrappedLineLayout {
     visual_y: isize,
-    body_width: usize,
-    body_height: usize,
-    gutter_width: usize,
+    body: Rect,
 }
 
 impl UiShell {
     pub(super) fn selection_for_buffer(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
-        gutter_width: u16,
+        geometry: WindowGeometry,
     ) -> Vec<UiSelectionLine> {
         let Some(range) = buffer.buffer.selection_range() else {
             return Vec::new();
         };
-        let Some(inner_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
-            return Vec::new();
-        };
-        let gutter_width = gutter_width.min(inner_width as u16) as usize;
-        let body_width = inner_width.saturating_sub(gutter_width);
-        let Some(body_height) = rect.height.checked_sub(2).map(|height| height as usize) else {
-            return Vec::new();
-        };
+        let body = geometry.body;
+        let body_width = usize::from(body.width);
+        let body_height = usize::from(body.height);
         if body_width == 0 || body_height == 0 || range.is_empty() {
             return Vec::new();
         }
         if buffer.wrap {
-            return self.selection_for_wrapped_buffer(
-                buffer,
-                range,
-                body_width,
-                body_height,
-                gutter_width,
-            );
+            return self.selection_for_wrapped_buffer(buffer, range, body);
         }
 
         let mut lines = Vec::new();
@@ -54,9 +40,7 @@ impl UiShell {
         }
 
         for line_index in start_line..=end_line {
-            if let Some(line) =
-                self.selection_line(buffer, line_index, range, body_width, gutter_width)
-            {
+            if let Some(line) = self.selection_line(buffer, line_index, range, body) {
                 lines.push(line);
             }
         }
@@ -69,8 +53,7 @@ impl UiShell {
         buffer: &BufferView<'_>,
         line_index: usize,
         range: TextRange,
-        body_width: usize,
-        gutter_width: usize,
+        body: Rect,
     ) -> Option<UiSelectionLine> {
         let line = buffer.buffer.line(line_index)?;
         let start_column = if line_index == range.start.line {
@@ -83,14 +66,8 @@ impl UiShell {
         } else {
             line.len()
         };
-        let (y, start_x, end_x) = self.body_span_for_columns(
-            buffer,
-            line_index,
-            start_column,
-            end_column,
-            body_width,
-            gutter_width,
-        )?;
+        let (y, start_x, end_x) =
+            self.body_span_for_columns(buffer, line_index, start_column, end_column, body)?;
         Some(UiSelectionLine { y, start_x, end_x })
     }
 
@@ -103,9 +80,9 @@ impl UiShell {
         line_index: usize,
         start_column: usize,
         end_column: usize,
-        body_width: usize,
-        gutter_width: usize,
+        body: Rect,
     ) -> Option<(u16, u16, u16)> {
+        let body_width = usize::from(body.width);
         let line = buffer.buffer.line(line_index)?;
         if start_column >= end_column {
             return None;
@@ -131,39 +108,29 @@ impl UiShell {
         }
 
         Some((
-            1 + (line_index - buffer.first_line) as u16,
-            1 + start_x as u16 + gutter_width as u16,
-            1 + end_x as u16 + gutter_width as u16,
+            body.y
+                .saturating_add((line_index - buffer.first_line) as u16),
+            body.x.saturating_add(start_x as u16),
+            body.x.saturating_add(end_x as u16),
         ))
     }
 
     pub(super) fn plugin_highlights_for_buffer(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
-        gutter_width: u16,
+        geometry: WindowGeometry,
     ) -> Vec<UiHighlightLine> {
         if buffer.highlights.is_empty() {
             return Vec::new();
         }
-        let Some(inner_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
-            return Vec::new();
-        };
-        let gutter_width = gutter_width.min(inner_width as u16) as usize;
-        let body_width = inner_width.saturating_sub(gutter_width);
-        let Some(body_height) = rect.height.checked_sub(2).map(|height| height as usize) else {
-            return Vec::new();
-        };
+        let body = geometry.body;
+        let body_width = usize::from(body.width);
+        let body_height = usize::from(body.height);
         if body_width == 0 || body_height == 0 {
             return Vec::new();
         }
         if buffer.wrap {
-            return self.plugin_highlights_for_wrapped_buffer(
-                buffer,
-                body_width,
-                body_height,
-                gutter_width,
-            );
+            return self.plugin_highlights_for_wrapped_buffer(buffer, body);
         }
 
         let visible_start = buffer.first_line;
@@ -178,8 +145,7 @@ impl UiShell {
                 span.line,
                 span.start_column,
                 span.end_column,
-                body_width,
-                gutter_width,
+                body,
             ) {
                 lines.push(UiHighlightLine {
                     y,
@@ -196,10 +162,10 @@ impl UiShell {
     fn plugin_highlights_for_wrapped_buffer(
         &self,
         buffer: &BufferView<'_>,
-        body_width: usize,
-        body_height: usize,
-        gutter_width: usize,
+        body: Rect,
     ) -> Vec<UiHighlightLine> {
+        let body_width = usize::from(body.width);
+        let body_height = usize::from(body.height);
         let mut lines = Vec::new();
         let mut visual_y = -(buffer.first_visual_row as isize);
         for line_index in buffer.first_line..buffer.buffer.line_count() {
@@ -220,12 +186,7 @@ impl UiShell {
                     line,
                     span.start_column,
                     span.end_column,
-                    WrappedLineLayout {
-                        visual_y,
-                        body_width,
-                        body_height,
-                        gutter_width,
-                    },
+                    WrappedLineLayout { visual_y, body },
                 ) {
                     lines.push(UiHighlightLine {
                         y,
@@ -245,10 +206,10 @@ impl UiShell {
         &self,
         buffer: &BufferView<'_>,
         range: TextRange,
-        body_width: usize,
-        body_height: usize,
-        gutter_width: usize,
+        body: Rect,
     ) -> Vec<UiSelectionLine> {
+        let body_width = usize::from(body.width);
+        let body_height = usize::from(body.height);
         let mut lines = Vec::new();
         let mut visual_y = -(buffer.first_visual_row as isize);
         for line_index in buffer.first_line..buffer.buffer.line_count() {
@@ -275,12 +236,7 @@ impl UiShell {
                     line,
                     start_column,
                     end_column,
-                    WrappedLineLayout {
-                        visual_y,
-                        body_width,
-                        body_height,
-                        gutter_width,
-                    },
+                    WrappedLineLayout { visual_y, body },
                 ) {
                     lines.push(UiSelectionLine { y, start_x, end_x });
                 }
@@ -294,30 +250,19 @@ impl UiShell {
     pub(super) fn search_matches_for_buffer(
         &self,
         buffer: &BufferView<'_>,
-        rect: Rect,
-        gutter_width: u16,
+        geometry: WindowGeometry,
     ) -> Vec<UiSearchMatchLine> {
         if buffer.search_matches.is_empty() {
             return Vec::new();
         }
-        let Some(inner_width) = rect.width.checked_sub(2).map(|width| width as usize) else {
-            return Vec::new();
-        };
-        let gutter_width = gutter_width.min(inner_width as u16) as usize;
-        let body_width = inner_width.saturating_sub(gutter_width);
-        let Some(body_height) = rect.height.checked_sub(2).map(|height| height as usize) else {
-            return Vec::new();
-        };
+        let body = geometry.body;
+        let body_width = usize::from(body.width);
+        let body_height = usize::from(body.height);
         if body_width == 0 || body_height == 0 {
             return Vec::new();
         }
         if buffer.wrap {
-            return self.search_matches_for_wrapped_buffer(
-                buffer,
-                body_width,
-                body_height,
-                gutter_width,
-            );
+            return self.search_matches_for_wrapped_buffer(buffer, body);
         }
 
         let visible_start = buffer.first_line;
@@ -331,9 +276,7 @@ impl UiShell {
             if range.start.line < visible_start || range.start.line >= visible_end {
                 continue;
             }
-            if let Some(line) =
-                self.search_match_line(buffer, range, body_width, gutter_width, index)
-            {
+            if let Some(line) = self.search_match_line(buffer, range, body, index) {
                 lines.push(line);
             }
         }
@@ -345,10 +288,10 @@ impl UiShell {
         &self,
         buffer: &BufferView<'_>,
         range: TextRange,
-        body_width: usize,
-        gutter_width: usize,
+        body: Rect,
         index: usize,
     ) -> Option<UiSearchMatchLine> {
+        let body_width = usize::from(body.width);
         let line = buffer.buffer.line(range.start.line)?;
         let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
         if range.end.column <= visible_byte_start {
@@ -370,9 +313,11 @@ impl UiShell {
         }
 
         Some(UiSearchMatchLine {
-            y: 1 + (range.start.line - buffer.first_line) as u16,
-            start_x: 1 + start_x as u16 + gutter_width as u16,
-            end_x: 1 + end_x as u16 + gutter_width as u16,
+            y: body
+                .y
+                .saturating_add((range.start.line - buffer.first_line) as u16),
+            start_x: body.x.saturating_add(start_x as u16),
+            end_x: body.x.saturating_add(end_x as u16),
             active: buffer.active_search_match == Some(index),
         })
     }
@@ -380,10 +325,10 @@ impl UiShell {
     fn search_matches_for_wrapped_buffer(
         &self,
         buffer: &BufferView<'_>,
-        body_width: usize,
-        body_height: usize,
-        gutter_width: usize,
+        body: Rect,
     ) -> Vec<UiSearchMatchLine> {
+        let body_width = usize::from(body.width);
+        let body_height = usize::from(body.height);
         let mut first_visible_row_by_line = Vec::new();
         let mut visual_y = -(buffer.first_visual_row as isize);
         for line_index in buffer.first_line..buffer.buffer.line_count() {
@@ -416,12 +361,7 @@ impl UiShell {
                 line,
                 range.start.column,
                 range.end.column,
-                WrappedLineLayout {
-                    visual_y,
-                    body_width,
-                    body_height,
-                    gutter_width,
-                },
+                WrappedLineLayout { visual_y, body },
             ) {
                 lines.push(UiSearchMatchLine {
                     y,
@@ -457,10 +397,13 @@ impl UiShell {
 
         let mut spans = Vec::new();
         let mut segment_start = 0usize;
-        for (row_offset, segment) in
-            wrap_line_segments(line, layout.body_width, self.profile.ambiguous_width)
-                .iter()
-                .enumerate()
+        for (row_offset, segment) in wrap_line_segments(
+            line,
+            usize::from(layout.body.width),
+            self.profile.ambiguous_width,
+        )
+        .iter()
+        .enumerate()
         {
             let row = layout.visual_y.saturating_add(row_offset as isize);
             let segment_width = display_width(segment, self.profile.ambiguous_width);
@@ -469,16 +412,16 @@ impl UiShell {
                 segment_start = segment_end;
                 continue;
             }
-            if row >= layout.body_height as isize {
+            if row >= layout.body.height as isize {
                 break;
             }
             let start = start_display.max(segment_start);
             let end = end_display.min(segment_end);
             if start < end {
                 spans.push((
-                    1 + row as u16,
-                    1 + layout.gutter_width as u16 + (start - segment_start) as u16,
-                    1 + layout.gutter_width as u16 + (end - segment_start) as u16,
+                    layout.body.y.saturating_add(row as u16),
+                    layout.body.x.saturating_add((start - segment_start) as u16),
+                    layout.body.x.saturating_add((end - segment_start) as u16),
                 ));
             }
             segment_start = segment_end;
