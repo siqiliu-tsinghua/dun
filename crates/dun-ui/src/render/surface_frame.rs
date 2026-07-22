@@ -41,7 +41,8 @@ impl SurfaceRenderer {
         width: u16,
         height: u16,
     ) -> RenderedFrame {
-        let mut surface = Surface::new(width, height, shell.theme.palette.editor);
+        let mut surface = Surface::new(width, height, shell.theme.palette.editor)
+            .with_ambiguous_width(shell.profile.ambiguous_width);
         let cursor = render_ui_frame_to_surface(&mut surface, shell, ui_frame);
 
         let mut bytes = Vec::new();

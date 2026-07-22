@@ -12,7 +12,8 @@ const STYLE_KEY_CHARS: &[u8; 62] =
 /// Render a frame exactly as the terminal backend would, and format it for a
 /// golden file: the glyph grid, a per-cell style map, and a legend.
 pub fn frame_snapshot(shell: &UiShell, frame: &UiFrame, width: u16, height: u16) -> String {
-    let mut surface = Surface::new(width, height, shell.theme.palette.editor);
+    let mut surface = Surface::new(width, height, shell.theme.palette.editor)
+        .with_ambiguous_width(shell.profile.ambiguous_width);
     let cursor = render_ui_frame_to_surface(&mut surface, shell, frame);
     let row_digits = height.saturating_sub(1).to_string().len();
     let mut text_rows = Vec::with_capacity(usize::from(height));

@@ -1,4 +1,4 @@
-use unicode_width::UnicodeWidthChar;
+use dun_term::AmbiguousWidth;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SurfaceCell {
@@ -12,6 +12,7 @@ pub(crate) struct Surface {
     width: u16,
     height: u16,
     cells: Vec<SurfaceCell>,
+    ambiguous_width: AmbiguousWidth,
 }
 
 impl Surface {
@@ -27,7 +28,16 @@ impl Surface {
             width,
             height,
             cells: vec![cell; cell_count],
+            ambiguous_width: AmbiguousWidth::Narrow,
         }
+    }
+
+    /// Set the ambiguous-width reading used when placing glyphs (so a wide
+    /// terminal budgets box-drawing glyphs as 2 columns). Production render and
+    /// snapshot paths opt in; tests keep the default Narrow.
+    pub(crate) fn with_ambiguous_width(mut self, ambiguous_width: AmbiguousWidth) -> Self {
+        self.ambiguous_width = ambiguous_width;
+        self
     }
 
     pub(crate) fn width(&self) -> u16 {
@@ -57,7 +67,7 @@ impl Surface {
                 continue;
             }
 
-            let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+            let char_width = dun_term::char_width(ch, self.ambiguous_width).unwrap_or(0);
             if char_width == 0 {
                 if let Some(index) = previous_cell {
                     if let Some(cell) = self.cells.get_mut(index) {
@@ -116,7 +126,7 @@ impl Surface {
         symbol: char,
         style: dun_term::Style,
     ) {
-        let symbol_width = UnicodeWidthChar::width(symbol);
+        let symbol_width = dun_term::char_width(symbol, self.ambiguous_width);
         debug_assert_eq!(symbol_width, Some(1));
         if symbol_width != Some(1) {
             return;
