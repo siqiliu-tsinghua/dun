@@ -3,7 +3,7 @@
 
 use std::ffi::OsStr;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Mutex, MutexGuard};
 use std::thread;
@@ -11,6 +11,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use super::pty::command_on_path;
 use super::terminal_grid::{TerminalCursor, parse_terminal_grid};
+use dun_term::AmbiguousWidth;
 
 pub use super::terminal_grid::TerminalGrid as TmuxGrid;
 
@@ -41,6 +42,7 @@ pub struct TmuxSession {
     name: String,
     cols: u16,
     rows: u16,
+    ambiguous_width: AmbiguousWidth,
 }
 
 impl TmuxSession {
@@ -106,12 +108,16 @@ impl TmuxSession {
             ));
         }
 
-        Ok(Some(Self {
+        let mut session = Self {
             tmux,
             name,
             cols,
             rows,
-        }))
+            ambiguous_width: AmbiguousWidth::Narrow,
+        };
+        session.ambiguous_width = measure_ambiguous_width(&session.tmux, label)?;
+
+        Ok(Some(session))
     }
 
     pub fn send_keys(&self, keys: &[&str]) -> io::Result<()> {
@@ -135,8 +141,13 @@ impl TmuxSession {
             &capture.text,
             self.cols,
             self.rows,
+            self.ambiguous_width,
             cursor,
         ))
+    }
+
+    pub fn ambiguous_width(&self) -> AmbiguousWidth {
+        self.ambiguous_width
     }
 
     pub fn capture_until_contains(
@@ -237,10 +248,76 @@ impl Drop for TmuxSession {
     }
 }
 
+struct TmuxProbeSession<'a> {
+    tmux: &'a Path,
+    name: String,
+}
+
+impl Drop for TmuxProbeSession<'_> {
+    fn drop(&mut self) {
+        let _ = Command::new(self.tmux)
+            .args(["kill-session", "-t", &self.name])
+            .status();
+    }
+}
+
 pub fn tmux_test_guard() -> MutexGuard<'static, ()> {
     TMUX_TEST_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn measure_ambiguous_width(tmux: &Path, label: &str) -> io::Result<AmbiguousWidth> {
+    let probe = TmuxProbeSession {
+        tmux,
+        name: unique_session_name(&format!("{label}-width-probe")),
+    };
+    let output = Command::new(tmux)
+        .args([
+            "new-session",
+            "-d",
+            "-s",
+            &probe.name,
+            "-x",
+            "40",
+            "-y",
+            "3",
+        ])
+        .arg("printf '\\r──────────'; sleep 10")
+        .output()?;
+    if !output.status.success() {
+        return Err(output_error(
+            &["new-session", "-d", "-s", &probe.name],
+            &output,
+        ));
+    }
+    let deadline = Instant::now() + Duration::from_secs(1);
+
+    loop {
+        let output = Command::new(tmux)
+            .args(["display-message", "-p", "-t", &probe.name, "#{cursor_x}"])
+            .output()?;
+        if !output.status.success() {
+            return Err(output_error(
+                &["display-message", "-p", "-t", &probe.name, "#{cursor_x}"],
+                &output,
+            ));
+        }
+
+        match String::from_utf8_lossy(&output.stdout).trim() {
+            "10" => return Ok(AmbiguousWidth::Narrow),
+            "20" => return Ok(AmbiguousWidth::Wide),
+            _ if Instant::now() < deadline => thread::sleep(Duration::from_millis(10)),
+            cursor_x => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "tmux ambiguous-width probe ended at cursor_x={cursor_x:?}; expected 10 or 20"
+                    ),
+                ));
+            }
+        }
+    }
 }
 
 fn shell_command_for_executable(executable: &OsStr, args: &[&OsStr]) -> String {

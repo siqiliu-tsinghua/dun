@@ -6,6 +6,8 @@ use std::fs;
 use std::io;
 use std::time::Duration;
 
+use dun_term::{AmbiguousWidth, str_width};
+
 mod support;
 
 use support::pty::temp_path;
@@ -38,7 +40,12 @@ fn tmux_grid_renders_baseline_layout_80x24() -> io::Result<()> {
     assert_line_contains(&screen, 0, "Edit");
     assert_line_contains(&screen, 0, "View");
     assert_line_contains(&screen, 0, "Help");
-    assert_line_contains(&screen, 1, "┌─ ◆ Untitled");
+    assert!(
+        screen.line(1).starts_with('┌'),
+        "top border should start at the first physical cell\n{}",
+        screen.line(1)
+    );
+    assert_line_contains(&screen, 1, "◆ Untitled");
     assert_line_contains(&screen, 22, "└");
     assert_line_contains(&screen, 23, "[Plain Text]");
     assert_line_contains(&screen, 23, "1:1");
@@ -76,13 +83,13 @@ fn tmux_grid_respects_larger_fixed_pane_dimensions() -> io::Result<()> {
         screen.text
     );
     assert_eq!(
-        screen.line(1).chars().count(),
+        str_width(screen.line(1), session.ambiguous_width()),
         100,
         "top border should span the fixed pane width\n{}",
         screen.line(1)
     );
     assert_eq!(
-        screen.line(28).chars().count(),
+        str_width(screen.line(28), session.ambiguous_width()),
         100,
         "bottom border should span the fixed pane width\n{}",
         screen.line(28)
@@ -118,9 +125,13 @@ fn tmux_grid_normalizes_cursor_and_sgr_attributes() -> io::Result<()> {
 
     assert_eq!(grid.width, 80);
     assert_eq!(grid.height, 24);
+    let (cursor_x, gutter_x) = match session.ambiguous_width() {
+        AmbiguousWidth::Narrow => (3, 1),
+        AmbiguousWidth::Wide => (5, 2),
+    };
     assert_eq!(
         grid.cursor.map(|cursor| (cursor.x, cursor.y)),
-        Some((3, 2)),
+        Some((cursor_x, 2)),
         "initial editor cursor should be at first body cell"
     );
     assert_text_at(&grid, 0, 2, "File");
@@ -136,7 +147,7 @@ fn tmux_grid_normalizes_cursor_and_sgr_attributes() -> io::Result<()> {
     assert_eq!(file_hotkey.ch, 'F');
     assert!(file_hotkey.style.bold);
     assert_eq!(file_hotkey.style.bg, TerminalColor::Indexed(24));
-    assert_eq!(grid.cell(2, 1).expect("gutter number").ch, '1');
+    assert_eq!(grid.cell(2, gutter_x).expect("gutter number").ch, '1');
 
     Ok(())
 }

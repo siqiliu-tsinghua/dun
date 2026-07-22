@@ -12,11 +12,23 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{fmt::Write as _, thread};
 
 use super::terminal_grid::{TerminalGrid, parse_terminal_grid};
+use dun_term::AmbiguousWidth;
 
 pub const CTRL_Q: &[u8] = b"\x11";
 const DEFAULT_PTY_ROWS: u16 = 24;
 const DEFAULT_PTY_COLS: u16 = 80;
+const AMBIGUOUS_WIDTH_PROBE_REGEX: &str = r#""\r\u2500\033\\\[6n\033\\\[c""#;
+const NARROW_PROBE_RESPONSE: &[u8] = b"\x1b[1;2R\x1b[?1;2c";
+const WIDE_PROBE_RESPONSE: &[u8] = b"\x1b[1;3R\x1b[?1;2c";
+const PROBE_ELAPSED_MARKER: &str = "DUN_PTY_PROBE_ELAPSED_MS=";
 static PTY_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProbeResponse {
+    Narrow,
+    Wide,
+    None,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct TerminalCase {
@@ -28,6 +40,7 @@ pub struct TerminalCase {
     pub rows: u16,
     pub cols: u16,
     pub expected_profile: Option<&'static str>,
+    probe_response: ProbeResponse,
 }
 
 impl TerminalCase {
@@ -48,6 +61,7 @@ impl TerminalCase {
             rows: DEFAULT_PTY_ROWS,
             cols: DEFAULT_PTY_COLS,
             expected_profile: Some(expected_profile),
+            probe_response: ProbeResponse::Narrow,
         }
     }
 
@@ -61,21 +75,44 @@ impl TerminalCase {
         self.expected_profile = None;
         self
     }
+
+    pub const fn with_wide_ambiguous_width(mut self) -> Self {
+        self.probe_response = ProbeResponse::Wide;
+        self
+    }
+
+    pub const fn without_ambiguous_width_probe_response(mut self) -> Self {
+        self.probe_response = ProbeResponse::None;
+        self
+    }
+
+    const fn ambiguous_width(self) -> AmbiguousWidth {
+        match self.probe_response {
+            ProbeResponse::Wide => AmbiguousWidth::Wide,
+            ProbeResponse::Narrow | ProbeResponse::None => AmbiguousWidth::Narrow,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct PtyRun {
     pub status: ExitStatus,
     pub output: String,
+    pub probe_elapsed: Option<Duration>,
 }
 
 impl PtyRun {
-    pub fn terminal_grid(&self, cols: u16, rows: u16) -> TerminalGrid {
-        parse_terminal_grid(&self.output, cols, rows, None)
+    pub fn terminal_grid(
+        &self,
+        cols: u16,
+        rows: u16,
+        ambiguous_width: AmbiguousWidth,
+    ) -> TerminalGrid {
+        parse_terminal_grid(&self.output, cols, rows, ambiguous_width, None)
     }
 
     pub fn terminal_grid_for_case(&self, case: TerminalCase) -> TerminalGrid {
-        self.terminal_grid(case.cols, case.rows)
+        self.terminal_grid(case.cols, case.rows, case.ambiguous_width())
     }
 }
 
@@ -165,9 +202,13 @@ fn run_expect_script(
     read_to_end_if_present(&mut stdout, &mut bytes);
     read_to_end_if_present(&mut stderr, &mut bytes);
 
+    let mut output = String::from_utf8_lossy(&bytes).into_owned();
+    let probe_elapsed = take_probe_elapsed(&mut output);
+
     Ok(PtyRun {
         status,
-        output: String::from_utf8_lossy(&bytes).into_owned(),
+        output,
+        probe_elapsed,
     })
 }
 
@@ -178,13 +219,34 @@ fn expect_script_for_command(
     ready_marker: &str,
     input: &[u8],
 ) -> String {
+    let probe_action = match case.probe_response {
+        ProbeResponse::Narrow => {
+            format!("send -- {}", tcl_escaped_bytes(NARROW_PROBE_RESPONSE))
+        }
+        ProbeResponse::Wide => {
+            format!("send -- {}", tcl_escaped_bytes(WIDE_PROBE_RESPONSE))
+        }
+        ProbeResponse::None => String::new(),
+    };
     format!(
         "\
 set timeout 10
 log_user 1
+set probe_started_ms -1
+set probe_elapsed_ms -1
+set ambiguous_width_probe {}
 spawn -noecho /bin/sh -lc {}
 expect {{
-    -re {} {{}}
+    -re $ambiguous_width_probe {{
+        set probe_started_ms [clock milliseconds]
+        {}
+        exp_continue
+    }}
+    -re {} {{
+        if {{$probe_started_ms >= 0}} {{
+            set probe_elapsed_ms [expr {{[clock milliseconds] - $probe_started_ms}}]
+        }}
+    }}
     eof {{
         catch {{wait}}
         exit 125
@@ -215,12 +277,16 @@ if {{[lindex $wait_result 4] eq \"CHILDKILLED\"}} {{
 if {{$exit_code eq \"\"}} {{
     exit 1
 }}
+puts \"{}$probe_elapsed_ms\"
 exit $exit_code
 ",
+        AMBIGUOUS_WIDTH_PROBE_REGEX,
         tcl_brace_quote(&shell_command_for_binary(case, binary, args)),
+        probe_action,
         tcl_brace_quote(&regex_literal(ready_marker)),
         tcl_escaped_bytes(input),
-        tcl_escaped_bytes(input)
+        tcl_escaped_bytes(input),
+        PROBE_ELAPSED_MARKER,
     )
 }
 
@@ -278,6 +344,10 @@ fn tcl_escaped_bytes(bytes: &[u8]) -> String {
         match byte {
             b'\\' => escaped.push_str("\\\\"),
             b'"' => escaped.push_str("\\\""),
+            b'[' | b']' | b'$' => {
+                escaped.push('\\');
+                escaped.push(*byte as char);
+            }
             b'\n' => escaped.push_str("\\n"),
             b'\r' => escaped.push_str("\\r"),
             0x20..=0x7e => escaped.push(*byte as char),
@@ -288,6 +358,25 @@ fn tcl_escaped_bytes(bytes: &[u8]) -> String {
     }
     escaped.push('"');
     escaped
+}
+
+fn take_probe_elapsed(output: &mut String) -> Option<Duration> {
+    let marker_start = output.rfind(PROBE_ELAPSED_MARKER)?;
+    let value_start = marker_start + PROBE_ELAPSED_MARKER.len();
+    let value_end = output[value_start..]
+        .find(['\r', '\n'])
+        .map_or(output.len(), |offset| value_start + offset);
+    let millis = output[value_start..value_end].parse::<u64>().ok();
+    let mut marker_end = value_end;
+    while output
+        .as_bytes()
+        .get(marker_end)
+        .is_some_and(|byte| matches!(byte, b'\r' | b'\n'))
+    {
+        marker_end += 1;
+    }
+    output.replace_range(marker_start..marker_end, "");
+    millis.map(Duration::from_millis)
 }
 
 fn wait_with_timeout(child: &mut Child, timeout: Duration) -> io::Result<ExitStatus> {

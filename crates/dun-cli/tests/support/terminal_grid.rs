@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 #![allow(dead_code)]
 
 use dun_term::{AmbiguousWidth, char_width};
@@ -12,6 +13,7 @@ pub struct TerminalCursor {
 pub struct TerminalGrid {
     pub width: u16,
     pub height: u16,
+    pub ambiguous_width: AmbiguousWidth,
     pub cursor: Option<TerminalCursor>,
     cells: Vec<TerminalCell>,
 }
@@ -157,9 +159,10 @@ pub fn parse_terminal_grid(
     input: &str,
     cols: u16,
     rows: u16,
+    ambiguous_width: AmbiguousWidth,
     cursor: Option<TerminalCursor>,
 ) -> TerminalGrid {
-    let mut parser = GridParser::new(cols, rows, cursor);
+    let mut parser = GridParser::new(cols, rows, ambiguous_width, cursor);
     parser.parse(input);
     parser.finish()
 }
@@ -184,7 +187,8 @@ fn find_box_from_top_left(
     col: u16,
     glyphs: BorderGlyphs,
 ) -> Option<GridRect> {
-    let min_right = col.saturating_add(2);
+    let glyph_width = border_glyph_width(grid, glyphs);
+    let min_right = col.saturating_add(glyph_width.saturating_mul(2));
     let min_bottom = row.saturating_add(2);
     if min_right >= grid.width || min_bottom >= grid.height {
         return None;
@@ -198,7 +202,7 @@ fn find_box_from_top_left(
             let rect = GridRect {
                 row,
                 col,
-                width: right - col + 1,
+                width: right - col + glyph_width,
                 height: bottom - row + 1,
             };
             if border_box_matches(grid, rect, glyphs) {
@@ -211,7 +215,8 @@ fn find_box_from_top_left(
 }
 
 fn border_box_matches(grid: &TerminalGrid, rect: GridRect, glyphs: BorderGlyphs) -> bool {
-    let right = rect.right();
+    let glyph_width = border_glyph_width(grid, glyphs);
+    let right = rect.right().saturating_add(1).saturating_sub(glyph_width);
     let bottom = rect.bottom();
     if grid.char_at(rect.row, rect.col) != glyphs.top_left
         || grid.char_at(rect.row, right) != glyphs.top_right
@@ -221,14 +226,11 @@ fn border_box_matches(grid: &TerminalGrid, rect: GridRect, glyphs: BorderGlyphs)
         return false;
     }
 
-    if rect.width < 3 || rect.height < 3 {
+    if rect.width < glyph_width.saturating_mul(3) || rect.height < 3 {
         return false;
     }
 
-    if grid.char_at(rect.row, rect.col + 1) != glyphs.horizontal {
-        return false;
-    }
-    for col in rect.col + 1..right {
+    for col in (rect.col + glyph_width..right).step_by(usize::from(glyph_width)) {
         if grid.char_at(bottom, col) != glyphs.horizontal {
             return false;
         }
@@ -244,9 +246,16 @@ fn border_box_matches(grid: &TerminalGrid, rect: GridRect, glyphs: BorderGlyphs)
     true
 }
 
+fn border_glyph_width(grid: &TerminalGrid, glyphs: BorderGlyphs) -> u16 {
+    char_width(glyphs.horizontal, grid.ambiguous_width)
+        .unwrap_or(1)
+        .max(1) as u16
+}
+
 struct GridParser {
     width: usize,
     height: usize,
+    ambiguous_width: AmbiguousWidth,
     external_cursor: Option<TerminalCursor>,
     cells: Vec<TerminalCell>,
     style: TerminalStyle,
@@ -256,12 +265,18 @@ struct GridParser {
 }
 
 impl GridParser {
-    fn new(cols: u16, rows: u16, external_cursor: Option<TerminalCursor>) -> Self {
+    fn new(
+        cols: u16,
+        rows: u16,
+        ambiguous_width: AmbiguousWidth,
+        external_cursor: Option<TerminalCursor>,
+    ) -> Self {
         let width = cols as usize;
         let height = rows as usize;
         Self {
             width,
             height,
+            ambiguous_width,
             external_cursor,
             cells: vec![TerminalCell::default(); width.saturating_mul(height)],
             style: TerminalStyle::default(),
@@ -307,6 +322,7 @@ impl GridParser {
         TerminalGrid {
             width: self.width as u16,
             height: self.height as u16,
+            ambiguous_width: self.ambiguous_width,
             cursor,
             cells: self.cells,
         }
@@ -399,7 +415,7 @@ impl GridParser {
             ch,
             style: self.style,
         };
-        let display_width = char_width(ch, AmbiguousWidth::Narrow).unwrap_or(1).max(1);
+        let display_width = char_width(ch, self.ambiguous_width).unwrap_or(1).max(1);
         for extra in 1..display_width {
             if self.col + extra < self.width {
                 self.cells[self.row * self.width + self.col + extra] = TerminalCell {
