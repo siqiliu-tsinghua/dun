@@ -69,8 +69,10 @@ fn write_config(python: &Path, host: &Path) -> io::Result<PathBuf> {
     Ok(config)
 }
 
-/// Start `dun` with the log-filter host configured, or `None` to skip.
-fn start_with_host(label: &str) -> io::Result<Option<TmuxSession>> {
+/// Start `dun` with the log-filter host configured, or `None` to skip. `cols`
+/// lets a test that ends up with several tiled plugin windows use a wider pane
+/// so their content is not truncated.
+fn start_with_host(label: &str, cols: u16) -> io::Result<Option<TmuxSession>> {
     let (Some(python), Some(host)) = (python3(), host_script()) else {
         eprintln!("skipping tmux log-filter test: python3 or the host is unavailable");
         return Ok(None);
@@ -78,7 +80,7 @@ fn start_with_host(label: &str) -> io::Result<Option<TmuxSession>> {
     let config = write_config(&python, &host)?;
     TmuxSession::start_dun(
         label,
-        100,
+        cols,
         24,
         &[OsStr::new("--config"), config.as_os_str()],
     )
@@ -87,7 +89,7 @@ fn start_with_host(label: &str) -> io::Result<Option<TmuxSession>> {
 #[test]
 fn tmux_logfilter_menu_is_injected_after_handshake() -> io::Result<()> {
     let _guard = tmux_test_guard();
-    let Some(session) = start_with_host("logfilter-menu")? else {
+    let Some(session) = start_with_host("logfilter-menu", 100)? else {
         return Ok(());
     };
 
@@ -107,7 +109,7 @@ fn tmux_logfilter_menu_is_injected_after_handshake() -> io::Result<()> {
 #[test]
 fn tmux_logfilter_keybinding_opens_the_scratch_window() -> io::Result<()> {
     let _guard = tmux_test_guard();
-    let Some(session) = start_with_host("logfilter-scratch")? else {
+    let Some(session) = start_with_host("logfilter-scratch", 100)? else {
         return Ok(());
     };
 
@@ -121,6 +123,60 @@ fn tmux_logfilter_keybinding_opens_the_scratch_window() -> io::Result<()> {
     assert!(
         screen.text.contains("logfilter: edit"),
         "the scratch window should open on the leader chord\n{}",
+        screen.text
+    );
+    Ok(())
+}
+
+#[test]
+fn tmux_logfilter_execute_shows_the_result_in_the_surface() -> io::Result<()> {
+    let _guard = tmux_test_guard();
+    let Some(session) = start_with_host("logfilter-execute", 150)? else {
+        return Ok(());
+    };
+
+    // Open the scratch window (Ctrl+T e), type a pattern into it with dun's own
+    // editing engine, then submit it with Ctrl+T a (Apply, kind=execute). The
+    // host adopts the text as its pattern and echoes a summary, which fills its
+    // surface window — the full scratch-input -> execute -> surface loop.
+    session.capture_until_contains("Log Filter", STARTUP_TIMEOUT)?;
+    session.send_keys(&["C-t", "e"])?;
+    session.capture_until_contains("logfilter: edit", INTERACTION_TIMEOUT)?;
+    session.send_keys(&["needle"])?;
+    session.send_keys(&["C-t", "a"])?;
+
+    let screen = session.capture_until_contains("Filter pattern set to", INTERACTION_TIMEOUT)?;
+    assert!(
+        screen.text.contains("needle"),
+        "the execute result should carry the submitted pattern into the surface\n{}",
+        screen.text
+    );
+    Ok(())
+}
+
+#[test]
+fn tmux_logfilter_filters_command_output_into_the_surface() -> io::Result<()> {
+    let _guard = tmux_test_guard();
+    let Some(session) = start_with_host("logfilter-stream", 150)? else {
+        return Ok(());
+    };
+    session.capture_until_contains("Log Filter", STARTUP_TIMEOUT)?;
+
+    // Ctrl+X o opens dun's Run Command prompt (the chord letter is lowercase).
+    // Run a command whose stdout is fed to the log-filter host; with no pattern
+    // set every line is kept, and they fill the host's surface window titled
+    // "logfilter: command-output" — the command-output -> stream-read -> surface
+    // path (the one the chunking fix repaired) exercised live.
+    session.send_keys(&["C-x", "o"])?;
+    session.capture_until_contains("Run Command", INTERACTION_TIMEOUT)?;
+    session.send_keys(&["seq", "Space", "5"])?;
+    session.send_keys(&["Enter"])?;
+
+    let screen =
+        session.capture_until_contains("logfilter: command-output", INTERACTION_TIMEOUT)?;
+    assert!(
+        screen.text.contains("logfilter: command-output"),
+        "the command output should be filtered into the plugin surface\n{}",
         screen.text
     );
     Ok(())
