@@ -100,15 +100,26 @@ call in `dun-ui` becomes `dun_term::char_width(ch, mode)` /
 `dun_term::str_width(s, mode)` with the mode threaded in. Remove the
 `use unicode_width::...` imports from these files once no direct call remains.
 
-- `crates/dun-ui/src/surface.rs`: `Surface::new` gains an
-  `ambiguous_width: AmbiguousWidth` parameter stored on the struct; `set_text`
-  (line ~60) and `fill_rect` (line ~119) use `dun_term::char_width(ch, self.ambiguous_width)`.
-  Storing it on `Surface` avoids threading the mode through every draw call.
+- `crates/dun-ui/src/surface.rs`: **do NOT change the `Surface::new` signature**
+  (it has ~40 call sites, almost all tests, and changing it would cascade out of
+  scope). Instead: add an `ambiguous_width: AmbiguousWidth` field, initialized to
+  `AmbiguousWidth::Narrow` in `new` (so every existing `Surface::new(w, h, style)`
+  caller keeps working unchanged), plus a builder
+  `pub(crate) fn with_ambiguous_width(mut self, mode: AmbiguousWidth) -> Self`
+  that sets it. `set_text` (line ~60) and `fill_rect` (line ~119) use
+  `dun_term::char_width(ch, self.ambiguous_width)`. This keeps the mode on the
+  struct without touching any `Surface::new` call.
 - `crates/dun-ui/src/render/surface_frame.rs`: `SurfaceRenderer::render` builds
-  the `Surface` — pass `shell.profile.ambiguous_width` to `Surface::new`. Update
-  the test constructors in that file (and any other `Surface::new` call site,
-  e.g. `surface_frame.rs` tests) to pass a mode (`AmbiguousWidth::Narrow` unless
-  the test is specifically about wide).
+  the `Surface` — chain `.with_ambiguous_width(shell.profile.ambiguous_width)`
+  onto the `Surface::new(...)` there (line ~44). The two `Surface::new` calls in
+  that file's tests keep the default (Narrow) — leave them.
+- `crates/dun-ui/src/snapshot.rs`: `frame_snapshot` builds a `Surface` (line
+  ~15) and has `shell` — chain `.with_ambiguous_width(shell.profile.ambiguous_width)`
+  the same way so a snapshot honors the profile's mode.
+- **All other `Surface::new` call sites stay as they are** (tests in
+  `surface.rs`, `surface_emit.rs`, `render/surface_layers.rs`,
+  `render/surface_draw.rs`, `tests/**`): they get the default Narrow mode and
+  need no edit. Only the production render + snapshot paths opt into the mode.
 - `crates/dun-ui/src/text.rs`, `crates/dun-ui/src/frame/text.rs`,
   `crates/dun-ui/src/render/surface_window.rs`: each width helper takes an
   `AmbiguousWidth` parameter (thread it from the caller, which has access to the
@@ -157,8 +168,9 @@ Every other `.width()` you see in the tree is `Rect`/`Surface`/`area` geometry
     `crates/dun-term/src/width.rs` if you choose that layout
   - `crates/dun-config/src/config.rs`, `.../parser.rs`, `.../defaults.rs`,
     `.../lib.rs`
-  - `crates/dun-ui/src/surface.rs`, `.../text.rs`, `.../frame/text.rs`,
-    `.../render/surface_window.rs`, `.../render/surface_frame.rs`
+  - `crates/dun-ui/src/surface.rs`, `.../snapshot.rs`, `.../text.rs`,
+    `.../frame/text.rs`, `.../render/surface_window.rs`,
+    `.../render/surface_frame.rs`
   - `crates/dun-cli/src/app/buffer_state.rs`, `.../app/status_view.rs`,
     `.../files/text.rs`, `.../dialogs/line_input.rs`, `.../help/status.rs`,
     `.../help/content.rs`, `.../main.rs`
@@ -201,8 +213,11 @@ Every other `.width()` you see in the tree is `Rect`/`Surface`/`area` geometry
    import there).
 4. **Tests are layered and colocated** — match the local style of each file.
 5. **Stop-loss** — if the same step fails twice for the same reason, STOP and
-   report. In particular, if the `Surface::new` signature change cascades into
-   an unexpected non-scope file, STOP and report rather than widening scope.
+   report. The `Surface` mode is added via a `with_ambiguous_width` builder
+   precisely so no `Surface::new` call site changes; if you instead find the
+   `text.rs`/`frame/text.rs`/`surface_window.rs` helper's `AmbiguousWidth`
+   parameter cascading into a file not in Scope, STOP and report rather than
+   widening scope.
 
 ## Verification (MANDATORY — you run it; iterate to green)
 
