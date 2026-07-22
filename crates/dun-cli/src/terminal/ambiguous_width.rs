@@ -2,11 +2,11 @@ use std::io::{self, IsTerminal, Read, Write};
 use std::os::fd::AsRawFd;
 use std::time::{Duration, Instant};
 
-use crossterm::terminal::{self, ClearType};
-use crossterm::{QueueableCommand, cursor};
 use dun_term::{AmbiguousWidth, EncodingProfile};
 use mio::unix::SourceFd;
 use mio::{Events, Interest, Poll, Token};
+
+use super::vt::output::{self as vt_output, Sequence};
 
 const PROBE_BYTES: &[u8] = b"\r\xe2\x94\x80\x1b[6n\x1b[c";
 const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
@@ -45,10 +45,8 @@ fn write_probe(output: &mut impl Write) -> io::Result<()> {
 }
 
 fn clear_probe(output: &mut impl Write) -> io::Result<()> {
-    let move_result = output.queue(cursor::MoveToColumn(0)).map(|_| ());
-    let clear_result = output
-        .queue(terminal::Clear(ClearType::CurrentLine))
-        .map(|_| ());
+    let move_result = vt_output::queue(output, Sequence::MoveToColumnZero);
+    let clear_result = vt_output::queue(output, Sequence::ClearCurrentLine);
     let flush_result = output.flush();
     move_result.and(clear_result).and(flush_result)
 }

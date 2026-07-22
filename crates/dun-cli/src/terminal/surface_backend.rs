@@ -1,10 +1,11 @@
 use std::io::{self, Write};
 
-use crossterm::cursor;
-use crossterm::terminal::{self, ClearType};
 use dun_ui::{SurfaceRenderer, UiFrame, UiShell};
 
-use super::TerminalWriter;
+use super::{
+    TerminalWriter,
+    vt::output::{self as vt_output, Sequence},
+};
 
 pub(crate) struct SurfaceBackend {
     writer: TerminalWriter,
@@ -27,23 +28,24 @@ impl SurfaceBackend {
         height: u16,
     ) -> io::Result<()> {
         let frame = self.renderer.render(shell, ui_frame, width, height);
-        crossterm::queue!(self.writer, cursor::Hide)?;
+        vt_output::queue(&mut self.writer, Sequence::HideCursor)?;
         self.writer.write_all(&frame.bytes)?;
         if let Some((x, y)) = frame.cursor {
-            crossterm::queue!(self.writer, cursor::MoveTo(x, y), cursor::Show)?;
+            vt_output::queue(&mut self.writer, Sequence::MoveTo { column: x, row: y })?;
+            vt_output::queue(&mut self.writer, Sequence::ShowCursor)?;
         }
         self.writer.flush()
     }
 
     pub(crate) fn clear(&mut self) -> io::Result<()> {
-        crossterm::queue!(self.writer, terminal::Clear(ClearType::All))?;
+        vt_output::queue(&mut self.writer, Sequence::ClearAll)?;
         self.writer.flush()?;
         self.invalidate();
         Ok(())
     }
 
     pub(crate) fn show_cursor(&mut self) -> io::Result<()> {
-        crossterm::queue!(self.writer, cursor::Show)?;
+        vt_output::queue(&mut self.writer, Sequence::ShowCursor)?;
         self.writer.flush()
     }
 

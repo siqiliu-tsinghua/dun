@@ -387,8 +387,10 @@ fn pty_smoke_restores_mouse_capture_when_it_panics() -> io::Result<()> {
     assert_output_contains(&run.output, "[?1049l", case.name);
     assert_output_contains(&run.output, "[?2004l", case.name);
     assert_output_contains(&run.output, "DUN_TEST_PANIC", case.name);
-    for sequence in ["[?1006l", "[?1015l", "[?1003l", "[?1002l", "[?1000l"] {
-        assert_output_contains(&run.output, sequence, case.name);
+    assert_output_contains(&run.output, "\x1b[?1000h\x1b[?1002h\x1b[?1006h", case.name);
+    assert_output_contains(&run.output, "\x1b[?1006l\x1b[?1002l\x1b[?1000l", case.name);
+    for sequence in ["[?1003h", "[?1003l", "[?1015h", "[?1015l"] {
+        assert_output_not_contains(&run.output, sequence, case.name);
     }
 
     Ok(())

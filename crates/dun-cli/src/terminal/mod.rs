@@ -8,6 +8,7 @@ mod profile;
 mod sgr;
 mod shell;
 mod surface_backend;
+mod vt;
 
 pub(crate) use action::RuntimeAction;
 pub(crate) use ambiguous_width::detect_ambiguous_width;

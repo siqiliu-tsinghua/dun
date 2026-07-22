@@ -1,12 +1,8 @@
 use std::io::{self, Write};
 
-use crossterm::event::{
-    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-};
-use crossterm::execute;
-use crossterm::terminal::{
-    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
-};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+
+use super::vt::output::{self as vt_output, Sequence};
 
 /// Restore the terminal before the process dies on a panic. The release
 /// profile uses `panic = "abort"`, so `TerminalGuard::drop` never runs on
@@ -16,9 +12,9 @@ pub(crate) fn install_panic_terminal_restore() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let mut stdout = io::stdout();
-        let _ = execute!(stdout, DisableMouseCapture);
-        let _ = execute!(stdout, DisableBracketedPaste);
-        let _ = execute!(stdout, LeaveAlternateScreen);
+        let _ = vt_output::execute(&mut stdout, Sequence::DisableMouseCapture);
+        let _ = vt_output::execute(&mut stdout, Sequence::DisableBracketedPaste);
+        let _ = vt_output::execute(&mut stdout, Sequence::LeaveAlternateScreen);
         let _ = stdout.flush();
         let _ = disable_raw_mode();
         default_hook(info);
@@ -69,10 +65,10 @@ impl TerminalGuard {
     /// lifecycle.
     fn enter_modes(mouse_enabled: bool) -> io::Result<()> {
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen)?;
-        execute!(stdout, EnableBracketedPaste)?;
+        vt_output::execute(&mut stdout, Sequence::EnterAlternateScreen)?;
+        vt_output::execute(&mut stdout, Sequence::EnableBracketedPaste)?;
         if mouse_enabled {
-            execute!(stdout, EnableMouseCapture)?;
+            vt_output::execute(&mut stdout, Sequence::EnableMouseCapture)?;
         }
         Ok(())
     }
@@ -88,9 +84,9 @@ impl TerminalGuard {
 
         let mut stdout = io::stdout();
         if enabled {
-            execute!(stdout, EnableMouseCapture)?;
+            vt_output::execute(&mut stdout, Sequence::EnableMouseCapture)?;
         } else {
-            execute!(stdout, DisableMouseCapture)?;
+            vt_output::execute(&mut stdout, Sequence::DisableMouseCapture)?;
         }
         self.mouse_enabled = enabled;
         Ok(())
@@ -112,12 +108,21 @@ impl TerminalGuard {
         let mut stdout = io::stdout();
         let mut first_error = None;
         if self.mouse_enabled {
-            record_first_error(&mut first_error, execute!(stdout, DisableMouseCapture));
+            record_first_error(
+                &mut first_error,
+                vt_output::execute(&mut stdout, Sequence::DisableMouseCapture),
+            );
         }
         if self.bracketed_paste_enabled {
-            record_first_error(&mut first_error, execute!(stdout, DisableBracketedPaste));
+            record_first_error(
+                &mut first_error,
+                vt_output::execute(&mut stdout, Sequence::DisableBracketedPaste),
+            );
         }
-        record_first_error(&mut first_error, execute!(stdout, LeaveAlternateScreen));
+        record_first_error(
+            &mut first_error,
+            vt_output::execute(&mut stdout, Sequence::LeaveAlternateScreen),
+        );
         record_first_error(&mut first_error, stdout.flush());
         record_first_error(&mut first_error, disable_raw_mode());
         self.active = false;
@@ -154,12 +159,12 @@ impl Drop for TerminalGuard {
 
         let mut stdout = io::stdout();
         if self.mouse_enabled {
-            let _ = execute!(stdout, DisableMouseCapture);
+            let _ = vt_output::execute(&mut stdout, Sequence::DisableMouseCapture);
         }
         if self.bracketed_paste_enabled {
-            let _ = execute!(stdout, DisableBracketedPaste);
+            let _ = vt_output::execute(&mut stdout, Sequence::DisableBracketedPaste);
         }
-        let _ = execute!(stdout, LeaveAlternateScreen);
+        let _ = vt_output::execute(&mut stdout, Sequence::LeaveAlternateScreen);
         let _ = disable_raw_mode();
     }
 }
