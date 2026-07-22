@@ -47,17 +47,21 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **695,148 bytes** (2026-07-22, ambiguous-width render layer at
-  `c0e13e3`; +4,112 over the 691,036 baseline).
-- Debian: **760,192 bytes** at `c0e13e3` — **binding platform**, margin
-  288,384 bytes (2026-07-22, last measured; all v0 data channels plus the
-  adaptive ambiguous-width render layer, stage A). The wide-geometry work
-  (`terminal.ambiguous-width`, char_width/str_width, wide-aware draw_border +
-  shared WindowGeometry + dun-cli cutover) cost the binding binary +4,096 bytes
-  over the 756,096 stream-read/collision baseline; removing the `unicode-width`
-  dep from dun-ui/dun-cli did not shrink it (dun-term still carries the tables).
-  Solaris `terminal.ambiguous-width = wide` live-verified (border closes). **No
-  Debian measurement debt:** measured through HEAD.
+- macOS: **699,276 bytes** (2026-07-22, ambiguous-width auto-detection at
+  `f7e530a`; +4,128 over the 695,148 stage-A baseline).
+- Debian: **764,288 bytes** at `f7e530a` — **binding platform**, margin
+  284,288 bytes (2026-07-22, last measured; all v0 data channels plus the
+  adaptive ambiguous-width render layer AND startup auto-detection, stages
+  A+B). Stage A (wide-aware render layer, `c0e13e3`) was +4,096 over the 756,096
+  baseline; stage B's startup CPR/DA1 probe + `mio` (step 1 `e023bbd`) is +4,096
+  more, and step 2 (`f7e530a`) is test-only. `mio` became a direct dependency
+  but adds no new shared library (`ldd` unchanged; already linked via
+  crossterm). Unconfigured `dun` now auto-detects Wide on the Solaris tmux pane
+  — tmux_grid 5/5, border closes live. **No Debian measurement debt:** measured
+  through HEAD. (An independent, pre-existing Solaris *input* defect — a second
+  `tmux send-keys` batch is dropped, proven non-detector — surfaces as two
+  tmux_logfilter timeouts; unrelated to size or ambiguous-width. See
+  docs/release-size-audit.md 2026-07-22 stage B.)
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to

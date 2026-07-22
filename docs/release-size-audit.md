@@ -735,3 +735,44 @@ the last row. `cursor_x` after ten `─` is 20 on that tmux, confirming a genuin
 2-wide-ambiguous terminal; wide mode fixes the overflow the default Narrow mode
 still exhibits. VM scratch removed after recording. Margin on the binding
 platform is 288,384 bytes.
+
+## 2026-07-22 ambiguous-width auto-detection (stage B, f7e530a)
+
+Binding measurement for stage B — startup auto-detection of the terminal's
+ambiguous-width reading (step 1 detector `e023bbd`, step 2 mode-aware test
+harness `f7e530a`; built plan-first via Codex, each step Claude-gated).
+
+| Platform | c0e13e3 base | f7e530a | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 695,148 | 699,276 | +4,128 | 349,300 |
+| Debian x86_64 | 760,192 | 764,288 | +4,096 | 284,288 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `f7e530a`
+(`scripts/release-build.sh`, build-std, Debian `rust-src`). Step 1 (the mio-based
+CPR/DA1 probe + startup composition) costs the binding binary +4,096 bytes; step
+2 is test-only (zero size). `mio` was promoted to a direct dependency but adds no
+new shared library — Debian `ldd` is unchanged (libgcc/libm/libc/ld-linux), and
+it was already linked via crossterm. Debian smoke: ELF PIE stripped, `--version`,
+`--dump-config`. Both platforms stay well under budget.
+
+Cross-platform functional runs (full `cargo test --workspace`): **macOS 749/0,
+FreeBSD 749/0, Debian 749/0, Solaris 747/2**. The four previously-failing Solaris
+`tmux_grid` tests now PASS: an unconfigured `dun` auto-detects Wide on the Solaris
+tmux pane and the mode-aware harness asserts the physical 80-cell border — stage
+B's goal, verified live. Solaris smoke: a manually launched, unconfigured `dun` in
+a 150×24 Solaris tmux pane renders the tiled wide box correctly (top `┐`, both
+`│`, bottom `┘`).
+
+**The two remaining Solaris failures are NOT ambiguous-width and NOT stage B.**
+`tmux_logfilter_execute_shows_the_result_in_the_surface` and
+`..._filters_command_output_into_the_surface` time out because a *second* batch of
+`tmux send-keys` input is dropped: a plain `dun` in a Solaris tmux pane accepts
+the first typed batch ("hello" → col 6) but ignores the next ("xyz" → still col
+6). Disabling the detector entirely and rebuilding does NOT change this, so it
+predates stage B (it is the stage-A-equivalent behavior); plan 038 misattributed
+these two to "wide truncation" (the truncated pair was actually menu/scratch,
+which Wide now fixes). PTY multi-step input (`pty_smoke`, 9/9) works and only
+tmux multi-batch input hangs; the kqueue (macOS/FreeBSD) and epoll (Debian)
+platforms are all 749/0. The signature points at crossterm/mio's stdin readiness
+not re-arming across reads on Solaris **event ports**. Tracked as an independent
+Solaris input defect, unrelated to this stage. No measurement debt.
