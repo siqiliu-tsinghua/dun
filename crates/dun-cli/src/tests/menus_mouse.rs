@@ -99,8 +99,12 @@ fn mouse_wheel_scrolls_wrapped_visual_rows() {
     assert_eq!(state.first_visual_row, 1);
     assert_eq!(state.buffer.cursor_position(), Position::new(0, 8));
     assert!(
-        scroll_status(state, app.focused_buffer_view_context(app.workspace_area))
-            .contains("View V2-2/2 L1 wrap")
+        scroll_status(
+            state,
+            app.focused_buffer_view_context(app.workspace_area),
+            app.shell.profile.ambiguous_width,
+        )
+        .contains("View V2-2/2 L1 wrap")
     );
 }
 

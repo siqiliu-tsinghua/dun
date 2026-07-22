@@ -118,7 +118,12 @@ impl FileDialogState {
         format!("{label}{}", self.input.as_str())
     }
 
-    pub(crate) fn overlay(&self, keymap: &FileDialogKeymap, catalog: &TextCatalog) -> UiOverlay {
+    pub(crate) fn overlay(
+        &self,
+        keymap: &FileDialogKeymap,
+        catalog: &TextCatalog,
+        mode: AmbiguousWidth,
+    ) -> UiOverlay {
         let context = file_dialog_context(self.input.as_str());
         let hidden_state = if self.show_hidden {
             ui_text::tr(catalog, ui_text::DIALOG_HIDDEN_SHOWN)
@@ -165,7 +170,7 @@ impl FileDialogState {
             self.kind.name(catalog),
             lines,
             self.input.as_str().to_string(),
-            self.input.cursor_display_column(),
+            self.input.cursor_display_column(mode),
             list,
             selected,
             vec![file_dialog_shortcuts_text(keymap, catalog)],

@@ -95,6 +95,7 @@ impl AppState {
                 &self.shell.keymap,
                 &self.file_dialog_keys,
                 &self.shell.catalog,
+                self.shell.profile.ambiguous_width,
             ),
         );
 
@@ -140,6 +141,7 @@ impl AppState {
                 &self.shell.keymap,
                 &self.file_dialog_keys,
                 &self.shell.catalog,
+                self.shell.profile.ambiguous_width,
             ),
         );
 
@@ -275,9 +277,10 @@ impl AppState {
                 body_height: 1,
                 body_width: 1,
             });
+        let mode = self.shell.profile.ambiguous_width;
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             let _ = buffer.buffer.set_cursor(Position::new(line_index, 0));
-            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+            buffer.ensure_cursor_visible(context.body_height, context.body_width, mode);
         }
         self.set_status(ui_text::tr_fmt(
             &self.shell.catalog,

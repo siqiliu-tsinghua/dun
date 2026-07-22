@@ -11,7 +11,7 @@ pub(crate) fn replacement_status_text<'a>(
     }
 }
 
-pub(crate) fn selection_status(buffer: &TextBuffer) -> Option<String> {
+pub(crate) fn selection_status(buffer: &TextBuffer, mode: AmbiguousWidth) -> Option<String> {
     let range = buffer.selection_range()?;
     if range.is_empty() {
         return None;
@@ -20,13 +20,17 @@ pub(crate) fn selection_status(buffer: &TextBuffer) -> Option<String> {
     if range.start.line == range.end.line {
         let line = buffer.line(range.start.line)?;
         let selected = &line[range.start.column..range.end.column];
-        return Some(format!("Sel {}c", UnicodeWidthStr::width(selected)));
+        return Some(format!("Sel {}c", str_width(selected, mode)));
     }
 
     Some(format!("Sel {}L", range.end.line - range.start.line + 1))
 }
 
-pub(crate) fn scroll_status(buffer: &BufferState, context: Option<BufferViewContext>) -> String {
+pub(crate) fn scroll_status(
+    buffer: &BufferState,
+    context: Option<BufferViewContext>,
+    mode: AmbiguousWidth,
+) -> String {
     let total = buffer.buffer.line_count().max(1);
     let context = context.unwrap_or(BufferViewContext {
         buffer_id: buffer.id,
@@ -34,9 +38,9 @@ pub(crate) fn scroll_status(buffer: &BufferState, context: Option<BufferViewCont
         body_width: 1,
     });
     if buffer.word_wrap {
-        let total_rows = buffer.wrapped_total_visual_rows(context.body_width.max(1));
+        let total_rows = buffer.wrapped_total_visual_rows(context.body_width.max(1), mode);
         let start_row = buffer
-            .wrapped_top_visual_row(context.body_width.max(1))
+            .wrapped_top_visual_row(context.body_width.max(1), mode)
             .min(total_rows.saturating_sub(1));
         let end_row = start_row
             .saturating_add(context.body_height.max(1))
@@ -51,7 +55,7 @@ pub(crate) fn scroll_status(buffer: &BufferState, context: Option<BufferViewCont
     let height = context.body_height.max(1);
     let start = buffer.first_line.min(total.saturating_sub(1));
     let end = start.saturating_add(height).min(total);
-    let max_column = buffer.max_line_display_width();
+    let max_column = buffer.max_line_display_width(mode);
     let body_width = context.body_width;
     if buffer.first_column == 0 && (body_width == 0 || max_column <= body_width) {
         format!("View {}-{end}/{total}", start + 1)

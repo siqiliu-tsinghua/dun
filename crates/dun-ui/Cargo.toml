@@ -10,4 +10,3 @@ description = "Ratatui-facing UI shell for dun."
 dun-config.workspace = true
 dun-core.workspace = true
 dun-term.workspace = true
-unicode-width.workspace = true

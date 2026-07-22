@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use unicode_width::UnicodeWidthChar;
+use dun_term::{AmbiguousWidth, char_width};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TerminalCursor {
@@ -399,7 +399,7 @@ impl GridParser {
             ch,
             style: self.style,
         };
-        let display_width = UnicodeWidthChar::width(ch).unwrap_or(1).max(1);
+        let display_width = char_width(ch, AmbiguousWidth::Narrow).unwrap_or(1).max(1);
         for extra in 1..display_width {
             if self.col + extra < self.width {
                 self.cells[self.row * self.width + self.col + extra] = TerminalCell {

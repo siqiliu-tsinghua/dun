@@ -24,11 +24,11 @@ impl LineInput {
         self.text = text;
     }
 
-    pub(crate) fn cursor_display_column(&self) -> usize {
+    pub(crate) fn cursor_display_column(&self, mode: AmbiguousWidth) -> usize {
         self.text
             .get(..self.cursor_index)
-            .map(UnicodeWidthStr::width)
-            .unwrap_or_else(|| UnicodeWidthStr::width(self.text.as_str()))
+            .map(|prefix| str_width(prefix, mode))
+            .unwrap_or_else(|| str_width(self.text.as_str(), mode))
     }
 
     pub(crate) fn move_left(&mut self) {

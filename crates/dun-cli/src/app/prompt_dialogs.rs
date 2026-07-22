@@ -648,7 +648,11 @@ impl AppState {
         }
 
         if let Some(dialog) = &self.file_dialog {
-            return Some(dialog.overlay(&self.file_dialog_keys, catalog));
+            return Some(dialog.overlay(
+                &self.file_dialog_keys,
+                catalog,
+                self.shell.profile.ambiguous_width,
+            ));
         }
 
         let prompt = self.prompt.as_ref()?;
@@ -662,7 +666,9 @@ impl AppState {
         let mut overlay = UiOverlay::prompt(
             ui_text::tr(catalog, title_key),
             prompt.input.as_str().to_string(),
-            prompt.input.cursor_display_column(),
+            prompt
+                .input
+                .cursor_display_column(self.shell.profile.ambiguous_width),
         );
         if let Some(completion) = &prompt.completion {
             overlay.lines.push(completion.status_text(catalog));

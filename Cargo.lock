@@ -49,7 +49,6 @@ dependencies = [
  "dun-plugin",
  "dun-term",
  "dun-ui",
- "unicode-width",
 ]
 
 [[package]]
@@ -82,7 +81,6 @@ dependencies = [
  "dun-config",
  "dun-core",
  "dun-term",
- "unicode-width",
 ]
 
 [[package]]

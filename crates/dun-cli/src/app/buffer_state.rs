@@ -86,9 +86,14 @@ impl BufferState {
         (search.revision == self.buffer.revision()).then(|| search.status_text())
     }
 
-    pub(crate) fn ensure_cursor_visible(&mut self, body_height: usize, body_width: usize) {
+    pub(crate) fn ensure_cursor_visible(
+        &mut self,
+        body_height: usize,
+        body_width: usize,
+        mode: AmbiguousWidth,
+    ) {
         if self.word_wrap {
-            self.ensure_cursor_visible_wrapped(body_height, body_width);
+            self.ensure_cursor_visible_wrapped(body_height, body_width, mode);
             return;
         }
         self.first_visual_row = 0;
@@ -103,27 +108,36 @@ impl BufferState {
             }
         }
 
-        self.ensure_cursor_column_visible(body_width);
+        self.ensure_cursor_column_visible(body_width, mode);
     }
 
-    pub(crate) fn ensure_cursor_visible_wrapped(&mut self, body_height: usize, body_width: usize) {
+    pub(crate) fn ensure_cursor_visible_wrapped(
+        &mut self,
+        body_height: usize,
+        body_width: usize,
+        mode: AmbiguousWidth,
+    ) {
         self.first_column = 0;
         let body_width = body_width.max(1);
         let cursor_row =
-            self.wrapped_visual_row_for_position(self.buffer.cursor_position(), body_width);
+            self.wrapped_visual_row_for_position(self.buffer.cursor_position(), body_width, mode);
         if body_height == 0 {
-            self.set_wrapped_top_visual_row(cursor_row, body_width);
+            self.set_wrapped_top_visual_row(cursor_row, body_width, mode);
             return;
         }
 
-        let top = self.wrapped_top_visual_row(body_width);
+        let top = self.wrapped_top_visual_row(body_width, mode);
         let height = body_height.max(1);
         if cursor_row < top {
-            self.set_wrapped_top_visual_row(cursor_row, body_width);
+            self.set_wrapped_top_visual_row(cursor_row, body_width, mode);
         } else if cursor_row >= top.saturating_add(height) {
-            self.set_wrapped_top_visual_row(cursor_row.saturating_sub(height - 1), body_width);
+            self.set_wrapped_top_visual_row(
+                cursor_row.saturating_sub(height - 1),
+                body_width,
+                mode,
+            );
         } else {
-            self.normalize_wrapped_top(body_width);
+            self.normalize_wrapped_top(body_width, mode);
         }
     }
 
@@ -148,19 +162,26 @@ impl BufferState {
         direction: isize,
         rows: usize,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> bool {
         let body_width = body_width.max(1);
         let current = self.buffer.cursor_position();
-        let current_row = self.wrapped_visual_row_for_position(current, body_width);
-        let current_column = self.wrapped_visual_column_for_position(current, body_width);
-        let max_row = self.wrapped_total_visual_rows(body_width).saturating_sub(1);
+        let current_row = self.wrapped_visual_row_for_position(current, body_width, mode);
+        let current_column = self.wrapped_visual_column_for_position(current, body_width, mode);
+        let max_row = self
+            .wrapped_total_visual_rows(body_width, mode)
+            .saturating_sub(1);
         let target_row = if direction < 0 {
             current_row.saturating_sub(rows.max(1))
         } else {
             current_row.saturating_add(rows.max(1)).min(max_row)
         };
-        let target =
-            self.position_for_wrapped_visual_row_column(target_row, current_column, body_width);
+        let target = self.position_for_wrapped_visual_row_column(
+            target_row,
+            current_column,
+            body_width,
+            mode,
+        );
         let moved = target != current;
         let _ = self.buffer.set_cursor(target);
         moved
@@ -171,12 +192,13 @@ impl BufferState {
         delta: isize,
         body_height: usize,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> bool {
         if body_height == 0 || self.buffer.line_count() == 0 {
             return false;
         }
         if self.word_wrap {
-            return self.scroll_wrapped_visual_rows(delta, body_height, body_width);
+            return self.scroll_wrapped_visual_rows(delta, body_height, body_width, mode);
         }
 
         let old_first_line = self.first_line;
@@ -200,6 +222,7 @@ impl BufferState {
         first_visual_row: usize,
         body_height: usize,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> bool {
         if body_height == 0 || self.buffer.line_count() == 0 {
             return false;
@@ -207,10 +230,10 @@ impl BufferState {
         if self.word_wrap {
             let old = (self.first_line, self.first_visual_row);
             let target = self
-                .wrapped_visual_row_for_line(first_line, body_width.max(1))
+                .wrapped_visual_row_for_line(first_line, body_width.max(1), mode)
                 .saturating_add(first_visual_row);
-            self.set_wrapped_top_visual_row(target, body_width.max(1));
-            self.keep_cursor_inside_visible_wrapped_rows(body_height, body_width.max(1));
+            self.set_wrapped_top_visual_row(target, body_width.max(1), mode);
+            self.keep_cursor_inside_visible_wrapped_rows(body_height, body_width.max(1), mode);
             return old != (self.first_line, self.first_visual_row);
         }
 
@@ -222,7 +245,12 @@ impl BufferState {
         self.first_line != old_first_line
     }
 
-    pub(crate) fn scroll_view_columns(&mut self, delta: isize, body_width: usize) -> bool {
+    pub(crate) fn scroll_view_columns(
+        &mut self,
+        delta: isize,
+        body_width: usize,
+        mode: AmbiguousWidth,
+    ) -> bool {
         if self.word_wrap {
             self.first_column = 0;
             return false;
@@ -234,7 +262,7 @@ impl BufferState {
 
         let old_first_column = self.first_column;
         let max_first_column = self
-            .max_line_display_width()
+            .max_line_display_width(mode)
             .saturating_sub(body_width.max(1));
         self.first_column = if delta < 0 {
             self.first_column.saturating_sub(delta.unsigned_abs())
@@ -267,19 +295,26 @@ impl BufferState {
         direction: isize,
         rows: usize,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> bool {
         let body_width = body_width.max(1);
         let current = self.buffer.cursor_position();
-        let current_row = self.wrapped_visual_row_for_position(current, body_width);
-        let current_column = self.wrapped_visual_column_for_position(current, body_width);
-        let max_row = self.wrapped_total_visual_rows(body_width).saturating_sub(1);
+        let current_row = self.wrapped_visual_row_for_position(current, body_width, mode);
+        let current_column = self.wrapped_visual_column_for_position(current, body_width, mode);
+        let max_row = self
+            .wrapped_total_visual_rows(body_width, mode)
+            .saturating_sub(1);
         let target_row = if direction < 0 {
             current_row.saturating_sub(rows.max(1))
         } else {
             current_row.saturating_add(rows.max(1)).min(max_row)
         };
-        let target =
-            self.position_for_wrapped_visual_row_column(target_row, current_column, body_width);
+        let target = self.position_for_wrapped_visual_row_column(
+            target_row,
+            current_column,
+            body_width,
+            mode,
+        );
         let anchor = self
             .buffer
             .selection()
@@ -290,14 +325,14 @@ impl BufferState {
         moved
     }
 
-    pub(crate) fn ensure_cursor_column_visible(&mut self, body_width: usize) {
+    pub(crate) fn ensure_cursor_column_visible(&mut self, body_width: usize, mode: AmbiguousWidth) {
         if self.word_wrap {
             self.first_column = 0;
-            self.normalize_wrapped_top(body_width.max(1));
+            self.normalize_wrapped_top(body_width.max(1), mode);
             return;
         }
 
-        let cursor_column = self.cursor_display_column();
+        let cursor_column = self.cursor_display_column(mode);
         if body_width == 0 {
             self.first_column = cursor_column;
             return;
@@ -310,20 +345,20 @@ impl BufferState {
         }
     }
 
-    pub(crate) fn cursor_display_column(&self) -> usize {
+    pub(crate) fn cursor_display_column(&self, mode: AmbiguousWidth) -> usize {
         let position = self.buffer.cursor_position();
         self.buffer
             .line(position.line)
             .and_then(|line| line.get(..position.column))
-            .map(UnicodeWidthStr::width)
+            .map(|prefix| str_width(prefix, mode))
             .unwrap_or(0)
     }
 
-    pub(crate) fn max_line_display_width(&self) -> usize {
+    pub(crate) fn max_line_display_width(&self, mode: AmbiguousWidth) -> usize {
         self.buffer
             .lines()
             .iter()
-            .map(|line| UnicodeWidthStr::width(line.as_str()))
+            .map(|line| str_width(line.as_str(), mode))
             .max()
             .unwrap_or(0)
     }
@@ -333,45 +368,50 @@ impl BufferState {
         delta: isize,
         body_height: usize,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> bool {
         let body_width = body_width.max(1);
         let old = (self.first_line, self.first_visual_row);
-        let top = self.wrapped_top_visual_row(body_width);
+        let top = self.wrapped_top_visual_row(body_width, mode);
         let max_top = self
-            .wrapped_total_visual_rows(body_width)
+            .wrapped_total_visual_rows(body_width, mode)
             .saturating_sub(body_height.max(1));
         let next = if delta < 0 {
             top.saturating_sub(delta.unsigned_abs())
         } else {
             top.saturating_add(delta as usize).min(max_top)
         };
-        self.set_wrapped_top_visual_row(next, body_width);
-        self.keep_cursor_inside_visible_wrapped_rows(body_height, body_width);
+        self.set_wrapped_top_visual_row(next, body_width, mode);
+        self.keep_cursor_inside_visible_wrapped_rows(body_height, body_width, mode);
         old != (self.first_line, self.first_visual_row)
     }
 
-    pub(crate) fn normalize_wrapped_top(&mut self, body_width: usize) {
+    pub(crate) fn normalize_wrapped_top(&mut self, body_width: usize, mode: AmbiguousWidth) {
         if !self.word_wrap {
             self.first_visual_row = 0;
             return;
         }
         let body_width = body_width.max(1);
-        let top = self.wrapped_top_visual_row(body_width);
-        self.set_wrapped_top_visual_row(top, body_width);
+        let top = self.wrapped_top_visual_row(body_width, mode);
+        self.set_wrapped_top_visual_row(top, body_width, mode);
     }
 
-    pub(crate) fn wrapped_total_visual_rows(&self, body_width: usize) -> usize {
+    pub(crate) fn wrapped_total_visual_rows(
+        &self,
+        body_width: usize,
+        mode: AmbiguousWidth,
+    ) -> usize {
         (0..self.buffer.line_count())
-            .map(|line_index| self.wrapped_line_visual_rows(line_index, body_width))
+            .map(|line_index| self.wrapped_line_visual_rows(line_index, body_width, mode))
             .sum::<usize>()
             .max(1)
     }
 
-    pub(crate) fn wrapped_top_visual_row(&self, body_width: usize) -> usize {
-        self.wrapped_visual_row_for_line(self.first_line, body_width)
+    pub(crate) fn wrapped_top_visual_row(&self, body_width: usize, mode: AmbiguousWidth) -> usize {
+        self.wrapped_visual_row_for_line(self.first_line, body_width, mode)
             .saturating_add(
                 self.first_visual_row.min(
-                    self.wrapped_line_visual_rows(self.first_line, body_width)
+                    self.wrapped_line_visual_rows(self.first_line, body_width, mode)
                         .saturating_sub(1),
                 ),
             )
@@ -381,18 +421,26 @@ impl BufferState {
         &self,
         line_index: usize,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> usize {
         (0..line_index.min(self.buffer.line_count()))
-            .map(|line| self.wrapped_line_visual_rows(line, body_width))
+            .map(|line| self.wrapped_line_visual_rows(line, body_width, mode))
             .sum()
     }
 
-    pub(crate) fn set_wrapped_top_visual_row(&mut self, target_row: usize, body_width: usize) {
+    pub(crate) fn set_wrapped_top_visual_row(
+        &mut self,
+        target_row: usize,
+        body_width: usize,
+        mode: AmbiguousWidth,
+    ) {
         let body_width = body_width.max(1);
-        let max_row = self.wrapped_total_visual_rows(body_width).saturating_sub(1);
+        let max_row = self
+            .wrapped_total_visual_rows(body_width, mode)
+            .saturating_sub(1);
         let mut remaining = target_row.min(max_row);
         for line_index in 0..self.buffer.line_count() {
-            let rows = self.wrapped_line_visual_rows(line_index, body_width);
+            let rows = self.wrapped_line_visual_rows(line_index, body_width, mode);
             if remaining < rows {
                 self.first_line = line_index;
                 self.first_visual_row = remaining;
@@ -411,31 +459,37 @@ impl BufferState {
         &self,
         position: Position,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> usize {
-        self.wrapped_visual_row_for_line(position.line, body_width)
-            .saturating_add(self.wrapped_row_offset_for_position(position, body_width))
+        self.wrapped_visual_row_for_line(position.line, body_width, mode)
+            .saturating_add(self.wrapped_row_offset_for_position(position, body_width, mode))
     }
 
     pub(crate) fn wrapped_row_offset_for_position(
         &self,
         position: Position,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> usize {
-        self.wrapped_row_column_for_position(position, body_width).0
+        self.wrapped_row_column_for_position(position, body_width, mode)
+            .0
     }
 
     pub(crate) fn wrapped_visual_column_for_position(
         &self,
         position: Position,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> usize {
-        self.wrapped_row_column_for_position(position, body_width).1
+        self.wrapped_row_column_for_position(position, body_width, mode)
+            .1
     }
 
     pub(crate) fn wrapped_row_column_for_position(
         &self,
         position: Position,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> (usize, usize) {
         let body_width = body_width.max(1);
         let Some(line) = self.buffer.line(position.line) else {
@@ -448,7 +502,7 @@ impl BufferState {
             advance_wrapped_column(
                 &mut row,
                 &mut column,
-                display_width_for_editor_char(ch),
+                display_width_for_editor_char(ch, mode),
                 body_width,
             );
         }
@@ -459,7 +513,12 @@ impl BufferState {
         (row, column)
     }
 
-    pub(crate) fn wrapped_line_visual_rows(&self, line_index: usize, body_width: usize) -> usize {
+    pub(crate) fn wrapped_line_visual_rows(
+        &self,
+        line_index: usize,
+        body_width: usize,
+        mode: AmbiguousWidth,
+    ) -> usize {
         let body_width = body_width.max(1);
         let Some(line) = self.buffer.line(line_index) else {
             return 1;
@@ -473,7 +532,7 @@ impl BufferState {
             advance_wrapped_column(
                 &mut row,
                 &mut column,
-                display_width_for_editor_char(ch),
+                display_width_for_editor_char(ch, mode),
                 body_width,
             );
         }
@@ -484,16 +543,17 @@ impl BufferState {
         &self,
         target_row: usize,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> Position {
         let body_width = body_width.max(1);
         let mut remaining = target_row;
         for line_index in 0..self.buffer.line_count() {
-            let rows = self.wrapped_line_visual_rows(line_index, body_width);
+            let rows = self.wrapped_line_visual_rows(line_index, body_width, mode);
             if remaining < rows {
                 let line = self.buffer.line(line_index).unwrap_or_default();
                 return Position::new(
                     line_index,
-                    byte_column_for_wrapped_row_start(line, remaining, body_width),
+                    byte_column_for_wrapped_row_start(line, remaining, body_width, mode),
                 );
             }
             remaining = remaining.saturating_sub(rows);
@@ -506,16 +566,23 @@ impl BufferState {
         target_row: usize,
         target_column: usize,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) -> Position {
         let body_width = body_width.max(1);
         let mut remaining = target_row;
         for line_index in 0..self.buffer.line_count() {
-            let rows = self.wrapped_line_visual_rows(line_index, body_width);
+            let rows = self.wrapped_line_visual_rows(line_index, body_width, mode);
             if remaining < rows {
                 let line = self.buffer.line(line_index).unwrap_or_default();
                 return Position::new(
                     line_index,
-                    byte_column_for_wrapped_row_column(line, remaining, target_column, body_width),
+                    byte_column_for_wrapped_row_column(
+                        line,
+                        remaining,
+                        target_column,
+                        body_width,
+                        mode,
+                    ),
                 );
             }
             remaining = remaining.saturating_sub(rows);
@@ -548,16 +615,17 @@ impl BufferState {
         &mut self,
         body_height: usize,
         body_width: usize,
+        mode: AmbiguousWidth,
     ) {
         if body_height == 0 {
             return;
         }
 
         let body_width = body_width.max(1);
-        let top = self.wrapped_top_visual_row(body_width);
+        let top = self.wrapped_top_visual_row(body_width, mode);
         let bottom = top.saturating_add(body_height.saturating_sub(1));
         let cursor_row =
-            self.wrapped_visual_row_for_position(self.buffer.cursor_position(), body_width);
+            self.wrapped_visual_row_for_position(self.buffer.cursor_position(), body_width, mode);
         let target_row = cursor_row.clamp(top, bottom);
         if target_row == cursor_row {
             return;
@@ -565,7 +633,7 @@ impl BufferState {
 
         let _ = self
             .buffer
-            .set_cursor(self.position_for_wrapped_visual_row(target_row, body_width));
+            .set_cursor(self.position_for_wrapped_visual_row(target_row, body_width, mode));
     }
 
     pub(crate) fn clamp_column_to_line(&self, line_index: usize, target_column: usize) -> usize {
@@ -580,28 +648,15 @@ impl BufferState {
     }
 }
 
-pub(crate) fn editor_body_width(buffer: &BufferState, rect: Rect) -> usize {
-    let inner_width = rect.width.saturating_sub(2);
-    let gutter_width = editor_gutter_width(buffer, rect).min(inner_width);
-    inner_width.saturating_sub(gutter_width) as usize
-}
-
-fn editor_gutter_width(buffer: &BufferState, rect: Rect) -> u16 {
-    let inner_width = rect.width.saturating_sub(2);
-    let digits = decimal_digits_for_editor(buffer.buffer.line_count().max(1));
-    let width = (digits + 1) as u16;
-    if inner_width < width.saturating_add(MIN_BODY_COLUMNS_WITH_GUTTER) {
-        0
-    } else {
-        width
-    }
-}
-
-fn decimal_digits_for_editor(mut value: usize) -> usize {
-    let mut digits = 1;
-    while value >= 10 {
-        value /= 10;
-        digits += 1;
-    }
-    digits
+pub(crate) fn editor_body_width(shell: &UiShell, buffer: &BufferState, rect: Rect) -> usize {
+    let geometry = shell.window_geometry(rect.width, rect.height, Some(buffer.buffer.line_count()));
+    debug_assert!(
+        geometry.gutter.width == 0
+            || geometry.inner.width
+                >= geometry
+                    .gutter
+                    .width
+                    .saturating_add(MIN_BODY_COLUMNS_WITH_GUTTER)
+    );
+    usize::from(geometry.body.width)
 }

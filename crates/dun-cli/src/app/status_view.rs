@@ -69,7 +69,7 @@ impl AppState {
             .buffer
             .line(position.line)
             .and_then(|line| line.get(..position.column))
-            .map(|prefix| UnicodeWidthStr::width(prefix) + 1)
+            .map(|prefix| str_width(prefix, self.shell.profile.ambiguous_width) + 1)
             .unwrap_or(1);
 
         let mut parts = vec![
@@ -80,6 +80,7 @@ impl AppState {
             bracket(&scroll_status(
                 buffer,
                 self.focused_buffer_view_context(self.workspace_area),
+                self.shell.profile.ambiguous_width,
             )),
             bracket(&profile),
             bracket(&window),
@@ -90,7 +91,9 @@ impl AppState {
         if buffer.word_wrap {
             parts.insert(4, bracket("Wrap"));
         }
-        if let Some(selection) = selection_status(&buffer.buffer) {
+        if let Some(selection) =
+            selection_status(&buffer.buffer, self.shell.profile.ambiguous_width)
+        {
             parts.insert(4, bracket(&selection));
         }
         if let Some(search) = buffer.search_status() {

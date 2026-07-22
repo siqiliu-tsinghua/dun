@@ -20,4 +20,3 @@ dun-core.workspace = true
 dun-plugin.workspace = true
 dun-term.workspace = true
 dun-ui.workspace = true
-unicode-width.workspace = true

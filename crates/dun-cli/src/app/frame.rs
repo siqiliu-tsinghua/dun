@@ -51,10 +51,11 @@ impl AppState {
         let Some(context) = self.focused_buffer_view_context(area) else {
             return;
         };
+        let mode = self.shell.profile.ambiguous_width;
         let Some(buffer) = self.buffer_state_mut(context.buffer_id) else {
             return;
         };
 
-        buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        buffer.ensure_cursor_visible(context.body_height, context.body_width, mode);
     }
 }

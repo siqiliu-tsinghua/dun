@@ -215,6 +215,7 @@ fn shipped_zh_catalog_translates_the_whole_help_window() {
         &dun_config::Keymap::default_editor(),
         &dun_config::FileDialogKeymap::default_file_dialog(),
         &catalog,
+        AmbiguousWidth::Narrow,
     );
     assert!(help.contains("帮助"), "translated help must render zh text");
     assert!(
@@ -229,7 +230,7 @@ fn shipped_zh_catalog_translates_the_whole_help_window() {
     // so char-count padding would shift its description right.
     let description_column = |line: &str, description: &str| {
         let start = line.find(description).expect("description in line");
-        unicode_width::UnicodeWidthStr::width(&line[..start])
+        str_width(&line[..start], AmbiguousWidth::Narrow)
     };
     let bound = help
         .lines()

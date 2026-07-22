@@ -430,18 +430,19 @@ impl AppState {
             });
         let body_height = context.body_height;
         let page_lines = body_height.saturating_sub(1).max(1);
+        let mode = self.shell.profile.ambiguous_width;
         let Some(buffer) = self.focused_buffer_mut() else {
             return false;
         };
 
         let moved = if buffer.word_wrap {
-            buffer.move_wrapped_page(direction, page_lines, context.body_width)
+            buffer.move_wrapped_page(direction, page_lines, context.body_width, mode)
         } else if direction < 0 {
             buffer.move_page_up(page_lines)
         } else {
             buffer.move_page_down(page_lines)
         };
-        buffer.ensure_cursor_visible(body_height, context.body_width);
+        buffer.ensure_cursor_visible(body_height, context.body_width, mode);
         moved
     }
 
@@ -453,6 +454,7 @@ impl AppState {
                 body_height: 1,
                 body_width: 1,
             });
+        let mode = self.shell.profile.ambiguous_width;
         let Some(buffer) = self.focused_buffer_mut() else {
             return false;
         };
@@ -465,7 +467,7 @@ impl AppState {
         let moved =
             buffer.buffer.cursor_position() != target || buffer.buffer.selection().is_some();
         let _ = buffer.buffer.set_cursor(target);
-        buffer.ensure_cursor_visible(context.body_height, context.body_width);
+        buffer.ensure_cursor_visible(context.body_height, context.body_width, mode);
         moved
     }
 
@@ -478,11 +480,13 @@ impl AppState {
                 body_width: 1,
             });
         let step = context.body_width.saturating_div(2).max(1) as isize;
+        let mode = self.shell.profile.ambiguous_width;
         let Some(buffer) = self.focused_buffer_mut() else {
             return false;
         };
 
-        let moved = buffer.scroll_view_columns(direction.saturating_mul(step), context.body_width);
+        let moved =
+            buffer.scroll_view_columns(direction.saturating_mul(step), context.body_width, mode);
         let first_column = buffer.first_column;
         let status = if moved {
             let key = if direction < 0 {
@@ -510,18 +514,19 @@ impl AppState {
             });
         let body_height = context.body_height;
         let page_lines = body_height.saturating_sub(1).max(1);
+        let mode = self.shell.profile.ambiguous_width;
         let Some(buffer) = self.focused_buffer_mut() else {
             return false;
         };
 
         let moved = if buffer.word_wrap {
-            buffer.extend_wrapped_page(direction, page_lines, context.body_width)
+            buffer.extend_wrapped_page(direction, page_lines, context.body_width, mode)
         } else if direction < 0 {
             buffer.extend_page_up(page_lines)
         } else {
             buffer.extend_page_down(page_lines)
         };
-        buffer.ensure_cursor_visible(body_height, context.body_width);
+        buffer.ensure_cursor_visible(body_height, context.body_width, mode);
         moved
     }
 

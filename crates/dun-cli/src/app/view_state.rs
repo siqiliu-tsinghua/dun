@@ -82,8 +82,13 @@ impl AppState {
             .into_iter()
             .find(|layout| layout.id == window.id)?;
         let buffer = self.buffer_state(buffer_id)?;
-        let body_height = layout.rect.height.saturating_sub(2) as usize;
-        let body_width = editor_body_width(buffer, layout.rect);
+        let geometry = self.shell.window_geometry(
+            layout.rect.width,
+            layout.rect.height,
+            Some(buffer.buffer.line_count()),
+        );
+        let body_height = usize::from(geometry.body.height);
+        let body_width = usize::from(geometry.body.width);
         Some(BufferViewContext {
             buffer_id,
             body_height,

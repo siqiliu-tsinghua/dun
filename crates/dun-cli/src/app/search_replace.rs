@@ -504,10 +504,11 @@ impl AppState {
                 body_height: 1,
                 body_width: 1,
             });
+        let mode = self.shell.profile.ambiguous_width;
         if let Some(buffer) = self.buffer_state_mut(source_buffer_id) {
             let _ = buffer.buffer.select(selected.start, selected.end);
             buffer.set_search(spec.clone(), matches.clone(), Some(index));
-            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+            buffer.ensure_cursor_visible(context.body_height, context.body_width, mode);
         }
         self.set_status(ui_text::tr_fmt(
             &self.shell.catalog,
@@ -639,9 +640,10 @@ impl AppState {
                 body_height: 1,
                 body_width: 1,
             });
+        let mode = self.shell.profile.ambiguous_width;
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             let _ = buffer.buffer.set_cursor(Position::new(row.line, 0));
-            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+            buffer.ensure_cursor_visible(context.body_height, context.body_width, mode);
         }
         self.set_status(ui_text::tr_fmt(
             &self.shell.catalog,
@@ -689,9 +691,10 @@ impl AppState {
                 body_height: 1,
                 body_width: 1,
             });
+        let mode = self.shell.profile.ambiguous_width;
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             let _ = buffer.buffer.set_cursor(Position::new(row.line, 0));
-            buffer.ensure_cursor_visible(context.body_height, context.body_width);
+            buffer.ensure_cursor_visible(context.body_height, context.body_width, mode);
         }
         self.set_status(ui_text::tr_fmt(
             &self.shell.catalog,

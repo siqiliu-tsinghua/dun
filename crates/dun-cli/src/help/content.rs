@@ -6,8 +6,9 @@ pub(crate) fn help_buffer(
     keymap: &Keymap,
     file_dialog_keys: &FileDialogKeymap,
     catalog: &TextCatalog,
+    mode: AmbiguousWidth,
 ) -> TextBuffer {
-    let text = help_text(keymap, file_dialog_keys, catalog);
+    let text = help_text(keymap, file_dialog_keys, catalog, mode);
     TextBuffer::from_text_with_kind(BufferKind::ReadOnly, &text)
 }
 
@@ -184,8 +185,8 @@ fn tr<'a>(catalog: &'a TextCatalog, key: &str, english: &'static str) -> &'a str
 /// Pad by display width, not char count: a translated key column ("(未绑定)")
 /// is wider than its char count says, and `{:<15}` would misalign every
 /// description after it.
-fn pad_to_display_width(text: &str, width: usize) -> String {
-    let pad = width.saturating_sub(UnicodeWidthStr::width(text));
+fn pad_to_display_width(text: &str, width: usize, mode: AmbiguousWidth) -> String {
+    let pad = width.saturating_sub(str_width(text, mode));
     let mut out = String::with_capacity(text.len() + pad);
     out.push_str(text);
     out.extend(std::iter::repeat_n(' ', pad));
@@ -196,6 +197,7 @@ pub(crate) fn help_text(
     keymap: &Keymap,
     file_dialog_keys: &FileDialogKeymap,
     catalog: &TextCatalog,
+    mode: AmbiguousWidth,
 ) -> String {
     let mut out = String::from(tr(catalog, "help.title", "Dun Help"));
     out.push_str("\n\n");
@@ -214,6 +216,7 @@ pub(crate) fn help_text(
                 catalog,
                 &command.command,
                 command.description,
+                mode,
             );
         }
     }
@@ -223,7 +226,7 @@ pub(crate) fn help_text(
         out.push_str(tr(catalog, title_key, title));
         out.push('\n');
         for fixed_row in *rows {
-            push_fixed_row(&mut out, catalog, fixed_row);
+            push_fixed_row(&mut out, catalog, fixed_row, mode);
         }
     }
 
@@ -231,17 +234,24 @@ pub(crate) fn help_text(
     out.push_str(tr(catalog, "help.section.file-dialogs", "File Dialogs"));
     out.push('\n');
     for (action, description) in FILE_DIALOG_HELP {
-        push_file_dialog_help(&mut out, file_dialog_keys, catalog, *action, description);
+        push_file_dialog_help(
+            &mut out,
+            file_dialog_keys,
+            catalog,
+            *action,
+            description,
+            mode,
+        );
     }
     for fixed_row in MOUSE_ROWS {
-        push_fixed_row(&mut out, catalog, fixed_row);
+        push_fixed_row(&mut out, catalog, fixed_row, mode);
     }
 
     out.push('\n');
     out.push_str(tr(catalog, "help.section.menus", "Menus"));
     out.push('\n');
     for fixed_row in MENU_ROWS {
-        push_fixed_row(&mut out, catalog, fixed_row);
+        push_fixed_row(&mut out, catalog, fixed_row, mode);
     }
 
     out.push('\n');
@@ -299,10 +309,15 @@ pub(crate) fn help_translation_keys() -> Vec<(String, &'static str)> {
     keys
 }
 
-fn push_fixed_row(out: &mut String, catalog: &TextCatalog, fixed_row: &HelpRow) {
+fn push_fixed_row(
+    out: &mut String,
+    catalog: &TextCatalog,
+    fixed_row: &HelpRow,
+    mode: AmbiguousWidth,
+) {
     out.push_str(&format!(
         "  {} {}\n",
-        pad_to_display_width(fixed_row.keys, 17),
+        pad_to_display_width(fixed_row.keys, 17, mode),
         tr(catalog, fixed_row.key, fixed_row.english)
     ));
 }
@@ -313,6 +328,7 @@ fn push_help_command(
     catalog: &TextCatalog,
     command: &EditorCommand,
     description: &'static str,
+    mode: AmbiguousWidth,
 ) {
     let sequence = keymap
         .sequence_for_command(command)
@@ -321,7 +337,7 @@ fn push_help_command(
     let id = command_id(command);
     out.push_str(&format!(
         "  {} {} [{id}]\n",
-        pad_to_display_width(&sequence, 15),
+        pad_to_display_width(&sequence, 15, mode),
         tr(catalog, &format!("help.command.{id}"), description)
     ));
 }
@@ -332,12 +348,13 @@ fn push_file_dialog_help(
     catalog: &TextCatalog,
     action: FileDialogAction,
     description: &'static str,
+    mode: AmbiguousWidth,
 ) {
     let sequence = file_dialog_action_key_text(keymap, action);
     let id = file_dialog_action_id(action);
     out.push_str(&format!(
         "  {} {} [{id}]\n",
-        pad_to_display_width(&sequence, 15),
+        pad_to_display_width(&sequence, 15, mode),
         tr(catalog, &format!("help.command.{id}"), description)
     ));
 }

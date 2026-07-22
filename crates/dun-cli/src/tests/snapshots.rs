@@ -2,7 +2,6 @@
 
 use super::support::*;
 use dun_config::TerminalOverrides;
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 const STANDARD_WIDTH: u16 = 80;
 const STANDARD_HEIGHT: u16 = 24;
@@ -140,6 +139,7 @@ fn app_snapshot(
 ) -> String {
     let workspace_area = Rect::new(0, 0, width, height.saturating_sub(2));
     app.sync_view_for_area(workspace_area);
+    let mode = app.shell.profile.ambiguous_width;
     let buffer_views = app.buffer_views();
     let mut frame = app.shell.frame_for_workspace_with_menu_selection(
         &app.workspace,
@@ -164,12 +164,16 @@ fn app_snapshot(
     frame.status.right = app.focused_file_status();
     frame.status.plugin = app.plugin_indicator();
     frame.overlay = app.active_overlay();
-    redact_frame_text(&mut frame, redactions);
+    redact_frame_text(&mut frame, redactions, mode);
 
     dun_ui::frame_snapshot(&app.shell, &frame, width, height)
 }
 
-fn redact_frame_text(frame: &mut dun_ui::UiFrame, redactions: &[(&str, &str)]) {
+fn redact_frame_text(
+    frame: &mut dun_ui::UiFrame,
+    redactions: &[(&str, &str)],
+    mode: AmbiguousWidth,
+) {
     redact_text(&mut frame.status.left, redactions);
     redact_text(&mut frame.status.right, redactions);
     if let Some(plugin) = &mut frame.status.plugin {
@@ -203,9 +207,9 @@ fn redact_frame_text(frame: &mut dun_ui::UiFrame, redactions: &[(&str, &str)]) {
     }
     if let Some(input) = &mut overlay.input {
         if let Some(cursor_column) = overlay.cursor_column {
-            let mut prefix = display_prefix(input, cursor_column);
+            let mut prefix = display_prefix(input, cursor_column, mode);
             redact_text(&mut prefix, redactions);
-            overlay.cursor_column = Some(UnicodeWidthStr::width(prefix.as_str()));
+            overlay.cursor_column = Some(str_width(prefix.as_str(), mode));
         }
         redact_text(input, redactions);
     }
@@ -220,16 +224,16 @@ fn redact_text(text: &mut String, redactions: &[(&str, &str)]) {
     }
 }
 
-fn display_prefix(text: &str, columns: usize) -> String {
+fn display_prefix(text: &str, columns: usize, mode: AmbiguousWidth) -> String {
     let mut prefix = String::new();
     let mut width = 0usize;
     for ch in text.chars() {
-        let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
-        if width.saturating_add(char_width) > columns {
+        let width_for_char = char_width(ch, mode).unwrap_or(0);
+        if width.saturating_add(width_for_char) > columns {
             break;
         }
         prefix.push(ch);
-        width = width.saturating_add(char_width);
+        width = width.saturating_add(width_for_char);
     }
     prefix
 }
@@ -266,6 +270,28 @@ fn startup_80x24_snapshot() {
 
     assert_snapshot(
         "startup_80x24",
+        &app_snapshot(&mut app, STANDARD_WIDTH, STANDARD_HEIGHT, &[]),
+    );
+}
+
+#[test]
+fn wide_80x24_snapshot() {
+    let text = "◆".repeat(36);
+    let mut config = fixed_config(
+        ThemeName::Dun,
+        EncodingProfile::Utf8,
+        ColorProfile::Color256,
+    );
+    config.terminal.ambiguous_width = Some(AmbiguousWidth::Wide);
+    let mut app = AppState::from_config(config);
+    app.buffers[0].buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, &text);
+    app.buffers[0]
+        .buffer
+        .set_cursor(Position::new(0, text.len()))
+        .unwrap();
+
+    assert_snapshot(
+        "wide_80x24",
         &app_snapshot(&mut app, STANDARD_WIDTH, STANDARD_HEIGHT, &[]),
     );
 }

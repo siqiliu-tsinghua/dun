@@ -2,6 +2,14 @@
 
 use super::support::*;
 
+fn wide_app_with_text(text: &str) -> AppState {
+    let mut config = Config::default();
+    config.terminal.ambiguous_width = Some(AmbiguousWidth::Wide);
+    let mut app = AppState::from_config(config);
+    app.buffers[0].buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, text);
+    app
+}
+
 #[test]
 fn text_input_inserts_into_focused_buffer() {
     let mut app = AppState::new();
@@ -285,6 +293,50 @@ fn wrapped_page_commands_preserve_visual_column_across_tab_and_control() {
         state.buffer.line(1).unwrap().get(..cursor.column),
         Some("a\u{1}bcde")
     );
+}
+
+#[test]
+fn wide_sync_view_uses_rendered_body_width() {
+    let mut app = wide_app_with_text("one line");
+    let area = Rect::new(0, 0, 80, 8);
+
+    app.sync_view_for_area(area);
+
+    let context = app.focused_buffer_view_context(area).unwrap();
+    assert_eq!(context.body_width, 73);
+}
+
+#[test]
+fn wide_wrapping_counts_ambiguous_glyphs_as_two_columns() {
+    let app = wide_app_with_text("◆◆");
+    let state = app.buffer_state(BufferId(1)).unwrap();
+
+    assert_eq!(
+        state.wrapped_line_visual_rows(0, 3, AmbiguousWidth::Narrow),
+        1
+    );
+    assert_eq!(
+        state.wrapped_line_visual_rows(0, 3, AmbiguousWidth::Wide),
+        2
+    );
+}
+
+#[test]
+fn wide_horizontal_scroll_keeps_cursor_inside_physical_body() {
+    let mut app = wide_app_with_text(&"◆".repeat(40));
+    let area = Rect::new(0, 0, 80, 8);
+    app.sync_view_for_area(area);
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineEnd));
+    app.sync_view_for_area(area);
+
+    let context = app.focused_buffer_view_context(area).unwrap();
+    let state = app.buffer_state(BufferId(1)).unwrap();
+    let cursor_column = state.cursor_display_column(AmbiguousWidth::Wide);
+    assert_eq!(context.body_width, 73);
+    assert_eq!(cursor_column, 80);
+    assert_eq!(state.first_column, 8);
+    assert_eq!(cursor_column - state.first_column, 72);
 }
 
 #[test]

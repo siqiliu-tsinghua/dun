@@ -25,12 +25,13 @@ use dun_core::{
     SearchOptions, Selection, SplitDragHandle, TextBuffer, WindowCommand, WindowId, WindowKind,
     WindowState, Workspace, WorkspaceError, decode_file_text,
 };
-use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme};
+use dun_term::{
+    AmbiguousWidth, ColorProfile, EncodingProfile, TerminalProfile, Theme, char_width, str_width,
+};
 use dun_ui::{
     BufferHighlightSpan, BufferView, HighlightClass, MenuSelection, UiMouseTarget, UiOverlay,
     UiShell,
 };
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 mod app;
 mod cli;

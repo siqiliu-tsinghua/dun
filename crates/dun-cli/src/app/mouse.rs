@@ -135,7 +135,11 @@ impl AppState {
         let Some(dialog) = &self.file_dialog else {
             return false;
         };
-        let overlay = dialog.overlay(&self.file_dialog_keys, &self.shell.catalog);
+        let overlay = dialog.overlay(
+            &self.file_dialog_keys,
+            &self.shell.catalog,
+            self.shell.profile.ambiguous_width,
+        );
         let Some(visible_index) =
             self.shell
                 .hit_test_overlay_list(&overlay, self.overlay_area(), screen_x, screen_y)
@@ -213,25 +217,27 @@ impl AppState {
                     .ok()
                     .is_some_and(|window| window.buffer_id == buffer_id)
             })?;
-        if layout.rect.width <= 2 || layout.rect.height <= 2 {
+        let line_count = self.buffer_state(buffer_id)?.buffer.line_count();
+        let geometry =
+            self.shell
+                .window_geometry(layout.rect.width, layout.rect.height, Some(line_count));
+        if geometry.body.width == 0 || geometry.body.height == 0 {
             return None;
         }
 
-        let body_height = layout.rect.height.saturating_sub(2) as usize;
-        let body_width = layout.rect.width.saturating_sub(2) as usize;
-        let top = layout.rect.y.saturating_add(1);
-        let bottom = layout
-            .rect
-            .y
-            .saturating_add(layout.rect.height)
-            .saturating_sub(2);
+        let body_height = usize::from(geometry.body.height);
+        let body_width = editor_body_width(&self.shell, self.buffer_state(buffer_id)?, layout.rect);
+        let body_left = layout.rect.x.saturating_add(geometry.body.x);
+        let top = layout.rect.y.saturating_add(geometry.body.y);
+        let bottom = top.saturating_add(geometry.body.height.saturating_sub(1));
+        let mode = self.shell.profile.ambiguous_width;
         let target_line = {
             let buffer = self.buffer_state_mut(buffer_id)?;
             if workspace_y <= top {
-                buffer.scroll_view_lines(-1, body_height, body_width);
+                buffer.scroll_view_lines(-1, body_height, body_width, mode);
                 buffer.first_line
             } else if workspace_y >= bottom {
-                buffer.scroll_view_lines(1, body_height, body_width);
+                buffer.scroll_view_lines(1, body_height, body_width, mode);
                 buffer
                     .first_line
                     .saturating_add(body_height.saturating_sub(1))
@@ -245,20 +251,16 @@ impl AppState {
 
         let x = workspace_x
             .clamp(
-                layout.rect.x.saturating_add(1),
-                layout
-                    .rect
-                    .x
-                    .saturating_add(layout.rect.width)
-                    .saturating_sub(2),
+                body_left,
+                body_left.saturating_add(geometry.body.width.saturating_sub(1)),
             )
-            .saturating_sub(layout.rect.x.saturating_add(1)) as usize;
+            .saturating_sub(body_left) as usize;
         let buffer = self.buffer_state(buffer_id)?;
         let line = buffer.buffer.line(target_line)?;
         let display_column = buffer
             .first_column
             .saturating_add(x.min(body_width.saturating_sub(1)));
-        let column = clamp_to_display_column(line, display_column);
+        let column = clamp_to_display_column(line, display_column, mode);
         Some(Position::new(target_line, column))
     }
 
@@ -293,11 +295,13 @@ impl AppState {
                 body_height: 1,
                 body_width: 1,
             });
+        let mode = self.shell.profile.ambiguous_width;
 
         self.pending_keys.clear();
         self.buffer_state_mut(buffer_id).is_some_and(|buffer| {
-            let moved = buffer.scroll_view_lines(delta, context.body_height, context.body_width);
-            buffer.ensure_cursor_column_visible(context.body_width);
+            let moved =
+                buffer.scroll_view_lines(delta, context.body_height, context.body_width, mode);
+            buffer.ensure_cursor_column_visible(context.body_width, mode);
             moved
         })
     }
@@ -341,6 +345,7 @@ impl AppState {
                 body_height: 1,
                 body_width: 1,
             });
+        let mode = self.shell.profile.ambiguous_width;
         self.pending_keys.clear();
         self.buffer_state_mut(buffer_id).is_some_and(|buffer| {
             let moved = buffer.scroll_view_to_line(
@@ -348,8 +353,9 @@ impl AppState {
                 first_visual_row,
                 context.body_height,
                 context.body_width,
+                mode,
             );
-            buffer.ensure_cursor_column_visible(context.body_width);
+            buffer.ensure_cursor_column_visible(context.body_width, mode);
             moved
         })
     }
