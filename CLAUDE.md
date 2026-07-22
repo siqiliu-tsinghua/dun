@@ -74,9 +74,26 @@ batch.
 ## Codex Delegation (grunt-work packages)
 
 Method imported from the rum project (2026-07-10). Role split: I own
-direction, diagnosis, brief writing, the authoritative gate, and the commit;
-Codex executes exactly one brief, self-verifies to green, and reports with
-verbatim evidence — it never commits, branches, or pushes.
+direction, plan review, the authoritative gate, and the commit; Codex executes
+exactly one brief, self-verifies to green, and reports with verbatim evidence —
+it never commits, branches, or pushes.
+
+**Plan-first is the default (decided 2026-07-22).** For any non-trivial or
+cross-cutting task, do NOT hand-write a from-scratch implementation brief.
+Instead: (1) dispatch a **design-only brief** (`Scope: NONE — no source
+change`) that states the problem + current state and asks Codex to produce a
+concrete step-by-step *plan* — files/functions per step, how invariants stay
+intact, the gate tests, a call-site inventory, and risks/open questions, all
+with `path:line` evidence; Codex plans and writes no code. (2) I review and
+adapt the plan (decide the open questions, correct anything). (3) I dispatch
+each step as its own implementation brief, in order, and run the gate on each.
+This moves the codebase spelunking + architecture inventory onto Codex, cutting
+my session-quota burn, and Codex-authored plans enumerate the reach up front so
+a cross-cutting change isn't silently under-scoped (two clean Codex stop-losses
+on the wide-geometry work proved the hand-written brief hazard). Template
+sequence: brief 033 (design-only plan) → briefs 034/035/… (per-step
+implementation, each gated). Trivial mechanical jobs may still go straight to an
+implementation brief.
 
 - Briefs live in `docs/dev/codex/`: `TEMPLATE.md` is the format,
   `brief-NNN-<slug>.md` are the packages. Commit the brief FIRST, then
