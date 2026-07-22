@@ -1,6 +1,6 @@
 use dun_config::{Config, KeySequence, KeyStroke, Keymap, TextCatalog};
 use dun_core::{DisplaySanitizer, EditorCommand, Workspace};
-use dun_term::{EncodingProfile, GlyphSet, TerminalProfile, Theme};
+use dun_term::{EncodingProfile, GlyphSet, TerminalProfile, Theme, char_width};
 
 use crate::MenuItem;
 
@@ -60,6 +60,13 @@ impl UiShell {
 
     pub fn command_for_stroke(&self, stroke: KeyStroke) -> Option<&EditorCommand> {
         self.keymap.command_for_stroke(stroke)
+    }
+
+    pub fn border_columns(&self) -> u16 {
+        u16::try_from(
+            char_width(self.glyphs.border.vertical, self.profile.ambiguous_width).unwrap_or(1),
+        )
+        .unwrap_or(1)
     }
 
     pub fn describe_workspace(&self, workspace: &Workspace) -> String {

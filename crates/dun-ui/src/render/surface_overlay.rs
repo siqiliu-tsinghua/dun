@@ -16,6 +16,12 @@ pub(crate) fn draw_overlay(
         return None;
     }
 
+    let border_columns = shell.border_columns();
+    let panel_inset = border_columns.saturating_add(1);
+    let panel_padding = panel_inset.saturating_mul(2);
+    let top_inset = border_columns.max(2);
+    let top_padding = top_inset.saturating_mul(2);
+
     for row in area.y..area.y.saturating_add(area.height) {
         surface.style_run(area.x, row, area.width, shell.theme.palette.modal_scrim);
     }
@@ -63,20 +69,25 @@ pub(crate) fn draw_overlay(
         shell.theme.palette.modal_border,
     );
 
-    if rect.width > 6 {
-        let title_width = rect.width.saturating_sub(4) as usize;
+    if rect.width > top_padding.saturating_add(2) {
+        let title_width = rect.width.saturating_sub(top_padding) as usize;
         let title = fit_text_to_width(
             &format!(" {title} "),
             title_width,
             shell.glyphs.indicators.truncation,
             shell.profile.ambiguous_width,
         );
-        surface.set_text(rect.x + 2, rect.y, &title, shell.theme.palette.modal_text);
+        surface.set_text(
+            rect.x.saturating_add(top_inset),
+            rect.y,
+            &title,
+            shell.theme.palette.modal_text,
+        );
     }
 
     let mut cursor = None;
     let mut row = rect.y + 1;
-    let inner_width = rect.width.saturating_sub(4) as usize;
+    let inner_width = rect.width.saturating_sub(panel_padding) as usize;
     for line in lines {
         if row >= rect.y + rect.height - 1 {
             break;
@@ -87,7 +98,12 @@ pub(crate) fn draw_overlay(
             shell.glyphs.indicators.truncation,
             shell.profile.ambiguous_width,
         );
-        surface.set_text(rect.x + 2, row, &text, shell.theme.palette.modal_text);
+        surface.set_text(
+            rect.x.saturating_add(panel_inset),
+            row,
+            &text,
+            shell.theme.palette.modal_text,
+        );
         row += 1;
     }
 
@@ -95,9 +111,9 @@ pub(crate) fn draw_overlay(
         if row < rect.y + rect.height - 1 {
             let input_style = shell.theme.palette.modal_input;
             surface.fill_rect(
-                rect.x + 2,
+                rect.x.saturating_add(panel_inset),
                 row,
-                rect.width.saturating_sub(4),
+                rect.width.saturating_sub(panel_padding),
                 1,
                 ' ',
                 input_style,
@@ -108,11 +124,11 @@ pub(crate) fn draw_overlay(
                 shell.glyphs.indicators.truncation,
                 shell.profile.ambiguous_width,
             );
-            surface.set_text(rect.x + 2, row, &text, input_style);
+            surface.set_text(rect.x.saturating_add(panel_inset), row, &text, input_style);
             if let Some(cursor_column) = overlay.cursor_column {
                 let x = rect
                     .x
-                    .saturating_add(2)
+                    .saturating_add(panel_inset)
                     .saturating_add(cursor_column.min(inner_width.saturating_sub(1)) as u16);
                 cursor = Some((x, row));
             }
@@ -130,7 +146,14 @@ pub(crate) fn draw_overlay(
             shell.theme.palette.modal_text
         };
         if Some(index) == overlay.selected_list_index {
-            surface.fill_rect(rect.x + 2, row, rect.width.saturating_sub(4), 1, ' ', style);
+            surface.fill_rect(
+                rect.x.saturating_add(panel_inset),
+                row,
+                rect.width.saturating_sub(panel_padding),
+                1,
+                ' ',
+                style,
+            );
         }
         let text = fit_text_to_width(
             &entry,
@@ -138,7 +161,7 @@ pub(crate) fn draw_overlay(
             shell.glyphs.indicators.truncation,
             shell.profile.ambiguous_width,
         );
-        surface.set_text(rect.x + 2, row, &text, style);
+        surface.set_text(rect.x.saturating_add(panel_inset), row, &text, style);
         row += 1;
     }
     draw_overflow_indicators(
@@ -151,6 +174,7 @@ pub(crate) fn draw_overlay(
         vertical_overflow_down(shell),
         overlay.list_has_more_above,
         overlay.list_has_more_below,
+        shell.glyphs.border.vertical,
         shell.theme.palette.modal_border,
     );
 

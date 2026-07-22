@@ -38,7 +38,10 @@ pub(crate) fn dropdown_rect_for_menu(
         .max()
         .unwrap_or(1)
         .max(display_width(&item.label, shell.profile.ambiguous_width));
-    let width = content_width.saturating_add(4).min(u16::MAX as usize) as u16;
+    let panel_inset = shell.border_columns().saturating_add(1);
+    let width = content_width
+        .saturating_add(usize::from(panel_inset).saturating_mul(2))
+        .min(u16::MAX as usize) as u16;
     let height = item.entries.len().saturating_add(2).min(u16::MAX as usize) as u16;
 
     Some(Rect::new(start, 1, width.max(3), height.max(3)))

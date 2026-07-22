@@ -48,6 +48,10 @@ impl Surface {
         self.height
     }
 
+    pub(crate) fn glyph_width(&self, ch: char) -> usize {
+        dun_term::char_width(ch, self.ambiguous_width).unwrap_or(1)
+    }
+
     pub(crate) fn cell(&self, x: u16, y: u16) -> Option<&SurfaceCell> {
         let index = self.index(x, y)?;
         self.cells.get(index)

@@ -46,6 +46,7 @@ pub(crate) fn overlay_layout(
         &list,
         area,
         shell.profile.ambiguous_width,
+        shell.border_columns(),
     )
 }
 
@@ -59,12 +60,16 @@ fn overlay_layout_for_content(
     list: &[String],
     area: Rect,
     mode: AmbiguousWidth,
+    border_columns: u16,
 ) -> Option<OverlayLayout> {
     if area.width < 12 || area.height < 5 {
         return None;
     }
 
-    let mut content_width = display_width(title, mode).saturating_add(4);
+    let panel_inset = border_columns.saturating_add(1);
+    let top_inset = border_columns.max(2);
+    let mut content_width =
+        display_width(title, mode).saturating_add(usize::from(top_inset).saturating_mul(2));
     for line in lines {
         content_width = content_width.max(display_width(line, mode));
     }
@@ -79,7 +84,7 @@ fn overlay_layout_for_content(
     }
 
     let width = content_width
-        .saturating_add(4)
+        .saturating_add(usize::from(panel_inset).saturating_mul(2))
         .max(overlay.min_width as usize)
         .min(area.width as usize) as u16;
     let content_rows = lines

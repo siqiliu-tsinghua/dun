@@ -139,7 +139,9 @@ pub(crate) fn draw_active_menu(
         shell.theme.palette.menu_panel_border,
     );
 
-    let content_width = rect.width.saturating_sub(4) as usize;
+    let panel_inset = shell.border_columns().saturating_add(1);
+    let panel_padding = panel_inset.saturating_mul(2);
+    let content_width = rect.width.saturating_sub(panel_padding) as usize;
     let max_rows = rect.height.saturating_sub(2) as usize;
     let Some((start, end)) =
         menu_visible_entry_range(item.entries.len(), active.entry_index, max_rows)
@@ -156,6 +158,7 @@ pub(crate) fn draw_active_menu(
         vertical_overflow_down(shell),
         start > 0,
         end < item.entries.len(),
+        shell.glyphs.border.vertical,
         shell.theme.palette.menu_panel_border,
     );
     for (visible_index, entry) in item.entries[start..end].iter().enumerate() {
@@ -167,7 +170,7 @@ pub(crate) fn draw_active_menu(
         } else {
             shell.theme.palette.menu_panel_text
         };
-        surface.set_text(rect.x + 2, y, &text, style);
+        surface.set_text(rect.x.saturating_add(panel_inset), y, &text, style);
     }
 }
 

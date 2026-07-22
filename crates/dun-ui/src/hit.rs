@@ -35,12 +35,13 @@ impl UiShell {
         y: u16,
     ) -> Option<usize> {
         let layout = super::overlay_layout(self, overlay, area)?;
-        let content_start = layout.rect.x.saturating_add(2);
+        let panel_inset = self.border_columns().saturating_add(1);
+        let content_start = layout.rect.x.saturating_add(panel_inset);
         let content_end = layout
             .rect
             .x
             .saturating_add(layout.rect.width)
-            .saturating_sub(2);
+            .saturating_sub(panel_inset);
         if x < content_start || x >= content_end || y < layout.list_start_row {
             return None;
         }
@@ -91,8 +92,21 @@ impl UiShell {
         let item = menu.items.get(active.menu_index)?;
         let dropdown = super::dropdown_rect_for_menu(self, &menu, active.menu_index)?;
         let dropdown = super::clamp_menu_rect(dropdown, area)?;
-        if column <= dropdown.x
-            || column >= dropdown.x.saturating_add(dropdown.width).saturating_sub(1)
+        let border_columns = self.border_columns();
+        // Narrow menus historically include their padding in the hit target;
+        // Wide menus must also skip the second border cell.
+        let hit_inset = if border_columns == 1 {
+            border_columns
+        } else {
+            border_columns.saturating_add(1)
+        };
+        let content_start = dropdown.x.saturating_add(hit_inset);
+        let content_end = dropdown
+            .x
+            .saturating_add(dropdown.width)
+            .saturating_sub(hit_inset);
+        if column < content_start
+            || column >= content_end
             || row <= dropdown.y
             || row >= dropdown.y.saturating_add(dropdown.height).saturating_sub(1)
         {
