@@ -85,8 +85,10 @@ platform).
   `LANG=en_US.UTF-8`. The product compiles and links cleanly (crossterm 0.28.1
   builds against the native `ld`); all unit, protocol, PTY, plugin, and
   surface-write tests pass.
-- **KNOWN ISSUE — the 4 failures are all `tmux_grid`. Root-caused 2026-07-19:
-  Solaris tmux 3.4 (via Solaris libc `wcwidth`) renders Unicode
+  (As of `bf48733` the suite is **709 pass, 6 fail**: the four `tmux_grid` tests
+  plus two `tmux_logfilter` tests — see below.)
+- **KNOWN ISSUE — the tmux failures are the same root cause. Root-caused
+  2026-07-19: Solaris tmux 3.4 (via Solaris libc `wcwidth`) renders Unicode
   *ambiguous-width* characters as double-width** — the box-drawing block
   (U+2500 `─`, U+2502 `│`, corners) and geometric symbols (U+25C6 `◆`) each
   occupy 2 cells, where `unicode-width` (which `dun` uses) and every other
@@ -105,8 +107,15 @@ platform).
   **Workaround (verified):** force `dun`'s ASCII border glyphs, which are
   width-1 everywhere — put `terminal.encoding = ascii` in the config (or run
   `dun --config <file>` with that line). The border then renders full-width
-  (`+-- * Untitled --…--+`). Do not mask the tmux_grid failures by skipping;
-  they correctly report the platform's ambiguous-width policy.
+  (`+-- * Untitled --…--+`). Do not mask the tmux failures by skipping; they
+  correctly report the platform's ambiguous-width policy.
+- **The two `tmux_logfilter` failures (`execute`, `filters_command_output`) are
+  the same quirk.** Those two assert on body content read across three tiled
+  plugin windows, which the double-width box glyphs truncate; the other two
+  `tmux_logfilter` tests (`menu`, `keybinding`→scratch) are width-insensitive
+  (menu bar / short window title) and pass. Solaris has `/usr/bin/python3`
+  (→3.11), so the log-filter host launches and the tests run rather than
+  skip. FreeBSD and macOS pass all four.
 - There is no `/usr/bin/edit` on Solaris, so the Microsoft Edit tests skip
   cleanly (they gate on `microsoft_edit_on_path`).
 

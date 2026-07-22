@@ -671,3 +671,31 @@ macOS gate (idle): `tmux_grid` (5), `msedit_diff` (1), release `test-panic-hook`
 Cross-platform functional runs (full `cargo test --workspace`): **macOS 709/0,
 FreeBSD 709/0, Solaris 705/4** (the 4 Solaris failures are the root-caused
 ambiguous-width `tmux_grid` quirk). No measurement debt.
+
+## 2026-07-19 keybinding-collision diagnostic (bf48733)
+
+Binding measurement for the silent-collision fix (959915f: report a rejected
+plugin keybinding instead of dropping it silently) plus the tmux live-test
+additions (bf48733, test-only).
+
+| Platform | 4a841e2 | bf48733 | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 691,036 | 691,036 | 0 | 357,540 |
+| Debian x86_64 | 756,096 | 756,096 | 0 | 292,480 |
+
+Byte-neutral on both platforms: the diagnostic's runtime delta is absorbed by
+opt-level=z + LTO, and the new i18n key's ten translations are external files
+that cost the binary nothing. Debian smoke: ELF PIE stripped, ldd unchanged,
+--version / --dump-config clean, strings panic-trigger 0. macOS gate (idle):
+tmux_grid (5), tmux_logfilter (4), release test-panic-hook pty_smoke (10) all
+pass.
+
+Cross-platform functional runs (full cargo test --workspace): **macOS 715/0,
+FreeBSD 715/0, Solaris 709/6**. FreeBSD now runs the four tmux_logfilter live
+tests too (it has /usr/bin/python3) and passes them. The six Solaris failures
+are all the root-caused ambiguous-width tmux quirk: the four tmux_grid tests
+plus, new this run, two tmux_logfilter tests (execute and stream) whose
+assertions read body content across several tiled plugin windows, which the
+double-width box glyphs truncate — the menu and scratch-title tests are
+width-insensitive and pass. Not a dun defect (see docs/solaris-vm.md). No
+measurement debt.
