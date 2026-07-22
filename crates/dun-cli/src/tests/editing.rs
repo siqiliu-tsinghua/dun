@@ -178,7 +178,7 @@ fn shift_page_commands_extend_selection_by_visible_page() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::PageDown, CrosstermKeyModifiers::SHIFT),
+        TerminalKeyEvent::new(TerminalKeyCode::PageDown, TerminalKeyModifiers::SHIFT),
     );
 
     let buffer = &app.buffer_state(BufferId(1)).unwrap().buffer;
@@ -450,7 +450,7 @@ fn shift_arrow_keys_extend_selection_in_editor_buffer() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::SHIFT),
+        TerminalKeyEvent::new(TerminalKeyCode::Right, TerminalKeyModifiers::SHIFT),
     );
     assert_eq!(
         app.buffer_state(BufferId(1))
@@ -462,7 +462,7 @@ fn shift_arrow_keys_extend_selection_in_editor_buffer() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::SHIFT),
+        TerminalKeyEvent::new(TerminalKeyCode::Right, TerminalKeyModifiers::SHIFT),
     );
     assert_eq!(
         app.buffer_state(BufferId(1))
@@ -474,7 +474,7 @@ fn shift_arrow_keys_extend_selection_in_editor_buffer() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::SHIFT),
+        TerminalKeyEvent::new(TerminalKeyCode::Left, TerminalKeyModifiers::SHIFT),
     );
     assert_eq!(
         app.buffer_state(BufferId(1))
@@ -486,7 +486,7 @@ fn shift_arrow_keys_extend_selection_in_editor_buffer() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Left, TerminalKeyModifiers::NONE),
     );
     let buffer = &app.buffer_state(BufferId(1)).unwrap().buffer;
     assert_eq!(buffer.selection_range(), None);
@@ -503,7 +503,7 @@ fn shift_home_end_extend_selection_to_line_edges() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::SHIFT),
+        TerminalKeyEvent::new(TerminalKeyCode::End, TerminalKeyModifiers::SHIFT),
     );
     assert_eq!(
         app.buffer_state(BufferId(1))
@@ -515,7 +515,7 @@ fn shift_home_end_extend_selection_to_line_edges() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::SHIFT),
+        TerminalKeyEvent::new(TerminalKeyCode::Home, TerminalKeyModifiers::SHIFT),
     );
     let buffer = &app.buffer_state(BufferId(1)).unwrap().buffer;
     assert_eq!(
@@ -555,14 +555,14 @@ fn multi_stroke_key_sequence_applies_command() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::CONTROL),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('x'), TerminalKeyModifiers::CONTROL),
     );
 
     assert_eq!(app.workspace.window_count(), 1);
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('h'), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 2);
@@ -574,11 +574,11 @@ fn invalid_pending_key_sequence_does_not_insert_text() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::CONTROL),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('x'), TerminalKeyModifiers::CONTROL),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('m'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('m'), TerminalKeyModifiers::NONE),
     );
 
     let buffer = &app.buffer_state(BufferId(1)).unwrap().buffer;
@@ -820,7 +820,7 @@ fn bracketed_paste_targets_prompt_and_file_dialog_as_single_line() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Esc, TerminalKeyModifiers::NONE),
     );
     app.handle_command(&EditorCommand::File(FileCommand::Open));
     app.handle_paste("a\nb");

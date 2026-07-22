@@ -400,7 +400,7 @@ fn file_menu_open_snapshot() {
     let mut app = fixed_app_with_text(BLEED_UNDERLAY);
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('f'), CrosstermKeyModifiers::ALT),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('f'), TerminalKeyModifiers::ALT),
     );
 
     assert_snapshot(

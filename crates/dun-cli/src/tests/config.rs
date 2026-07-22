@@ -69,14 +69,14 @@ fn configured_help_binding_replaces_default_runtime_binding() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(1), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 1);
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(10), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(10), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 2);
@@ -93,7 +93,7 @@ fn configured_disabled_keybinding_is_not_dispatched() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(1), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 1);
@@ -182,7 +182,7 @@ key.app.help = F10
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(5), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(5), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -197,13 +197,13 @@ key.app.help = F10
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(1), TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.workspace.window_count(), 1);
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(10), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(10), TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.workspace.focused_window().unwrap().kind,
@@ -244,7 +244,7 @@ fn reload_config_failure_keeps_previous_keymap() {
     std::fs::write(&path, "bad = value\n").unwrap();
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(5), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(5), TerminalKeyModifiers::NONE),
     );
 
     assert!(
@@ -255,13 +255,13 @@ fn reload_config_failure_keeps_previous_keymap() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(1), TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.workspace.window_count(), 1);
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(10), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(10), TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.workspace.focused_window().unwrap().kind,
@@ -302,7 +302,7 @@ fn configured_shift_arrow_binding_wins_before_selection_fallback() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::SHIFT),
+        TerminalKeyEvent::new(TerminalKeyCode::Right, TerminalKeyModifiers::SHIFT),
     );
 
     assert_eq!(app.workspace.window_count(), 2);

@@ -37,7 +37,7 @@ fn f1_key_opens_help_screen() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(1), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(1), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 2);
@@ -175,7 +175,7 @@ fn f6_key_opens_config_diagnostics_screen() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(6), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(6), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 2);
@@ -228,7 +228,7 @@ fn search_results_window_keyboard_selection_enters_match() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('n'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('n'), TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.status_message,
@@ -237,7 +237,7 @@ fn search_results_window_keyboard_selection_enters_match() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('n'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('n'), TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.status_message,
@@ -246,7 +246,7 @@ fn search_results_window_keyboard_selection_enters_match() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let window = app.workspace.focused_window().unwrap();
@@ -268,7 +268,7 @@ fn search_results_window_home_end_select_first_and_last_match() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::End, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.status_message,
@@ -277,7 +277,7 @@ fn search_results_window_home_end_select_first_and_last_match() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Home, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.status_message,
@@ -286,7 +286,7 @@ fn search_results_window_home_end_select_first_and_last_match() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let source = app.buffer_state(BufferId(1)).unwrap();
@@ -376,7 +376,7 @@ fn f2_key_opens_status_history() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(2), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(2), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 2);

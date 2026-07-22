@@ -147,14 +147,14 @@ fn menu_specs(app: &AppState) -> Vec<MenuSpec> {
         .collect()
 }
 
-fn key(ch: char, modifiers: CrosstermKeyModifiers) -> CrosstermKeyEvent {
-    CrosstermKeyEvent::new(CrosstermKeyCode::Char(ch), modifiers)
+fn key(ch: char, modifiers: TerminalKeyModifiers) -> TerminalKeyEvent {
+    TerminalKeyEvent::new(TerminalKeyCode::Char(ch), modifiers)
 }
 
 fn drive_entry(fixture: &MenuMatrixFixture, menu: &MenuSpec, entry: &EntrySpec) -> MatrixRow {
     let mut app = fixture.fresh_app();
-    handle_key_event(&mut app, key(menu.mnemonic, CrosstermKeyModifiers::ALT));
-    handle_key_event(&mut app, key(entry.mnemonic, CrosstermKeyModifiers::NONE));
+    handle_key_event(&mut app, key(menu.mnemonic, TerminalKeyModifiers::ALT));
+    handle_key_event(&mut app, key(entry.mnemonic, TerminalKeyModifiers::NONE));
 
     let status = app
         .status_message

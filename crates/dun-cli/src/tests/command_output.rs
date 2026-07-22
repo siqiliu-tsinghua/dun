@@ -11,7 +11,7 @@ fn run_command_prompt_opens_read_only_output_window() {
     send_text(&mut app, "printf dun-run");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let window = app.workspace.focused_window().unwrap();
@@ -38,14 +38,14 @@ fn run_command_history_navigates_separately_from_command_line_history() {
     send_text(&mut app, "printf first");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     app.handle_command(&EditorCommand::App(AppCommand::RunCommand));
     send_text(&mut app, "printf second");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     app.handle_command(&EditorCommand::App(AppCommand::RunCommand));
@@ -53,7 +53,7 @@ fn run_command_history_navigates_separately_from_command_line_history() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Up, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -62,7 +62,7 @@ fn run_command_history_navigates_separately_from_command_line_history() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Up, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -71,7 +71,7 @@ fn run_command_history_navigates_separately_from_command_line_history() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -80,7 +80,7 @@ fn run_command_history_navigates_separately_from_command_line_history() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),

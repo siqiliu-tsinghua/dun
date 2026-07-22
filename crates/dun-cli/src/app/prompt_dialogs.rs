@@ -210,62 +210,62 @@ impl AppState {
         );
     }
 
-    pub(crate) fn handle_prompt_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+    pub(crate) fn handle_prompt_key_event(&mut self, event: TerminalKeyEvent) -> bool {
         if self.prompt.is_none() {
             return false;
         }
 
         match event.code {
-            CrosstermKeyCode::Esc => {
+            TerminalKeyCode::Esc => {
                 self.cancel_prompt();
             }
-            CrosstermKeyCode::Enter => {
+            TerminalKeyCode::Enter => {
                 self.submit_prompt();
             }
-            CrosstermKeyCode::Up => {
+            TerminalKeyCode::Up => {
                 self.recall_previous_prompt_history();
             }
-            CrosstermKeyCode::Down => {
+            TerminalKeyCode::Down => {
                 self.recall_next_prompt_history();
             }
-            CrosstermKeyCode::Tab => {
+            TerminalKeyCode::Tab => {
                 self.complete_command_line_prompt(true);
             }
-            CrosstermKeyCode::BackTab => {
+            TerminalKeyCode::BackTab => {
                 self.complete_command_line_prompt(false);
             }
-            CrosstermKeyCode::Left => {
+            TerminalKeyCode::Left => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.clear_completion();
                     prompt.input.move_left();
                 }
             }
-            CrosstermKeyCode::Right => {
+            TerminalKeyCode::Right => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.clear_completion();
                     prompt.input.move_right();
                 }
             }
-            CrosstermKeyCode::Home => {
+            TerminalKeyCode::Home => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.clear_completion();
                     prompt.input.move_start();
                 }
             }
-            CrosstermKeyCode::End => {
+            TerminalKeyCode::End => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.clear_completion();
                     prompt.input.move_end();
                 }
             }
-            CrosstermKeyCode::Delete => {
+            TerminalKeyCode::Delete => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.detach_history();
                     prompt.clear_completion();
                     prompt.input.delete_forward();
                 }
             }
-            CrosstermKeyCode::Backspace => {
+            TerminalKeyCode::Backspace => {
                 if let Some(prompt) = &mut self.prompt {
                     prompt.detach_history();
                     prompt.clear_completion();
@@ -273,7 +273,7 @@ impl AppState {
                 }
             }
             _ => {
-                if let Some(ch) = text_input_from_crossterm(event) {
+                if let Some(ch) = text_input_from_event(event) {
                     if let Some(prompt) = &mut self.prompt {
                         prompt.detach_history();
                         prompt.clear_completion();

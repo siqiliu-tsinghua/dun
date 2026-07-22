@@ -173,7 +173,7 @@ fn escape_closes_active_menu_before_keymap_dispatch() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Esc, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.active_menu, None);
@@ -187,7 +187,7 @@ fn alt_mnemonic_opens_menu_without_mouse_enabled() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::ALT),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('h'), TerminalKeyModifiers::ALT),
     );
 
     assert_eq!(app.active_menu, Some(3));
@@ -200,11 +200,11 @@ fn keyboard_menu_enter_dispatches_selected_entry() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::ALT),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('h'), TerminalKeyModifiers::ALT),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.active_menu, None);
@@ -221,26 +221,26 @@ fn keyboard_menu_arrows_switch_menu_and_entry() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('f'), CrosstermKeyModifiers::ALT),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('f'), TerminalKeyModifiers::ALT),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Right, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.active_menu, Some(1));
     assert_eq!(app.active_menu_entry, Some(0));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Right, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.status_message, Some("Split vertically".to_string()));

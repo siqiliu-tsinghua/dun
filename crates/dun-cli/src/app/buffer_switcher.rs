@@ -21,20 +21,20 @@ impl AppState {
         );
     }
 
-    pub(crate) fn handle_buffer_switcher_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+    pub(crate) fn handle_buffer_switcher_key_event(&mut self, event: TerminalKeyEvent) -> bool {
         if self.buffer_switcher.is_none() {
             return false;
         }
 
         match event.code {
-            CrosstermKeyCode::Esc => self.cancel_buffer_switcher(),
-            CrosstermKeyCode::Enter => self.submit_buffer_switcher(),
-            CrosstermKeyCode::Up => self.move_buffer_switcher_selection(-1),
-            CrosstermKeyCode::Down => self.move_buffer_switcher_selection(1),
-            CrosstermKeyCode::Home => self.select_buffer_switcher_first(),
-            CrosstermKeyCode::End => self.select_buffer_switcher_last(),
-            CrosstermKeyCode::PageUp => self.page_buffer_switcher_selection(-1),
-            CrosstermKeyCode::PageDown => self.page_buffer_switcher_selection(1),
+            TerminalKeyCode::Esc => self.cancel_buffer_switcher(),
+            TerminalKeyCode::Enter => self.submit_buffer_switcher(),
+            TerminalKeyCode::Up => self.move_buffer_switcher_selection(-1),
+            TerminalKeyCode::Down => self.move_buffer_switcher_selection(1),
+            TerminalKeyCode::Home => self.select_buffer_switcher_first(),
+            TerminalKeyCode::End => self.select_buffer_switcher_last(),
+            TerminalKeyCode::PageUp => self.page_buffer_switcher_selection(-1),
+            TerminalKeyCode::PageDown => self.page_buffer_switcher_selection(1),
             _ => {}
         }
 

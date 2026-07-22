@@ -93,14 +93,14 @@ impl AppState {
         true
     }
 
-    pub(crate) fn handle_confirm_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+    pub(crate) fn handle_confirm_key_event(&mut self, event: TerminalKeyEvent) -> bool {
         if self.confirm.is_none() {
             return false;
         }
 
         match event.code {
-            CrosstermKeyCode::Esc => self.cancel_confirm(),
-            CrosstermKeyCode::Char(ch) => match ch.to_ascii_lowercase() {
+            TerminalKeyCode::Esc => self.cancel_confirm(),
+            TerminalKeyCode::Char(ch) => match ch.to_ascii_lowercase() {
                 's' => self.save_confirmed_action(),
                 'd' => self.discard_confirmed_action(),
                 'c' => self.cancel_confirm(),
@@ -199,19 +199,19 @@ impl AppState {
         }
     }
 
-    pub(crate) fn handle_file_dialog_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+    pub(crate) fn handle_file_dialog_key_event(&mut self, event: TerminalKeyEvent) -> bool {
         if self.file_dialog.is_none() {
             return false;
         }
 
-        if let Some(action) = key_stroke_from_crossterm(event)
+        if let Some(action) = key_stroke_from_event(event)
             .and_then(|stroke| self.file_dialog_keys.action_for_stroke(stroke))
         {
             self.handle_file_dialog_action(action);
             return true;
         }
 
-        if let Some(ch) = text_input_from_crossterm(event) {
+        if let Some(ch) = text_input_from_event(event) {
             if let Some(dialog) = &mut self.file_dialog {
                 dialog.insert_char(ch);
             }

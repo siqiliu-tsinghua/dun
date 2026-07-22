@@ -8,57 +8,57 @@ pub(super) use std::path::{Path, PathBuf};
 pub(super) use std::str::FromStr;
 pub(super) use std::time::{Duration, Instant};
 
-pub(super) fn left_click(column: u16, row: u16) -> CrosstermMouseEvent {
-    CrosstermMouseEvent {
-        kind: CrosstermMouseEventKind::Down(CrosstermMouseButton::Left),
+pub(super) fn left_click(column: u16, row: u16) -> TerminalMouseEvent {
+    TerminalMouseEvent {
+        kind: TerminalMouseEventKind::Down(TerminalMouseButton::Left),
         column,
         row,
-        modifiers: CrosstermKeyModifiers::NONE,
+        modifiers: TerminalKeyModifiers::NONE,
     }
 }
 
-pub(super) fn right_click(column: u16, row: u16) -> CrosstermMouseEvent {
-    CrosstermMouseEvent {
-        kind: CrosstermMouseEventKind::Down(CrosstermMouseButton::Right),
+pub(super) fn right_click(column: u16, row: u16) -> TerminalMouseEvent {
+    TerminalMouseEvent {
+        kind: TerminalMouseEventKind::Down(TerminalMouseButton::Right),
         column,
         row,
-        modifiers: CrosstermKeyModifiers::NONE,
+        modifiers: TerminalKeyModifiers::NONE,
     }
 }
 
-pub(super) fn left_drag(column: u16, row: u16) -> CrosstermMouseEvent {
-    CrosstermMouseEvent {
-        kind: CrosstermMouseEventKind::Drag(CrosstermMouseButton::Left),
+pub(super) fn left_drag(column: u16, row: u16) -> TerminalMouseEvent {
+    TerminalMouseEvent {
+        kind: TerminalMouseEventKind::Drag(TerminalMouseButton::Left),
         column,
         row,
-        modifiers: CrosstermKeyModifiers::NONE,
+        modifiers: TerminalKeyModifiers::NONE,
     }
 }
 
-pub(super) fn left_up(column: u16, row: u16) -> CrosstermMouseEvent {
-    CrosstermMouseEvent {
-        kind: CrosstermMouseEventKind::Up(CrosstermMouseButton::Left),
+pub(super) fn left_up(column: u16, row: u16) -> TerminalMouseEvent {
+    TerminalMouseEvent {
+        kind: TerminalMouseEventKind::Up(TerminalMouseButton::Left),
         column,
         row,
-        modifiers: CrosstermKeyModifiers::NONE,
+        modifiers: TerminalKeyModifiers::NONE,
     }
 }
 
-pub(super) fn scroll_down(column: u16, row: u16) -> CrosstermMouseEvent {
-    CrosstermMouseEvent {
-        kind: CrosstermMouseEventKind::ScrollDown,
+pub(super) fn scroll_down(column: u16, row: u16) -> TerminalMouseEvent {
+    TerminalMouseEvent {
+        kind: TerminalMouseEventKind::ScrollDown,
         column,
         row,
-        modifiers: CrosstermKeyModifiers::NONE,
+        modifiers: TerminalKeyModifiers::NONE,
     }
 }
 
-pub(super) fn scroll_up(column: u16, row: u16) -> CrosstermMouseEvent {
-    CrosstermMouseEvent {
-        kind: CrosstermMouseEventKind::ScrollUp,
+pub(super) fn scroll_up(column: u16, row: u16) -> TerminalMouseEvent {
+    TerminalMouseEvent {
+        kind: TerminalMouseEventKind::ScrollUp,
         column,
         row,
-        modifiers: CrosstermKeyModifiers::NONE,
+        modifiers: TerminalKeyModifiers::NONE,
     }
 }
 
@@ -239,7 +239,7 @@ pub(super) fn send_text(app: &mut AppState, text: &str) {
     for ch in text.chars() {
         handle_key_event(
             app,
-            CrosstermKeyEvent::new(CrosstermKeyCode::Char(ch), CrosstermKeyModifiers::NONE),
+            TerminalKeyEvent::new(TerminalKeyCode::Char(ch), TerminalKeyModifiers::NONE),
         );
     }
 }
@@ -249,7 +249,7 @@ pub(super) fn submit_command_line(app: &mut AppState, text: &str) {
     send_text(app, text);
     handle_key_event(
         app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 }
 

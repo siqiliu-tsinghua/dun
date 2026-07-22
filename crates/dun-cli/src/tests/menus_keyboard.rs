@@ -2,16 +2,16 @@
 
 use super::support::*;
 
-fn key(code: CrosstermKeyCode) -> CrosstermKeyEvent {
-    CrosstermKeyEvent::new(code, CrosstermKeyModifiers::NONE)
+fn key(code: TerminalKeyCode) -> TerminalKeyEvent {
+    TerminalKeyEvent::new(code, TerminalKeyModifiers::NONE)
 }
 
-fn alt(ch: char) -> CrosstermKeyEvent {
-    CrosstermKeyEvent::new(CrosstermKeyCode::Char(ch), CrosstermKeyModifiers::ALT)
+fn alt(ch: char) -> TerminalKeyEvent {
+    TerminalKeyEvent::new(TerminalKeyCode::Char(ch), TerminalKeyModifiers::ALT)
 }
 
-fn ctrl(ch: char) -> CrosstermKeyEvent {
-    CrosstermKeyEvent::new(CrosstermKeyCode::Char(ch), CrosstermKeyModifiers::CONTROL)
+fn ctrl(ch: char) -> TerminalKeyEvent {
+    TerminalKeyEvent::new(TerminalKeyCode::Char(ch), TerminalKeyModifiers::CONTROL)
 }
 
 /// Every dropdown entry advertises a mnemonic in its label ("Open... (O)"), so
@@ -26,7 +26,7 @@ fn a_bare_letter_runs_the_menu_entry_that_advertises_it() {
     assert_eq!(app.active_menu, Some(0), "Alt+F opens the File menu");
 
     // File -> "Open... (O)".
-    handle_key_event(&mut app, key(CrosstermKeyCode::Char('o')));
+    handle_key_event(&mut app, key(TerminalKeyCode::Char('o')));
 
     assert!(app.active_menu.is_none(), "the menu closes once it runs");
     assert!(
@@ -42,11 +42,11 @@ fn the_mnemonic_is_case_insensitive_and_ignores_unmatched_keys() {
     handle_key_event(&mut app, alt('v'));
     // View has no "J" entry: an unmatched key leaves the menu open rather than
     // silently swallowing the keypress or closing on it.
-    handle_key_event(&mut app, key(CrosstermKeyCode::Char('j')));
+    handle_key_event(&mut app, key(TerminalKeyCode::Char('j')));
     assert_eq!(app.active_menu, Some(2));
 
     // View -> "Split Horizontal (H)", matched case-insensitively.
-    handle_key_event(&mut app, key(CrosstermKeyCode::Char('H')));
+    handle_key_event(&mut app, key(TerminalKeyCode::Char('H')));
     assert!(app.active_menu.is_none());
     assert_eq!(app.workspace.window_count(), 2, "the split ran");
 }
@@ -58,11 +58,11 @@ fn collapse_and_expand_are_reachable_from_view_menu_mnemonics() {
     app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
 
     handle_key_event(&mut app, alt('v'));
-    handle_key_event(&mut app, key(CrosstermKeyCode::Char('m')));
+    handle_key_event(&mut app, key(TerminalKeyCode::Char('m')));
     assert!(app.workspace.focused_window().unwrap().collapsed);
 
     handle_key_event(&mut app, alt('v'));
-    handle_key_event(&mut app, key(CrosstermKeyCode::Char('p')));
+    handle_key_event(&mut app, key(TerminalKeyCode::Char('p')));
     assert!(!app.workspace.focused_window().unwrap().collapsed);
 }
 
@@ -73,11 +73,11 @@ fn collapse_and_expand_are_reachable_from_default_keybindings() {
     app.handle_command(&EditorCommand::Window(WindowCommand::SplitHorizontal));
 
     handle_key_event(&mut app, ctrl('x'));
-    handle_key_event(&mut app, key(CrosstermKeyCode::Char('m')));
+    handle_key_event(&mut app, key(TerminalKeyCode::Char('m')));
     assert!(app.workspace.focused_window().unwrap().collapsed);
 
     handle_key_event(&mut app, ctrl('x'));
-    handle_key_event(&mut app, key(CrosstermKeyCode::Char('p')));
+    handle_key_event(&mut app, key(TerminalKeyCode::Char('p')));
     assert!(!app.workspace.focused_window().unwrap().collapsed);
 }
 
@@ -179,7 +179,7 @@ fn a_status_message_survives_until_the_next_keypress() {
         "the command reports why it did nothing"
     );
 
-    handle_key_event(&mut app, key(CrosstermKeyCode::Char('x')));
+    handle_key_event(&mut app, key(TerminalKeyCode::Char('x')));
     assert_eq!(
         app.status_message, None,
         "the next keypress hands the status line back to the buffer readout"

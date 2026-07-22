@@ -14,7 +14,7 @@ fn open_dialog_reuses_recent_successful_directory() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     app.handle_command(&EditorCommand::File(FileCommand::Open));
 
@@ -37,7 +37,7 @@ fn open_dialog_enters_directory_path() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -62,7 +62,7 @@ fn open_dialog_tab_completes_unique_file_path() {
     send_text(&mut app, &format!("{}/al", directory.display()));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -71,7 +71,7 @@ fn open_dialog_tab_completes_unique_file_path() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -92,7 +92,7 @@ fn file_dialog_path_input_cursor_edits_middle_of_path() {
     send_text(&mut app, &format!("{}/ab", directory.display()));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Left, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, "X");
     assert_eq!(
@@ -108,7 +108,7 @@ fn file_dialog_path_input_cursor_edits_middle_of_path() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Backspace, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -116,7 +116,7 @@ fn file_dialog_path_input_cursor_edits_middle_of_path() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Delete, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Delete, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -136,11 +136,11 @@ fn file_dialog_path_input_home_end_and_utf8_cursor_are_safe() {
     send_text(&mut app, &format!("{}/中b", directory.display()));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Left, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Backspace, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -149,7 +149,7 @@ fn file_dialog_path_input_home_end_and_utf8_cursor_are_safe() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Home, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, "~");
     assert_eq!(
@@ -159,7 +159,7 @@ fn file_dialog_path_input_home_end_and_utf8_cursor_are_safe() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::End, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, "!");
     assert_eq!(
@@ -184,15 +184,15 @@ fn open_dialog_down_enter_opens_selected_file() {
     send_text(&mut app, &format!("{}/", directory.display()));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -221,7 +221,7 @@ fn open_dialog_page_keys_move_selection_and_scroll() {
     send_text(&mut app, &format!("{}/", directory.display()));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::PageDown, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::PageDown, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.file_dialog
@@ -231,7 +231,7 @@ fn open_dialog_page_keys_move_selection_and_scroll() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::PageDown, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::PageDown, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.file_dialog
@@ -245,7 +245,7 @@ fn open_dialog_page_keys_move_selection_and_scroll() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::PageUp, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::PageUp, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.file_dialog
@@ -255,7 +255,7 @@ fn open_dialog_page_keys_move_selection_and_scroll() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::PageUp, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::PageUp, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.file_dialog
@@ -348,7 +348,7 @@ fn file_dialog_hides_dotfiles_until_prefix_or_toggle() {
     send_text(&mut app, &format!("{}/", directory.display()));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::CONTROL),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('h'), TerminalKeyModifiers::CONTROL),
     );
 
     let dialog = app.file_dialog.as_ref().unwrap();
@@ -430,13 +430,13 @@ fn file_dialog_uses_configured_modal_keybindings() {
     app.handle_command(&EditorCommand::File(FileCommand::Open));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::CONTROL),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('h'), TerminalKeyModifiers::CONTROL),
     );
     assert!(!app.file_dialog.as_ref().unwrap().show_hidden);
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::F(8), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::F(8), TerminalKeyModifiers::NONE),
     );
     assert!(app.file_dialog.as_ref().unwrap().show_hidden);
 
@@ -487,7 +487,7 @@ fn save_as_dialog_requires_second_enter_before_overwrite() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "old");
@@ -502,7 +502,7 @@ fn save_as_dialog_requires_second_enter_before_overwrite() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "x");
@@ -528,7 +528,7 @@ fn save_as_dialog_tab_completes_directory_before_save() {
     send_text(&mut app, &format!("{}/nes", parent.display()));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -538,7 +538,7 @@ fn save_as_dialog_tab_completes_directory_before_save() {
     send_text(&mut app, "out.txt");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -649,12 +649,12 @@ fn arrow_selecting_a_file_and_pressing_enter_opens_it() {
     for _ in 0..2 {
         handle_key_event(
             &mut app,
-            CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+            TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
         );
     }
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert!(app.file_dialog.is_none(), "the dialog closed");

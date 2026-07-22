@@ -1,6 +1,6 @@
 use crate::*;
 
-pub(crate) fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent) {
+pub(crate) fn handle_mouse_event(app: &mut AppState, event: TerminalMouseEvent) {
     if !app.mouse_enabled()
         || app.prompt.is_some()
         || app.confirm.is_some()
@@ -12,20 +12,20 @@ pub(crate) fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent)
 
     if app.buffer_switcher.is_some() {
         match event.kind {
-            CrosstermMouseEventKind::Down(CrosstermMouseButton::Left) => {
+            TerminalMouseEventKind::Down(TerminalMouseButton::Left) => {
                 app.handle_buffer_switcher_mouse_down(event.column, event.row);
             }
-            CrosstermMouseEventKind::Down(CrosstermMouseButton::Right) => {
+            TerminalMouseEventKind::Down(TerminalMouseButton::Right) => {
                 app.note_right_click_paste();
             }
-            CrosstermMouseEventKind::ScrollUp => {
+            TerminalMouseEventKind::ScrollUp => {
                 app.scroll_buffer_switcher(-1);
             }
-            CrosstermMouseEventKind::ScrollDown => {
+            TerminalMouseEventKind::ScrollDown => {
                 app.scroll_buffer_switcher(1);
             }
-            CrosstermMouseEventKind::ScrollLeft | CrosstermMouseEventKind::ScrollRight => {}
-            CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
+            TerminalMouseEventKind::ScrollLeft | TerminalMouseEventKind::ScrollRight => {}
+            TerminalMouseEventKind::Up(TerminalMouseButton::Left) => {
                 app.handle_mouse_up();
             }
             _ => {}
@@ -35,20 +35,20 @@ pub(crate) fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent)
 
     if app.file_dialog.is_some() {
         match event.kind {
-            CrosstermMouseEventKind::Down(CrosstermMouseButton::Left) => {
+            TerminalMouseEventKind::Down(TerminalMouseButton::Left) => {
                 app.handle_file_dialog_mouse_down(event.column, event.row);
             }
-            CrosstermMouseEventKind::Down(CrosstermMouseButton::Right) => {
+            TerminalMouseEventKind::Down(TerminalMouseButton::Right) => {
                 app.note_right_click_paste();
             }
-            CrosstermMouseEventKind::ScrollUp => {
+            TerminalMouseEventKind::ScrollUp => {
                 app.scroll_file_dialog(-1);
             }
-            CrosstermMouseEventKind::ScrollDown => {
+            TerminalMouseEventKind::ScrollDown => {
                 app.scroll_file_dialog(1);
             }
-            CrosstermMouseEventKind::ScrollLeft | CrosstermMouseEventKind::ScrollRight => {}
-            CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
+            TerminalMouseEventKind::ScrollLeft | TerminalMouseEventKind::ScrollRight => {}
+            TerminalMouseEventKind::Up(TerminalMouseButton::Left) => {
                 app.handle_mouse_up();
             }
             _ => {}
@@ -57,40 +57,40 @@ pub(crate) fn handle_mouse_event(app: &mut AppState, event: CrosstermMouseEvent)
     }
 
     match event.kind {
-        CrosstermMouseEventKind::Down(CrosstermMouseButton::Left) => {
+        TerminalMouseEventKind::Down(TerminalMouseButton::Left) => {
             app.handle_mouse_down(event.column, event.row);
         }
-        CrosstermMouseEventKind::Down(CrosstermMouseButton::Right) => {
+        TerminalMouseEventKind::Down(TerminalMouseButton::Right) => {
             app.note_right_click_paste();
         }
-        CrosstermMouseEventKind::Drag(CrosstermMouseButton::Left) => {
+        TerminalMouseEventKind::Drag(TerminalMouseButton::Left) => {
             app.handle_mouse_drag(event.column, event.row);
         }
-        CrosstermMouseEventKind::ScrollUp => {
+        TerminalMouseEventKind::ScrollUp => {
             app.handle_mouse_scroll(
                 event.column,
                 event.row,
                 -(EDITOR_MOUSE_WHEEL_LINES as isize),
             );
         }
-        CrosstermMouseEventKind::ScrollDown => {
+        TerminalMouseEventKind::ScrollDown => {
             app.handle_mouse_scroll(event.column, event.row, EDITOR_MOUSE_WHEEL_LINES as isize);
         }
-        CrosstermMouseEventKind::ScrollLeft => {
+        TerminalMouseEventKind::ScrollLeft => {
             app.scroll_focused_columns(-1);
         }
-        CrosstermMouseEventKind::ScrollRight => {
+        TerminalMouseEventKind::ScrollRight => {
             app.scroll_focused_columns(1);
         }
-        CrosstermMouseEventKind::Up(CrosstermMouseButton::Left) => {
+        TerminalMouseEventKind::Up(TerminalMouseButton::Left) => {
             app.handle_mouse_up();
         }
         _ => {}
     }
 }
 
-pub(crate) fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
-    if matches!(event.kind, CrosstermKeyEventKind::Release) {
+pub(crate) fn handle_key_event(app: &mut AppState, event: TerminalKeyEvent) {
+    if matches!(event.kind, TerminalKeyEventKind::Release) {
         return;
     }
 
@@ -125,7 +125,7 @@ pub(crate) fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
         return;
     }
 
-    let Some(stroke) = key_stroke_from_crossterm(event) else {
+    let Some(stroke) = key_stroke_from_event(event) else {
         return;
     };
 
@@ -149,50 +149,50 @@ pub(crate) fn handle_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
         return;
     }
 
-    if let Some(ch) = text_input_from_crossterm(event) {
+    if let Some(ch) = text_input_from_event(event) {
         app.handle_text_input(ch);
     }
 }
 
-fn handle_active_menu_key_event(app: &mut AppState, event: CrosstermKeyEvent) {
+fn handle_active_menu_key_event(app: &mut AppState, event: TerminalKeyEvent) {
     match event.code {
-        CrosstermKeyCode::Esc => app.clear_active_menu(),
-        CrosstermKeyCode::Left => {
+        TerminalKeyCode::Esc => app.clear_active_menu(),
+        TerminalKeyCode::Left => {
             app.move_active_menu(-1);
         }
-        CrosstermKeyCode::Right => {
+        TerminalKeyCode::Right => {
             app.move_active_menu(1);
         }
-        CrosstermKeyCode::Up => {
+        TerminalKeyCode::Up => {
             app.move_active_menu_entry(-1);
         }
-        CrosstermKeyCode::Down => {
+        TerminalKeyCode::Down => {
             app.move_active_menu_entry(1);
         }
-        CrosstermKeyCode::Enter => {
+        TerminalKeyCode::Enter => {
             app.dispatch_active_menu_entry();
         }
-        CrosstermKeyCode::Char(ch) if event.modifiers.contains(CrosstermKeyModifiers::ALT) => {
+        TerminalKeyCode::Char(ch) if event.modifiers.contains(TerminalKeyModifiers::ALT) => {
             if let Some(menu_index) = app.shell.menu_index_for_mnemonic(ch) {
                 app.open_keyboard_menu(menu_index);
             }
         }
         // A bare letter runs the entry that advertises it in its label
         // ("Open... (O)"), the way every other menu-driven editor behaves.
-        CrosstermKeyCode::Char(ch) if !event.modifiers.contains(CrosstermKeyModifiers::CONTROL) => {
+        TerminalKeyCode::Char(ch) if !event.modifiers.contains(TerminalKeyModifiers::CONTROL) => {
             app.dispatch_active_menu_mnemonic(ch);
         }
         _ => {}
     }
 }
 
-fn handle_menu_mnemonic_key_event(app: &mut AppState, event: CrosstermKeyEvent) -> bool {
-    if !event.modifiers.contains(CrosstermKeyModifiers::ALT)
-        || event.modifiers.contains(CrosstermKeyModifiers::CONTROL)
+fn handle_menu_mnemonic_key_event(app: &mut AppState, event: TerminalKeyEvent) -> bool {
+    if !event.modifiers.contains(TerminalKeyModifiers::ALT)
+        || event.modifiers.contains(TerminalKeyModifiers::CONTROL)
     {
         return false;
     }
-    let CrosstermKeyCode::Char(ch) = event.code else {
+    let TerminalKeyCode::Char(ch) = event.code else {
         return false;
     };
     let Some(menu_index) = app.shell.menu_index_for_mnemonic(ch) else {
@@ -204,37 +204,37 @@ fn handle_menu_mnemonic_key_event(app: &mut AppState, event: CrosstermKeyEvent) 
     true
 }
 
-pub(crate) fn key_stroke_from_crossterm(event: CrosstermKeyEvent) -> Option<KeyStroke> {
-    let modifiers = key_modifiers_from_crossterm(event.modifiers);
+pub(crate) fn key_stroke_from_event(event: TerminalKeyEvent) -> Option<KeyStroke> {
+    let modifiers = key_modifiers_from_event(event.modifiers);
     let key = match event.code {
-        CrosstermKeyCode::Backspace => Key::Backspace,
-        CrosstermKeyCode::Enter => Key::Enter,
-        CrosstermKeyCode::Left => Key::Left,
-        CrosstermKeyCode::Right => Key::Right,
-        CrosstermKeyCode::Up => Key::Up,
-        CrosstermKeyCode::Down => Key::Down,
-        CrosstermKeyCode::Home => Key::Home,
-        CrosstermKeyCode::End => Key::End,
-        CrosstermKeyCode::PageUp => Key::PageUp,
-        CrosstermKeyCode::PageDown => Key::PageDown,
-        CrosstermKeyCode::Tab => Key::Tab,
-        CrosstermKeyCode::BackTab => Key::BackTab,
-        CrosstermKeyCode::Delete => Key::Delete,
-        CrosstermKeyCode::Insert => Key::Insert,
-        CrosstermKeyCode::F(number) => Key::F(number),
-        CrosstermKeyCode::Char(ch) => Key::Char(normalize_event_char(ch, modifiers)),
-        CrosstermKeyCode::Esc => Key::Esc,
+        TerminalKeyCode::Backspace => Key::Backspace,
+        TerminalKeyCode::Enter => Key::Enter,
+        TerminalKeyCode::Left => Key::Left,
+        TerminalKeyCode::Right => Key::Right,
+        TerminalKeyCode::Up => Key::Up,
+        TerminalKeyCode::Down => Key::Down,
+        TerminalKeyCode::Home => Key::Home,
+        TerminalKeyCode::End => Key::End,
+        TerminalKeyCode::PageUp => Key::PageUp,
+        TerminalKeyCode::PageDown => Key::PageDown,
+        TerminalKeyCode::Tab => Key::Tab,
+        TerminalKeyCode::BackTab => Key::BackTab,
+        TerminalKeyCode::Delete => Key::Delete,
+        TerminalKeyCode::Insert => Key::Insert,
+        TerminalKeyCode::F(number) => Key::F(number),
+        TerminalKeyCode::Char(ch) => Key::Char(normalize_event_char(ch, modifiers)),
+        TerminalKeyCode::Esc => Key::Esc,
         _ => return None,
     };
 
     Some(KeyStroke::new(key, modifiers))
 }
 
-fn key_modifiers_from_crossterm(modifiers: CrosstermKeyModifiers) -> KeyModifiers {
+fn key_modifiers_from_event(modifiers: TerminalKeyModifiers) -> KeyModifiers {
     KeyModifiers {
-        shift: modifiers.contains(CrosstermKeyModifiers::SHIFT),
-        ctrl: modifiers.contains(CrosstermKeyModifiers::CONTROL),
-        alt: modifiers.contains(CrosstermKeyModifiers::ALT),
+        shift: modifiers.contains(TerminalKeyModifiers::SHIFT),
+        ctrl: modifiers.contains(TerminalKeyModifiers::CONTROL),
+        alt: modifiers.contains(TerminalKeyModifiers::ALT),
     }
 }
 
@@ -248,14 +248,14 @@ fn normalize_event_char(ch: char, modifiers: KeyModifiers) -> char {
     }
 }
 
-pub(crate) fn text_input_from_crossterm(event: CrosstermKeyEvent) -> Option<char> {
-    let modifiers = key_modifiers_from_crossterm(event.modifiers);
+pub(crate) fn text_input_from_event(event: TerminalKeyEvent) -> Option<char> {
+    let modifiers = key_modifiers_from_event(event.modifiers);
     if modifiers.ctrl || modifiers.alt {
         return None;
     }
 
     match event.code {
-        CrosstermKeyCode::Char(ch) if !ch.is_control() => Some(ch),
+        TerminalKeyCode::Char(ch) if !ch.is_control() => Some(ch),
         _ => None,
     }
 }

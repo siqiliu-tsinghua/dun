@@ -157,7 +157,7 @@ fn save_as_rejects_read_only_invalid_utf8_fallback() {
     send_text(&mut app, &target.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -213,7 +213,7 @@ fn open_prompt_reports_file_over_editable_soft_limit() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -235,7 +235,7 @@ fn open_prompt_reports_missing_file_with_path() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -562,7 +562,7 @@ fn open_command_uses_prompt_to_load_file() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -589,7 +589,7 @@ fn save_as_prompt_writes_and_attaches_path() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -615,7 +615,7 @@ fn save_as_reports_missing_parent_directory() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -642,7 +642,7 @@ fn save_as_reports_directory_destination() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -674,14 +674,14 @@ fn open_command_can_discard_dirty_buffer_before_prompt() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('d'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('d'), TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.prompt_status_text(), Some("Open: ".to_string()));
 
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();

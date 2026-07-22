@@ -12,7 +12,7 @@ fn find_command_selects_first_match_from_prompt() {
     send_text(&mut app, "one");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -46,7 +46,7 @@ fn find_prompt_previews_matches_and_cancel_restores_cursor() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Esc, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -63,7 +63,7 @@ fn find_prompt_supports_ignore_case_and_whole_word_flags() {
     send_text(&mut app, "/iw error");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -185,14 +185,14 @@ fn replace_command_prompts_and_replaces_next_match() {
     send_text(&mut app, "one");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.prompt_status_text(), Some("Replace with: ".to_string()));
 
     send_text(&mut app, "uno");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.confirm_status_text(),
@@ -200,7 +200,7 @@ fn replace_command_prompts_and_replaces_next_match() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('r'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('r'), TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -229,12 +229,12 @@ fn replace_confirmation_can_skip_and_replace_next_match() {
     send_text(&mut app, "one");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, "uno");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -244,7 +244,7 @@ fn replace_confirmation_can_skip_and_replace_next_match() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('s'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('s'), TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.confirm_status_text(),
@@ -253,7 +253,7 @@ fn replace_confirmation_can_skip_and_replace_next_match() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('r'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('r'), TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -280,17 +280,17 @@ fn replace_confirmation_all_replaces_remaining_matches() {
     send_text(&mut app, "one");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, "uno");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('a'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('a'), TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -316,12 +316,12 @@ fn replace_prefers_current_selected_match() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, "uno");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.confirm_status_text(),
@@ -329,7 +329,7 @@ fn replace_prefers_current_selected_match() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('r'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('r'), TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -356,11 +356,11 @@ fn replace_accepts_empty_replacement_as_delete() {
     send_text(&mut app, "one");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.confirm_status_text(),
@@ -368,7 +368,7 @@ fn replace_accepts_empty_replacement_as_delete() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('r'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('r'), TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -402,12 +402,12 @@ fn replace_reports_missing_match() {
     send_text(&mut app, "z");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, "x");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -494,12 +494,10 @@ fn replace_all_reports_remaining_matches_when_replacement_contains_query() {
 fn replace_confirmation_cancel_and_empty_query_paths_are_reported() {
     let mut app = app_with_text("one");
 
-    assert!(
-        !app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
-            CrosstermKeyCode::Esc,
-            CrosstermKeyModifiers::NONE
-        ))
-    );
+    assert!(!app.handle_replace_confirm_key_event(TerminalKeyEvent::new(
+        TerminalKeyCode::Esc,
+        TerminalKeyModifiers::NONE
+    )));
 
     app.start_replace_confirmation(SearchSpec::parse(""), "x".to_string());
     assert_eq!(app.status_message, Some("Replace: no query".to_string()));
@@ -512,9 +510,9 @@ fn replace_confirmation_cancel_and_empty_query_paths_are_reported() {
         Some("Match 1/1; replaced 0, skipped 0".to_string())
     );
 
-    assert!(app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
-        CrosstermKeyCode::Char('c'),
-        CrosstermKeyModifiers::NONE
+    assert!(app.handle_replace_confirm_key_event(TerminalKeyEvent::new(
+        TerminalKeyCode::Char('c'),
+        TerminalKeyModifiers::NONE
     )));
     assert!(app.replace_confirm.is_none());
     assert_eq!(
@@ -528,9 +526,9 @@ fn replace_confirmation_skip_enter_and_unknown_keys_are_handled() {
     let mut app = app_with_text("one");
 
     app.start_replace_confirmation(SearchSpec::parse("one"), "uno".to_string());
-    assert!(app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
-        CrosstermKeyCode::Char('x'),
-        CrosstermKeyModifiers::NONE
+    assert!(app.handle_replace_confirm_key_event(TerminalKeyEvent::new(
+        TerminalKeyCode::Char('x'),
+        TerminalKeyModifiers::NONE
     )));
     assert!(app.replace_confirm.is_some());
     assert_eq!(
@@ -538,9 +536,9 @@ fn replace_confirmation_skip_enter_and_unknown_keys_are_handled() {
         Some("Match 1/1; replaced 0, skipped 0".to_string())
     );
 
-    assert!(app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
-        CrosstermKeyCode::Char('s'),
-        CrosstermKeyModifiers::NONE
+    assert!(app.handle_replace_confirm_key_event(TerminalKeyEvent::new(
+        TerminalKeyCode::Char('s'),
+        TerminalKeyModifiers::NONE
     )));
     assert!(app.replace_confirm.is_none());
     assert_eq!(
@@ -549,9 +547,9 @@ fn replace_confirmation_skip_enter_and_unknown_keys_are_handled() {
     );
 
     app.start_replace_confirmation(SearchSpec::parse("one"), "uno".to_string());
-    assert!(app.handle_replace_confirm_key_event(CrosstermKeyEvent::new(
-        CrosstermKeyCode::Enter,
-        CrosstermKeyModifiers::NONE
+    assert!(app.handle_replace_confirm_key_event(TerminalKeyEvent::new(
+        TerminalKeyCode::Enter,
+        TerminalKeyModifiers::NONE
     )));
     assert_eq!(
         app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
@@ -648,7 +646,7 @@ fn go_to_line_prompt_moves_cursor_to_requested_line() {
     send_text(&mut app, "3");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -669,7 +667,7 @@ fn go_to_line_rejects_invalid_or_out_of_range_input() {
     send_text(&mut app, "abc");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -688,7 +686,7 @@ fn go_to_line_rejects_invalid_or_out_of_range_input() {
     send_text(&mut app, "9");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(

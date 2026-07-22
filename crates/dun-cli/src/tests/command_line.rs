@@ -29,14 +29,14 @@ fn command_line_prompt_dispatches_app_commands() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('p'), CrosstermKeyModifiers::CONTROL),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('p'), TerminalKeyModifiers::CONTROL),
     );
     assert_eq!(app.prompt_status_text(), Some("Command: ".to_string()));
 
     send_text(&mut app, "help");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -59,7 +59,7 @@ fn command_line_prompt_completes_config_sections_and_themes() {
     send_text(&mut app, "config file-d");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -68,13 +68,13 @@ fn command_line_prompt_completes_config_sections_and_themes() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Esc, TerminalKeyModifiers::NONE),
     );
     app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
     send_text(&mut app, "theme ms");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -90,7 +90,7 @@ fn command_line_prompt_lists_and_cycles_ambiguous_completions() {
     send_text(&mut app, "re");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.prompt_status_text(), Some("Command: re".to_string()));
     assert!(
@@ -103,7 +103,7 @@ fn command_line_prompt_lists_and_cycles_ambiguous_completions() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -112,7 +112,7 @@ fn command_line_prompt_lists_and_cycles_ambiguous_completions() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -121,7 +121,7 @@ fn command_line_prompt_lists_and_cycles_ambiguous_completions() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::BackTab, CrosstermKeyModifiers::SHIFT),
+        TerminalKeyEvent::new(TerminalKeyCode::BackTab, TerminalKeyModifiers::SHIFT),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -137,7 +137,7 @@ fn command_line_prompt_overlay_shows_ambiguous_completion_candidates() {
     send_text(&mut app, "re");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
 
     let overlay = app.active_overlay().expect("command prompt overlay");
@@ -164,7 +164,7 @@ fn command_line_prompt_completes_path_arguments() {
     send_text(&mut app, &format!("open {}/n", directory.display()));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -173,7 +173,7 @@ fn command_line_prompt_completes_path_arguments() {
     send_text(&mut app, "a");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Tab, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Tab, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -217,13 +217,13 @@ fn command_line_history_navigates_recent_commands_and_restores_draft() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Up, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.prompt_status_text(), Some("Command: theme".to_string()));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Up, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -232,7 +232,7 @@ fn command_line_history_navigates_recent_commands_and_restores_draft() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Up, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.prompt_status_text(),
@@ -241,13 +241,13 @@ fn command_line_history_navigates_recent_commands_and_restores_draft() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.prompt_status_text(), Some("Command: theme".to_string()));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.prompt_status_text(), Some("Command: draft".to_string()));
 }
@@ -262,11 +262,11 @@ fn command_line_history_repeats_previous_command() {
     app.handle_command(&EditorCommand::App(AppCommand::CommandLine));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Up, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -307,11 +307,11 @@ fn command_line_history_does_not_affect_other_prompts() {
     send_text(&mut app, "path");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Up, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.prompt_status_text(), Some("Open: path".to_string()));
@@ -325,30 +325,30 @@ fn command_line_prompt_cursor_edits_middle_of_input() {
     send_text(&mut app, "ac");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Left, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, "b");
     assert_eq!(app.prompt_status_text(), Some("Command: abc".to_string()));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Home, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, ">");
     assert_eq!(app.prompt_status_text(), Some("Command: >abc".to_string()));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::End, TerminalKeyModifiers::NONE),
     );
     send_text(&mut app, "<");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Left, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Backspace, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.prompt_status_text(), Some("Command: >ab<".to_string()));
@@ -362,17 +362,17 @@ fn command_line_prompt_cursor_respects_utf8_boundaries() {
     send_text(&mut app, "中b");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Left, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Backspace, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.prompt_status_text(), Some("Command: b".to_string()));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Delete, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Delete, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.prompt_status_text(), Some("Command: ".to_string()));
 }

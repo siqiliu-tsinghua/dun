@@ -72,15 +72,15 @@ impl AppState {
         }
     }
 
-    pub(crate) fn handle_replace_confirm_key_event(&mut self, event: CrosstermKeyEvent) -> bool {
+    pub(crate) fn handle_replace_confirm_key_event(&mut self, event: TerminalKeyEvent) -> bool {
         if self.replace_confirm.is_none() {
             return false;
         }
 
         match event.code {
-            CrosstermKeyCode::Esc => self.cancel_replace_confirmation(),
-            CrosstermKeyCode::Enter => self.replace_confirm_current(),
-            CrosstermKeyCode::Char(ch) => match ch.to_ascii_lowercase() {
+            TerminalKeyCode::Esc => self.cancel_replace_confirmation(),
+            TerminalKeyCode::Enter => self.replace_confirm_current(),
+            TerminalKeyCode::Char(ch) => match ch.to_ascii_lowercase() {
                 'r' => self.replace_confirm_current(),
                 's' => self.skip_replace_confirm_current(),
                 'a' => self.replace_confirm_all(),

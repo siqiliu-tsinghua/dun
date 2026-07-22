@@ -6,12 +6,6 @@ use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use crossterm::event::{
-    KeyCode as CrosstermKeyCode, KeyEvent as CrosstermKeyEvent,
-    KeyEventKind as CrosstermKeyEventKind, KeyModifiers as CrosstermKeyModifiers,
-    MouseButton as CrosstermMouseButton, MouseEvent as CrosstermMouseEvent,
-    MouseEventKind as CrosstermMouseEventKind,
-};
 use dun_config::{
     ClipboardConfig, FileDialogAction, FileDialogKeymap, Key, KeyModifiers, KeySequence, KeyStroke,
     Keymap, Limits, TerminalOverrides, TextCatalog, ThemeName, command_from_id, command_id,
@@ -47,6 +41,12 @@ mod plugins;
 mod terminal;
 mod ui_text;
 mod util;
+
+pub(crate) use terminal::vt::event::{
+    KeyCode as TerminalKeyCode, KeyEvent as TerminalKeyEvent, KeyEventKind as TerminalKeyEventKind,
+    KeyModifiers as TerminalKeyModifiers, MouseButton as TerminalMouseButton,
+    MouseEvent as TerminalMouseEvent, MouseEventKind as TerminalMouseEventKind,
+};
 
 use app::{
     AppState, BufferHighlight, BufferSearchState, BufferState, BufferViewContext, MouseDragState,
@@ -119,8 +119,8 @@ use terminal::rewrite_16_color_sgr;
 use terminal::{
     RuntimeAction, SurfaceBackend, Terminal, TerminalColorRewrite, TerminalGuard, TerminalWriter,
     command_run_status, detect_ambiguous_width, detect_terminal_profile,
-    install_panic_terminal_restore, key_stroke_from_crossterm, osc52_copy_sequence,
-    run_command_capture, run_event_loop, text_input_from_crossterm,
+    install_panic_terminal_restore, key_stroke_from_event, osc52_copy_sequence,
+    run_command_capture, run_event_loop, text_input_from_event,
 };
 #[cfg(test)]
 use terminal::{handle_key_event, handle_mouse_event};

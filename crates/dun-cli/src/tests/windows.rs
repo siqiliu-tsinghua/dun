@@ -190,7 +190,7 @@ fn window_only_cancel_keeps_every_window_and_dirty_buffer() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Esc, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 2);
@@ -213,7 +213,7 @@ fn window_only_save_writes_the_dirty_buffer_and_restores_the_target() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('s'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('s'), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 1);
@@ -236,7 +236,7 @@ fn window_only_discard_closes_once_without_saving_and_restores_the_target() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('d'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('d'), TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 1);
@@ -321,11 +321,11 @@ fn buffer_switcher_focuses_selected_buffer() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Up, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -353,7 +353,7 @@ fn buffer_switcher_reports_single_buffer_and_escape_cancels() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Esc, TerminalKeyModifiers::NONE),
     );
 
     assert!(app.buffer_switcher.is_none());
@@ -402,11 +402,11 @@ fn buffer_switcher_home_end_jump_to_first_and_last_buffer() {
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Home, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -417,11 +417,11 @@ fn buffer_switcher_home_end_jump_to_first_and_last_buffer() {
     app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::End, TerminalKeyModifiers::NONE),
     );
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(
@@ -445,12 +445,12 @@ fn buffer_switcher_page_keys_and_mouse_select_visible_entries() {
     let last_index = app.buffer_switcher.as_ref().unwrap().selected_index;
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::PageUp, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::PageUp, TerminalKeyModifiers::NONE),
     );
     assert!(app.buffer_switcher.as_ref().unwrap().selected_index < last_index);
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::PageDown, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::PageDown, TerminalKeyModifiers::NONE),
     );
     assert_eq!(
         app.buffer_switcher.as_ref().unwrap().selected_index,
@@ -465,7 +465,7 @@ fn buffer_switcher_page_keys_and_mouse_select_visible_entries() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Home, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Home, TerminalKeyModifiers::NONE),
     );
     let (x, y) = buffer_switcher_list_point(&app, 0);
     handle_mouse_event(&mut app, left_click(x, y));
@@ -479,7 +479,7 @@ fn buffer_switcher_page_keys_and_mouse_select_visible_entries() {
     app.handle_command(&EditorCommand::File(FileCommand::SwitchBuffer));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::End, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::End, TerminalKeyModifiers::NONE),
     );
     let (x, y) = buffer_switcher_list_point(
         &app,
@@ -536,7 +536,7 @@ fn close_dirty_window_can_be_cancelled() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Esc, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.workspace.window_count(), 2);

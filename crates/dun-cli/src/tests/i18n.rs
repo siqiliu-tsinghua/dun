@@ -375,18 +375,18 @@ fn ui_text_keys_are_unique() {
 fn prompt_cancel_status_uses_the_catalog_and_keeps_exact_english() {
     let mut english = AppState::new();
     english.handle_command(&EditorCommand::Edit(EditCommand::Find));
-    english.handle_prompt_key_event(CrosstermKeyEvent::new(
-        CrosstermKeyCode::Esc,
-        CrosstermKeyModifiers::NONE,
+    english.handle_prompt_key_event(TerminalKeyEvent::new(
+        TerminalKeyCode::Esc,
+        TerminalKeyModifiers::NONE,
     ));
     assert_eq!(english.status_message.as_deref(), Some("Find cancelled"));
 
     let mut chinese = AppState::new();
     chinese.shell.catalog = shipped_zh_catalog();
     chinese.handle_command(&EditorCommand::Edit(EditCommand::Find));
-    chinese.handle_prompt_key_event(CrosstermKeyEvent::new(
-        CrosstermKeyCode::Esc,
-        CrosstermKeyModifiers::NONE,
+    chinese.handle_prompt_key_event(TerminalKeyEvent::new(
+        TerminalKeyCode::Esc,
+        TerminalKeyModifiers::NONE,
     ));
     assert_eq!(chinese.status_message.as_deref(), Some("已取消查找"));
 }
@@ -467,7 +467,7 @@ fn opened_file_helper_uses_the_catalog_and_keeps_exact_english() {
 #[test]
 fn file_dialog_message_renders_through_the_catalog_after_a_real_interaction() {
     let toggle_hidden =
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('h'), CrosstermKeyModifiers::CONTROL);
+        TerminalKeyEvent::new(TerminalKeyCode::Char('h'), TerminalKeyModifiers::CONTROL);
 
     let mut english = AppState::new();
     english.handle_command(&EditorCommand::File(FileCommand::Open));
@@ -504,7 +504,7 @@ fn missing_path_error_uses_the_catalog_and_keeps_exact_english() {
     send_text(&mut english, &path.to_string_lossy());
     handle_key_event(
         &mut english,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     let english_status = format!("Open failed: {}: not found", path.display());
     assert_eq!(
@@ -526,7 +526,7 @@ fn missing_path_error_uses_the_catalog_and_keeps_exact_english() {
     send_text(&mut chinese, &path.to_string_lossy());
     handle_key_event(
         &mut chinese,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
     let chinese_status = format!("打开失败：{}：未找到", path.display());
     assert_eq!(

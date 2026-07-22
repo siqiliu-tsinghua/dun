@@ -3,7 +3,7 @@
 use super::support::*;
 
 #[test]
-fn sgr_rewriter_converts_crossterm_ansi_palette_codes_to_legacy_codes() {
+fn sgr_rewriter_converts_ansi_palette_codes_to_legacy_codes() {
     let mut pending = Vec::new();
     let output = rewrite_16_color_sgr(b"\x1b[38;5;7;48;5;4mX\x1b[38;5;15;48;5;8mY", &mut pending);
 
@@ -85,20 +85,20 @@ fn terminal_color_rewrite_tracks_color_profile() {
 
 #[test]
 fn translates_ctrl_q_to_config_key_stroke() {
-    let event = CrosstermKeyEvent::new(CrosstermKeyCode::Char('q'), CrosstermKeyModifiers::CONTROL);
+    let event = TerminalKeyEvent::new(TerminalKeyCode::Char('q'), TerminalKeyModifiers::CONTROL);
 
     assert_eq!(
-        key_stroke_from_crossterm(event),
+        key_stroke_from_event(event),
         Some(KeyStroke::new(Key::Char('q'), KeyModifiers::CTRL))
     );
 }
 
 #[test]
 fn translates_shifted_arrow_keys() {
-    let event = CrosstermKeyEvent::new(CrosstermKeyCode::Left, CrosstermKeyModifiers::SHIFT);
+    let event = TerminalKeyEvent::new(TerminalKeyCode::Left, TerminalKeyModifiers::SHIFT);
 
     assert_eq!(
-        key_stroke_from_crossterm(event),
+        key_stroke_from_event(event),
         Some(KeyStroke::new(Key::Left, KeyModifiers::SHIFT))
     );
 }
@@ -106,30 +106,30 @@ fn translates_shifted_arrow_keys() {
 #[test]
 fn translates_common_modified_terminal_keys() {
     assert_eq!(
-        key_stroke_from_crossterm(CrosstermKeyEvent::new(
-            CrosstermKeyCode::Home,
-            CrosstermKeyModifiers::CONTROL,
+        key_stroke_from_event(TerminalKeyEvent::new(
+            TerminalKeyCode::Home,
+            TerminalKeyModifiers::CONTROL,
         )),
         Some(KeyStroke::new(Key::Home, KeyModifiers::CTRL))
     );
     assert_eq!(
-        key_stroke_from_crossterm(CrosstermKeyEvent::new(
-            CrosstermKeyCode::End,
-            CrosstermKeyModifiers::CONTROL,
+        key_stroke_from_event(TerminalKeyEvent::new(
+            TerminalKeyCode::End,
+            TerminalKeyModifiers::CONTROL,
         )),
         Some(KeyStroke::new(Key::End, KeyModifiers::CTRL))
     );
     assert_eq!(
-        key_stroke_from_crossterm(CrosstermKeyEvent::new(
-            CrosstermKeyCode::F(3),
-            CrosstermKeyModifiers::SHIFT,
+        key_stroke_from_event(TerminalKeyEvent::new(
+            TerminalKeyCode::F(3),
+            TerminalKeyModifiers::SHIFT,
         )),
         Some(KeyStroke::new(Key::F(3), KeyModifiers::SHIFT))
     );
     assert_eq!(
-        key_stroke_from_crossterm(CrosstermKeyEvent::new(
-            CrosstermKeyCode::Left,
-            CrosstermKeyModifiers::SHIFT | CrosstermKeyModifiers::CONTROL,
+        key_stroke_from_event(TerminalKeyEvent::new(
+            TerminalKeyCode::Left,
+            TerminalKeyModifiers::SHIFT | TerminalKeyModifiers::CONTROL,
         )),
         Some(KeyStroke::new(
             Key::Left,
@@ -145,31 +145,31 @@ fn translates_common_modified_terminal_keys() {
 #[test]
 fn translates_common_unmodified_terminal_keys() {
     let cases = [
-        (CrosstermKeyCode::Backspace, Key::Backspace),
-        (CrosstermKeyCode::Enter, Key::Enter),
-        (CrosstermKeyCode::Right, Key::Right),
-        (CrosstermKeyCode::Up, Key::Up),
-        (CrosstermKeyCode::Down, Key::Down),
-        (CrosstermKeyCode::PageUp, Key::PageUp),
-        (CrosstermKeyCode::PageDown, Key::PageDown),
-        (CrosstermKeyCode::Tab, Key::Tab),
-        (CrosstermKeyCode::BackTab, Key::BackTab),
-        (CrosstermKeyCode::Delete, Key::Delete),
-        (CrosstermKeyCode::Insert, Key::Insert),
-        (CrosstermKeyCode::Esc, Key::Esc),
+        (TerminalKeyCode::Backspace, Key::Backspace),
+        (TerminalKeyCode::Enter, Key::Enter),
+        (TerminalKeyCode::Right, Key::Right),
+        (TerminalKeyCode::Up, Key::Up),
+        (TerminalKeyCode::Down, Key::Down),
+        (TerminalKeyCode::PageUp, Key::PageUp),
+        (TerminalKeyCode::PageDown, Key::PageDown),
+        (TerminalKeyCode::Tab, Key::Tab),
+        (TerminalKeyCode::BackTab, Key::BackTab),
+        (TerminalKeyCode::Delete, Key::Delete),
+        (TerminalKeyCode::Insert, Key::Insert),
+        (TerminalKeyCode::Esc, Key::Esc),
     ];
 
     for (code, expected_key) in cases {
         assert_eq!(
-            key_stroke_from_crossterm(CrosstermKeyEvent::new(code, CrosstermKeyModifiers::NONE)),
+            key_stroke_from_event(TerminalKeyEvent::new(code, TerminalKeyModifiers::NONE)),
             Some(KeyStroke::new(expected_key, KeyModifiers::NONE))
         );
     }
 
     assert_eq!(
-        key_stroke_from_crossterm(CrosstermKeyEvent::new(
-            CrosstermKeyCode::Null,
-            CrosstermKeyModifiers::NONE,
+        key_stroke_from_event(TerminalKeyEvent::new(
+            TerminalKeyCode::Null,
+            TerminalKeyModifiers::NONE,
         )),
         None
     );
@@ -178,16 +178,16 @@ fn translates_common_unmodified_terminal_keys() {
 #[test]
 fn shifted_ascii_key_strokes_are_normalized_by_case() {
     assert_eq!(
-        key_stroke_from_crossterm(CrosstermKeyEvent::new(
-            CrosstermKeyCode::Char('a'),
-            CrosstermKeyModifiers::SHIFT,
+        key_stroke_from_event(TerminalKeyEvent::new(
+            TerminalKeyCode::Char('a'),
+            TerminalKeyModifiers::SHIFT,
         )),
         Some(KeyStroke::new(Key::Char('A'), KeyModifiers::SHIFT))
     );
     assert_eq!(
-        key_stroke_from_crossterm(CrosstermKeyEvent::new(
-            CrosstermKeyCode::Char('A'),
-            CrosstermKeyModifiers::NONE,
+        key_stroke_from_event(TerminalKeyEvent::new(
+            TerminalKeyCode::Char('A'),
+            TerminalKeyModifiers::NONE,
         )),
         Some(KeyStroke::new(Key::Char('a'), KeyModifiers::NONE))
     );
@@ -204,27 +204,26 @@ fn shell_escape_command_requests_runtime_action() {
 }
 
 #[test]
-fn crossterm_text_input_ignores_control_shortcuts() {
-    let plain = CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::NONE);
-    let control =
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::CONTROL);
-    let alt = CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::ALT);
+fn terminal_text_input_ignores_control_shortcuts() {
+    let plain = TerminalKeyEvent::new(TerminalKeyCode::Char('x'), TerminalKeyModifiers::NONE);
+    let control = TerminalKeyEvent::new(TerminalKeyCode::Char('x'), TerminalKeyModifiers::CONTROL);
+    let alt = TerminalKeyEvent::new(TerminalKeyCode::Char('x'), TerminalKeyModifiers::ALT);
     let control_character =
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('\n'), CrosstermKeyModifiers::NONE);
+        TerminalKeyEvent::new(TerminalKeyCode::Char('\n'), TerminalKeyModifiers::NONE);
 
-    assert_eq!(text_input_from_crossterm(plain), Some('x'));
-    assert_eq!(text_input_from_crossterm(control), None);
-    assert_eq!(text_input_from_crossterm(alt), None);
-    assert_eq!(text_input_from_crossterm(control_character), None);
+    assert_eq!(text_input_from_event(plain), Some('x'));
+    assert_eq!(text_input_from_event(control), None);
+    assert_eq!(text_input_from_event(alt), None);
+    assert_eq!(text_input_from_event(control_character), None);
 }
 
 #[test]
 fn key_release_events_are_ignored_before_text_input() {
     let mut app = AppState::new();
-    let release = CrosstermKeyEvent::new_with_kind(
-        CrosstermKeyCode::Char('x'),
-        CrosstermKeyModifiers::NONE,
-        CrosstermKeyEventKind::Release,
+    let release = TerminalKeyEvent::new_with_kind(
+        TerminalKeyCode::Char('x'),
+        TerminalKeyModifiers::NONE,
+        TerminalKeyEventKind::Release,
     );
 
     handle_key_event(&mut app, release);
@@ -240,38 +239,38 @@ fn keyboard_menu_navigation_uses_terminal_key_events() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('f'), CrosstermKeyModifiers::ALT),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('f'), TerminalKeyModifiers::ALT),
     );
     assert_eq!(app.active_menu, Some(file_menu));
     assert_eq!(app.active_menu_entry, Some(0));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Right, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Right, TerminalKeyModifiers::NONE),
     );
     assert_ne!(app.active_menu, Some(file_menu));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('e'), CrosstermKeyModifiers::ALT),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('e'), TerminalKeyModifiers::ALT),
     );
     assert_eq!(app.active_menu, Some(edit_menu));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Down, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Down, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.active_menu_entry, Some(1));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Up, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Up, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.active_menu_entry, Some(0));
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Esc, TerminalKeyModifiers::NONE),
     );
     assert_eq!(app.active_menu, None);
 }
@@ -284,7 +283,7 @@ fn keyboard_menu_enter_dispatches_selected_entry() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert_eq!(app.active_menu, None);

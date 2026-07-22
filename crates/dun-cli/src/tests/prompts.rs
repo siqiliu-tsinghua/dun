@@ -10,7 +10,7 @@ fn prompt_cancel_restores_editor_input() {
     send_text(&mut app, "abc");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Esc, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Esc, TerminalKeyModifiers::NONE),
     );
 
     // Cancelling reports it, and the message stands until the next keypress.
@@ -18,7 +18,7 @@ fn prompt_cancel_restores_editor_input() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('x'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('x'), TerminalKeyModifiers::NONE),
     );
 
     // That keypress both hands the status line back and reaches the buffer.
@@ -35,7 +35,7 @@ fn prompt_backspace_edits_prompt_not_buffer() {
     send_text(&mut app, "abc");
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Backspace, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Backspace, TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -59,7 +59,7 @@ fn new_command_confirms_dirty_buffer_before_clearing() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('c'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('c'), TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -72,7 +72,7 @@ fn new_command_confirms_dirty_buffer_before_clearing() {
     app.handle_command(&EditorCommand::File(FileCommand::New));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('d'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('d'), TerminalKeyModifiers::NONE),
     );
 
     let state = app.buffer_state(BufferId(1)).unwrap();
@@ -101,7 +101,7 @@ fn quit_confirms_dirty_file_and_saves_before_exit() {
 
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('s'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('s'), TerminalKeyModifiers::NONE),
     );
 
     assert!(app.should_quit);
@@ -120,7 +120,7 @@ fn quit_dirty_untitled_save_prompts_for_save_as_then_exits() {
     app.handle_command(&EditorCommand::App(AppCommand::Quit));
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Char('s'), CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Char('s'), TerminalKeyModifiers::NONE),
     );
 
     assert!(!app.should_quit);
@@ -129,7 +129,7 @@ fn quit_dirty_untitled_save_prompts_for_save_as_then_exits() {
     send_text(&mut app, &path.to_string_lossy());
     handle_key_event(
         &mut app,
-        CrosstermKeyEvent::new(CrosstermKeyCode::Enter, CrosstermKeyModifiers::NONE),
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
     );
 
     assert!(app.should_quit);

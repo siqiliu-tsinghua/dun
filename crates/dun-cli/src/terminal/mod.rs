@@ -9,14 +9,14 @@ mod sgr;
 mod shell;
 mod surface_backend;
 mod sys;
-mod vt;
+pub(crate) mod vt;
 
 pub(crate) use action::RuntimeAction;
 pub(crate) use ambiguous_width::detect_ambiguous_width;
 pub(crate) use clipboard::osc52_copy_sequence;
 pub(crate) use event_loop::run_event_loop;
 pub(crate) use input::{
-    handle_key_event, handle_mouse_event, key_stroke_from_crossterm, text_input_from_crossterm,
+    handle_key_event, handle_mouse_event, key_stroke_from_event, text_input_from_event,
 };
 pub(crate) use lifecycle::{TerminalGuard, install_panic_terminal_restore};
 pub(crate) use profile::detect_terminal_profile;
