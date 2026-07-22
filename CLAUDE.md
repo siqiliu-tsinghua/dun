@@ -47,15 +47,17 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **691,028 bytes** (2026-07-19, scratch-input/execute slice at
-  `d9c380a`; +8,208 over the stream-read baseline 682,820 at `e438a13`).
-- Debian: **756,096 bytes** at `d9c380a` — **binding platform**, margin
-  292,480 bytes (2026-07-19, last measured; capability slices A–D plus all v0
-  data channels: surface-write, stream-read, scratch-input/execute). The
-  scratch-input/execute slice since `e438a13` cost the binding binary +8,192
-  bytes (the `PluginActionKind` machinery across four crates, the editable
-  scratch window, and the execute worker path). **No Debian measurement debt:**
-  measured through HEAD.
+- macOS: **695,148 bytes** (2026-07-22, ambiguous-width render layer at
+  `c0e13e3`; +4,112 over the 691,036 baseline).
+- Debian: **760,192 bytes** at `c0e13e3` — **binding platform**, margin
+  288,384 bytes (2026-07-22, last measured; all v0 data channels plus the
+  adaptive ambiguous-width render layer, stage A). The wide-geometry work
+  (`terminal.ambiguous-width`, char_width/str_width, wide-aware draw_border +
+  shared WindowGeometry + dun-cli cutover) cost the binding binary +4,096 bytes
+  over the 756,096 stream-read/collision baseline; removing the `unicode-width`
+  dep from dun-ui/dun-cli did not shrink it (dun-term still carries the tables).
+  Solaris `terminal.ambiguous-width = wide` live-verified (border closes). **No
+  Debian measurement debt:** measured through HEAD.
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to

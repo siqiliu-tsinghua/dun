@@ -699,3 +699,39 @@ assertions read body content across several tiled plugin windows, which the
 double-width box glyphs truncate — the menu and scratch-title tests are
 width-insensitive and pass. Not a dun defect (see docs/solaris-vm.md). No
 measurement debt.
+
+## 2026-07-22 ambiguous-width render layer (c0e13e3)
+
+Binding measurement for the adaptive ambiguous-width work — stage A, the whole
+render layer made wide-aware (groundwork `a2fe40d`/`fcb56a4` + steps 1–4
+`2af8387`/`a838dea`/`685b423`/`c0e13e3`; built plan-first via Codex, each step
+Claude-gated).
+
+| Platform | 756,096 base (c60ac58) | c0e13e3 | Delta | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 691,036 | 695,148 | +4,112 | 353,428 |
+| Debian x86_64 | 756,096 | 760,192 | +4,096 | 288,384 |
+
+Debian measured on a clean `vm-test/vm-sync` archive of `c0e13e3`
+(`scripts/release-build.sh`, build-std, Debian `rust-src`). The four-step
+geometry/threading work costs the binding binary +4,096 bytes. Removing the
+`unicode-width` dependency from dun-ui and dun-cli did NOT shrink the binary —
+`dun-term` still carries the tables (both `width` and `width_cjk`), which were
+already linked; the change only converges the callers. Both platforms stay well
+under budget. Debian smoke: ELF PIE stripped, `ldd` unchanged, `--version`,
+`--dump-config` 182 lines, `strings` panic-trigger 0. macOS smoke (idle):
+tmux_grid (5), pty_smoke (10).
+
+Cross-platform functional runs (full `cargo test --workspace`): **macOS 731/0,
+FreeBSD 731/0, Solaris 725/6**. The six Solaris failures are the pre-existing
+ambiguous-width `tmux_grid`/`tmux_logfilter` quirk under the *default* Narrow
+mode (unchanged — the suite doesn't set the new option).
+
+**Purpose verification (the point of the whole change):** on the Solaris VM,
+running dun with `terminal.ambiguous-width = wide` in an 80×24 tmux pane renders
+the box-drawing UI correctly — top border closes with `┐`, body rows carry both
+`│` verticals, the bottom border closes with `┘`, and the status line sits on
+the last row. `cursor_x` after ten `─` is 20 on that tmux, confirming a genuine
+2-wide-ambiguous terminal; wide mode fixes the overflow the default Narrow mode
+still exhibits. VM scratch removed after recording. Margin on the binding
+platform is 288,384 bytes.
