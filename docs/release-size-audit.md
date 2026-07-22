@@ -773,6 +773,16 @@ predates stage B (it is the stage-A-equivalent behavior); plan 038 misattributed
 these two to "wide truncation" (the truncated pair was actually menu/scratch,
 which Wide now fixes). PTY multi-step input (`pty_smoke`, 9/9) works and only
 tmux multi-batch input hangs; the kqueue (macOS/FreeBSD) and epoll (Debian)
-platforms are all 749/0. The signature points at crossterm/mio's stdin readiness
-not re-arming across reads on Solaris **event ports**. Tracked as an independent
-Solaris input defect, unrelated to this stage. No measurement debt.
+platforms are all 749/0. Root-caused 2026-07-23 (the "event ports" hypothesis
+first recorded here was wrong — mio never uses event ports): on
+`target_os = "solaris"` mio 1.2.1 falls back to plain `poll(2)`
+(`selector/poll.rs`), which clears a fd's interest after every fired event and
+expects mio's `IoSource::do_io` wrapper to reregister it; crossterm registers
+stdin as a raw `SourceFd` once and reads with its own `FileDesc`, never
+reregistering — so stdin's READABLE interest is gone after the first batch
+(truss: `pollsys` never reports fd 0 readable again; control runs of `cat` and
+raw-mode `dd` in the same tmux receive both batches fine). Reproduced on macOS
+with `RUSTFLAGS='--cfg mio_unsupported_force_poll_poll'` — the identical two
+timeouts. Unfixed in crossterm 0.29/master. Fix of record: the crossterm
+replacement track (brief 041, decided 2026-07-23) — its direct level-triggered
+`poll(2)` event loop removes the defect by construction. No measurement debt.

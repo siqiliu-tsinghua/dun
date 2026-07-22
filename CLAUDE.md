@@ -60,8 +60,10 @@ x86_64 AND Debian x86_64.
   — tmux_grid 5/5, border closes live. **No Debian measurement debt:** measured
   through HEAD. (An independent, pre-existing Solaris *input* defect — a second
   `tmux send-keys` batch is dropped, proven non-detector — surfaces as two
-  tmux_logfilter timeouts; unrelated to size or ambiguous-width. See
-  docs/release-size-audit.md 2026-07-22 stage B.)
+  tmux_logfilter timeouts; unrelated to size or ambiguous-width. Root-caused
+  2026-07-23 to mio's poll(2)-fallback interest-clearing + crossterm's
+  never-reregistered `SourceFd`; fixed by the crossterm-replacement track in
+  the Active Plan. See docs/release-size-audit.md 2026-07-22 stage B.)
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to
@@ -215,6 +217,21 @@ Sequencing (stages 1–2 completed 2026-07-10):
    behind these. The Debian measurement baseline is settled (715,136 bytes at
    `744c843`, 2026-07-15; see the size budget above), so this stage starts on
    a measured floor and each capability batch attributes its own cost.
+
+Inserted track (decided 2026-07-23, ACTIVE): **replace crossterm with an
+in-house terminal I/O layer** — motivated by the root-caused Solaris input
+defect (mio poll(2)-fallback + crossterm `SourceFd`, unfixed upstream and
+upstream is semi-active), dependency reduction (lockfile 42 → ~26; direct
+external deps become rustix + signal-hook + unicode-width), and a fully
+self-owned terminal stack after the ratatui retirement. Fixed constraints:
+safe Rust only (`forbid(unsafe_code)` stays; rustix + signal-hook), no Windows
+now but msedit-style VT-core/sys-shim layering keeps the door open, event loop
+= direct level-triggered `poll(2)` on the tty fd. Acceptance: all four
+platforms green (Solaris 747/2 → both tmux_logfilter timeouts pass).
+Plan-first: brief 041 (Codex plan, accepted 2026-07-23) → implementation
+briefs 042+ in order: output escapes → Unix sys shim/lifecycle → owned event
+types + import migration → parser/event-loop cutover → dependency removal +
+docs closure. Each step passes the full gate incl. dual-platform size.
 
 Renderer replacement is DONE: ratatui was fully retired at `858e876`
 (2026-07-11) — dropped from every crate, the workspace table, and the
