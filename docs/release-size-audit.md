@@ -786,3 +786,34 @@ with `RUSTFLAGS='--cfg mio_unsupported_force_poll_poll'` — the identical two
 timeouts. Unfixed in crossterm 0.29/master. Fix of record: the crossterm
 replacement track (brief 041, decided 2026-07-23) — its direct level-triggered
 `poll(2)` event loop removes the defect by construction. No measurement debt.
+
+## 2026-07-23 crossterm replacement steps 1–2 (cf1a5b6, 919a98f)
+
+Binding measurements for the first two steps of the crossterm-replacement
+track (plan brief 041; steps executed by Codex from briefs 042/043, each
+Claude-gated).
+
+| Platform | f7e530a base | step 1 cf1a5b6 | step 2 919a98f | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 699,276 | 699,244 (−32) | 703,364 (+4,120) | 345,212 |
+| Debian x86_64 | 764,288 | 760,192 (−4,096) | 764,288 (+4,096) | 284,288 |
+
+Step 1 (own VT output escapes, mouse narrowed to SGR 1000/1002/1006) is a net
+reduction on both platforms — dropping crossterm's Command/macro machinery
+already outweighs the new `vt::output` module. Step 2 (rustix-based Unix sys
+shim: raw mode with exact-termios snapshot restore, tcgetwinsize with 80×24
+fallback, stateless direct `poll(2)` for the startup probe; mio out of the
+manifests) grows one page per platform because rustix's termios/poll code now
+coexists with the still-linked crossterm/mio — expected to fall back out at
+step 5 (dependency removal). Debian smoke both steps: ELF PIE stripped, `ldd`
+unchanged (libgcc/libm/libc/ld-linux), `--version`, `--dump-config`.
+
+Cross-platform functional (step-2 worktree): macOS 758/0, Debian 758/0,
+FreeBSD 758/0, Solaris 756/2 — the two remaining Solaris failures are the
+known crossterm+mio input-path timeouts, unchanged by design until the step-4
+input cutover (they are the track's acceptance criterion). The macOS
+`/dev/tty` POLLNVAL limitation is documented in
+docs/terminal-compatibility-checks.md (empirically verified; crossterm's
+default backend could not service that path either). FreeBSD VM gained
+`rsync` (pkg) for `vm-sync --worktree`. No measurement debt: measured through
+`919a98f`.
