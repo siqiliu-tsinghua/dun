@@ -1,4 +1,4 @@
-use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, Theme, ThemeName};
+use dun_term::{AmbiguousWidth, ColorProfile, EncodingProfile, TerminalProfile, Theme, ThemeName};
 
 use crate::colors::ColorOverrides;
 use crate::plugins::validate_plugin_entries;
@@ -60,6 +60,7 @@ impl Default for Config {
 pub struct TerminalOverrides {
     pub encoding: Option<EncodingProfile>,
     pub colors: Option<ColorProfile>,
+    pub ambiguous_width: Option<AmbiguousWidth>,
 }
 
 impl TerminalOverrides {
@@ -72,6 +73,10 @@ impl TerminalOverrides {
             colors: match self.colors {
                 Some(colors) => colors,
                 None => detected.colors,
+            },
+            ambiguous_width: match self.ambiguous_width {
+                Some(ambiguous_width) => ambiguous_width,
+                None => detected.ambiguous_width,
             },
         }
     }

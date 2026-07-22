@@ -71,6 +71,9 @@ version = "0.1.0"
 [[package]]
 name = "dun-term"
 version = "0.1.0"
+dependencies = [
+ "unicode-width",
+]
 
 [[package]]
 name = "dun-ui"

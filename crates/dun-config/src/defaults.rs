@@ -19,6 +19,7 @@ pub fn default_config_text() -> String {
     out.push_str("\n# Terminal fallback overrides\n");
     out.push_str("# terminal.encoding = utf8\n");
     out.push_str("# terminal.colors = 256\n");
+    out.push_str("# terminal.ambiguous-width = narrow\n");
 
     out.push_str("\n# Mouse\n");
     out.push_str(&format!("mouse.enabled = {}\n", config.mouse.enabled));

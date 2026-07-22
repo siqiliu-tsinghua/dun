@@ -23,15 +23,41 @@ impl ColorProfile {
     }
 }
 
+/// How the terminal renders Unicode *East Asian Ambiguous*-width characters
+/// (the box-drawing block, `◆`, etc.). `Narrow` is the Western/default reading
+/// (1 column); `Wide` is the East-Asian reading (2 columns) that Solaris tmux
+/// and CJK-configured terminals use. `dun` lays out and renders to match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum AmbiguousWidth {
+    #[default]
+    Narrow,
+    Wide,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TerminalProfile {
     pub encoding: EncodingProfile,
     pub colors: ColorProfile,
+    pub ambiguous_width: AmbiguousWidth,
 }
 
 impl TerminalProfile {
     pub const fn new(encoding: EncodingProfile, colors: ColorProfile) -> Self {
-        Self { encoding, colors }
+        Self {
+            encoding,
+            colors,
+            ambiguous_width: AmbiguousWidth::Narrow,
+        }
+    }
+
+    /// Return a copy with the ambiguous-width reading set. Kept separate from
+    /// `new` so the many `new(encoding, colors)` call sites stay unchanged.
+    pub const fn with_ambiguous_width(self, ambiguous_width: AmbiguousWidth) -> Self {
+        Self {
+            encoding: self.encoding,
+            colors: self.colors,
+            ambiguous_width,
+        }
     }
 
     pub const fn utf8_256() -> Self {
@@ -67,7 +93,13 @@ impl TerminalProfile {
     ) -> Self {
         let encoding = detect_encoding(term, lang, lc_ctype);
         let colors = detect_colors(term, colorterm, no_color);
-        Self { encoding, colors }
+        // Stage A ships Narrow by default; runtime auto-detection is a later
+        // step. The config option `terminal.ambiguous-width = wide` opts in.
+        Self {
+            encoding,
+            colors,
+            ambiguous_width: AmbiguousWidth::Narrow,
+        }
     }
 }
 

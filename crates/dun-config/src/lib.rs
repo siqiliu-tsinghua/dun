@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-pub use dun_term::{ColorProfile, EncodingProfile, TerminalProfile, ThemeName};
+pub use dun_term::{AmbiguousWidth, ColorProfile, EncodingProfile, TerminalProfile, ThemeName};
 
 mod colors;
 mod commands;

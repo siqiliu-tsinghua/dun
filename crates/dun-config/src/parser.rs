@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use dun_term::{ColorProfile, EncodingProfile, ThemeName};
+use dun_term::{AmbiguousWidth, ColorProfile, EncodingProfile, ThemeName};
 
 use crate::colors::{canonical_role, parse_attrs, parse_color};
 use crate::keys::normalize_token;
@@ -123,6 +123,12 @@ fn apply_config_entry(
             config.terminal.encoding = parse_encoding_profile(value)
                 .map(Some)
                 .ok_or_else(|| ConfigParseError::line(line_number, "unknown terminal encoding"))?;
+        }
+        "terminal.ambiguous-width" | "terminal.ambiguous_width" => {
+            config.terminal.ambiguous_width =
+                parse_ambiguous_width(value).map(Some).ok_or_else(|| {
+                    ConfigParseError::line(line_number, "unknown terminal ambiguous width")
+                })?;
         }
         "terminal.colors" | "terminal.color" => {
             config.terminal.colors = parse_color_profile(value)
@@ -466,6 +472,14 @@ fn parse_encoding_profile(input: &str) -> Option<EncodingProfile> {
     match normalize_token(input).as_str() {
         "utf8" => Some(EncodingProfile::Utf8),
         "ascii" => Some(EncodingProfile::Ascii),
+        _ => None,
+    }
+}
+
+fn parse_ambiguous_width(input: &str) -> Option<AmbiguousWidth> {
+    match normalize_token(input).as_str() {
+        "narrow" => Some(AmbiguousWidth::Narrow),
+        "wide" => Some(AmbiguousWidth::Wide),
         _ => None,
     }
 }

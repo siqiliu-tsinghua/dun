@@ -14,6 +14,7 @@ fn terminal_overrides_apply_to_detected_profile() {
     let overrides = TerminalOverrides {
         encoding: Some(EncodingProfile::Ascii),
         colors: Some(ColorProfile::Color16),
+        ambiguous_width: None,
     };
 
     assert_eq!(
@@ -23,11 +24,37 @@ fn terminal_overrides_apply_to_detected_profile() {
 }
 
 #[test]
+fn terminal_ambiguous_width_parses_and_applies() {
+    use crate::AmbiguousWidth;
+
+    let wide = parse_config("terminal.ambiguous-width = wide").unwrap();
+    assert_eq!(wide.terminal.ambiguous_width, Some(AmbiguousWidth::Wide));
+    assert_eq!(
+        wide.terminal_profile(TerminalProfile::utf8_256())
+            .ambiguous_width,
+        AmbiguousWidth::Wide
+    );
+
+    let narrow = parse_config("terminal.ambiguous-width = narrow").unwrap();
+    assert_eq!(
+        narrow.terminal.ambiguous_width,
+        Some(AmbiguousWidth::Narrow)
+    );
+
+    // Absent override leaves the detected profile's mode (Narrow) untouched.
+    let empty = parse_config("theme = dun").unwrap();
+    assert_eq!(empty.terminal.ambiguous_width, None);
+
+    assert!(parse_config("terminal.ambiguous-width = huge").is_err());
+}
+
+#[test]
 fn config_resolves_theme_after_terminal_overrides() {
     let config = Config {
         terminal: TerminalOverrides {
             encoding: Some(EncodingProfile::Ascii),
             colors: Some(ColorProfile::Color16),
+            ambiguous_width: None,
         },
         ..Config::default()
     };

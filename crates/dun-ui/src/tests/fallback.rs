@@ -6,6 +6,7 @@ fn shell_applies_configured_terminal_fallbacks() {
         terminal: TerminalOverrides {
             encoding: Some(EncodingProfile::Ascii),
             colors: Some(ColorProfile::Color16),
+            ambiguous_width: None,
         },
         ..Config::default()
     };
@@ -56,6 +57,7 @@ fn ascii_chrome_sanitization_stays_ascii() {
         terminal: TerminalOverrides {
             encoding: Some(EncodingProfile::Ascii),
             colors: Some(ColorProfile::Color16),
+            ambiguous_width: None,
         },
         ..Config::default()
     };
@@ -80,6 +82,7 @@ fn ascii_renderer_keeps_menu_dialog_scrollbar_and_edges_ascii() {
         terminal: TerminalOverrides {
             encoding: Some(EncodingProfile::Ascii),
             colors: Some(ColorProfile::Color16),
+            ambiguous_width: None,
         },
         ..Config::default()
     };

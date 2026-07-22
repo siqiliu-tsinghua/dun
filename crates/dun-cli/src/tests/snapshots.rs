@@ -110,6 +110,7 @@ fn fixed_config(theme: ThemeName, encoding: EncodingProfile, colors: ColorProfil
         terminal: TerminalOverrides {
             encoding: Some(encoding),
             colors: Some(colors),
+            ambiguous_width: None,
         },
         ..Config::default()
     }
