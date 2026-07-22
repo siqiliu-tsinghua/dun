@@ -21,6 +21,20 @@ real external SSH hosts because terminal emulators, multiplexers, locales, and
 low-capability terminal paths can disagree about the same key names and glyph
 capabilities.
 
+## Startup Ambiguous-Width Probe
+
+On a real UTF-8 terminal, `dun` starts in raw mode on the alternate screen with
+mouse capture disabled, writes `─`, requests the cursor position, and uses a
+primary-device-attributes response as the end sentinel. Cursor column 2 means
+East Asian Ambiguous glyphs are Narrow; column 3 means they are Wide. The probe
+has one 500 ms deadline, clears its line before the first full repaint, and runs
+before crossterm starts reading events.
+
+`terminal.ambiguous-width = narrow|wide` remains authoritative over the
+detected result. ASCII profiles, non-tty stdin or stdout, malformed or
+oversized responses, timeouts, and I/O failures skip or fail closed to Narrow.
+The response parser accepts at most 256 bytes total and 32 bytes per CSI.
+
 ## Automated Baseline
 
 The default regression gate is:
@@ -48,6 +62,11 @@ terminal regressions. The harness sends `Ctrl+Q` and checks startup/exit under:
 - `TERM=ansi`, `C` locale;
 - `TERM=dumb`, `C` locale;
 - `NO_COLOR=1` with a UTF-8 locale.
+
+The current PTY/tmux harness does not yet answer the startup probe. UTF-8 cases
+therefore wait up to 500 ms and use Narrow; ASCII cases skip the probe. Probe
+response emulation and mode-aware grid parsing are tracked as a separate test
+harness step.
 
 It also opens fixtures for:
 

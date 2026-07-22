@@ -1,4 +1,5 @@
 mod action;
+mod ambiguous_width;
 mod clipboard;
 mod event_loop;
 mod input;
@@ -9,6 +10,7 @@ mod shell;
 mod surface_backend;
 
 pub(crate) use action::RuntimeAction;
+pub(crate) use ambiguous_width::detect_ambiguous_width;
 pub(crate) use clipboard::osc52_copy_sequence;
 pub(crate) use event_loop::run_event_loop;
 pub(crate) use input::{

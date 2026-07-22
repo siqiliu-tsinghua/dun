@@ -14,8 +14,8 @@ use crossterm::event::{
 };
 use dun_config::{
     ClipboardConfig, FileDialogAction, FileDialogKeymap, Key, KeyModifiers, KeySequence, KeyStroke,
-    Keymap, Limits, TextCatalog, ThemeName, command_from_id, command_id, default_config_text,
-    file_dialog_action_id,
+    Keymap, Limits, TerminalOverrides, TextCatalog, ThemeName, command_from_id, command_id,
+    default_config_text, file_dialog_action_id,
 };
 #[cfg(test)]
 use dun_config::{Config, parse_config};
@@ -118,9 +118,9 @@ use plugins::{HighlightJob, HighlightOutcome, HostEvent, PluginHosts, language_h
 use terminal::rewrite_16_color_sgr;
 use terminal::{
     RuntimeAction, SurfaceBackend, TerminalColorRewrite, TerminalGuard, TerminalWriter,
-    command_run_status, detect_terminal_profile, install_panic_terminal_restore,
-    key_stroke_from_crossterm, osc52_copy_sequence, run_command_capture, run_event_loop,
-    text_input_from_crossterm,
+    command_run_status, detect_ambiguous_width, detect_terminal_profile,
+    install_panic_terminal_restore, key_stroke_from_crossterm, osc52_copy_sequence,
+    run_command_capture, run_event_loop, text_input_from_crossterm,
 };
 #[cfg(test)]
 use terminal::{handle_key_event, handle_mouse_event};
@@ -168,9 +168,12 @@ where
 fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>) -> io::Result<()> {
     let config_request = ConfigLoadRequest::new(config_path, no_config);
     let loaded_config = load_config(&config_request)?;
+    let terminal_overrides = loaded_config.config.terminal;
     let mut app = AppState::from_loaded_config_path(config_request, loaded_config, path)?;
     install_panic_terminal_restore();
-    let mut guard = TerminalGuard::enter(app.mouse_enabled())?;
+    let mut guard = TerminalGuard::enter(false)?;
+    let ambiguous_width = detect_ambiguous_width(app.shell.profile.encoding);
+    app.apply_ambiguous_width_probe(ambiguous_width, terminal_overrides);
     let color_rewrite = TerminalColorRewrite::new(app.shell.profile);
     let writer = TerminalWriter::new(io::stdout(), color_rewrite.clone());
     let mut backend = SurfaceBackend::new(writer);

@@ -19,6 +19,7 @@ mod search_replace;
 mod state;
 mod status;
 mod status_view;
+mod terminal_profile;
 mod view_state;
 mod windows;
 
