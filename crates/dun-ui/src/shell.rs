@@ -25,6 +25,10 @@ pub struct UiShell {
     /// this after the built-in keymap, so a plugin leader can never shadow a
     /// built-in binding.
     pub plugin_keymap: Keymap,
+    /// Plugin ids whose keybinding contribution was rejected (leader collision
+    /// or unparseable). Tracked so the caller can report a newly-rejected
+    /// binding once rather than every frame.
+    pub plugin_keybinding_rejections: Vec<String>,
 }
 
 impl UiShell {
@@ -46,6 +50,7 @@ impl UiShell {
             catalog: TextCatalog::empty(),
             plugin_menu_items: Vec::new(),
             plugin_keymap: Keymap::empty(),
+            plugin_keybinding_rejections: Vec::new(),
         }
     }
 

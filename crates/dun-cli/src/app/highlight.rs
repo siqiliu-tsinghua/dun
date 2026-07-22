@@ -90,9 +90,25 @@ impl AppState {
         if items != self.shell.plugin_menu_items {
             self.shell.plugin_menu_items = items;
         }
-        let keymap = self.plugin_hosts.resolved_keybindings(&self.shell.keymap);
+        let (keymap, rejected) = self.plugin_hosts.resolved_keybindings(&self.shell.keymap);
         if keymap.bindings != self.shell.plugin_keymap.bindings {
             self.shell.plugin_keymap = keymap;
+        }
+        if rejected != self.shell.plugin_keybinding_rejections {
+            // Report one newly-rejected plugin so a colliding leader is visible
+            // instead of a silent no-op; store the set so it reports once.
+            let newly = rejected
+                .iter()
+                .find(|id| !self.shell.plugin_keybinding_rejections.contains(*id))
+                .cloned();
+            self.shell.plugin_keybinding_rejections = rejected;
+            if let Some(id) = newly {
+                self.set_status(ui_text::tr_fmt(
+                    &self.shell.catalog,
+                    ui_text::STATUS_PLUGIN_KEYBINDING_CONFLICT,
+                    &[&id],
+                ));
+            }
         }
     }
 

@@ -503,19 +503,23 @@ impl PluginHosts {
     /// already claimed by an earlier plugin this pass is rejected — its whole
     /// contribution is dropped — so a plugin can never shadow an existing
     /// binding or another plugin's leader.
-    pub(crate) fn resolved_keybindings(&self, base: &Keymap) -> Keymap {
+    pub(crate) fn resolved_keybindings(&self, base: &Keymap) -> (Keymap, Vec<String>) {
         let mut bindings: Vec<KeyBinding> = Vec::new();
         let mut claimed_leaders: Vec<KeyStroke> = Vec::new();
+        let mut rejected: Vec<String> = Vec::new();
         for (plugin_id, keybinding) in self.keybindings() {
-            let Some(resolved) =
-                resolve_plugin_keybinding(plugin_id, keybinding, base, &claimed_leaders)
-            else {
-                continue;
-            };
-            claimed_leaders.push(resolved.leader);
-            bindings.extend(resolved.bindings);
+            match resolve_plugin_keybinding(plugin_id, keybinding, base, &claimed_leaders) {
+                Some(resolved) => {
+                    claimed_leaders.push(resolved.leader);
+                    bindings.extend(resolved.bindings);
+                }
+                // A host that advertised a keybinding but was rejected (leader
+                // collision, already claimed, or unparseable) is reported so it
+                // is not a silent no-op.
+                None => rejected.push(plugin_id.to_string()),
+            }
         }
-        Keymap { bindings }
+        (Keymap { bindings }, rejected)
     }
 }
 

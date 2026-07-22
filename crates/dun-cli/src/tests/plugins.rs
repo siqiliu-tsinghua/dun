@@ -934,6 +934,34 @@ fn keybinding_leader_colliding_with_a_built_in_prefix_is_rejected() {
 }
 
 #[test]
+fn a_rejected_keybinding_reports_a_status_message() {
+    // A colliding leader is dropped from the keymap — a silent no-op before —
+    // so the user now gets a status message naming the plugin instead.
+    let app = app_with_keybinding_host("logf", keybinding("Ctrl+X", "o", "open"));
+    assert!(app.shell.plugin_keymap.bindings.is_empty());
+    assert_eq!(
+        app.status_message,
+        Some("Plugin logf keybinding ignored: leader conflicts".to_string()),
+        "a rejected keybinding must be reported, not silent"
+    );
+    assert_eq!(
+        app.shell.plugin_keybinding_rejections,
+        vec!["logf".to_string()]
+    );
+}
+
+#[test]
+fn an_accepted_keybinding_reports_nothing() {
+    // The good-path counterpart: a free leader installs and stays silent.
+    let app = app_with_keybinding_host("logf", keybinding("Ctrl+J", "o", "open"));
+    assert_eq!(app.shell.plugin_keymap.bindings.len(), 1);
+    assert!(
+        app.shell.plugin_keybinding_rejections.is_empty(),
+        "an accepted keybinding must not be reported as rejected"
+    );
+}
+
+#[test]
 fn two_plugins_cannot_claim_the_same_leader() {
     let mut app = AppState::new();
     let (mut alpha, _am, alpha_events) = PluginHost::for_tests_granted("alpha", eager_grant());
