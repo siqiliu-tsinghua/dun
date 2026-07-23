@@ -17,7 +17,6 @@ rust-version = "1.85"
 license = "MIT"
 
 [workspace.dependencies]
-crossterm = "0.28"
 dun-config = { path = "crates/dun-config" }
 dun-core = { path = "crates/dun-core" }
 dun-plugin = { path = "crates/dun-plugin" }

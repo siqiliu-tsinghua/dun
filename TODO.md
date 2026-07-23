@@ -20,15 +20,29 @@ remaining B-class features are KEPT; no lazy trim order remains.
 - [x] Adopt the build-std budget build contract (user decision 2026-07-10).
 - [x] Rewrite docs/feature-budget.md from the completed triage.
 
+## Completed Stage: In-House Terminal I/O (2026-07-23)
+
+The five-step crossterm-replacement track from briefs 041–046 is complete.
+`dun-cli` now owns terminal lifecycle, its safe Unix sys shim, VT output and
+events, the bounded input parser, and the SIGWINCH-aware event reader. The
+direct-poll design passed the 780/0 workspace matrix on macOS, Debian, FreeBSD,
+and Solaris; the final dependency closure reduced the lockfile from 42 to 26
+packages without changing surviving versions.
+
+- [x] Own fixed VT output and terminal lifecycle/sys operations.
+- [x] Migrate application dispatch to owned event types.
+- [x] Replace the input parser and event loop, including resize handling.
+- [x] Remove the retired dependency family and close the named docs.
+
 ## Current Stage: Plugin Protocol Client
 
 The active stage is the required host-neutral plugin protocol client. This
 does not wait for `rum`; `rum` is a future optional pure-sandbox host that
 must speak the same protocol. Size groundwork is done: the client's measured
 cost (~76 KiB Debian, spike branch `spike/plugin-client-size`) fits the
-post-build-std margin with room to spare. The renderer-replacement line
-(Surface grid, brief-002) continues in parallel as dependency hygiene via
-small Codex briefs.
+post-build-std margin with room to spare. The Surface renderer and in-house
+terminal-I/O replacement lines are complete; the active work remains the
+protocol client and its capability data channels.
 
 The protocol client is a required runtime feature under
 [docs/feature-budget.md](./docs/feature-budget.md). The budget gate is the

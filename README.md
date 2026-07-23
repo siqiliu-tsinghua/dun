@@ -211,7 +211,7 @@ The external SSH and low-capability terminal release matrix is documented in
 [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
 the local PTY harness covers common terminal profiles, small VT100-style
 fallback, terminal escape payloads, invalid-byte fallback files, and
-event-level coverage for common modified keys after crossterm has parsed them.
+event-level coverage for the in-house VT parser's common modified keys.
 External host results still need to be recorded before a tagged release.
 Lightweight Microsoft Edit reference tests check the local `edit --help`
 contract when available and statically scan `reference/msedit` source for menu,
@@ -285,8 +285,8 @@ The current codebase is a Cargo workspace with these boundaries:
   validation.
 - `dun-ui`: `ratatui` views, menus, status lines, layout, sanitization, cursor
   placement, and lightweight tiled-window rendering.
-- `dun-cli`: terminal lifecycle, event loop, key input routing, and command
-  application.
+- `dun-cli`: terminal lifecycle, Unix sys shim, platform-neutral VT I/O,
+  SIGWINCH-aware event reading, key input routing, and command application.
 
 Plugin protocol support is planned before `rum` integration:
 
@@ -344,8 +344,8 @@ Rendering must go through an explicit terminal profile:
 
 The UI must not assume Nerd Fonts, truecolor, enabled mouse support, or Unicode
 line drawing. For 16-color profiles, the terminal output path rewrites
-crossterm palette SGR sequences into legacy 16-color SGR forms instead of
-emitting 256-color-style `38;5;n` or `48;5;n` controls.
+palette SGR sequences into legacy 16-color SGR forms instead of emitting
+256-color-style `38;5;n` or `48;5;n` controls.
 
 ## UI Languages
 

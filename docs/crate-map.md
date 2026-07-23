@@ -110,12 +110,19 @@ Owns process-level entry.
 Responsibilities:
 
 - argument parsing;
-- terminal setup and restoration;
+- in-house terminal lifecycle, setup, panic restoration, and suspension;
+- a Unix sys shim for tty acquisition, raw mode, size, direct reads, and
+  level-triggered polling;
+- platform-neutral VT output, owned event types, and bounded input parsing;
+- a SIGWINCH-aware event reader and the runtime event loop;
 - startup file opening;
 - constructing config/profile/workspace/UI;
 - exit codes.
 
-`dun-cli` should stay thin. Product behavior belongs in library crates.
+The terminal module is its own backend: no external terminal backend or
+readiness abstraction sits below it. Platform-neutral VT code remains separate
+from the Unix sys shim so a future platform shim can reuse the core. `dun-cli`
+should otherwise stay thin; product behavior belongs in library crates.
 
 ## Plugin Protocol Crates
 

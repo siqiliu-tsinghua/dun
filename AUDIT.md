@@ -14,7 +14,7 @@ structured data or command intents that `dun` validates before execution.
 Trusted:
 
 - `dun` Rust core;
-- terminal backend and `ratatui` integration;
+- in-house terminal lifecycle, sys shim, and VT core;
 - file I/O performed by `dun`;
 - plugin policy enforcement code;
 - future runtime adapter code;
@@ -300,7 +300,7 @@ Current implementation:
 - ASCII mode uses caret notation and escapes non-ASCII characters as
   `\u{...}`.
 - C1 controls are rendered as visible code point markers.
-- Color16 terminal profiles route ratatui/crossterm output through a bounded
+- Color16 terminal profiles route in-house terminal output through a bounded
   SGR rewriter so ANSI 0-15 palette colors become legacy 16-color SGR controls
   instead of 256-color-style `38;5;n` or `48;5;n` controls.
 - CLI buffers track file-text encoding metadata; Save and Save As reject
@@ -309,9 +309,10 @@ Current implementation:
   snapshots instead of silently overwriting external changes.
 - Long-line display work is capped by byte count without splitting a UTF-8
   character.
-- A process panic hook restores the terminal (mouse capture, bracketed paste,
-  alternate screen, raw mode) before the release profile's `panic = "abort"`
-  kills the process, so panics do not leave the user's terminal in raw mode.
+- A process panic hook uses the in-house lifecycle and sys shim to restore the
+  terminal (mouse capture, bracketed paste, alternate screen, raw mode) before
+  the release profile's `panic = "abort"` kills the process, so panics do not
+  leave the user's terminal in raw mode.
 - Mouse capture is disabled by default, enabled only through typed config, and
   restored on exit or runtime disable. Current mouse input can focus tiled
   windows, place the cursor, update a text selection, resize a split, or

@@ -352,7 +352,7 @@ Progress note:
 - `terminal/lifecycle.rs` owns raw mode, alternate-screen, bracketed paste,
   mouse capture, suspend/resume, and drop-time terminal restoration;
 - `terminal/sgr.rs` owns the 16-color SGR rewriter and `TerminalWriter`;
-- `terminal/input.rs` owns key/mouse event dispatch and crossterm-to-config
+- `terminal/input.rs` owns key/mouse event dispatch and owned-VT-event-to-config
   key/text conversion;
 - `terminal/shell.rs` owns shell escape, one-shot command execution, bounded
   stdout/stderr capture, and command-run status formatting;

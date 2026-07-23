@@ -357,3 +357,24 @@ Phase 12 is complete: `dun` renders entirely through the in-house Surface
 backend (Surface grid → layer draw → SurfaceRenderer/emit_diff →
 SurfaceBackend), with no `ratatui` dependency. Net size vs the pre-renderer
 baseline: Debian 706,944 → 633,216 (-73,728).
+
+## Phase 13: Terminal I/O Replacement (crossterm → in-house VT)
+
+Goal: own the terminal path end to end and remove the polling abstraction that
+lost repeated input batches on poll-fallback platforms.
+
+- [x] Replace fixed terminal output commands with platform-neutral VT bytes.
+- [x] Add a safe-Rust Unix sys shim over `rustix` for raw mode, terminal size,
+  direct reads, and fresh level-triggered `poll(2)` calls.
+- [x] Move application dispatch onto owned key, mouse, paste, and resize event
+  types.
+- [x] Add the bounded xterm-family VT parser, bracketed paste and SGR mouse
+  handling, startup-probe reuse, and a `signal-hook` SIGWINCH event reader.
+- [x] Cut the event loop over to the in-house reader and pass the four-platform
+  matrix at 780/0 on macOS, Debian, FreeBSD, and Solaris.
+- [x] Remove the retired dependencies from the manifests and lockfile and close
+  the architecture, compatibility, security, and dependency documentation.
+
+Phase 13 is complete: lifecycle + sys shim + VT output/events/parser + event
+reader are Rust-owned, no external terminal backend remains, and the lockfile
+contains 26 packages.

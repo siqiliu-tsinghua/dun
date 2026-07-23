@@ -21,6 +21,13 @@ real external SSH hosts because terminal emulators, multiplexers, locales, and
 low-capability terminal paths can disagree about the same key names and glyph
 capabilities.
 
+The in-house bounded input surface supports classic xterm-family CSI/SS3 keys
+and UTF-8 text, SGR mouse, bracketed paste, CPR and DA1 probe responses, and
+`SIGWINCH`-driven resize events. Kitty keyboard protocol, modifyOtherKeys,
+legacy X10 mouse, rxvt mouse, and win32-input-mode are intentionally out of
+scope; the supported path is the xterm family through direct terminals, tmux,
+or screen.
+
 ## Startup Ambiguous-Width Probe
 
 On a real UTF-8 terminal, `dun` starts in raw mode on the alternate screen with
@@ -28,7 +35,7 @@ mouse capture disabled, writes `─`, requests the cursor position, and uses a
 primary-device-attributes response as the end sentinel. Cursor column 2 means
 East Asian Ambiguous glyphs are Narrow; column 3 means they are Wide. The probe
 has one 500 ms deadline, clears its line before the first full repaint, and runs
-before crossterm starts reading events.
+before the SIGWINCH-aware event reader starts reading input.
 
 `terminal.ambiguous-width = narrow|wide` remains authoritative over the
 detected result. ASCII profiles, non-tty stdin or stdout, malformed or
@@ -71,10 +78,12 @@ terminal regressions. The harness sends `Ctrl+Q` and checks startup/exit under:
 - `TERM=dumb`, `C` locale;
 - `NO_COLOR=1` with a UTF-8 locale.
 
-The current PTY/tmux harness does not yet answer the startup probe. UTF-8 cases
-therefore wait up to 500 ms and use Narrow; ASCII cases skip the probe. Probe
-response emulation and mode-aware grid parsing are tracked as a separate test
-harness step.
+The PTY harness answers the startup probe with bounded CPR and DA1 responses:
+Narrow is the default, with dedicated Wide and no-response cases. The response
+paths assert that startup avoids the 500 ms fallback; the no-response case
+asserts the bounded Narrow fallback. ASCII cases skip the probe. The tmux grid
+harness measures the real terminal's ambiguous-width mode before interpreting
+captured cells.
 
 It also opens fixtures for:
 
@@ -87,11 +96,11 @@ It also opens fixtures for:
   starts and exits cleanly;
 - a `40x12` VT100/C-locale startup case.
 
-Unit coverage also checks the event-level path for common modified terminal
-keys such as `Ctrl+Home`, `Ctrl+End`, `Shift+F3`, and
-`Ctrl+Shift+Left` after crossterm has parsed them. Whether a particular SSH,
-terminal emulator, or tmux/screen path delivers those sequences remains a
-compatibility note for that terminal path.
+Unit coverage also feeds literal input bytes through the in-house VT parser for
+common modified terminal keys such as `Ctrl+Home`, `Ctrl+End`, `Shift+F3`, and
+`Ctrl+Shift+Left`. Whether a particular SSH, terminal emulator, or tmux/screen
+path delivers those sequences remains a compatibility note for that terminal
+path.
 
 Real-terminal automated coverage also includes:
 

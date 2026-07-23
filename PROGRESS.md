@@ -1258,3 +1258,16 @@ This is an append-only progress log. Keep new entries dated and factual.
   gate, menu install, menu clear-on-unload, StartFailed error flag, get_mut
   addressing). macOS budget build 658,132 bytes (+4,120); the Debian
   measurement stays owed at the C-spine integration milestone as planned.
+- Completed the five-step crossterm replacement track (briefs 041–046,
+  2026-07-23). Fixed VT output moved in-house first; a safe Unix sys shim over
+  `rustix` then took ownership of raw mode, terminal sizing, direct reads, and
+  fresh level-triggered polling; application dispatch moved to owned events;
+  and the bounded xterm-family parser plus `signal-hook` SIGWINCH reader
+  replaced the final external input path. The parser cutover passed 780/0 on
+  macOS, Debian, FreeBSD, and Solaris, including the repeated-input cases that
+  exposed the old poll-fallback defect. Closure removed the two manifest
+  declarations and regenerated `Cargo.lock` with a plain build: 42 → 26
+  packages, with every surviving package version unchanged. The terminal
+  lifecycle, sys shim, VT core, and event reader are now fully Rust-owned; the
+  dual-platform release-size measurement remains gate-owned and was not rerun
+  during this documentation/dependency closure.

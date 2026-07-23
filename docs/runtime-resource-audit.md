@@ -78,7 +78,5 @@ Future checks should repeat this audit after changes to:
 - file loading or buffer storage;
 - undo/redo transaction storage;
 - soft-wrap or display caching;
-- terminal backend features;
-- dependency feature sets;
+- terminal I/O implementation or dependency feature sets;
 - future optional plugin/runtime adapters.
-

@@ -14,7 +14,6 @@ path = "src/main.rs"
 test-panic-hook = []
 
 [dependencies]
-crossterm.workspace = true
 dun-config.workspace = true
 dun-core.workspace = true
 dun-plugin.workspace = true

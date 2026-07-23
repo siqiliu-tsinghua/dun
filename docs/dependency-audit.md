@@ -5,37 +5,31 @@ keeping `dun` lightweight.
 
 ## Current Direct Runtime Dependencies
 
-As of 2026-07-08, `dun-cli` has these direct dependencies:
+As of 2026-07-23, `dun-cli` has these direct in-workspace dependencies:
 
 ```text
-crossterm v0.28.1
 dun-config
 dun-core
+dun-plugin
 dun-term
 dun-ui
-ratatui v0.29.0
-unicode-width v0.2.0
 ```
 
-The normal dependency tree for `dun-cli` contains 67 unique package lines in
-the current local audit. This is a coarse count, not a size guarantee.
+The default runtime graph has three external direct dependencies:
 
-The workspace config already disables `ratatui` default features and enables
-only its `crossterm` backend:
+| Dependency | Feature set | Purpose |
+| --- | --- | --- |
+| `rustix v0.38.44` | default features off; `std`, `stdio`, `termios`, `event` | Safe Unix terminal detection, raw mode, size queries, direct reads, and level-triggered `poll(2)`. |
+| `signal-hook v0.3.18` | default features off | Flag-based `SIGWINCH` registration for bounded resize observation. |
+| `unicode-width v0.2.0` | unchanged | Terminal-cell width calculation in `dun-term`. |
 
-```toml
-ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
-```
+The regenerated workspace lockfile contains 26 packages. The terminal stack
+has no external backend or general-purpose readiness layer; VT output, event
+types, parsing, lifecycle, and event-loop semantics are owned by `dun`.
 
-`crossterm` is currently pulled with its default feature set, including
-`bracketed-paste`, `events`, and `windows`. This is acceptable for the current
-cross-platform terminal baseline, but it is the first feature set to re-check
-if the binary grows enough to justify a feature-reduction pass.
-
-The current tree does not include direct or transitive packages named
-`tokio`, `reqwest`, `openssl`, `syntect`, `regex`, `serde`, `tree-sitter`,
-`wasmtime`, or `rum`. `strum` and `strum_macros` are present through terminal
-backend dependencies; they are not related to the future `rum` runtime.
+The current tree does not include direct or transitive packages named `tokio`,
+`reqwest`, `openssl`, `syntect`, `regex`, `serde`, `tree-sitter`, `wasmtime`,
+or `rum`.
 
 ## Feature Policy
 
