@@ -620,12 +620,28 @@ default chords do not transplant: `Ctrl+X,M`/`Ctrl+X,P` are taken by Window
 Collapse/Expand today; the design brief owes a collision inventory and a
 keymap proposal.
 
-- [ ] Design-only brief 047 (`docs/dev/codex/brief-047-f12-f13-restoration-plan.md`):
+- [x] Design-only brief 047 (`docs/dev/codex/brief-047-f12-f13-restoration-plan.md`):
   the restoration plan — spec extraction from `53fe7f8^`, per-piece mapping
   to today's code, i18n key plan, keymap proposal, ordered steps, test plan,
-  risks. Dispatched 2026-07-23.
-- [ ] Claude reviews/adapts the plan; decides the keymap and any open
-  questions.
+  risks. Delivered 2026-07-23: three ordered steps — (1) a shared
+  display-coordinate seam (`EditorTextDisplay` in dun-ui + a mapped
+  sanitizer entry in dun-core + `GlyphSet` whitespace glyphs) with the
+  oversized `editing.rs`/`buffer_state.rs` splits, behavior-identical;
+  (2) F13 full-trail; (3) F12 full-trail. 18 i18n keys, full keymap
+  collision inventory, named mutation targets per invariant.
+- [x] Claude reviewed/adapted the plan; decisions frozen 2026-07-23:
+  keymap `Ctrl+X,.` (whitespace), `Ctrl+X,K` (toggle bookmark), `Ctrl+X,N`
+  (next), `Ctrl+X,L` (previous), menu mnemonics `.`/K/N/L (all verified
+  free); bookmark edit semantics are the exact old behavior (only Delete
+  Line / Move Line / Reload remap — general marker-edit tracking is out of
+  scope, a possible future design item); status brackets keep the old
+  index-4 insertion and priority, with narrow-width tests instead of
+  shortened labels; sanitizer caps in raw source coordinates before
+  mapping; all wide-mode geometry through `dun_term::char_width`
+  (`·`/`→`/`¶` are East Asian Ambiguous = two cells in Wide). Measurement
+  cadence adapted from the plan: macOS budget build gates every step; the
+  binding Debian measurement + smoke runs after step 1 and after step 3
+  (C-spine/crossterm batching precedent), not three times.
 - [ ] Implementation steps per the adapted plan, each its own gated brief
   (scope check, fmt/clippy/tests, mutation-proofs on invariant guards).
 - [ ] Dual-platform size measurement (macOS proxy + binding Debian) and a
