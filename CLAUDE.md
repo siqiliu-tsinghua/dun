@@ -47,23 +47,22 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **699,276 bytes** (2026-07-22, ambiguous-width auto-detection at
-  `f7e530a`; +4,128 over the 695,148 stage-A baseline).
-- Debian: **764,288 bytes** at `f7e530a` — **binding platform**, margin
-  284,288 bytes (2026-07-22, last measured; all v0 data channels plus the
-  adaptive ambiguous-width render layer AND startup auto-detection, stages
-  A+B). Stage A (wide-aware render layer, `c0e13e3`) was +4,096 over the 756,096
-  baseline; stage B's startup CPR/DA1 probe + `mio` (step 1 `e023bbd`) is +4,096
-  more, and step 2 (`f7e530a`) is test-only. `mio` became a direct dependency
-  but adds no new shared library (`ldd` unchanged; already linked via
-  crossterm). Unconfigured `dun` now auto-detects Wide on the Solaris tmux pane
-  — tmux_grid 5/5, border closes live. **No Debian measurement debt:** measured
-  through HEAD. (An independent, pre-existing Solaris *input* defect — a second
-  `tmux send-keys` batch is dropped, proven non-detector — surfaces as two
-  tmux_logfilter timeouts; unrelated to size or ambiguous-width. Root-caused
-  2026-07-23 to mio's poll(2)-fallback interest-clearing + crossterm's
-  never-reregistered `SourceFd`; fixed by the crossterm-replacement track in
-  the Active Plan. See docs/release-size-audit.md 2026-07-22 stage B.)
+- macOS: **677,940 bytes** (2026-07-23, crossterm replacement complete at
+  `877b7ad`; net −21,336 from the 699,276 stage-B baseline).
+- Debian: **739,632 bytes** at `877b7ad` — **binding platform**, margin
+  308,944 bytes (2026-07-23, last measured). The crossterm-replacement track
+  (five steps, `cf1a5b6`..`877b7ad`) made dun's terminal I/O fully in-house
+  and shrank the binding binary 24,656 bytes net from the 764,288 stage-B
+  baseline: step 1 own output escapes (−4,096), step 2 rustix sys shim
+  (+4,096 transitional), steps 3–4 owned event types + in-house VT parser /
+  direct-poll(2) event reader (−24,656 as LTO shed crossterm+mio), step 5
+  manifest removal byte-identical. Lockfile 42 → 26 packages; external
+  direct deps = rustix + signal-hook + unicode-width. The historic Solaris
+  input defect (second `tmux send-keys` batch lost via mio's poll(2)-fallback
+  interest clearing + crossterm's never-reregistered `SourceFd`) is fixed by
+  construction — first fully green four-platform matrix (780/0 on macOS/
+  Debian/FreeBSD/Solaris). **No Debian measurement debt:** measured through
+  HEAD. (See docs/release-size-audit.md 2026-07-23 entries.)
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to
@@ -218,20 +217,18 @@ Sequencing (stages 1–2 completed 2026-07-10):
    `744c843`, 2026-07-15; see the size budget above), so this stage starts on
    a measured floor and each capability batch attributes its own cost.
 
-Inserted track (decided 2026-07-23, ACTIVE): **replace crossterm with an
-in-house terminal I/O layer** — motivated by the root-caused Solaris input
-defect (mio poll(2)-fallback + crossterm `SourceFd`, unfixed upstream and
-upstream is semi-active), dependency reduction (lockfile 42 → ~26; direct
-external deps become rustix + signal-hook + unicode-width), and a fully
-self-owned terminal stack after the ratatui retirement. Fixed constraints:
-safe Rust only (`forbid(unsafe_code)` stays; rustix + signal-hook), no Windows
-now but msedit-style VT-core/sys-shim layering keeps the door open, event loop
-= direct level-triggered `poll(2)` on the tty fd. Acceptance: all four
-platforms green (Solaris 747/2 → both tmux_logfilter timeouts pass).
-Plan-first: brief 041 (Codex plan, accepted 2026-07-23) → implementation
-briefs 042+ in order: output escapes → Unix sys shim/lifecycle → owned event
-types + import migration → parser/event-loop cutover → dependency removal +
-docs closure. Each step passes the full gate incl. dual-platform size.
+Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
+(`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,
+plan-first Codex with every step Claude-gated). dun's terminal I/O is fully
+in-house: `terminal/vt/{output,event,parser}` platform-neutral core +
+`terminal/sys/unix.rs` rustix shim + `terminal/event_reader.rs` on direct
+level-triggered `poll(2)`, safe Rust throughout, msedit-style layering keeps
+the Windows door open. The acceptance was met: the Solaris second-batch input
+defect is gone by construction and all four platforms run green (780/0 —
+first time in the project's history). Lockfile 42 → 26; binding binary
+−24,656 net. The bounded input surface (xterm-family keys, SGR mouse,
+bracketed paste, CPR/DA1, SIGWINCH; kitty/modifyOtherKeys/X10/rxvt excluded)
+is documented in docs/terminal-compatibility-checks.md.
 
 Renderer replacement is DONE: ratatui was fully retired at `858e876`
 (2026-07-11) — dropped from every crate, the workspace table, and the

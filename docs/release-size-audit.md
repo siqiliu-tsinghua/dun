@@ -842,3 +842,23 @@ batch lost through mio's poll-fallback interest clearing; root-caused
 The startup probe now runs through the shared parser in Probe mode; PTY
 responder paths cost 2–3 ms (the deliberate no-response case still reaches the
 500 ms Narrow fallback). No measurement debt: measured through `5ffd477`.
+
+## 2026-07-23 crossterm replacement step 5 — track closed (877b7ad)
+
+Step 5 (`877b7ad`) removes crossterm from the manifests and closes the docs
+trail; the binary is byte-identical to step 4 on BOTH platforms (macOS
+677,940; Debian 739,632 — fat LTO had already shed the unreferenced code), so
+the removal is pure bookkeeping. Lockfile: 42 → **26 packages** as pure
+removals with zero version drift (crossterm, crossterm_winapi, mio,
+signal-hook-mio, parking_lot/lock_api/parking_lot_core/scopeguard/smallvec/
+redox_syscall/cfg-if, log, wasi, winapi ×3). External direct dependencies:
+rustix, signal-hook, unicode-width. Debian smoke: ldd unchanged, `--version`,
+`--dump-config`. Four-platform re-verify on the closure commit: macOS 780/0,
+Debian 780/0 (0 failed suites), FreeBSD 780/0, Solaris all-ok/0 FAILED.
+
+**Track summary (f7e530a → 877b7ad, five steps, one day):** dun's terminal
+I/O is fully in-house (vt output/event/parser + event reader + rustix sys
+shim), the Solaris second-batch input defect is gone by construction, the
+four-platform matrix is green for the first time, and the binding binary
+shrank 24,656 bytes net (764,288 → 739,632; margin 308,944). macOS net
+−21,336 (699,276 → 677,940; margin 370,636).
