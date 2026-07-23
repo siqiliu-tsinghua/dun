@@ -605,6 +605,34 @@ deltas non-additive).
       validator, scratch gate, execute submit, plus si-1 gate). macOS budget
       build 691,028 (+8,208 over the stream-read baseline for si-1+si-2).
 
+## Current Stage: Restoration Review — F12/F13 (started 2026-07-23)
+
+User decision 2026-07-23: with the Distinctive Plugins stage closed, the
+restoration review runs next (see the "Deferred" item, now decided): restore
+F12 (bookmarks) + F13 (visible whitespace), removed 2026-07-10 at `53fe7f8`
+(batch 3). A plain `git revert` is dead — a `git merge-tree` simulation
+conflicts in 10 of the commit's 26 files, and clean hunks would reintroduce
+pre-i18n hardcoded English — so the track is plan-first: `53fe7f8^` is the
+behavior specification, re-landed against today's architecture (i18n keys +
+ten translations, wide-aware dun-ui render layer, the `Ctrl+X` keymap
+family, current menu/help pipelines), full-trail per AGENTS.md. Note the old
+default chords do not transplant: `Ctrl+X,M`/`Ctrl+X,P` are taken by Window
+Collapse/Expand today; the design brief owes a collision inventory and a
+keymap proposal.
+
+- [ ] Design-only brief 047 (`docs/dev/codex/brief-047-f12-f13-restoration-plan.md`):
+  the restoration plan — spec extraction from `53fe7f8^`, per-piece mapping
+  to today's code, i18n key plan, keymap proposal, ordered steps, test plan,
+  risks. Dispatched 2026-07-23.
+- [ ] Claude reviews/adapts the plan; decides the keymap and any open
+  questions.
+- [ ] Implementation steps per the adapted plan, each its own gated brief
+  (scope check, fmt/clippy/tests, mutation-proofs on invariant guards).
+- [ ] Dual-platform size measurement (macOS proxy + binding Debian) and a
+  docs/release-size-audit.md entry; release smoke on runtime commits.
+- [ ] Full-trail docs: README feature paragraphs, docs/feature-triage.md
+  restoration record, feature-budget classification for the restored units.
+
 ## Completed Stage: v0.1 Release Hardening
 
 - [x] Set the hard runtime budget: `target/release/dun` must be no larger than
@@ -957,11 +985,11 @@ this section focused on post-baseline extensions only.
 
 ## Deferred
 
-- [ ] Restoration review after the plugin protocol client lands: revisit the
-  removed C/D units (see docs/feature-triage.md "Restoration Path"), restore
-  selected ones by revert + gates if margin allows; F12/F13 (bookmarks,
-  visible whitespace) are the leading candidates, F20 (Outline) returns as a
-  plugin role instead.
+- [x] Restoration review after the plugin protocol client lands — review
+  decided 2026-07-23 (user): restore F12/F13 (bookmarks, visible
+  whitespace); F46 stays removed (the LogFilter-plugin overlap rationale
+  still holds); F20 (Outline) still returns as a plugin role. Execution
+  tracked in "Current Stage: Restoration Review — F12/F13".
 
 - [ ] OSC 52 paste/query support or platform-specific clipboard command
   integration.

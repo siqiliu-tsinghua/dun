@@ -213,11 +213,17 @@ Sequencing (stages 1–2 completed 2026-07-10):
    as superseded by construction and per-role policy overrides stay unadopted
    (closure notes in TODO.md and docs/plugin-protocol.md).
 
-Next stage: to be chosen from the queue stage 5 was blocking. Leading
-candidate: the F12/F13 restoration review (docs/feature-triage.md
-"Restoration Path"; Debian margin 308,944 bytes). Also queued: OSC 52 paste;
-F20 (Outline) returns as a plugin role, not a revert. rum evaluation stays
-externally blocked on rum-ext's resource/type base.
+6. **Restoration review — F12/F13** (ACTIVE, started 2026-07-23, user
+   decision): restore bookmarks + visible whitespace, removed at `53fe7f8`
+   (docs/feature-triage.md "Restoration Path"; Debian margin 308,944). A
+   plain revert is dead (10/26 files conflict; pre-i18n strings would
+   return), so plan-first: `53fe7f8^` is the spec, re-landed against
+   today's architecture (i18n + wide-aware render layer + `Ctrl+X` keymap
+   family), full-trail, dual-platform measured. Brief 047 is the
+   design-only plan; TODO.md "Current Stage: Restoration Review — F12/F13"
+   tracks execution. F46 stays removed; F20 returns as a plugin role.
+   Still queued behind: OSC 52 paste; rum evaluation (externally blocked
+   on rum-ext).
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,
