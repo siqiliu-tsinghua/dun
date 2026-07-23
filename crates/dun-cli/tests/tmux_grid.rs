@@ -4,13 +4,15 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::time::Duration;
+use std::process::{Command, Output};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use dun_term::{AmbiguousWidth, str_width};
 
 mod support;
 
-use support::pty::temp_path;
+use support::pty::{command_on_path, temp_path};
 use support::terminal_grid::{
     GridRect, TerminalColor, assert_text_at, find_border_box, find_border_boxes,
 };
@@ -106,6 +108,53 @@ fn tmux_grid_respects_larger_fixed_pane_dimensions() -> io::Result<()> {
             width: 100,
             height: 28,
         })
+    );
+
+    Ok(())
+}
+
+#[test]
+fn tmux_grid_adopts_resized_pane_dimensions() -> io::Result<()> {
+    let _guard = tmux_test_guard();
+    let label = "sigwinch-resize";
+    let Some(session) = TmuxSession::start_dun(label, 80, 24, &[OsStr::new("--no-config")])? else {
+        return Ok(());
+    };
+    session.capture_until_contains("Untitled", STARTUP_TIMEOUT)?;
+
+    let (tmux, pane) = resize_tmux_pane(label, 100, 30)?;
+    let deadline = Instant::now() + INTERACTION_TIMEOUT;
+    let capture = loop {
+        let capture = capture_tmux_pane(&tmux, &pane, 30)?;
+        let lines: Vec<_> = capture.lines().collect();
+        if lines.len() == 30
+            && str_width(lines[1], session.ambiguous_width()) == 100
+            && str_width(lines[28], session.ambiguous_width()) == 100
+        {
+            break capture;
+        }
+        if Instant::now() >= deadline {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("dun did not redraw at 100x30 after resize\n{capture}"),
+            ));
+        }
+        thread::sleep(Duration::from_millis(25));
+    };
+    let lines: Vec<_> = capture.lines().collect();
+
+    assert_eq!(lines.len(), 30, "resized frame height\n{capture}");
+    assert_eq!(
+        str_width(lines[1], session.ambiguous_width()),
+        100,
+        "top border did not adopt the resized pane width\n{}",
+        lines[1]
+    );
+    assert_eq!(
+        str_width(lines[28], session.ambiguous_width()),
+        100,
+        "bottom border did not adopt the resized pane width\n{}",
+        lines[28]
     );
 
     Ok(())
@@ -242,6 +291,86 @@ fn tmux_grid_ascii_16_fallback_uses_ascii_chrome_and_no_256_sgr() -> io::Result<
     );
 
     Ok(())
+}
+
+fn resize_tmux_pane(label: &str, cols: u16, rows: u16) -> io::Result<(std::path::PathBuf, String)> {
+    let tmux = command_on_path("tmux")
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "tmux is not on PATH"))?;
+    let prefix = format!("dun-{label}-{}-", std::process::id());
+    let panes = checked_tmux_output(
+        Command::new(&tmux)
+            .args(["list-panes", "-a", "-F", "#{session_name} #{pane_id}"])
+            .output()?,
+        "tmux list-panes",
+    )?;
+    let listing = String::from_utf8_lossy(&panes.stdout);
+    let mut matches = listing.lines().filter_map(|line| {
+        let (session, pane) = line.split_once(' ')?;
+        session.starts_with(&prefix).then_some((session, pane))
+    });
+    let (session, pane) = matches
+        .next()
+        .ok_or_else(|| io::Error::other(format!("no tmux pane matched {prefix:?}")))?;
+    if matches.next().is_some() {
+        return Err(io::Error::other(format!(
+            "multiple tmux panes matched {prefix:?}"
+        )));
+    }
+
+    // A detached fixed-size tmux window cannot grow its sole pane beyond the
+    // window. Grow that container first, then exercise resize-pane on the
+    // resolved pane exactly as an attached client would.
+    checked_tmux_output(
+        Command::new(&tmux)
+            .args([
+                "resize-window",
+                "-t",
+                session,
+                "-x",
+                &cols.to_string(),
+                "-y",
+                &rows.to_string(),
+            ])
+            .output()?,
+        "tmux resize-window",
+    )?;
+    checked_tmux_output(
+        Command::new(&tmux)
+            .args([
+                "resize-pane",
+                "-t",
+                pane,
+                "-x",
+                &cols.to_string(),
+                "-y",
+                &rows.to_string(),
+            ])
+            .output()?,
+        "tmux resize-pane",
+    )?;
+    Ok((tmux, pane.to_string()))
+}
+
+fn capture_tmux_pane(tmux: &std::path::Path, pane: &str, rows: u16) -> io::Result<String> {
+    let end = rows.saturating_sub(1).to_string();
+    let output = checked_tmux_output(
+        Command::new(tmux)
+            .args(["capture-pane", "-p", "-t", pane, "-S", "0", "-E", &end])
+            .output()?,
+        "tmux capture-pane",
+    )?;
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn checked_tmux_output(output: Output, action: &str) -> io::Result<Output> {
+    if output.status.success() {
+        Ok(output)
+    } else {
+        Err(io::Error::other(format!(
+            "{action} failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )))
+    }
 }
 
 fn assert_line_contains(screen: &TmuxCapture, row: usize, needle: &str) {

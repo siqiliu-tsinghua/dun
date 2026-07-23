@@ -50,6 +50,7 @@ dependencies = [
  "dun-term",
  "dun-ui",
  "rustix",
+ "signal-hook",
 ]
 
 [[package]]

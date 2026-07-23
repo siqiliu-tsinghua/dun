@@ -2,6 +2,7 @@ mod action;
 mod ambiguous_width;
 mod clipboard;
 mod event_loop;
+mod event_reader;
 mod input;
 mod lifecycle;
 mod profile;
@@ -15,6 +16,7 @@ pub(crate) use action::RuntimeAction;
 pub(crate) use ambiguous_width::detect_ambiguous_width;
 pub(crate) use clipboard::osc52_copy_sequence;
 pub(crate) use event_loop::run_event_loop;
+pub(crate) use event_reader::EventReader;
 pub(crate) use input::{
     handle_key_event, handle_mouse_event, key_stroke_from_event, text_input_from_event,
 };

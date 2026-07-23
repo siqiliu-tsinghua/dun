@@ -117,8 +117,8 @@ use plugins::{HighlightJob, HighlightOutcome, HostEvent, PluginHosts, language_h
 #[cfg(test)]
 use terminal::rewrite_16_color_sgr;
 use terminal::{
-    RuntimeAction, SurfaceBackend, Terminal, TerminalColorRewrite, TerminalGuard, TerminalWriter,
-    command_run_status, detect_ambiguous_width, detect_terminal_profile,
+    EventReader, RuntimeAction, SurfaceBackend, Terminal, TerminalColorRewrite, TerminalGuard,
+    TerminalWriter, command_run_status, detect_ambiguous_width, detect_terminal_profile,
     install_panic_terminal_restore, key_stroke_from_event, osc52_copy_sequence,
     run_command_capture, run_event_loop, text_input_from_event,
 };
@@ -175,6 +175,7 @@ fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>)
     let mut guard = TerminalGuard::enter(terminal.clone(), false)?;
     let ambiguous_width = detect_ambiguous_width(&terminal, app.shell.profile.encoding);
     app.apply_ambiguous_width_probe(ambiguous_width, terminal_overrides);
+    let mut event_reader = EventReader::new(terminal.clone())?;
     let color_rewrite = TerminalColorRewrite::new(app.shell.profile);
     let writer = TerminalWriter::new(io::stdout(), color_rewrite.clone());
     let mut backend = SurfaceBackend::new(writer);
@@ -183,6 +184,7 @@ fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>)
         &mut backend,
         &mut app,
         &terminal,
+        &mut event_reader,
         &mut guard,
         &color_rewrite,
     );

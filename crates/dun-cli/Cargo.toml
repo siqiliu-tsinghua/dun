@@ -21,3 +21,4 @@ dun-plugin.workspace = true
 dun-term.workspace = true
 dun-ui.workspace = true
 rustix.workspace = true
+signal-hook.workspace = true
