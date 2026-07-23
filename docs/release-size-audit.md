@@ -817,3 +817,28 @@ docs/terminal-compatibility-checks.md (empirically verified; crossterm's
 default backend could not service that path either). FreeBSD VM gained
 `rsync` (pkg) for `vm-sync --worktree`. No measurement debt: measured through
 `919a98f`.
+
+## 2026-07-23 crossterm replacement steps 3–4 (d8f17c4, 5ffd477)
+
+| Platform | step 2 919a98f | step 3 d8f17c4 | step 4 5ffd477 | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| macOS x86_64 | 703,364 | 703,364 (±0) | 677,940 (−25,424) | 370,636 |
+| Debian x86_64 | 764,288 | 764,288 (±0) | 739,632 (−24,656) | 308,944 |
+
+Step 3 (owned event types + adapter, `d8f17c4`) is byte-identical on both
+platforms — the vocabulary types are free under fat LTO. Step 4 (in-house VT
+parser + EventReader on direct `poll(2)`, `5ffd477`) removes every crossterm
+reference from dun-cli src, so LTO already sheds the unused crossterm+mio code
+even though the dependency remains declared until step 5: both platforms drop
+~25 KiB, landing well below the track's starting baseline (macOS 699,276 →
+677,940; Debian 764,288 → 739,632). Debian smoke: ldd unchanged, `--version`,
+`--dump-config`.
+
+**Track acceptance met at step 4:** first fully green four-platform matrix in
+the project's history — macOS 780/0, Debian 780/0, FreeBSD 780/0, **Solaris
+780/0**. The two Solaris `tmux_logfilter` timeouts (second `tmux send-keys`
+batch lost through mio's poll-fallback interest clearing; root-caused
+2026-07-23, see above) pass repeatedly (~2 s vs the old 11 s + 2 failures).
+The startup probe now runs through the shared parser in Probe mode; PTY
+responder paths cost 2–3 ms (the deliberate no-response case still reaches the
+500 ms Narrow fallback). No measurement debt: measured through `5ffd477`.
