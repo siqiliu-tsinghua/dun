@@ -34,15 +34,14 @@ packages without changing surviving versions.
 - [x] Replace the input parser and event loop, including resize handling.
 - [x] Remove the retired dependency family and close the named docs.
 
-## Current Stage: Plugin Protocol Client
+## Completed Stage: Plugin Protocol Client (closed 2026-07-13)
 
-The active stage is the required host-neutral plugin protocol client. This
-does not wait for `rum`; `rum` is a future optional pure-sandbox host that
-must speak the same protocol. Size groundwork is done: the client's measured
-cost (~76 KiB Debian, spike branch `spike/plugin-client-size`) fits the
-post-build-std margin with room to spare. The Surface renderer and in-house
-terminal-I/O replacement lines are complete; the active work remains the
-protocol client and its capability data channels.
+This stage built the required host-neutral plugin protocol client; all its
+release gates closed 2026-07-13 at `fd31719` (see "Release Gates for This
+Stage" below). It did not wait for `rum`; `rum` remains a future optional
+pure-sandbox host that must speak the same protocol. The client's measured
+cost (~76 KiB Debian, spike branch `spike/plugin-client-size`) fit the
+post-build-std margin with room to spare.
 
 The protocol client is a required runtime feature under
 [docs/feature-budget.md](./docs/feature-budget.md). The budget gate is the
@@ -88,12 +87,16 @@ client but never checked off.
 - [x] Define `PluginPolicy` (`Policy`: max frame/snapshot-lines/spans/stderr/
   diagnostics caps + timeout). Allowed outputs are enforced by construction —
   validated `StyleSpan`s are the only output channel — and user confirmation
-  is the explicit `plugin.<id>.trust` opt-in in config. Revisit both when
-  new roles land.
+  is the explicit `plugin.<id>.trust` opt-in in config. Revisited 2026-07-23
+  when `LogFilter` landed: the existing per-plugin caps sufficed unchanged
+  (plus `max_surface_lines` added by the surface-write slice); nothing
+  per-role was needed.
 - [x] Define plugin manifest/config fields (baseline 2026-07-10:
   `plugin.<id>.command/trust/roles/timeout_ms/max_frame_bytes`, typed and
   validated in dun-config without a dun-plugin dependency). Per-role policy
-  overrides and a runtime field remain open.
+  overrides and a runtime field were revisited 2026-07-23 at the Distinctive
+  Plugins closure and stay unadopted — `LogFilter` landed on the existing
+  per-plugin fields; reopen only if a real host demonstrates the need.
 - [x] Reject unknown trust classes, unknown roles, missing command paths, and
   any direct filesystem/process/network/terminal/editor authority request
   (config parser rejects unknown trust/role values and unknown fields with
@@ -212,9 +215,11 @@ post-client re-audit (docs/release-size-audit.md "Post-client re-audit").
 Do not add runtime features while either audited release binary exceeds the
 1 MiB budget.
 
-## Next Stage: UI Text Internationalization (i18n)
+## Completed Stage: UI Text Internationalization (i18n; closed 2026-07-13)
 
-Not started. Approach decided 2026-07-11 (user decision): do NOT compile all
+Closed 2026-07-13; the one open item below (native-speaker corrections) is
+additive and adopted as contributions arrive.
+Approach decided 2026-07-11 (user decision): do NOT compile all
 translations into the binary. English stays compiled in as the `&'static`
 fallback so the single binary keeps working on any remote host with no
 resource directory; other languages load at runtime from optional external
@@ -329,7 +334,27 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   +28,672 over `89cd9e4`, margin 333,440 (docs/release-size-audit.md
   2026-07-15). Translations stayed free.
 
-## Planned Stage: Distinctive Plugins (Capability Model First)
+## Completed Stage: Distinctive Plugins (Capability Model First; closed 2026-07-23)
+
+**Stage closed 2026-07-23.** The mechanism, the open capability APIs (slices
+A–D below), and the three v0 data channels are all built and Debian-measured.
+The first real consumers — the dependency-free Python and Lua `log-filter`
+hosts under `hosts/` — served as the ergonomics acceptance test and passed
+live tmux acceptance on macOS, Debian, FreeBSD, and Solaris
+(`crates/dun-cli/tests/tmux_logfilter.rs`: menu injection, keybinding →
+scratch, execute → surface, command → stream → surface; green at `877b7ad`,
+2026-07-23). All three acceptance findings are fixed: oversized stream feeds
+now chunk with a FIFO pending queue (`4a841e2`), the hosts' leader moved from
+`Ctrl+L` (built-in SelectLine collision) to `Ctrl+T` (`c560379`), and a
+collision-rejected keybinding contribution surfaces a status diagnostic
+instead of vanishing silently (`959915f`). The v0 capability surface is
+frozen in docs/plugin-protocol.md. Closure decisions: the slice-A "sum-typed
+validator dispatch" (still listed as pending under B below) is retired as
+superseded by construction — validators are keyed by capability in
+`validate.rs` and each typed request method dispatches statically; per-role
+policy overrides and the runtime config field stay unadopted (see the Role
+and Policy Model item above). The B-inherited window/scratch open path and
+ownership reaping landed with C chunk 3 and si-2.
 
 Plan decided 2026-07-13; **reframed capability-model-first 2026-07-16.**
 `role` was still described in embedded-`rum` permission terms; across a
@@ -361,7 +386,7 @@ deltas non-additive).
   handshake grant + `dun-cli` role→capability wiring, `plugin_id` ownership
   tagging + unload reaping, and the sum-typed per-capability validator
   dispatch (one validator today).
-- [ ] **B — windows + scratch input.** `window` lifecycle (≤2/plugin +
+- [x] **B — windows + scratch input.** `window` lifecycle (≤2/plugin +
   aggregate/terminal fallback, own-only destroy); `scratch-input` = a
   `dun`-native editable buffer + `execute` submit (snippet runs in the host
   interpreter, never in `dun`; no keystroke routing). **Also inherits from A:**
@@ -383,7 +408,7 @@ deltas non-additive).
     to 654,004). Still pending in B: the `window`/`scratch` open path (needs a
     trigger — menu/keybinding or a protocol window-action), ownership reaping
     wired to real windows, and the sum-typed validator dispatch.
-- [ ] **C — menu.** One top-level subtree per plugin, label i18n (`en_US`
+- [x] **C — menu.** One top-level subtree per plugin, label i18n (`en_US`
   required + optional tags), menu-invoke dispatch, structural bounds,
   menu-bar width handling.
   - In progress: the `PluginMenu` contribution model + validator + label
@@ -462,7 +487,7 @@ deltas non-additive).
     panic-trigger 0. macOS gate: `tmux_grid`/`msedit_diff`/release
     `pty_smoke` pass, `strings` 0. Recorded in docs/release-size-audit.md
     (2026-07-18). **The C (menu) stage is complete; no Debian measurement debt.**
-- **D — keybinding.** Code landed 2026-07-18 (Claude-authored), three commits;
+- [x] **D — keybinding.** Code landed 2026-07-18 (Claude-authored), three commits;
   one binding Debian measurement + smoke owed (see below).
   - D-1 (`1aa6bf8`): renamed `EditorCommand::PluginMenuAction` -> `PluginAction`
     (`plugin.menu_action` -> `plugin.action`) — a menu item and a leader chord
@@ -501,7 +526,7 @@ deltas non-additive).
   configured trust (tested at protocol.rs "exceeds configured trust"). Protocol
   enhancements continue to be recorded in docs/plugin-protocol.md as they land.
 
-- [ ] **Remaining v0 capability data channels** (the trigger/UI layer — menu,
+- [x] **Remaining v0 capability data channels** (the trigger/UI layer — menu,
   keybinding, window open/close, overlay highlight — is done; these three
   output/input channels give a host actual content, and none were wired by
   A–D). Build API-first, fixture-driven, one at a time (user decision

@@ -1271,3 +1271,21 @@ This is an append-only progress log. Keep new entries dated and factual.
   lifecycle, sys shim, VT core, and event reader are now fully Rust-owned; the
   dual-platform release-size measurement remains gate-owned and was not rerun
   during this documentation/dependency closure.
+- Closed the Distinctive Plugins stage (2026-07-23, documentation-only — no
+  runtime code changed). The capability mechanism (slices A–D) and the three
+  v0 data channels were already landed and measured; the first real consumers
+  — the dependency-free Python and Lua `log-filter` hosts under `hosts/` —
+  passed live tmux acceptance on macOS, Debian, FreeBSD, and Solaris at
+  `877b7ad` (`tmux_logfilter`: menu injection, keybinding → scratch,
+  execute → surface, command → stream → surface), with all three acceptance
+  findings fixed (bounded stream chunking with a FIFO pending queue at
+  `4a841e2`; the hosts' leader moved off the built-in `Ctrl+L` collision to
+  `Ctrl+T` at `c560379`; silently dropped keybinding contributions now
+  surface a diagnostic at `959915f`). Closure froze the v0 capability surface
+  in docs/plugin-protocol.md, retired the leftover slice-A sum-typed
+  validator dispatch as superseded by construction (validators keyed by
+  capability with static per-method dispatch), declined per-role policy
+  overrides and the runtime config field after the `LogFilter` revisit, and
+  reconciled the stale stage headers and checkboxes in TODO.md and the
+  CLAUDE.md plan. The next mainline stage is to be chosen from the unblocked
+  queue; the leading candidate is the F12/F13 restoration review.

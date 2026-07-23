@@ -261,7 +261,11 @@ host** (the pattern already used by `hosts/check-host.py` and
 hosts are required: an open API with no consumer is neither testable end to end
 nor measurable as real-use size.
 
-Slices, each with a fixture host, protocol tests, and a Debian size measurement:
+Slices, each with a fixture host, protocol tests, and a Debian size
+measurement (all four slices and the three v0 data channels — `surface-write`,
+`stream-read`, `scratch-input` + execute — have landed and are measured; the
+stage closed 2026-07-23, with per-chunk detail in TODO.md and
+docs/release-size-audit.md):
 
 - **A — mechanism spine.** Capability vocabulary as types; role as a named
   capability bundle; config declares `roles` → capabilities; handshake
@@ -290,23 +294,47 @@ Slices, each with a fixture host, protocol tests, and a Debian size measurement:
   binding. The fixture host registers a `Ctrl+J` leader with a `p -> ping`
   chord.
 
-The first real product plugin (a `log-filter`-shaped host is the intended first:
-`{ stream-read, surface-write, window, scratch-input, menu, keybinding }`) is
-deferred until the mechanism exists, and it is the ergonomics acceptance test
-for these APIs. Expect a revision pass then; do not freeze the capability
-surface as final until one real consumer has been built against it.
+The first real consumers have been built: Python and Lua `log-filter` hosts
+under [hosts/](../hosts/), exercising the full bundle
+(`{ stream-read, surface-write, window, scratch-input, menu, keybinding }`).
+They were the ergonomics acceptance test this paragraph promised, and the
+revision pass happened as three acceptance findings, all fixed: oversized
+stream feeds are now split into bounded chunks with a FIFO pending queue and
+surface accumulation (`4a841e2`); the hosts' keybinding leader moved from
+`Ctrl+L` (collides with the built-in SelectLine) to `Ctrl+T` (`c560379`); and
+a collision-rejected keybinding contribution now surfaces a status diagnostic
+instead of disappearing silently (`959915f`). Live tmux acceptance
+(`crates/dun-cli/tests/tmux_logfilter.rs`: menu injection, keybinding →
+scratch, execute → surface, command → stream → surface) is green on macOS,
+Debian, FreeBSD, and Solaris (2026-07-23).
+
+**The v0 capability surface is frozen as of 2026-07-23.** The eight-capability
+vocabulary above and its validator set are the v0 contract; extensions — new
+capabilities, richer `LogFilter` output — are v1 candidates and wait for a
+concrete consumer need.
+
+One slice-A deferral is retired rather than built: the planned sum-typed
+per-capability validator dispatch. The shipped design keys validators by
+capability (`validate.rs`: `validate_spans` for `overlay-write`,
+`validate_surface` for `surface-write`, `validate_stream_verdict` for
+`stream-read`) and each typed request method dispatches to its validator
+statically. The request methods return distinct types, so a runtime sum
+dispatch would only wrap them in an enum no caller needs; static per-method
+dispatch is the design of record. Revisit only if dynamically defined roles
+ever appear.
 
 ## Role Bundles
 
 A role names a bundle of capabilities. The protocol should start with bundles
 that prove the whole request, validation, and application path without giving
-plugins ambient authority. Two role bundles are defined today: `SyntaxHighlight`
-(`{ buffer-read, overlay-write }`, applied end to end) and `LogFilter`
+plugins ambient authority. Two role bundles are defined today, both applied end
+to end: `SyntaxHighlight` (`{ buffer-read, overlay-write }`) and `LogFilter`
 (`{ stream-read, surface-write, window, scratch-input, menu, keybinding }`,
 which is how a host first becomes eligible for the `menu`/`window` capabilities;
-its request/stream application path is still being built incrementally). The
-remaining rows below are illustrative bundles whose `dun`-side implementation is
-demand-driven per the build order above.
+its stream/surface/scratch application paths landed with the v0 data channels
+and are exercised by the real hosts under `hosts/`). The remaining rows below
+are illustrative bundles whose `dun`-side implementation is demand-driven per
+the build order above.
 
 A host advertises its menu contribution in the `HelloAck` payload (`menu`
 field). `dun` parses it with the `menu` capability's validator and honors it
@@ -321,17 +349,19 @@ against the active locale) into the menu bar after the built-in menus; an
 invoked item is an `EditorCommand::PluginAction { plugin_id, action_id }`
 (not user-bindable — a generic `command_id`, `plugin.action`, no
 `command_from_id` round-trip; the same command a `keybinding` leader chord
-produces). Dispatch is gated on the host holding `window`
-and opens a read-only `WindowKind::PluginSurface` the plugin owns (≤2 per
-plugin, reaped on unload/reload, released on a user close). At this build stage
-every invoke opens a fresh surface; a richer per-action request round-trip to
-the host is deferred until the first real consumer, where the surface is filled
-by `surface-write`.
+produces). Dispatch routes by the action's declared kind: a `surface` action
+(gated on the host holding `window`) opens or reuses the plugin's read-only
+`WindowKind::PluginSurface` (≤2 windows per plugin, reaped on unload/reload,
+released on a user close) and, when the host also holds `surface-write`, sends
+a per-action request whose validated lines fill the surface on response; a
+`scratch` action opens the plugin's editable `WindowKind::PluginScratch`, and
+`execute` submits the scratch buffer's whole text to the host — both gated on
+`scratch-input` — with the host's result lines filling the surface window.
 
 | Role | Input snapshot | Allowed output |
 | --- | --- | --- |
 | `SyntaxHighlight` | Language hint, buffer id token, revision, visible or bounded text slice. | Style spans with bounded line/range coordinates and known style classes. |
-| `LogFilter` | Stream id token, chunk index, bounded text chunk, final flag. | Keep/drop decisions, match ranges, extracted fields, tags, and bounded summary data. Derived stream views and command-output section filtering (the removed built-in `output only`/section-jump family) are expected to return as plugin-provided behavior under this role. |
+| `LogFilter` | Stream id token, chunk index, bounded text chunk, final flag. | v0 (frozen): one keep/drop decision per input line; kept lines fill the plugin's surface window. Richer outputs — match ranges, extracted fields, tags, bounded summary data — are v1 candidates behind a concrete consumer need. Command-output section filtering (the removed built-in `output only`/section-jump family) is likewise expected to return as plugin-provided behavior under this role. |
 | `TextTransform` | Selection or bounded text slice, cursor context, revision. | Proposed edit patch or replacement text requiring `dun` validation and, where appropriate, user confirmation. |
 | `ConfigHelper` | Defaults, config context, environment summary without secrets. | Typed config patch against the Rust-owned `Config` model. |
 
@@ -390,6 +420,10 @@ languages under [hosts/](../hosts/): Rust (syntect), Python (Pygments), and
 dependency-free Lua (hand-written JSON codec and lexer). A language-agnostic
 conformance checker, `hosts/check-host.py`, validates any host command against
 the wire behavior the client relies on (envelope fields, revision echo,
-character-column span bounds, style vocabulary). These are examples outside
-the editor build and its gates; the CI fixture host remains
+character-column span bounds, style vocabulary). The `log-filter` role has
+dependency-free Python and Lua hosts (`hosts/python-logfilter`,
+`hosts/lua-logfilter`, with `hosts/sample-logs` fixtures) — the first real
+consumers of the capability APIs, driven live by
+`crates/dun-cli/tests/tmux_logfilter.rs`. These are examples outside the
+editor build and its gates; the CI fixture host remains
 `crates/dun-plugin/src/bin/fixture-host.rs`.

@@ -201,21 +201,23 @@ Sequencing (stages 1–2 completed 2026-07-10):
    ten languages ship as external `i18n/<tag>.conf` files, which cost the
    binary nothing. Remaining work is additive: native-speaker corrections
    to the nine machine-translated files.
-5. **Distinctive plugins** (ACTIVE — TODO.md "Distinctive Plugins" stage;
-   reframed capability-model-first 2026-07-16): `role` is redesigned from an
-   embedded-`rum` permission concept into a **named bundle of inward
-   capabilities** — typed, validated channels into `dun`-owned objects
-   (buffer/stream reads, overlay/surface writes, window, scratch-input +
-   execute, menu, keybinding), with trust class as the grant gate. Build the
-   mechanism and the open capability APIs first (slices A–D), each driven by a
-   fixture host, before any concrete product plugin; a `log-filter`-shaped
-   host is the intended first real consumer and ergonomics acceptance test,
-   deferred until the APIs exist. Design in docs/plugin-protocol.md
-   ("Capability Model" / "Capability Infrastructure"). Everything else
-   (F12/F13 restoration review, OSC 52 paste, rum evaluation) stays deferred
-   behind these. The Debian measurement baseline is settled (715,136 bytes at
-   `744c843`, 2026-07-15; see the size budget above), so this stage starts on
-   a measured floor and each capability batch attributes its own cost.
+5. ~~Distinctive plugins~~ — DONE, stage closed 2026-07-23
+   (capability-model-first, reframed 2026-07-16): `role` is a **named bundle
+   of inward capabilities** — typed, validated channels into `dun`-owned
+   objects — with trust class as the grant gate. Slices A–D plus the three v0
+   data channels (surface-write, stream-read, scratch-input + execute) are
+   built, fixture-driven, and Debian-measured; the first real consumers
+   (Python + Lua log-filter hosts under `hosts/`) passed live tmux acceptance
+   on all four platforms and their three findings are fixed. The v0
+   capability surface is frozen; the sum-typed validator dispatch is retired
+   as superseded by construction and per-role policy overrides stay unadopted
+   (closure notes in TODO.md and docs/plugin-protocol.md).
+
+Next stage: to be chosen from the queue stage 5 was blocking. Leading
+candidate: the F12/F13 restoration review (docs/feature-triage.md
+"Restoration Path"; Debian margin 308,944 bytes). Also queued: OSC 52 paste;
+F20 (Outline) returns as a plugin role, not a revert. rum evaluation stays
+externally blocked on rum-ext's resource/type base.
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,
