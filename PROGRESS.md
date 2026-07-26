@@ -1318,3 +1318,43 @@ This is an append-only progress log. Keep new entries dated and factual.
   FreeBSD, Solaris). Full-trail docs updated (README, feature-triage,
   feature-budget, release-size-audit, TODO, CLAUDE). F46 stays removed; F20
   still returns as a plugin role.
+- Implemented OSC 52 clipboard read (2026-07-27, stage "OSC 52 Clipboard
+  Read", user decision) — pasting the host clipboard over SSH via the
+  terminal, the read counterpart to the OSC 52 write dun already shipped.
+  Platform-specific clipboard commands (`pbpaste`/`xclip`/`wl-paste`) were
+  rejected (break the no-external-command policy, fail over SSH). Design brief
+  051 produced the plan; Claude froze the decisions (a separate
+  `clipboard.osc52.allow_read` opt-in default-off so enabling write never
+  grants read; a distinct `edit.paste_external` command on `Ctrl+X,Ctrl+V`
+  with an Edit-menu entry, leaving internal Paste untouched; a 500 ms
+  synchronous-feel bounded wait rather than async, since OSC 52 carries no
+  request id and a late reply could paste into the wrong buffer; an empty
+  response treated as a valid empty clipboard) and added one refinement beyond
+  the plan: the OSC 52 response framing is armed-gated, so an unarmed `ESC ]`
+  keeps its `Alt+]` behavior and default input stays byte-identical. Landed
+  over two Codex-executed, Claude-gated steps: the base64 decoder + armed
+  parser framing + `Event::Osc52Clipboard` + `EventReader` arm/response API
+  (`110aa08`, inert until armed), then the config/command/keymap/menu + typed
+  query action + the event-loop 500 ms pending-read phase + the
+  internal-clipboard fallback + i18n across ten catalogs + PTY tests + behavior
+  docs (`42774ec`). The decoder validates base64 strictly (rejects bad
+  length/padding and nonzero unused bits) under a decoded-byte cap; decoded
+  text runs through the existing `decode_file_text`/`DisplaySanitizer` path
+  with no insertion-time scrubber and no read-only buffer. Codex raised one
+  clean stop-loss on the 052/053 scope boundary (a forced non-exhaustive match
+  in the out-of-scope `shell.rs`), resolved by moving the RuntimeAction variant
+  to step 2. Every invariant guard was mutation-proven (the decoded-byte cap,
+  the ST-requires-backslash terminator, the armed gate that preserves `Alt+]`,
+  the write-never-grants-read gate, the empty-response-no-stale-fallback, and
+  the timeout fallback). A Claude mutation-restore first swapped the copy/paste
+  config gates (an unanchored `sed` hit `copy_text_external`'s `enabled`); the
+  `copy_external` tests caught it and it was fixed with anchored edits before
+  commit. Binding Debian 760,112 bytes (+4,096 over `b9ac165`, margin
+  288,464); macOS budget build 698,524; four-platform functional matrix 845/0
+  (macOS, Debian, FreeBSD, Solaris), PTY 11/11. Real-terminal read support is
+  terminal-dependent (most terminals disable or prompt by default) and is
+  documented best-effort — the mechanism is PTY-verified, not a measured
+  per-terminal matrix. Full-trail docs updated (README, configuration,
+  terminal-compatibility-checks, editor-baseline, AUDIT, release-size-audit,
+  TODO, CLAUDE). The `editing.rs`→`app/clipboard.rs` split was deliberately not
+  bundled and remains available if the file crosses the size guideline.

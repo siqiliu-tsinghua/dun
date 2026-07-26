@@ -223,9 +223,23 @@ Sequencing (stages 1–2 completed 2026-07-10):
    817/0. One clean Codex stop-loss (stale gutter-render assumption →
    Option C). F46 stays removed; F20 still returns as a plugin role.
 
-Next stage: to be chosen from the queue this was blocking — OSC 52
-paste/query (docs/dev deferred item); rum evaluation stays externally
-blocked on rum-ext's resource/type base. No stage currently active.
+7. ~~OSC 52 clipboard read~~ — DONE, stage closed 2026-07-27 (`42774ec`):
+   paste the host clipboard over SSH via the terminal (the read counterpart
+   to the OSC 52 write). Two gated steps — the armed parser seam + strict
+   base64 decoder (`110aa08`, byte-neutral), then the wiring (`42774ec`:
+   `clipboard.osc52.allow_read` opt-in, `edit.paste_external` /
+   `Ctrl+X,Ctrl+V`, 500 ms synchronous-feel wait, internal-clipboard
+   fallback). Plan brief 051 → briefs 052/053; one clean stop-loss (052/053
+   scope). No new input security layer (decoded bytes ride the display
+   sanitizer; terminal owns the read-gate); real-terminal read is
+   best-effort, PTY-verified, not a measured matrix. Binding Debian 760,112
+   (+4,096 over `b9ac165`, margin 288,464); four-platform 845/0.
+
+Next stage: none active — pick from the queue with the user. Remaining:
+native-speaker i18n corrections (additive); F20 Outline as a plugin
+`DocumentStructure` role; rum evaluation stays externally blocked on
+rum-ext's resource/type base. Optional follow-up: live real-terminal OSC 52
+read acceptance (user-driven, like the tmux log-filter acceptance).
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,

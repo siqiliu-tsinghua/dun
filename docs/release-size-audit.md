@@ -893,3 +893,25 @@ had saved 12,288; the restoration costs +16,384 because it re-lands on the
 i18n catalog + shared display seam rather than the pre-i18n originals. Margin
 remains large (292,560). Four-platform functional matrix at `b9ac165`: macOS
 817/0, Debian 817/0, FreeBSD 817/0, Solaris 817/0 (3 ignored each).
+
+## 2026-07-27 OSC 52 clipboard read (42774ec)
+
+Adds OSC 52 read (paste the host clipboard over SSH via the terminal), the
+read counterpart to the existing OSC 52 write. Two steps: the armed parser
+seam + base64 decoder (`110aa08`, byte-neutral to user behavior) and the
+user-facing wiring (`42774ec`: allow_read opt-in, edit.paste_external /
+Ctrl+X,Ctrl+V, 500 ms synchronous-feel wait, internal-clipboard fallback).
+Clean `vm-sync` archive of `42774ec`, `scripts/release-build.sh` on the
+Debian VM: **Debian 760,112 bytes** (margin 288,464), **+4,096 over the
+pre-feature baseline `b9ac165`** (756,016) — the whole feature, both steps.
+macOS budget build 698,524 (+8,208 over `b9ac165`'s 690,292; per-step
+macOS: seam +24, wiring +8,208). Debian smoke: ELF PIE stripped; `ldd`
+unchanged (libgcc_s/libm/libc/ld-linux); `--version` `dun 0.1.0`;
+`strings | grep -c DUN_TEST_PANIC` = 0. The read path rides the existing
+`DisplaySanitizer` (no insertion-time scrubber); the decoder validates
+base64 strictly (rejects bad length/padding and nonzero unused bits) under a
+decoded-byte cap. Four-platform functional matrix at `42774ec`: macOS 845/0,
+Debian 845/0, FreeBSD 845/0, Solaris 845/0 (3 ignored each; PTY 11/11 incl.
+the matched-response and no-response 500 ms fallback cases). Real-terminal
+read support is terminal-dependent and documented best-effort — not a
+measured matrix; the mechanism is PTY-verified.

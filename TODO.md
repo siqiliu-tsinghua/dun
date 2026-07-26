@@ -605,7 +605,26 @@ deltas non-additive).
       validator, scratch gate, execute submit, plus si-1 gate). macOS budget
       build 691,028 (+8,208 over the stream-read baseline for si-1+si-2).
 
-## Current Stage: OSC 52 Clipboard Read (started 2026-07-27)
+## Completed Stage: OSC 52 Clipboard Read (2026-07-27)
+
+**Closed 2026-07-27 at `42774ec`.** OSC 52 read (paste the host clipboard over
+SSH via the terminal) is the read counterpart to the OSC 52 write dun already
+ships. Landed over two gated steps — the armed parser seam + strict base64
+decoder (`110aa08`, byte-neutral to user behavior) and the user-facing wiring
+(`42774ec`: `clipboard.osc52.allow_read` opt-in, `edit.paste_external` /
+`Ctrl+X,Ctrl+V` / Edit-menu Paste External, the typed query action, the 500 ms
+synchronous-feel wait, the internal-clipboard fallback, i18n × ten, PTY tests,
+docs). Codex hit one clean stop-loss on the 052/053 scope boundary (a forced
+non-exhaustive match in the out-of-scope `shell.rs`), resolved by deferring the
+RuntimeAction variant to step 2. Binding Debian 760,112 (+4,096 over
+`b9ac165`, margin 288,464); macOS 698,524; four-platform functional matrix
+845/0 (macOS/Debian/FreeBSD/Solaris), PTY 11/11. No new input security layer:
+decoded bytes ride the existing `DisplaySanitizer`; the terminal owns the
+read-gate; real-terminal read support is best-effort (documented, not a
+measured matrix — the mechanism is PTY-verified). The `editing.rs` →
+`app/clipboard.rs` split was deliberately not bundled and remains available if
+the file crosses the size guideline. Platform-specific clipboard commands
+stay rejected.
 
 User decision 2026-07-27: implement OSC 52 **read** (paste the host/system
 clipboard over SSH via the terminal) — the read counterpart to the OSC 52
@@ -618,11 +637,10 @@ default-off like the write side; safe Rust, no new deps (hand-roll
 `base64_decode` beside the existing encoder); the response parses as a bounded
 accumulate-to-terminator state mirroring `State::Paste`.
 
-- [ ] Design-only brief 051
+- [x] Design-only brief 051
   (`docs/dev/codex/brief-051-osc52-read-plan.md`): the plan — query emission,
-  parser extension for the `ESC ] 52 ; c ; <base64> ST|BEL` response, response
-  application (sync-feel vs async), config/trigger surface, no-response
-  fallback, ordered steps, tests, risks. Dispatched 2026-07-27.
+  parser extension, response application, config/trigger surface, no-response
+  fallback, ordered steps, tests, risks. Delivered 2026-07-27.
 - [x] Claude reviewed/adapted the plan 2026-07-27; decisions frozen: separate
   `clipboard.osc52.allow_read` (default false, shares `max_bytes`); distinct
   `edit.paste_external` command bound `Ctrl+X,Ctrl+V` + menu `Paste External
@@ -634,18 +652,23 @@ accumulate-to-terminator state mirroring `State::Paste`.
   is pending, `ESC ]` keeps today's `Alt+]` behavior; OSC consumption happens
   only in the ~500 ms armed window, so default input stays byte-identical.
   Late-response ambiguity accepted + documented (no quarantine).
-- [ ] Implementation steps per the adapted plan, each its own gated brief:
-  - [ ] Step 1 — decoder + armed parser framing + event seam (brief 052,
-    dispatched 2026-07-27). Byte-neutral to user behavior; nothing triggers a
-    query yet.
-  - [ ] Step 2 — config + command + keymap + menu + 500 ms wait + fallback +
-    PTY + behavior docs (brief 053, dispatched 2026-07-27). User confirmed the
-    veto-window decisions: `Ctrl+X,Ctrl+V` and the 500 ms synchronous wait.
-    The `editing.rs`→`app/clipboard.rs` split is deliberately NOT bundled here.
-  - [ ] Step 3 — closure: mutation evidence, dual-platform measurement,
-    terminal/tmux/screen reality matrix (brief 054).
-- [ ] Dual-platform size measurement + release smoke; bounded-input-surface
-  and terminal-compatibility docs updated.
+- [x] Implementation steps per the adapted plan, each its own gated brief:
+  - [x] Step 1 — decoder + armed parser framing + event seam (brief 052,
+    `110aa08`). Byte-neutral; one clean stop-loss (deferred RuntimeAction to
+    step 2). 834 tests; armed-gate mutation-proven by Claude; macOS +24.
+  - [x] Step 2 — config + command + keymap + menu + 500 ms wait + fallback +
+    PTY + behavior docs (brief 053, `42774ec`). 845 tests, PTY 11/11;
+    write-grants-read gate and empty-no-stale mutation-proven by Claude; macOS
+    698,524. `editing.rs`→`app/clipboard.rs` split deliberately not bundled.
+  - [x] Step 3 — closure (this stage): binding Debian measurement + smoke +
+    four-platform matrix + docs. (No separate brief 054 needed — the closure
+    is measurement + docs, done directly.)
+- [x] Dual-platform size measurement + release smoke; bounded-input-surface
+  and terminal-compatibility docs updated. Debian 760,112 (+4,096 over
+  `b9ac165`, margin 288,464); macOS 698,524; smoke clean (ELF PIE, ldd
+  unchanged, DUN_TEST_PANIC=0). Four-platform functional 845/0. Real-terminal
+  read support documented best-effort (terminal-owned gate; not a measured
+  matrix).
 
 ## Completed Stage: Restoration Review — F12/F13 (2026-07-23 → 2026-07-26)
 
@@ -1076,10 +1099,10 @@ this section focused on post-baseline extensions only.
   still holds); F20 (Outline) still returns as a plugin role. Execution
   tracked in "Current Stage: Restoration Review — F12/F13".
 
-- [~] OSC 52 paste/query support or platform-specific clipboard command
-  integration. **ACTIVE 2026-07-27** — OSC 52 read only (platform clipboard
-  commands rejected: they break the no-external-command policy and fail over
-  SSH). See "Current Stage: OSC 52 Clipboard Read".
+- [x] OSC 52 paste/query support — **DONE 2026-07-27** (`42774ec`), OSC 52
+  read only; platform-specific clipboard commands stay rejected (break the
+  no-external-command policy, fail over SSH). See "Completed Stage: OSC 52
+  Clipboard Read".
 - [x] Crash recovery and orphaned atomic-save temp-file cleanup.
 - [ ] `rum` configuration evaluation.
 - [ ] `dun-plugin-rum`.
