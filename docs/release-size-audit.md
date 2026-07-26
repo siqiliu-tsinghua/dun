@@ -862,3 +862,17 @@ shim), the Solaris second-batch input defect is gone by construction, the
 four-platform matrix is green for the first time, and the binding binary
 shrank 24,656 bytes net (764,288 → 739,632; margin 308,944). macOS net
 −21,336 (699,276 → 677,940; margin 370,636).
+
+## 2026-07-26 F12/F13 restoration step 1 — display seam (3b69844)
+
+Brief 048's `EditorTextDisplay` coordinate seam (no user-visible change;
+default-off rendering byte-identical). Clean `vm-sync` archive of `3b69844`,
+`scripts/release-build.sh` on the Debian VM: **Debian 743,728 bytes** (margin
+304,848), +4,096 over the last binding baseline `877b7ad` (739,632). macOS
+budget build 682,044 (+4,104 over 677,940). Debian smoke: ELF PIE stripped;
+`ldd` unchanged (libgcc_s/libm/libc/ld-linux); `--version` `dun 0.1.0`;
+`--dump-config` clean; `strings | grep -c DUN_TEST_PANIC` = 0. The +4 KiB is
+the new dun-ui `display_map` module plus the mapped-sanitizer entry; the
+`editing.rs`/`buffer_state.rs` splits are byte-neutral moves. Step-2 (F13)
+and step-3 (F12) each add their own measured trail; the next binding Debian
+measurement is owed after step 3.

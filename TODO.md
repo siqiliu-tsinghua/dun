@@ -643,9 +643,20 @@ keymap proposal.
   binding Debian measurement + smoke runs after step 1 and after step 3
   (C-spine/crossterm batching precedent), not three times.
 - [ ] Implementation steps per the adapted plan, each its own gated brief
-  (scope check, fmt/clippy/tests, mutation-proofs on invariant guards).
+  (scope check, fmt/clippy/tests, mutation-proofs on invariant guards):
+  - [x] Step 1 — display-coordinate seam (brief 048, `3b69844`). Gated: 790
+    tests, fmt/clippy clean. Two gate-found defects fixed (long-line render
+    5→101→4ms via the raw-width fast path; a duplicate untested `scroll_status`
+    fork removed). Measured both platforms — macOS 682,044, Debian 743,728,
+    margin 304,848 (docs/release-size-audit.md 2026-07-26). No user-visible
+    change.
+  - [ ] Step 2 — F13 visible whitespace, full trail (brief 049, dispatched
+    2026-07-26).
+  - [ ] Step 3 — F12 bookmarks, full trail (brief 050, pending step 2).
 - [ ] Dual-platform size measurement (macOS proxy + binding Debian) and a
-  docs/release-size-audit.md entry; release smoke on runtime commits.
+  docs/release-size-audit.md entry; release smoke on runtime commits. Step 1
+  measured; the next binding Debian run is owed after step 3 (steps take macOS
+  budget builds each; Debian batches after 1 and 3 per the plan cadence).
 - [ ] Full-trail docs: README feature paragraphs, docs/feature-triage.md
   restoration record, feature-budget classification for the restored units.
 
