@@ -62,11 +62,28 @@ buffer.
    not re-implement, the shared/reap path.
 9. **Frame + gutter** — `BufferView::with_bookmarks(&[usize])`
    (`crates/dun-ui/src/model.rs`), threaded from `BufferState`
-   (`app/frame.rs`); `crates/dun-ui/src/frame/gutter.rs` sets the marker to
-   `self.glyphs.indicators.bookmark` when `buffer.bookmarks.contains(&line_index)`
-   ONLY on the logical line's first visual row (`row_offset == 0`);
-   continuation rows stay blank; the marker replaces the existing trailing
-   gutter cell and must NOT widen the gutter.
+   (`app/frame.rs`); `crates/dun-ui/src/frame/gutter.rs` sets the marker char
+   to `self.glyphs.indicators.bookmark` when
+   `buffer.bookmarks.contains(&line_index)` ONLY on the logical line's first
+   visual row (`row_offset == 0`); continuation rows stay blank. The marker
+   occupies the gutter's last column (the `{:>label_digits$}{marker}` format
+   already places it there) and must NOT widen the gutter.
+
+   **Rendering fix (Claude decision — the plan's cell layout was stale).**
+   Today's Surface gutter is `decimal_digits + separator_width` wide and
+   `draw_gutter` (`crates/dun-ui/src/render/surface_window.rs:204`) paints the
+   vertical separator OVER that last column — which for an unmarked row is a
+   blank the separator legitimately claims, but it would erase a bookmark
+   `*`. Fix with **Option C: on a bookmarked row the marker replaces the
+   separator in that edge cell; the gutter width is unchanged.** Concretely:
+   add `marked: bool` to `UiGutterLine` (`crates/dun-ui/src/model.rs`), set it
+   in `gutter.rs` for the first visual row of a bookmarked line, and in
+   `draw_gutter` draw the separator only when `!line.marked` (the label
+   already carries the `*` in the last column for marked rows). Do NOT widen
+   the gutter and do NOT restore the old separate marker column — that would
+   shift the body one column for every user and churn every gutter golden.
+   Net visual: unmarked `12│` unchanged; bookmarked `12*` (the `*` sits at the
+   gutter edge, interrupting the rule like an IDE breakpoint dot).
 10. **Status** — `app/status_view.rs`: insert `[Mark]` (via
     `status.detail.bookmark`) only when the cursor is on a bookmarked line,
     at the old ordering position (`53fe7f8^:...status_view.rs:93-104`).
@@ -102,7 +119,10 @@ Keys and English defaults (exact):
 
 - Files you MAY modify: items 1–13 above and their colocated tests, the
   `tests/markers.rs` modules (CLI + UI, from step 2), `i18n/*.conf`, and the
-  affected snapshot goldens.
+  affected snapshot goldens. **Item 9 additionally authorizes
+  `crates/dun-ui/src/render/surface_window.rs`** (gate the separator paint on
+  `!line.marked`) **and the `UiGutterLine` struct in
+  `crates/dun-ui/src/model.rs`** (the `marked: bool` field).
 - Files/areas you MUST NOT touch: `crates/dun-ui/src/display_map.rs` and the
   seam internals (frozen); the F13 visible-whitespace logic (only add beside
   it); any `Cargo.toml`/`Cargo.lock`, `AGENTS.md`, `CLAUDE.md`, `README.md`,
@@ -125,6 +145,11 @@ If a change needs a file outside Scope, STOP and report.
   - gutter `*` for one-digit and 10+-digit line numbers, Wide mode,
     soft-wrap continuation (marker only on the first visual row, including a
     viewport that begins inside a continuation), and narrow-gutter omission.
+  - **a surface-render test** (not only the frame model) proving the `*`
+    reaches the drawn Surface and is NOT overwritten by the separator, and
+    that an unmarked row still shows the separator — this is the exact
+    layering defect that blocked the first attempt, so it must be pinned at
+    the render layer.
   - `[Mark]` only on a bookmarked cursor line; combined status ordering with
     Whitespace/Wrap present.
   - `mark`+`bookmark` both toggle; completion advertises `mark` only;
@@ -135,9 +160,9 @@ If a change needs a file outside Scope, STOP and report.
 - Prove load-bearing (run yourself, then reverse the edit — never
   `git checkout`): (a) change navigation `>`/`<` to `>=`/`<=` OR drop the
   wrap fallback → the strict-circular test fails; (b) omit the Move Line
-  bookmark swap → the line-move remap test fails; (c) mark every wrapped row
-  in the gutter instead of only `row_offset == 0` → the continuation test
-  fails.
+  bookmark swap → the line-move remap test fails; (c) draw the separator
+  unconditionally in `draw_gutter` (ignore `line.marked`) → the
+  surface-render test fails because the `*` is overwritten.
 
 ## dun pitfalls (read twice)
 
