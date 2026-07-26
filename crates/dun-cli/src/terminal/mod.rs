@@ -15,6 +15,8 @@ pub(crate) mod vt;
 pub(crate) use action::RuntimeAction;
 pub(crate) use ambiguous_width::detect_ambiguous_width;
 pub(crate) use clipboard::osc52_copy_sequence;
+#[allow(unused_imports)]
+pub(crate) use clipboard::osc52_read_query;
 pub(crate) use event_loop::run_event_loop;
 pub(crate) use event_reader::EventReader;
 pub(crate) use input::{

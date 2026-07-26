@@ -1,7 +1,10 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
+use dun_core::decode_file_text;
 use dun_term::AmbiguousWidth;
+
+use crate::terminal::clipboard::base64_decode;
 
 use super::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -12,6 +15,7 @@ mod mouse;
 mod tests;
 
 const ESCAPE_TIMEOUT: Duration = Duration::from_millis(100);
+const OSC_FRAME_TIMEOUT: Duration = Duration::from_millis(100);
 const CSI_BODY_CAPACITY: usize = 30;
 const PROBE_RESPONSE_CAPACITY: usize = 256;
 const PASTE_CAPACITY: usize = 16 * 1024 * 1024;
@@ -49,6 +53,18 @@ enum State {
     DiscardPaste {
         matched: usize,
     },
+    OscPrefix {
+        matched: usize,
+        deadline: Instant,
+    },
+    Osc52 {
+        st_pending: bool,
+        deadline: Instant,
+    },
+    DiscardOsc {
+        st_pending: bool,
+        deadline: Instant,
+    },
     DiscardX10 {
         remaining: u8,
     },
@@ -77,6 +93,8 @@ pub(crate) struct Parser {
     state: State,
     events: VecDeque<Event>,
     paste: Vec<u8>,
+    osc52_payload: Vec<u8>,
+    osc52_limit: Option<usize>,
     probe: ProbeState,
 }
 
@@ -90,6 +108,8 @@ impl Parser {
             state: State::Ground,
             events: VecDeque::with_capacity(EVENT_QUEUE_CAPACITY),
             paste: Vec::new(),
+            osc52_payload: Vec::new(),
+            osc52_limit: None,
             probe: ProbeState::new(),
         }
     }
@@ -113,24 +133,62 @@ impl Parser {
         self.events.pop_front()
     }
 
+    pub(crate) fn pop_osc52_response(&mut self) -> Option<String> {
+        let index = self
+            .events
+            .iter()
+            .position(|event| matches!(event, Event::Osc52Clipboard(_)))?;
+        match self.events.remove(index)? {
+            Event::Osc52Clipboard(text) => Some(text),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn begin_osc52_query(&mut self, max_bytes: usize) {
+        self.cancel_osc52_query();
+        self.osc52_limit = Some(max_bytes);
+    }
+
+    pub(crate) fn cancel_osc52_query(&mut self) {
+        self.osc52_limit = None;
+        self.osc52_payload.clear();
+        if matches!(
+            &self.state,
+            State::OscPrefix { .. } | State::Osc52 { .. } | State::DiscardOsc { .. }
+        ) {
+            self.state = State::Ground;
+        }
+    }
+
     pub(crate) fn pending_escape_deadline(&self) -> Option<Instant> {
         if self.mode != Mode::Input {
             return None;
         }
         match self.state {
-            State::Escape { deadline } => Some(deadline),
+            State::Escape { deadline }
+            | State::OscPrefix { deadline, .. }
+            | State::Osc52 { deadline, .. }
+            | State::DiscardOsc { deadline, .. } => Some(deadline),
             _ => None,
         }
     }
 
     pub(crate) fn expire_escape(&mut self, now: Instant) {
-        let deadline = match &self.state {
-            State::Escape { deadline } => *deadline,
+        let (deadline, is_escape) = match &self.state {
+            State::Escape { deadline } => (*deadline, true),
+            State::OscPrefix { deadline, .. }
+            | State::Osc52 { deadline, .. }
+            | State::DiscardOsc { deadline, .. } => (*deadline, false),
             _ => return,
         };
         if self.mode == Mode::Input && now >= deadline {
             self.state = State::Ground;
-            self.push_key(KeyCode::Esc, KeyModifiers::NONE);
+            if is_escape {
+                self.push_key(KeyCode::Esc, KeyModifiers::NONE);
+            } else {
+                self.osc52_payload.clear();
+                self.osc52_limit = None;
+            }
         }
     }
 
@@ -161,6 +219,15 @@ impl Parser {
             } => self.step_utf8(bytes, len, expected, modifiers, byte),
             State::Paste { matched } => self.step_paste(matched, byte),
             State::DiscardPaste { matched } => self.step_discard_paste(matched, byte),
+            State::OscPrefix { matched, deadline } => self.step_osc_prefix(matched, deadline, byte),
+            State::Osc52 {
+                st_pending,
+                deadline,
+            } => self.step_osc52(st_pending, deadline, byte),
+            State::DiscardOsc {
+                st_pending,
+                deadline,
+            } => self.step_discard_osc(st_pending, deadline, byte),
             State::DiscardX10 { remaining } => {
                 if remaining == 1 {
                     State::Ground
@@ -199,6 +266,10 @@ impl Parser {
         }
         match byte {
             b'O' => State::Ss3,
+            b']' if self.osc52_limit.is_some() => State::OscPrefix {
+                matched: 0,
+                deadline: now + OSC_FRAME_TIMEOUT,
+            },
             b'\x1b' => {
                 self.push_key(KeyCode::Esc, KeyModifiers::NONE);
                 self.escape(now)
@@ -423,6 +494,99 @@ impl Parser {
         true
     }
 
+    fn step_osc_prefix(&mut self, matched: usize, deadline: Instant, byte: u8) -> State {
+        if osc52_prefix_matches(matched, byte) {
+            let matched = matched + 1;
+            if matched == 5 {
+                self.osc52_payload.clear();
+                State::Osc52 {
+                    st_pending: false,
+                    deadline,
+                }
+            } else {
+                State::OscPrefix { matched, deadline }
+            }
+        } else {
+            self.osc52_payload.clear();
+            self.step_discard_osc(false, deadline, byte)
+        }
+    }
+
+    fn step_osc52(&mut self, st_pending: bool, deadline: Instant, byte: u8) -> State {
+        if st_pending {
+            if byte == b'\\' {
+                return self.finish_osc52();
+            }
+            self.osc52_payload.clear();
+            return self.step_discard_osc(false, deadline, byte);
+        }
+        match byte {
+            b'\x07' => self.finish_osc52(),
+            b'\x1b' => State::Osc52 {
+                st_pending: true,
+                deadline,
+            },
+            _ if self.append_osc52(byte) => State::Osc52 {
+                st_pending: false,
+                deadline,
+            },
+            _ => {
+                self.osc52_payload.clear();
+                State::DiscardOsc {
+                    st_pending: false,
+                    deadline,
+                }
+            }
+        }
+    }
+
+    fn step_discard_osc(&mut self, st_pending: bool, deadline: Instant, byte: u8) -> State {
+        if st_pending && byte == b'\\' {
+            return self.finish_discard_osc();
+        }
+        match byte {
+            b'\x07' => self.finish_discard_osc(),
+            b'\x1b' => State::DiscardOsc {
+                st_pending: true,
+                deadline,
+            },
+            _ => State::DiscardOsc {
+                st_pending: false,
+                deadline,
+            },
+        }
+    }
+
+    fn append_osc52(&mut self, byte: u8) -> bool {
+        let Some(encoded_limit) = self.osc52_limit.and_then(osc52_encoded_limit) else {
+            return false;
+        };
+        let Some(next_len) = self.osc52_payload.len().checked_add(1) else {
+            return false;
+        };
+        if next_len > encoded_limit {
+            return false;
+        }
+        self.osc52_payload.push(byte);
+        true
+    }
+
+    fn finish_osc52(&mut self) -> State {
+        let payload = std::mem::take(&mut self.osc52_payload);
+        if let Some(limit) = self.osc52_limit.take() {
+            if let Some(bytes) = base64_decode(&payload, limit) {
+                self.push_event(Event::Osc52Clipboard(decode_file_text(bytes).text));
+            }
+        }
+        State::Ground
+    }
+
+    fn finish_discard_osc(&mut self) -> State {
+        self.osc52_payload.clear();
+        self.osc52_limit = None;
+        State::Ground
+    }
+
     fn finish_probe_csi(&mut self, body: &[u8]) {
         match body.last() {
             Some(b'R') => match parse_cpr(body) {
@@ -529,6 +693,21 @@ fn utf8_expected(byte: u8) -> Option<usize> {
         0xf0..=0xf4 => Some(4),
         _ => None,
     }
+}
+
+const fn osc52_prefix_matches(matched: usize, byte: u8) -> bool {
+    match matched {
+        0 => byte == b'5',
+        1 => byte == b'2',
+        2 | 4 => byte == b';',
+        3 => byte == b'c' || byte == b'p',
+        _ => false,
+    }
+}
+
+const fn osc52_encoded_limit(max_bytes: usize) -> Option<usize> {
+    let groups = max_bytes / 3 + if max_bytes % 3 == 0 { 0 } else { 1 };
+    groups.checked_mul(4)
 }
 
 fn parse_cpr(csi: &[u8]) -> Option<AmbiguousWidth> {

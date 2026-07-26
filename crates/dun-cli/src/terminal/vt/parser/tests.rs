@@ -45,6 +45,13 @@ fn input_events(bytes: &[u8]) -> Vec<Event> {
     drain(&mut parser)
 }
 
+fn armed_events(bytes: &[u8], max_bytes: usize) -> Vec<Event> {
+    let mut parser = Parser::new(Mode::Input);
+    parser.begin_osc52_query(max_bytes);
+    parser.feed(bytes, now());
+    drain(&mut parser)
+}
+
 fn assert_all_splits(bytes: &[u8], expected: &[Event]) {
     let instant = now();
     for split in 0..=bytes.len() {
@@ -577,4 +584,153 @@ fn parser_state_and_event_storage_stay_bounded() {
     paste.feed(b"x", instant);
     assert!(paste.paste.len() <= PASTE_CAPACITY);
     assert!(matches!(paste.state, State::DiscardPaste { .. }));
+}
+
+#[test]
+fn osc52_armed_selectors_and_terminators_decode_text() {
+    for (bytes, expected, limit) in [
+        (
+            b"\x1b]52;c;Zm9v\x07".as_slice(),
+            Event::Osc52Clipboard("foo".to_string()),
+            3,
+        ),
+        (
+            b"\x1b]52;p;Zm8=\x1b\\".as_slice(),
+            Event::Osc52Clipboard("fo".to_string()),
+            2,
+        ),
+        (
+            b"\x1b]52;c;/w==\x07".as_slice(),
+            Event::Osc52Clipboard("\\xFF".to_string()),
+            1,
+        ),
+        (
+            b"\x1b]52;c;Gwo=\x07".as_slice(),
+            Event::Osc52Clipboard("\u{1b}\n".to_string()),
+            2,
+        ),
+    ] {
+        assert_eq!(armed_events(bytes, limit), vec![expected], "{bytes:?}");
+    }
+}
+
+#[test]
+fn osc52_st_requires_backslash_byte_by_byte() {
+    let instant = now();
+    let bytes = b"\x1b]52;c;Zm9vYmFy\x1b\\";
+    let mut parser = Parser::new(Mode::Input);
+    parser.begin_osc52_query(6);
+
+    for (index, byte) in bytes.iter().enumerate() {
+        parser.feed(std::slice::from_ref(byte), instant);
+        if index + 1 == bytes.len() {
+            assert_eq!(
+                drain(&mut parser),
+                vec![Event::Osc52Clipboard("foobar".to_string())]
+            );
+        } else {
+            assert_eq!(drain(&mut parser), Vec::<Event>::new(), "byte {index}");
+        }
+    }
+}
+
+#[test]
+fn osc52_truncated_frames_expire_and_recover() {
+    let instant = now();
+    for partial in [
+        b"\x1b]52;".as_slice(),
+        b"\x1b]52;c;Zm".as_slice(),
+        b"\x1b]52;c;Zm9v\x1b".as_slice(),
+    ] {
+        let mut parser = Parser::new(Mode::Input);
+        parser.begin_osc52_query(3);
+        parser.feed(partial, instant);
+        assert_eq!(
+            parser.pending_escape_deadline(),
+            Some(instant + Duration::from_millis(100))
+        );
+        parser.expire_escape(instant + Duration::from_millis(100));
+        assert_eq!(drain(&mut parser), Vec::<Event>::new());
+        assert_eq!(parser.pending_escape_deadline(), None);
+        parser.feed(b"x", instant + Duration::from_millis(100));
+        assert_eq!(drain(&mut parser), vec![key(KeyCode::Char('x'), NONE)]);
+    }
+}
+
+#[test]
+fn osc52_cap_accepts_exact_and_discards_cap_plus_one() {
+    assert_eq!(
+        armed_events(b"\x1b]52;c;Zm9v\x07", 3),
+        vec![Event::Osc52Clipboard("foo".to_string())]
+    );
+    assert_eq!(
+        armed_events(b"\x1b]52;c;Zm9vYg==\x07z", 3),
+        vec![key(KeyCode::Char('z'), NONE)]
+    );
+}
+
+#[test]
+fn osc52_malformed_unrecognized_and_empty_frames_are_bounded() {
+    assert_eq!(
+        armed_events(b"\x1b]52;c;Zm$v\x07x", 4),
+        vec![key(KeyCode::Char('x'), NONE)]
+    );
+    assert_eq!(
+        armed_events(b"\x1b]9;ignored\x1b\\y", 4),
+        vec![key(KeyCode::Char('y'), NONE)]
+    );
+    assert_eq!(
+        armed_events(b"\x1b]52;p;\x07", 0),
+        vec![Event::Osc52Clipboard(String::new())]
+    );
+}
+
+#[test]
+fn osc52_escape_not_followed_by_backslash_discards_the_frame() {
+    let instant = now();
+    let mut parser = Parser::new(Mode::Input);
+    parser.begin_osc52_query(3);
+    parser.feed(b"\x1b]52;c;Zm9v\x1bXignored", instant);
+    assert_eq!(drain(&mut parser), Vec::<Event>::new());
+    parser.feed(b"\x07z", instant);
+    assert_eq!(drain(&mut parser), vec![key(KeyCode::Char('z'), NONE)]);
+}
+
+#[test]
+fn osc52_bytes_inside_bracketed_paste_stay_literal() {
+    let instant = now();
+    let mut parser = Parser::new(Mode::Input);
+    parser.feed(b"\x1b[200~", instant);
+    parser.begin_osc52_query(3);
+    parser.feed(b"\x1b]52;c;Zm9v\x07", instant);
+    parser.feed(PASTE_END, instant);
+    assert_eq!(
+        drain(&mut parser),
+        vec![Event::Paste("\u{1b}]52;c;Zm9v\u{7}".to_string())]
+    );
+}
+
+#[test]
+fn unarmed_osc_bytes_keep_alt_bracket_and_parse_normally() {
+    assert_eq!(
+        input_events(b"\x1b]52;c;Zg==\x07"),
+        vec![
+            key(KeyCode::Char(']'), ALT),
+            key(KeyCode::Char('5'), NONE),
+            key(KeyCode::Char('2'), NONE),
+            key(KeyCode::Char(';'), NONE),
+            key(KeyCode::Char('c'), NONE),
+            key(KeyCode::Char(';'), NONE),
+            key(KeyCode::Char('Z'), SHIFT),
+            key(KeyCode::Char('g'), NONE),
+            key(KeyCode::Char('='), NONE),
+            key(KeyCode::Char('='), NONE),
+            key(KeyCode::Char('g'), CTRL),
+        ]
+    );
+    assert!(
+        input_events(b"\x1b]52;p;Zm9v\x1b\\")
+            .iter()
+            .all(|event| !matches!(event, Event::Osc52Clipboard(_)))
+    );
 }

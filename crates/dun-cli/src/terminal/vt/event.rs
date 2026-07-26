@@ -117,6 +117,7 @@ pub(crate) enum Event {
     Key(KeyEvent),
     Mouse(MouseEvent),
     Paste(String),
+    Osc52Clipboard(String),
     Resize(u16, u16),
 }
 

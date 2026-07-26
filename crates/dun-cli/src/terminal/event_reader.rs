@@ -30,6 +30,21 @@ impl EventReader {
     pub(crate) fn next_event(&mut self, timeout: Duration) -> io::Result<Option<Event>> {
         self.core.next_event(timeout)
     }
+
+    #[allow(dead_code)]
+    pub(crate) fn begin_osc52_query(&mut self, max_bytes: usize) {
+        self.core.begin_osc52_query(max_bytes);
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn cancel_osc52_query(&mut self) {
+        self.core.cancel_osc52_query();
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn next_osc52_response(&mut self, timeout: Duration) -> io::Result<Option<String>> {
+        self.core.next_osc52_response(timeout)
+    }
 }
 
 impl Drop for EventReader {
@@ -109,6 +124,58 @@ impl<S: EventSource> ReaderCore<S> {
                     let mut buffer = [0; MAX_READ_BYTES];
                     let count = self.source.read(&mut buffer)?;
                     if count == 0 {
+                        return Err(io::Error::new(
+                            io::ErrorKind::UnexpectedEof,
+                            "terminal input closed after readable readiness",
+                        ));
+                    }
+                    self.parser.feed(&buffer[..count], Instant::now());
+                }
+            }
+        }
+    }
+
+    fn begin_osc52_query(&mut self, max_bytes: usize) {
+        self.parser.begin_osc52_query(max_bytes);
+    }
+
+    fn cancel_osc52_query(&mut self) {
+        self.parser.cancel_osc52_query();
+    }
+
+    fn next_osc52_response(&mut self, timeout: Duration) -> io::Result<Option<String>> {
+        let caller_deadline = Instant::now()
+            .checked_add(timeout)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "event timeout overflow"))?;
+
+        loop {
+            if let Some(text) = self.parser.pop_osc52_response() {
+                return Ok(Some(text));
+            }
+
+            let now = Instant::now();
+            self.parser.expire_escape(now);
+            if let Some(text) = self.parser.pop_osc52_response() {
+                return Ok(Some(text));
+            }
+            if now >= caller_deadline {
+                self.parser.cancel_osc52_query();
+                return Ok(None);
+            }
+
+            let poll_deadline = self
+                .parser
+                .pending_escape_deadline()
+                .map_or(caller_deadline, |escape_deadline| {
+                    escape_deadline.min(caller_deadline)
+                });
+            match self.source.poll_readable(poll_deadline)? {
+                Readiness::TimedOut => {}
+                Readiness::Readable => {
+                    let mut buffer = [0; MAX_READ_BYTES];
+                    let count = self.source.read(&mut buffer)?;
+                    if count == 0 {
+                        self.parser.cancel_osc52_query();
                         return Err(io::Error::new(
                             io::ErrorKind::UnexpectedEof,
                             "terminal input closed after readable readiness",
@@ -237,5 +304,83 @@ mod tests {
         assert!(!resize_pending.load(Ordering::SeqCst));
         assert_eq!(source.polls.load(Ordering::SeqCst), 0);
         assert_eq!(source.reads.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn osc52_response_is_extracted_without_reordering_ordinary_events() {
+        let source = Arc::new(FakeSource::new(&[b"a\x1b]52;c;Zm9v\x07b"]));
+        let resize_pending = Arc::new(AtomicBool::new(false));
+        let mut reader = ReaderCore::new(source, resize_pending);
+        reader.begin_osc52_query(3);
+
+        assert_eq!(
+            reader.next_osc52_response(Duration::from_secs(1)).unwrap(),
+            Some("foo".to_string())
+        );
+        assert_eq!(
+            reader.next_event(Duration::ZERO).unwrap(),
+            Some(pressed('a'))
+        );
+        assert_eq!(
+            reader.next_event(Duration::ZERO).unwrap(),
+            Some(pressed('b'))
+        );
+    }
+
+    #[test]
+    fn osc52_no_response_deadline_preserves_queued_ordinary_events() {
+        let source = Arc::new(FakeSource::new(&[]));
+        let resize_pending = Arc::new(AtomicBool::new(false));
+        let mut reader = ReaderCore::new(source.clone(), resize_pending);
+        reader.begin_osc52_query(3);
+        reader.parser.feed(b"ab", Instant::now());
+
+        assert_eq!(reader.next_osc52_response(Duration::ZERO).unwrap(), None);
+        assert_eq!(source.polls.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            reader.next_event(Duration::ZERO).unwrap(),
+            Some(pressed('a'))
+        );
+        assert_eq!(
+            reader.next_event(Duration::ZERO).unwrap(),
+            Some(pressed('b'))
+        );
+    }
+
+    #[test]
+    fn osc52_cancel_restores_unarmed_escape_bracket_behavior() {
+        let source = Arc::new(FakeSource::new(&[b"\x1b]x"]));
+        let resize_pending = Arc::new(AtomicBool::new(false));
+        let mut reader = ReaderCore::new(source, resize_pending);
+        reader.begin_osc52_query(3);
+        reader.cancel_osc52_query();
+
+        assert_eq!(
+            reader.next_event(Duration::from_secs(1)).unwrap(),
+            Some(Event::Key(KeyEvent {
+                code: KeyCode::Char(']'),
+                modifiers: KeyModifiers::ALT,
+                kind: KeyEventKind::Press,
+            }))
+        );
+        assert_eq!(
+            reader.next_event(Duration::ZERO).unwrap(),
+            Some(pressed('x'))
+        );
+    }
+
+    #[test]
+    fn osc52_partial_frame_then_eof_is_an_error_without_an_event() {
+        let source = Arc::new(FakeSource::new(&[b"\x1b]52;c;Zm", b""]));
+        let resize_pending = Arc::new(AtomicBool::new(false));
+        let mut reader = ReaderCore::new(source, resize_pending);
+        reader.begin_osc52_query(3);
+
+        let error = reader
+            .next_osc52_response(Duration::from_secs(1))
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::UnexpectedEof);
+        assert_eq!(reader.parser.pop_osc52_response(), None);
+        assert_eq!(reader.parser.pending_escape_deadline(), None);
     }
 }

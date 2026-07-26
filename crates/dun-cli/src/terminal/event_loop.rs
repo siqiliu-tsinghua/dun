@@ -62,6 +62,7 @@ pub(crate) fn run_event_loop(
             match event {
                 Event::Key(event) => handle_key_event(app, event),
                 Event::Paste(text) => app.handle_paste(&text),
+                Event::Osc52Clipboard(_) => {}
                 Event::Mouse(event) => handle_mouse_event(app, event),
                 Event::Resize(_, _) => backend.clear()?,
             }
