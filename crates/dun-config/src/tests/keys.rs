@@ -77,6 +77,10 @@ fn keymap_finds_bound_command() {
         Some(&EditorCommand::Edit(EditCommand::ScrollRight))
     );
     assert_eq!(
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,.").unwrap()),
+        Some(&EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace))
+    );
+    assert_eq!(
         keymap.command_for_sequence(&KeySequence::from_str("Ctrl+Right").unwrap()),
         Some(&EditorCommand::Edit(EditCommand::MoveWordRight))
     );
@@ -245,7 +249,7 @@ fn key_sequences_have_stable_display_text() {
 /// round-tripping catches two ids that parse to the same command.
 #[test]
 fn all_command_ids_round_trip() {
-    const EDITOR_COMMAND_VARIANT_COUNT: usize = 7 + 44 + 17 + 18;
+    const EDITOR_COMMAND_VARIANT_COUNT: usize = 7 + 45 + 17 + 18;
 
     assert_eq!(ALL_COMMAND_IDS.len(), EDITOR_COMMAND_VARIANT_COUNT);
 

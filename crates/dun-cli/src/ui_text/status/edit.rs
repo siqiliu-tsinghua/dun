@@ -46,6 +46,14 @@ pub(crate) const STATUS_WRAP_BUFFER_MISSING: TextKey = (
 );
 pub(crate) const STATUS_WRAP_ON: TextKey = ("status.wrap.on", "Word wrap on");
 pub(crate) const STATUS_WRAP_OFF: TextKey = ("status.wrap.off", "Word wrap off");
+pub(crate) const STATUS_WHITESPACE_BUFFER_MISSING: TextKey = (
+    "status.whitespace.buffer-missing",
+    "Whitespace failed: focused buffer is missing",
+);
+pub(crate) const STATUS_WHITESPACE_ON: TextKey = ("status.whitespace.on", "Visible whitespace on");
+pub(crate) const STATUS_WHITESPACE_OFF: TextKey =
+    ("status.whitespace.off", "Visible whitespace off");
+pub(crate) const STATUS_DETAIL_WHITESPACE: TextKey = ("status.detail.whitespace", "Whitespace");
 pub(crate) const STATUS_UNDO_BUFFER_MISSING: TextKey = (
     "status.undo.buffer-missing",
     "Undo failed: focused buffer is missing",
@@ -150,6 +158,10 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_WRAP_BUFFER_MISSING,
     STATUS_WRAP_ON,
     STATUS_WRAP_OFF,
+    STATUS_WHITESPACE_BUFFER_MISSING,
+    STATUS_WHITESPACE_ON,
+    STATUS_WHITESPACE_OFF,
+    STATUS_DETAIL_WHITESPACE,
     STATUS_UNDO_BUFFER_MISSING,
     STATUS_UNDO_FAILED,
     STATUS_REDO_BUFFER_MISSING,

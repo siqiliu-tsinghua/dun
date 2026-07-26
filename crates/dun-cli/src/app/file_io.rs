@@ -195,7 +195,15 @@ impl AppState {
             .map_err(|_| io::Error::other("focused window is missing"))?;
         let window_id = window.id;
         let buffer_id = window.buffer_id;
-        let (path, cursor, first_line, first_visual_row, first_column, word_wrap) = {
+        let (
+            path,
+            cursor,
+            first_line,
+            first_visual_row,
+            first_column,
+            word_wrap,
+            visible_whitespace,
+        ) = {
             let buffer = self
                 .buffer_state(buffer_id)
                 .ok_or_else(|| io::Error::other("focused buffer is missing"))?;
@@ -212,6 +220,7 @@ impl AppState {
                 buffer.first_visual_row,
                 buffer.first_column,
                 buffer.word_wrap,
+                buffer.visible_whitespace,
             )
         };
 
@@ -223,6 +232,7 @@ impl AppState {
         let encoding = loaded.encoding;
         let mut reloaded = BufferState::from_file(buffer_id, path.clone(), loaded);
         reloaded.word_wrap = word_wrap;
+        reloaded.visible_whitespace = visible_whitespace;
         let line = cursor
             .line
             .min(reloaded.buffer.line_count().saturating_sub(1));

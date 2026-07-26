@@ -65,7 +65,7 @@ impl AppState {
         };
 
         let position = buffer.buffer.cursor_position();
-        let display = self.shell.editor_text_display(false);
+        let display = self.shell.editor_text_display(buffer.visible_whitespace);
         let column = buffer
             .buffer
             .line(position.line)
@@ -91,6 +91,15 @@ impl AppState {
         }
         if buffer.word_wrap {
             parts.insert(4, bracket("Wrap"));
+        }
+        if buffer.visible_whitespace {
+            parts.insert(
+                4,
+                bracket(ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_DETAIL_WHITESPACE,
+                )),
+            );
         }
         if let Some(selection) = selection_status(&buffer.buffer, display) {
             parts.insert(4, bracket(&selection));

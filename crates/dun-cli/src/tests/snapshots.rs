@@ -296,6 +296,20 @@ fn wide_80x24_snapshot() {
     );
 }
 
+/// Protects the full per-buffer marker trail, including an empty line's EOL
+/// marker and the status-detail bracket.
+#[test]
+fn visible_whitespace_snapshot() {
+    let mut app = fixed_app_with_text("alpha beta\n\tindented\n\nend ");
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace));
+    app.status_message = None;
+
+    assert_snapshot(
+        "visible_whitespace",
+        &app_snapshot(&mut app, STANDARD_WIDTH, STANDARD_HEIGHT, &[]),
+    );
+}
+
 /// Protects Open's modal blanking: real editor text must not bleed through.
 #[test]
 fn open_dialog_snapshot() {
@@ -426,11 +440,20 @@ fn split_two_panes_snapshot() {
     );
 }
 
-/// Protects the tiled, read-only Help screen and its opening content.
+/// Protects the tiled, read-only Help screen and the restored whitespace row.
 #[test]
 fn help_screen_snapshot() {
     let mut app = fixed_app();
     app.handle_command(&EditorCommand::App(AppCommand::Help));
+    let help = app.focused_buffer_mut().expect("focused Help buffer");
+    let line = (0..help.buffer.line_count())
+        .find(|&line| {
+            help.buffer
+                .line(line)
+                .is_some_and(|text| text.contains("edit.toggle_visible_whitespace"))
+        })
+        .expect("visible-whitespace Help row");
+    help.buffer.set_cursor(Position::new(line, 0)).unwrap();
 
     assert_snapshot(
         "help_screen",

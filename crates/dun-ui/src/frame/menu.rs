@@ -211,6 +211,11 @@ const VIEW_ENTRIES: &[EntrySpec] = &[
         EditorCommand::Edit(dun_core::EditCommand::ToggleWordWrap),
     ),
     entry(
+        "menu.view.visible-whitespace",
+        "Visible Whitespace (.)",
+        EditorCommand::Edit(dun_core::EditCommand::ToggleVisibleWhitespace),
+    ),
+    entry(
         "menu.view.scroll-left",
         "Scroll Left ([)",
         EditorCommand::Edit(dun_core::EditCommand::ScrollLeft),

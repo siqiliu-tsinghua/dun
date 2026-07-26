@@ -77,6 +77,10 @@ impl AppState {
                 self.toggle_word_wrap();
                 return;
             }
+            EditCommand::ToggleVisibleWhitespace => {
+                self.toggle_visible_whitespace();
+                return;
+            }
             EditCommand::Undo => {
                 self.undo_focused_buffer();
                 return;
@@ -189,6 +193,7 @@ impl AppState {
             | EditCommand::OutdentLine
             | EditCommand::TrimTrailingWhitespace
             | EditCommand::ToggleWordWrap
+            | EditCommand::ToggleVisibleWhitespace
             | EditCommand::Undo
             | EditCommand::Redo
             | EditCommand::Find

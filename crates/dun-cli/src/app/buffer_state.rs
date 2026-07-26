@@ -24,6 +24,7 @@ pub(crate) struct BufferState {
     pub(crate) first_column: usize,
     pub(crate) search: Option<BufferSearchState>,
     pub(crate) word_wrap: bool,
+    pub(crate) visible_whitespace: bool,
     pub(crate) highlight: Option<BufferHighlight>,
 }
 
@@ -40,6 +41,7 @@ impl BufferState {
             first_column: 0,
             search: None,
             word_wrap: false,
+            visible_whitespace: false,
             highlight: None,
         }
     }
@@ -56,6 +58,7 @@ impl BufferState {
             first_column: 0,
             search: None,
             word_wrap: false,
+            visible_whitespace: false,
             highlight: None,
         }
     }

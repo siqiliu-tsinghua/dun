@@ -1,6 +1,40 @@
 use crate::*;
 
 impl AppState {
+    pub(super) fn toggle_visible_whitespace(&mut self) {
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id: BufferId(0),
+                body_height: 1,
+                body_width: 1,
+            });
+        let Some(buffer) = self.focused_buffer() else {
+            self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_WHITESPACE_BUFFER_MISSING,
+                )
+                .to_string(),
+            );
+            return;
+        };
+        let visible_whitespace = !buffer.visible_whitespace;
+        let display = self.shell.editor_text_display(visible_whitespace);
+        let Some(buffer) = self.focused_buffer_mut() else {
+            return;
+        };
+
+        buffer.visible_whitespace = visible_whitespace;
+        buffer.ensure_cursor_visible(context.body_height, context.body_width, display);
+        let key = if visible_whitespace {
+            ui_text::STATUS_WHITESPACE_ON
+        } else {
+            ui_text::STATUS_WHITESPACE_OFF
+        };
+        self.set_status(ui_text::tr(&self.shell.catalog, key).to_string());
+    }
+
     pub(super) fn toggle_word_wrap(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
             self.set_status(

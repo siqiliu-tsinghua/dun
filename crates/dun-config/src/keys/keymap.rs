@@ -66,6 +66,10 @@ impl Keymap {
                     EditorCommand::Edit(EditCommand::TrimTrailingWhitespace),
                 ),
                 KeyBinding::new("Ctrl+X,Z", EditorCommand::Edit(EditCommand::ToggleWordWrap)),
+                KeyBinding::new(
+                    "Ctrl+X,.",
+                    EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace),
+                ),
                 KeyBinding::new("Left", EditorCommand::Edit(EditCommand::MoveLeft)),
                 KeyBinding::new("Right", EditorCommand::Edit(EditCommand::MoveRight)),
                 KeyBinding::new("Up", EditorCommand::Edit(EditCommand::MoveUp)),

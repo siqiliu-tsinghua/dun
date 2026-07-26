@@ -29,7 +29,7 @@ fn translated_labels_compose_the_english_mnemonic() {
     assert_eq!(menu.items[0].label, "文件 (F)");
     assert_eq!(menu.items[0].entries[0].label, "新建 (N)");
     // Punctuation mnemonics survive translation too.
-    let scroll_left = &menu.items[2].entries[8].label;
+    let scroll_left = &menu.items[2].entries[9].label;
     assert_eq!(scroll_left.as_ref(), "左移视图 ([)");
     // Untranslated siblings keep their English labels.
     assert_eq!(menu.items[1].label, "Edit");

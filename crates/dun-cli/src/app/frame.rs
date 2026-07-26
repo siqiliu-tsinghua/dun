@@ -23,6 +23,7 @@ impl AppState {
                 .with_first_visual_row(buffer.first_visual_row)
                 .with_search(search_matches, active_search_match)
                 .with_wrap(buffer.word_wrap)
+                .with_visible_whitespace(buffer.visible_whitespace)
                 .with_highlight_spans(
                     buffer
                         .highlight
@@ -51,7 +52,10 @@ impl AppState {
         let Some(context) = self.focused_buffer_view_context(area) else {
             return;
         };
-        let display = self.shell.editor_text_display(false);
+        let visible_whitespace = self
+            .buffer_state(context.buffer_id)
+            .is_some_and(|buffer| buffer.visible_whitespace);
+        let display = self.shell.editor_text_display(visible_whitespace);
         let Some(buffer) = self.buffer_state_mut(context.buffer_id) else {
             return;
         };

@@ -63,6 +63,7 @@ pub enum EditCommand {
     OutdentLine,
     TrimTrailingWhitespace,
     ToggleWordWrap,
+    ToggleVisibleWhitespace,
     MoveLeft,
     MoveRight,
     MoveUp,

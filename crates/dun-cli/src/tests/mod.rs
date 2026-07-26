@@ -10,6 +10,7 @@ mod file_dialog;
 mod file_io;
 mod helper_panes;
 mod i18n;
+mod markers;
 mod menu_matrix;
 mod menus_keyboard;
 mod menus_mouse;

@@ -3,6 +3,7 @@
 mod fallback;
 mod hit;
 mod i18n;
+mod markers;
 mod model;
 mod overlay;
 mod sanitizer;

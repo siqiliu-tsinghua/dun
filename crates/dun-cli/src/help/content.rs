@@ -651,6 +651,10 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Toggle word wrap",
             },
             HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace),
+                description: "Toggle visible whitespace",
+            },
+            HelpCommand {
                 command: EditorCommand::Edit(EditCommand::Find),
                 description: "Find",
             },
