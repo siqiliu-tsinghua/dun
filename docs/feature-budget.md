@@ -83,7 +83,7 @@ first when the budget is exceeded.
 | ---: | --- | --- |
 | 1 | Extra built-in themes | Keep `turbo`, `dark`, and `dun`; retain `msedit` and fallback colors if trimmed. |
 | 2 | Optional mouse interaction | Mouse focus, cursor placement, selection drag, split drag, menu clicks, scrollbar drag, and file-dialog mouse clicks. |
-| 3 | Editor convenience markers | Nonessential line commands beyond core cut/copy/paste/editing. Bookmarks and visible-whitespace markers were removed 2026-07-10 in the slimming stage (feature-triage F12/F13). |
+| 3 | Editor convenience markers | Nonessential line commands beyond core cut/copy/paste/editing. Bookmarks and visible-whitespace markers (feature-triage F12/F13) were removed 2026-07-10 and **restored 2026-07-26** (`b9ac165`); they re-land here in the trim order — optional convenience, first out if the budget is ever threatened. |
 | 4 | Read-only helper panes | Search Results, helper-pane row navigation, and source-return polish. Core Find/Replace stays required. Outline was removed 2026-07-10 in the slimming stage (feature-triage F20). |
 | 5 | Status History pane | In-editor status/error history screen. Current status line stays required. |
 | 6 | Config Diagnostics pane | In-editor config diagnostics, section jumps, and keymap summaries. Config loading/validation stays required. |

@@ -605,7 +605,20 @@ deltas non-additive).
       validator, scratch gate, execute submit, plus si-1 gate). macOS budget
       build 691,028 (+8,208 over the stream-read baseline for si-1+si-2).
 
-## Current Stage: Restoration Review — F12/F13 (started 2026-07-23)
+## Completed Stage: Restoration Review — F12/F13 (2026-07-23 → 2026-07-26)
+
+**Closed 2026-07-26 at `b9ac165`.** F12 (bookmarks) and F13 (visible
+whitespace) are restored full-trail over three gated steps — display seam
+`3b69844`, F13 `5914467`, F12 `b9ac165` — re-landed from the `53fe7f8^` spec
+against today's architecture (i18n across ten catalogs, the shared
+`EditorTextDisplay` seam, `Ctrl+X` keymap family). Binding Debian 756,016
+(+16,384 over `877b7ad`, margin 292,560); four-platform functional matrix
+817/0 (macOS/Debian/FreeBSD/Solaris). Codex hit one clean stop-loss on a
+stale gutter-render assumption (the Surface renderer paints the separator
+over the old marker cell) — resolved with Option C (the `*` replaces the
+separator at the gutter edge, no width change). Full-trail docs updated
+(README, feature-triage, feature-budget, release-size-audit). F46 stays
+removed; F20 still returns as a plugin role.
 
 User decision 2026-07-23: with the Distinctive Plugins stage closed, the
 restoration review runs next (see the "Deferred" item, now decided): restore
@@ -642,22 +655,25 @@ keymap proposal.
   cadence adapted from the plan: macOS budget build gates every step; the
   binding Debian measurement + smoke runs after step 1 and after step 3
   (C-spine/crossterm batching precedent), not three times.
-- [ ] Implementation steps per the adapted plan, each its own gated brief
+- [x] Implementation steps per the adapted plan, each its own gated brief
   (scope check, fmt/clippy/tests, mutation-proofs on invariant guards):
   - [x] Step 1 — display-coordinate seam (brief 048, `3b69844`). Gated: 790
     tests, fmt/clippy clean. Two gate-found defects fixed (long-line render
     5→101→4ms via the raw-width fast path; a duplicate untested `scroll_status`
     fork removed). Measured both platforms — macOS 682,044, Debian 743,728,
-    margin 304,848 (docs/release-size-audit.md 2026-07-26). No user-visible
-    change.
-  - [ ] Step 2 — F13 visible whitespace, full trail (brief 049, dispatched
-    2026-07-26).
-  - [ ] Step 3 — F12 bookmarks, full trail (brief 050, pending step 2).
-- [ ] Dual-platform size measurement (macOS proxy + binding Debian) and a
-  docs/release-size-audit.md entry; release smoke on runtime commits. Step 1
-  measured; the next binding Debian run is owed after step 3 (steps take macOS
-  budget builds each; Debian batches after 1 and 3 per the plan cadence).
-- [ ] Full-trail docs: README feature paragraphs, docs/feature-triage.md
+    margin 304,848. No user-visible change.
+  - [x] Step 2 — F13 visible whitespace, full trail (brief 049, `5914467`).
+    800 tests; macOS +16 (682,060). Default-off byte-identity mutation-proven.
+  - [x] Step 3 — F12 bookmarks, full trail (brief 050, `b9ac165`). One clean
+    Codex stop-loss on the gutter-render assumption → Option C. 817 tests;
+    macOS 690,292. Strict-circular nav, Move Line remap, and separator-over-
+    marker all mutation-proven by Claude.
+- [x] Dual-platform size measurement + docs/release-size-audit.md entries;
+  release smoke. Debian binding 756,016 (+16,384 over `877b7ad`, margin
+  292,560); macOS 690,292; smoke clean (ELF PIE, ldd unchanged,
+  DUN_TEST_PANIC=0). Four-platform functional matrix 817/0 (macOS, Debian,
+  FreeBSD, Solaris).
+- [x] Full-trail docs: README feature paragraphs, docs/feature-triage.md
   restoration record, feature-budget classification for the restored units.
 
 ## Completed Stage: v0.1 Release Hardening

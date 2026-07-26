@@ -88,8 +88,11 @@ selection, active search count, visible scroll range, horizontal scroll offset,
 line ending, file-text encoding, terminal profile, and focused window index.
 It also includes a lightweight buffer switcher for open tiled buffers, line
 commands for copy/delete/move/indent/outdent/trim, and a display-layer
-word-wrap toggle. Line bookmarks and visible-whitespace markers were removed
-in the 2026-07 slimming stage. In word-wrap mode, scrolling, cursor visibility, selection
+word-wrap toggle. Per-line bookmarks (`Ctrl+X,K` toggle, `Ctrl+X,N`/`Ctrl+X,L`
+next/previous) show a `*` gutter marker and a `[Mark]` status field, and
+visible-whitespace markers (`Ctrl+X,.`) render spaces, tabs, and line ends as
+display-only glyphs; both are per-buffer view state that never change the
+file. In word-wrap mode, scrolling, cursor visibility, selection
 highlights, search-match highlights, gutters, and scrollbars operate on
 wrapped visual rows instead of only whole logical lines.
 Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those

@@ -1289,3 +1289,32 @@ This is an append-only progress log. Keep new entries dated and factual.
   reconciled the stale stage headers and checkboxes in TODO.md and the
   CLAUDE.md plan. The next mainline stage is to be chosen from the unblocked
   queue; the leading candidate is the F12/F13 restoration review.
+- Restored F12 bookmarks and F13 visible whitespace (2026-07-23 → 2026-07-26,
+  stage "Restoration Review — F12/F13", user decision). A plain
+  `git revert 53fe7f8` was dead — a `git merge-tree` simulation conflicted in
+  10 of the commit's 26 files and clean hunks would have reintroduced pre-i18n
+  hardcoded English — so `53fe7f8^` served as the behavior spec and both
+  features were re-landed full-trail over three plan-first, Codex-executed,
+  Claude-gated steps: a shared `EditorTextDisplay` display-coordinate seam
+  (`3b69844`), F13 visible whitespace (`5914467`), and F12 bookmarks
+  (`b9ac165`). Design brief 047 produced the plan; briefs 048–050 the steps.
+  The seam unified sanitized source-byte↔display-cell mapping across body
+  text, cursor, highlights, scrolling, and mouse hits; two gate-found defects
+  in step 1 were fixed by Claude (a 20x long-line render regression, and a
+  duplicate untested `scroll_status` fork). Deltas from the removed originals:
+  default chords moved to the `Ctrl+X` family (`Ctrl+X,.` whitespace,
+  `Ctrl+X,K`/`N`/`L` bookmarks — the old `Ctrl+W,*` is single-stroke Find and
+  `Ctrl+X,M`/`P` are Window Collapse/Expand today); every user-visible string
+  is an i18n key across all ten catalogs; and the bookmark gutter `*` replaces
+  the row separator at the gutter edge (Option C) because today's Surface
+  renderer paints the separator over the last gutter cell — a stale-assumption
+  stop-loss Codex raised and Claude resolved. Every invariant guard was
+  mutation-proven (strict-circular navigation, Move Line remap, the
+  separator-over-marker overwrite, default-off byte-identity, the mapped
+  sanitizer's raw-byte cap). Binding Debian 756,016 bytes (+16,384 over
+  `877b7ad`, margin 292,560; the 2026-07-10 removal had saved 12,288 — the
+  restoration costs slightly more on the i18n + seam architecture); macOS
+  budget build 690,292; four-platform functional matrix 817/0 (macOS, Debian,
+  FreeBSD, Solaris). Full-trail docs updated (README, feature-triage,
+  feature-budget, release-size-audit, TODO, CLAUDE). F46 stays removed; F20
+  still returns as a plugin role.

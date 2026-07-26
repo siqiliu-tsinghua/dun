@@ -43,12 +43,30 @@ landed, if margin allows):
   restore only with a concrete need.
 - `13d3ef7` — F20 Outline. Classified D: the recorded plan is to return as
   a `DocumentStructure` plugin role, not as a core revert.
-- `53fe7f8` — F12 bookmarks + F13 visible whitespace. The most
-  size-motivated of the three; the strongest restoration candidates on
-  pure value grounds.
+- `53fe7f8` — F12 bookmarks + F13 visible whitespace. **RESTORED 2026-07-26**
+  (see below).
 
 Note: revert conflicts grow as the renderer-replacement line churns
 render/gutter/menu code — if F12/F13 are to come back, earlier is cheaper.
+
+**F12/F13 restored 2026-07-26** (branch stage "Restoration Review — F12/F13",
+user decision). A plain `git revert 53fe7f8` was dead — a `git merge-tree`
+simulation conflicted in 10 of the commit's 26 files and clean hunks would
+have reintroduced pre-i18n hardcoded English — so `53fe7f8^` was used as the
+behavior spec and both features were re-landed full-trail against today's
+architecture over three gated steps: a shared `EditorTextDisplay` display
+seam (`3b69844`), F13 visible whitespace (`5914467`), F12 bookmarks
+(`b9ac165`). Notable deltas from the removed originals: default chords moved
+to the `Ctrl+X` family (`Ctrl+X,.` whitespace; `Ctrl+X,K`/`N`/`L` bookmark
+toggle/next/previous — the old `Ctrl+W,*` prefix is single-stroke Find today,
+and `Ctrl+X,M`/`P` were taken by Window Collapse/Expand); every user-visible
+string is an i18n key translated across all ten catalogs; and the bookmark
+gutter `*` replaces the row's separator at the gutter edge (Option C) because
+the Surface renderer paints the separator over the last gutter cell, unlike
+the old ratatui renderer. Binding Debian +16,384 bytes over `877b7ad`
+(756,016; margin 292,560); four-platform functional matrix green (the removal
+had saved 12,288 — the restoration costs slightly more on the i18n + seam
+architecture). F46 stays removed; F20 still returns as a plugin role.
 
 The client cost comes from the `spike/plugin-client-size` branch
 (`c7f042c`), measured on the Debian VM with the locked release profile; see
@@ -122,8 +140,8 @@ per-unit measurement was cancelled as unnecessary.
 | F09 | Internal clipboard cut/copy/paste | `edit.cut/copy/paste` | req | A | | |
 | F10 | Opt-in OSC 52 external copy | `edit.copy_external`, `clipboard.osc52.*` | req | B | | |
 | F11 | Line commands: copy/delete/move/indent/outdent/trim | `edit.*_line`, `edit.trim_*` | t3 | B | | |
-| F12 | Bookmarks: toggle/next/previous + gutter markers | `edit.*bookmark*` | t3 | C | 12,288* | C, removed 2026-07-10 (batch 3) |
-| F13 | Visible-whitespace markers | `edit.toggle_visible_whitespace` | t3 | C | * | C, removed 2026-07-10 (batch 3); *12,288 is the combined F12+F13 batch delta |
+| F12 | Bookmarks: toggle/next/previous + gutter markers | `edit.*bookmark*` | t3 | C | 12,288* | **RESTORED 2026-07-26** (`b9ac165`, `Ctrl+X,K/N/L`); was removed 2026-07-10 (batch 3) |
+| F13 | Visible-whitespace markers | `edit.toggle_visible_whitespace` | t3 | C | * | **RESTORED 2026-07-26** (`5914467`, `Ctrl+X,.`); was removed 2026-07-10 (batch 3); *12,288 is the combined F12+F13 removal delta; the restoration cost +16,384 on the i18n + seam architecture |
 | F14 | Soft-wrap visual-row model: wrap toggle + wrapped scrolling/selection/highlights/paging | `edit.toggle_word_wrap` + display layer | t9 | B, likely largest single unit | | |
 | F15 | Horizontal scrolling, explicit scroll commands, clip edge indicators | `edit.scroll_left/right` | req | A | | |
 

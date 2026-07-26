@@ -876,3 +876,20 @@ the new dun-ui `display_map` module plus the mapped-sanitizer entry; the
 `editing.rs`/`buffer_state.rs` splits are byte-neutral moves. Step-2 (F13)
 and step-3 (F12) each add their own measured trail; the next binding Debian
 measurement is owed after step 3.
+
+## 2026-07-26 F12/F13 restoration complete — steps 2–3 (b9ac165)
+
+Closes the bookmark + visible-whitespace restoration (steps: seam `3b69844`,
+F13 `5914467`, F12 `b9ac165`). Clean `vm-sync` archive of `b9ac165`,
+`scripts/release-build.sh` on the Debian VM: **Debian 756,016 bytes** (margin
+292,560), **+16,384 over the pre-restoration baseline `877b7ad`** (739,632);
+the whole track, not one step. macOS budget build 690,292 (+12,352 over
+`877b7ad`'s 677,940). Per-step macOS proxies: seam +4,104, F13 +16 (the
+rendering was already in the seam; the ten translations are free), F12 +8,232
+(bookmark state/normalize/nav logic and three command variants). Debian smoke:
+ELF PIE stripped; `ldd` unchanged (libgcc_s/libm/libc/ld-linux); `--version`
+`dun 0.1.0`; `strings | grep -c DUN_TEST_PANIC` = 0. The 2026-07-10 removal
+had saved 12,288; the restoration costs +16,384 because it re-lands on the
+i18n catalog + shared display seam rather than the pre-i18n originals. Margin
+remains large (292,560). Four-platform functional matrix at `b9ac165`: macOS
+817/0, Debian 817/0, FreeBSD 817/0, Solaris 817/0 (3 ignored each).

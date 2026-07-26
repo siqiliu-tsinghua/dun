@@ -213,17 +213,19 @@ Sequencing (stages 1–2 completed 2026-07-10):
    as superseded by construction and per-role policy overrides stay unadopted
    (closure notes in TODO.md and docs/plugin-protocol.md).
 
-6. **Restoration review — F12/F13** (ACTIVE, started 2026-07-23, user
-   decision): restore bookmarks + visible whitespace, removed at `53fe7f8`
-   (docs/feature-triage.md "Restoration Path"; Debian margin 308,944). A
-   plain revert is dead (10/26 files conflict; pre-i18n strings would
-   return), so plan-first: `53fe7f8^` is the spec, re-landed against
-   today's architecture (i18n + wide-aware render layer + `Ctrl+X` keymap
-   family), full-trail, dual-platform measured. Brief 047 is the
-   design-only plan; TODO.md "Current Stage: Restoration Review — F12/F13"
-   tracks execution. F46 stays removed; F20 returns as a plugin role.
-   Still queued behind: OSC 52 paste; rum evaluation (externally blocked
-   on rum-ext).
+6. ~~Restoration review — F12/F13~~ — DONE, stage closed 2026-07-26
+   (`b9ac165`): bookmarks + visible whitespace restored full-trail over
+   three gated steps (seam `3b69844`, F13 `5914467`, F12 `b9ac165`) from
+   the `53fe7f8^` spec (a plain revert was dead — 10/26 files conflicted),
+   re-landed on today's architecture (i18n ten catalogs + shared
+   `EditorTextDisplay` seam + `Ctrl+X` keymap family). Binding Debian
+   756,016 (+16,384 over `877b7ad`, margin 292,560); four-platform matrix
+   817/0. One clean Codex stop-loss (stale gutter-render assumption →
+   Option C). F46 stays removed; F20 still returns as a plugin role.
+
+Next stage: to be chosen from the queue this was blocking — OSC 52
+paste/query (docs/dev deferred item); rum evaluation stays externally
+blocked on rum-ext's resource/type base. No stage currently active.
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,
