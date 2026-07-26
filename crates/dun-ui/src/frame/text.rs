@@ -1,7 +1,6 @@
-use dun_core::{DisplaySanitizer, SanitizedLine};
-use dun_term::str_width;
+use dun_core::SanitizedLine;
 
-use crate::{BufferView, UiShell, WindowGeometry, wrap_line_segments};
+use crate::{BufferView, UiShell, WindowGeometry};
 
 impl UiShell {
     pub(super) fn sanitize_buffer_body(
@@ -17,6 +16,7 @@ impl UiShell {
             return self.sanitize_wrapped_buffer_body(buffer, geometry);
         }
 
+        let display = self.editor_text_display(buffer.visible_whitespace);
         let mut lines = Vec::new();
         for line_index in buffer.first_line..buffer.buffer.line_count() {
             if lines.len() >= body_height {
@@ -24,8 +24,8 @@ impl UiShell {
             }
 
             let line = buffer.buffer.line(line_index).unwrap_or_default();
-            let start = self.byte_column_for_display_column(line, buffer.first_column);
-            lines.push(self.display_sanitizer.sanitize_line(&line[start..]));
+            let start = display.display_column_to_source_byte(line, buffer.first_column);
+            lines.push(display.sanitize_line(&line[start..]));
         }
 
         lines
@@ -38,6 +38,7 @@ impl UiShell {
     ) -> Vec<SanitizedLine> {
         let body_height = usize::from(geometry.body.height);
         let body_width = usize::from(geometry.body.width).max(1);
+        let display = self.editor_text_display(buffer.visible_whitespace);
         let mut lines = Vec::new();
 
         for line_index in buffer.first_line..buffer.buffer.line_count() {
@@ -54,14 +55,14 @@ impl UiShell {
             } else {
                 0
             };
-            for segment in wrap_line_segments(line, body_width, self.profile.ambiguous_width)
-                .iter()
+            for segment in display
+                .wrapped_segments(line, body_width)
                 .skip(start_offset)
             {
                 if lines.len() >= body_height {
                     break;
                 }
-                lines.push(self.display_sanitizer.sanitize_line(segment));
+                lines.push(display.sanitize_wrapped_segment(segment));
             }
         }
 
@@ -77,9 +78,8 @@ impl UiShell {
         let Some(line) = buffer.buffer.line(line_index) else {
             return 1;
         };
-        wrap_line_segments(line, body_width.max(1), self.profile.ambiguous_width)
-            .len()
-            .max(1)
+        self.editor_text_display(buffer.visible_whitespace)
+            .wrapped_row_count(line, body_width.max(1))
     }
 
     pub(super) fn wrapped_total_visual_rows(
@@ -121,43 +121,5 @@ impl UiShell {
         }
 
         (buffer.buffer.line_count().saturating_sub(1), 0)
-    }
-    pub(super) fn display_column(&self, line: &str, byte_column: usize) -> Option<usize> {
-        let prefix = line.get(..byte_column)?;
-        let display_sanitizer = DisplaySanitizer {
-            ascii_only: self.display_sanitizer.ascii_only,
-            max_bytes: usize::MAX,
-        };
-        let display_text = display_sanitizer.sanitize_line(prefix).as_plain_text();
-        Some(str_width(
-            display_text.as_str(),
-            self.profile.ambiguous_width,
-        ))
-    }
-
-    pub(crate) fn byte_column_for_display_column(&self, line: &str, target: usize) -> usize {
-        if target == 0 {
-            return 0;
-        }
-
-        let display_sanitizer = DisplaySanitizer {
-            ascii_only: self.display_sanitizer.ascii_only,
-            max_bytes: usize::MAX,
-        };
-        let mut width = 0usize;
-        for (index, ch) in line.char_indices() {
-            let next_index = index + ch.len_utf8();
-            let mut raw = [0; 4];
-            let rendered = display_sanitizer
-                .sanitize_line(ch.encode_utf8(&mut raw))
-                .as_plain_text();
-            width =
-                width.saturating_add(str_width(rendered.as_str(), self.profile.ambiguous_width));
-            if width >= target {
-                return next_index;
-            }
-        }
-
-        line.len()
     }
 }

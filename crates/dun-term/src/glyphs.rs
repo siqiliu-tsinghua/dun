@@ -26,9 +26,17 @@ pub struct IndicatorGlyphs {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WhitespaceGlyphs {
+    pub space: char,
+    pub tab: char,
+    pub end_of_line: char,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GlyphSet {
     pub border: BorderGlyphs,
     pub indicators: IndicatorGlyphs,
+    pub whitespace: WhitespaceGlyphs,
 }
 
 impl GlyphSet {
@@ -55,6 +63,11 @@ impl GlyphSet {
                 ellipsis: '…',
                 truncation: '…',
             },
+            whitespace: WhitespaceGlyphs {
+                space: '·',
+                tab: '→',
+                end_of_line: '¶',
+            },
         }
     }
 
@@ -80,6 +93,11 @@ impl GlyphSet {
                 collapsed: '>',
                 ellipsis: '.',
                 truncation: '~',
+            },
+            whitespace: WhitespaceGlyphs {
+                space: '.',
+                tab: '>',
+                end_of_line: '$',
             },
         }
     }
@@ -111,6 +129,9 @@ mod tests {
         assert_eq!(glyphs.border.top_left, '┌');
         assert_eq!(glyphs.border.cross, '┼');
         assert_eq!(glyphs.indicators.dirty, '●');
+        assert_eq!(glyphs.whitespace.space, '·');
+        assert_eq!(glyphs.whitespace.tab, '→');
+        assert_eq!(glyphs.whitespace.end_of_line, '¶');
     }
 
     #[test]
@@ -122,6 +143,9 @@ mod tests {
         assert_eq!(glyphs.border.vertical, '|');
         assert_eq!(glyphs.border.cross, '+');
         assert_eq!(glyphs.indicators.collapsed, '>');
+        assert_eq!(glyphs.whitespace.space, '.');
+        assert_eq!(glyphs.whitespace.tab, '>');
+        assert_eq!(glyphs.whitespace.end_of_line, '$');
     }
 
     #[test]

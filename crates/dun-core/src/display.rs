@@ -83,6 +83,23 @@ impl DisplaySanitizer {
     }
 
     pub fn sanitize_line(&self, line: &str) -> SanitizedLine {
+        self.sanitize_line_mapped(line, |_| None, None)
+    }
+
+    /// Sanitizes a source line after applying a per-character display mapping.
+    ///
+    /// The byte cap and returned coordinates always describe `line`, never the
+    /// mapped output. `logical_suffix` is display-only (for example, an end of
+    /// line marker) and is appended only when all source bytes were accepted.
+    pub fn sanitize_line_mapped<F>(
+        &self,
+        line: &str,
+        mut map: F,
+        logical_suffix: Option<char>,
+    ) -> SanitizedLine
+    where
+        F: FnMut(char) -> Option<char>,
+    {
         let mut segments = Vec::new();
         let mut bytes_consumed = 0;
 
@@ -93,7 +110,7 @@ impl DisplaySanitizer {
             }
 
             bytes_consumed = next_index;
-            self.push_char(&mut segments, ch);
+            self.push_char(&mut segments, map(ch).unwrap_or(ch));
         }
 
         let truncated = bytes_consumed < line.len();
@@ -103,6 +120,8 @@ impl DisplaySanitizer {
                 DisplayClass::Truncation,
                 truncation_marker(self.ascii_only),
             );
+        } else if let Some(suffix) = logical_suffix {
+            self.push_char(&mut segments, suffix);
         }
 
         SanitizedLine {
@@ -112,8 +131,21 @@ impl DisplaySanitizer {
         }
     }
 
+    /// True when `sanitize_line` would emit `ch` unchanged as ordinary text.
+    ///
+    /// `push_char` branches on this exact predicate, so it can never drift
+    /// from what sanitization actually does; callers may use it to skip
+    /// allocating a `SanitizedLine` for characters that need no rewriting.
+    pub fn renders_unchanged(&self, ch: char) -> bool {
+        !ch.is_control() && !is_deceptive_invisible(ch) && (!self.ascii_only || ch.is_ascii())
+    }
+
     fn push_char(&self, segments: &mut Vec<DisplaySegment>, ch: char) {
-        if ch.is_control() {
+        if self.renders_unchanged(ch) {
+            let mut text = String::new();
+            text.push(ch);
+            push_segment(segments, DisplayClass::Text, text);
+        } else if ch.is_control() {
             let class = if ch == '\u{1b}' {
                 DisplayClass::Escape
             } else {
@@ -126,12 +158,8 @@ impl DisplaySanitizer {
                 DisplayClass::Escape,
                 render_control(ch, self.ascii_only),
             );
-        } else if self.ascii_only && !ch.is_ascii() {
-            push_segment(segments, DisplayClass::Escape, render_non_ascii(ch));
         } else {
-            let mut text = String::new();
-            text.push(ch);
-            push_segment(segments, DisplayClass::Text, text);
+            push_segment(segments, DisplayClass::Escape, render_non_ascii(ch));
         }
     }
 }
@@ -459,6 +487,39 @@ mod tests {
         assert!(sanitized.as_plain_text().is_ascii());
         assert!(sanitized.truncated);
     }
+
+    #[test]
+    fn mapped_sanitizer_caps_source_bytes_and_omits_suffix_when_truncated() {
+        let sanitized = DisplaySanitizer::utf8(1).sanitize_line_mapped(
+            " x",
+            |ch| (ch == ' ').then_some('·'),
+            Some('¶'),
+        );
+
+        assert_eq!(sanitized.as_plain_text(), "·…");
+        assert_eq!(sanitized.bytes_consumed, 1);
+        assert!(sanitized.truncated);
+    }
+
+    #[test]
+    fn mapped_sanitizer_classifies_mapped_output() {
+        let sanitized =
+            DisplaySanitizer::unlimited_utf8().sanitize_line_mapped("x", |_| Some('\u{1b}'), None);
+
+        assert_eq!(sanitized.as_plain_text(), "␛");
+        assert_eq!(sanitized.segments.len(), 1);
+        assert_eq!(sanitized.segments[0].class, DisplayClass::Escape);
+    }
+
+    // Note deliberately absent: a test asserting `renders_unchanged(ch)` agrees
+    // with whether `sanitize_line` passed `ch` through unchanged. `push_char`
+    // branches on `renders_unchanged`, so mutating the predicate moves both
+    // sides of that comparison together and the test can never fail — the
+    // vacuous "oracle reuses the implementation's own predicate" trap. The real
+    // invariant (no control/invisible byte ever renders raw) is independently
+    // pinned by the terminal-injection audit tests below, which hard-code the
+    // unsafe set. The width fast path that consults `renders_unchanged` is
+    // pinned in dun-ui by the ambiguous-width coordinate test.
 
     /// The oracle, spelled out independently of the implementation.
     ///

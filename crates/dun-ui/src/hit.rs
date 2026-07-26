@@ -233,9 +233,10 @@ impl UiShell {
             .first_column
             .saturating_add(local_x.saturating_sub(geometry.body.x) as usize);
         let line = buffer.buffer.line(line_index).unwrap_or_default();
+        let display = self.editor_text_display(buffer.visible_whitespace);
         UiMouseTarget::Body(Position::new(
             line_index,
-            self.byte_column_for_display_column(line, body_x),
+            display.display_column_to_source_byte(line, body_x),
         ))
     }
 
@@ -249,6 +250,7 @@ impl UiShell {
         let body_width = usize::from(geometry.body.width).max(1);
         let body_x = local_x.saturating_sub(geometry.body.x) as usize;
         let target_row = local_y.saturating_sub(geometry.body.y) as usize;
+        let display = self.editor_text_display(buffer.visible_whitespace);
         let mut visual_row = 0usize;
 
         for line_index in buffer.first_line..buffer.buffer.line_count() {
@@ -261,13 +263,15 @@ impl UiShell {
             let visible_rows = line_rows.saturating_sub(start_offset);
             if target_row < visual_row.saturating_add(visible_rows) {
                 let row_offset = start_offset.saturating_add(target_row.saturating_sub(visual_row));
-                let display_column = row_offset
-                    .saturating_mul(body_width)
-                    .saturating_add(body_x.min(body_width.saturating_sub(1)));
                 let line = buffer.buffer.line(line_index).unwrap_or_default();
                 return UiMouseTarget::Body(Position::new(
                     line_index,
-                    self.byte_column_for_display_column(line, display_column),
+                    display.source_byte_for_wrapped_row_column(
+                        line,
+                        row_offset,
+                        body_x.min(body_width.saturating_sub(1)),
+                        body_width,
+                    ),
                 ));
             }
             visual_row = visual_row.saturating_add(visible_rows);

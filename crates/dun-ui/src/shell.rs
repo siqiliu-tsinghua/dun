@@ -2,7 +2,7 @@ use dun_config::{Config, KeySequence, KeyStroke, Keymap, TextCatalog};
 use dun_core::{DisplaySanitizer, EditorCommand, Rect, Workspace};
 use dun_term::{EncodingProfile, GlyphSet, TerminalProfile, Theme, char_width};
 
-use crate::{MenuItem, WindowGeometry, decimal_digits};
+use crate::{EditorTextDisplay, MenuItem, WindowGeometry, decimal_digits};
 
 #[derive(Clone, Debug)]
 pub struct UiShell {
@@ -56,6 +56,15 @@ impl UiShell {
 
     pub fn command_for_sequence(&self, sequence: &KeySequence) -> Option<&EditorCommand> {
         self.keymap.command_for_sequence(sequence)
+    }
+
+    pub const fn editor_text_display(&self, visible_whitespace: bool) -> EditorTextDisplay {
+        EditorTextDisplay::new(
+            self.display_sanitizer,
+            self.profile.ambiguous_width,
+            self.glyphs,
+            visible_whitespace,
+        )
     }
 
     pub fn command_for_stroke(&self, stroke: KeyStroke) -> Option<&EditorCommand> {

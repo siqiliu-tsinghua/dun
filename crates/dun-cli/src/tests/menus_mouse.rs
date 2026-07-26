@@ -102,7 +102,7 @@ fn mouse_wheel_scrolls_wrapped_visual_rows() {
         scroll_status(
             state,
             app.focused_buffer_view_context(app.workspace_area),
-            app.shell.profile.ambiguous_width,
+            app.shell.editor_text_display(false),
         )
         .contains("View V2-2/2 L1 wrap")
     );

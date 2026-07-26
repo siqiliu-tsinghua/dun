@@ -277,10 +277,10 @@ impl AppState {
                 body_height: 1,
                 body_width: 1,
             });
-        let mode = self.shell.profile.ambiguous_width;
+        let display = self.shell.editor_text_display(false);
         if let Some(buffer) = self.buffer_state_mut(buffer_id) {
             let _ = buffer.buffer.set_cursor(Position::new(line_index, 0));
-            buffer.ensure_cursor_visible(context.body_height, context.body_width, mode);
+            buffer.ensure_cursor_visible(context.body_height, context.body_width, display);
         }
         self.set_status(ui_text::tr_fmt(
             &self.shell.catalog,

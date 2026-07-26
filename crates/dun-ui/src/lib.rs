@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod display_map;
 mod frame;
 mod hit;
 mod model;
@@ -10,6 +11,7 @@ mod surface;
 mod surface_emit;
 mod text;
 
+pub use display_map::{EditorTextDisplay, WrappedSegment, WrappedSegments};
 pub use frame::menu::menu_translation_keys;
 pub use model::{
     BufferHighlightSpan, BufferView, HighlightClass, MenuBar, MenuEntry, MenuItem, MenuSelection,
@@ -32,7 +34,6 @@ pub use shell::UiShell;
 pub use snapshot::frame_snapshot;
 pub(crate) use text::{
     buffer_end_position, decimal_digits, display_width, fit_text_to_width, status_text_for_width,
-    wrap_line_segments,
 };
 
 #[cfg(test)]

@@ -36,6 +36,7 @@ Responsibilities:
 
 - buffer ids and buffer metadata;
 - file-text decoding strategy for UTF-8 and escaped unknown bytes;
+- display sanitization, including source-byte-capped character mappings;
 - tiled workspace ids and layout tree;
 - typed editor commands;
 - edit transactions and undo/redo later;
@@ -61,6 +62,7 @@ Responsibilities:
 - 256-color, 16-color, and mono color profile;
 - Microsoft Edit-style single-line glyphs;
 - ASCII fallback glyphs;
+- UTF-8 and ASCII whitespace-marker glyphs;
 - theme identifiers and theme data.
 
 This crate should stay lightweight. It may later contain environment probing,
@@ -77,11 +79,15 @@ Responsibilities:
 - dialogs;
 - command palette or command line;
 - translating resolved editor state into widgets.
+- the `EditorTextDisplay` source-byte/display-cell seam for sanitized editor
+  body text, wrapping, highlights, scrolling, and hit testing.
 
 Rules:
 
 - rendering does not perform file I/O;
 - rendering receives sanitized display cells/spans, not raw untrusted bytes;
+- every editor-body coordinate consumer uses `EditorTextDisplay` rather than
+  measuring source text independently;
 - UI actions emit `EditorCommand` or dialog results.
 
 `ratatui` should be added here when the first UI loop is implemented.
@@ -116,6 +122,8 @@ Responsibilities:
 - platform-neutral VT output, owned event types, and bounded input parsing;
 - a SIGWINCH-aware event reader and the runtime event loop;
 - startup file opening;
+- buffer viewport/wrap state transitions and view-command dispatch, split from
+  buffer storage and edit-command handling;
 - constructing config/profile/workspace/UI;
 - exit codes.
 

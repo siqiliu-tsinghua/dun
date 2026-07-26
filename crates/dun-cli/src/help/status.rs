@@ -1,4 +1,5 @@
 use crate::*;
+use dun_ui::EditorTextDisplay;
 
 pub(crate) fn replacement_status_text<'a>(
     catalog: &'a TextCatalog,
@@ -11,7 +12,7 @@ pub(crate) fn replacement_status_text<'a>(
     }
 }
 
-pub(crate) fn selection_status(buffer: &TextBuffer, mode: AmbiguousWidth) -> Option<String> {
+pub(crate) fn selection_status(buffer: &TextBuffer, display: EditorTextDisplay) -> Option<String> {
     let range = buffer.selection_range()?;
     if range.is_empty() {
         return None;
@@ -19,8 +20,9 @@ pub(crate) fn selection_status(buffer: &TextBuffer, mode: AmbiguousWidth) -> Opt
 
     if range.start.line == range.end.line {
         let line = buffer.line(range.start.line)?;
-        let selected = &line[range.start.column..range.end.column];
-        return Some(format!("Sel {}c", str_width(selected, mode)));
+        let start = display.source_byte_to_display_column(line, range.start.column)?;
+        let end = display.source_byte_to_display_column(line, range.end.column)?;
+        return Some(format!("Sel {}c", end.saturating_sub(start)));
     }
 
     Some(format!("Sel {}L", range.end.line - range.start.line + 1))
@@ -29,7 +31,7 @@ pub(crate) fn selection_status(buffer: &TextBuffer, mode: AmbiguousWidth) -> Opt
 pub(crate) fn scroll_status(
     buffer: &BufferState,
     context: Option<BufferViewContext>,
-    mode: AmbiguousWidth,
+    display: EditorTextDisplay,
 ) -> String {
     let total = buffer.buffer.line_count().max(1);
     let context = context.unwrap_or(BufferViewContext {
@@ -38,9 +40,9 @@ pub(crate) fn scroll_status(
         body_width: 1,
     });
     if buffer.word_wrap {
-        let total_rows = buffer.wrapped_total_visual_rows(context.body_width.max(1), mode);
+        let total_rows = buffer.wrapped_total_visual_rows(context.body_width.max(1), display);
         let start_row = buffer
-            .wrapped_top_visual_row(context.body_width.max(1), mode)
+            .wrapped_top_visual_row(context.body_width.max(1), display)
             .min(total_rows.saturating_sub(1));
         let end_row = start_row
             .saturating_add(context.body_height.max(1))
@@ -55,7 +57,7 @@ pub(crate) fn scroll_status(
     let height = context.body_height.max(1);
     let start = buffer.first_line.min(total.saturating_sub(1));
     let end = start.saturating_add(height).min(total);
-    let max_column = buffer.max_line_display_width(mode);
+    let max_column = buffer.max_line_display_width(display);
     let body_width = context.body_width;
     if buffer.first_column == 0 && (body_width == 0 || max_column <= body_width) {
         format!("View {}-{end}/{total}", start + 1)

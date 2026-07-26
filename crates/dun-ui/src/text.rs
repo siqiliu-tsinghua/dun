@@ -1,5 +1,10 @@
 use dun_core::{Position, TextBuffer};
+#[cfg(test)]
+use dun_term::GlyphSet;
 use dun_term::{AmbiguousWidth, char_width, str_width};
+
+#[cfg(test)]
+use crate::EditorTextDisplay;
 
 pub(crate) fn decimal_digits(mut value: usize) -> usize {
     let mut digits = 1;
@@ -14,27 +19,17 @@ pub(crate) fn display_width(text: &str, mode: AmbiguousWidth) -> usize {
     str_width(text, mode)
 }
 
+#[cfg(test)]
 pub(crate) fn wrap_line_segments(line: &str, width: usize, mode: AmbiguousWidth) -> Vec<&str> {
-    let width = width.max(1);
-    if line.is_empty() {
-        return vec![""];
-    }
-
-    let mut segments = Vec::new();
-    let mut start = 0usize;
-    let mut column = 0usize;
-    for (index, ch) in line.char_indices() {
-        let ch_width = char_width(ch, mode).unwrap_or(0).max(1);
-        if column > 0 && column.saturating_add(ch_width) > width {
-            segments.push(&line[start..index]);
-            start = index;
-            column = 0;
-        }
-        column = column.saturating_add(ch_width);
-    }
-
-    segments.push(&line[start..]);
-    segments
+    EditorTextDisplay::new(
+        dun_core::DisplaySanitizer::unlimited_utf8(),
+        mode,
+        GlyphSet::unicode_single_line(),
+        false,
+    )
+    .wrapped_segments(line, width)
+    .map(|segment| segment.source())
+    .collect()
 }
 
 pub(crate) fn fit_text_to_width(

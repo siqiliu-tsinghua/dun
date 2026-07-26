@@ -107,11 +107,13 @@ modules are re-exported with globs, so every call site says `ui_text::SOME_KEY`
 and never has to know which file a key lives in. Moving a key between domain
 modules must therefore stay invisible to callers.
 
-Stage 11 reduced `dun-ui/src/lib.rs` to a facade. The main remaining watch-list
-implementation files are now feature-group files such as
-`dun-cli/src/app/search_replace.rs`, `dun-cli/src/app/editing.rs`, and
-`dun-term/src/theme/builtins.rs`; split them only when their behavior is next
-touched or their responsibility boundaries become clearer.
+Stage 11 reduced `dun-ui/src/lib.rs` to a facade. The display-coordinate seam
+work later split buffer storage from viewport/wrap transitions into
+`app/{buffer_state,buffer_viewport}.rs`, and moved viewport-oriented command
+handlers from `app/editing.rs` into `app/view_commands.rs`. The remaining
+`editing.rs` clipboard/edit-operation group is its next natural split boundary
+when that behavior is touched. Other watch-list files include
+`dun-cli/src/app/search_replace.rs` and `dun-term/src/theme/builtins.rs`.
 
 ## Preferred Module Shape
 
@@ -138,6 +140,7 @@ crates/dun-cli/src/
 
 crates/dun-ui/src/
   lib.rs               facade
+  display_map.rs       editor source-byte/display-cell mapping seam
   model/               UiFrame, UiWindow, UiOverlay, menu/status models
   render/              menu, status, window, overlay, chrome helpers
   hit/                 workspace/menu/overlay hit testing

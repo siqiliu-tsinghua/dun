@@ -1,6 +1,4 @@
-use crate::{
-    BufferView, UiHorizontalEdgeLine, UiScrollbar, UiShell, WindowGeometry, display_width,
-};
+use crate::{BufferView, UiHorizontalEdgeLine, UiScrollbar, UiShell, WindowGeometry};
 
 impl UiShell {
     pub(super) fn scrollbar_for_buffer(
@@ -93,15 +91,19 @@ impl UiShell {
             return Vec::new();
         }
 
+        let display = self.editor_text_display(buffer.visible_whitespace);
         let mut lines = Vec::new();
         for (visible_y, line_index) in (buffer.first_line..buffer.buffer.line_count())
             .take(body_height)
             .enumerate()
         {
             let line = buffer.buffer.line(line_index).unwrap_or_default();
-            let width = display_width(line, self.profile.ambiguous_width);
-            let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
-            let body_origin = self.display_column(line, visible_byte_start).unwrap_or(0);
+            let width = display.line_display_width(line);
+            let visible_byte_start =
+                display.display_column_to_source_byte(line, buffer.first_column);
+            let body_origin = display
+                .source_byte_to_display_column(line, visible_byte_start)
+                .unwrap_or(0);
             let left = visible_byte_start > 0;
             let right = width > body_origin.saturating_add(body_width);
             if left || right {

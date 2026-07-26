@@ -279,7 +279,14 @@ Current implementation:
 - `dun-core::decode_file_text` is the single file-byte decoding strategy for
   editable Open. It returns either UTF-8 text or an escaped byte view.
 - `dun-core::DisplaySanitizer` converts untrusted text into `DisplaySegment`
-  values before UI rendering.
+  values before UI rendering. Its mapped entry point applies mappings only
+  after accepting the source character under the source-byte cap, classifies
+  mapped output through the same sanitizer, and emits a logical suffix only
+  for an untruncated source line.
+- `dun-ui::EditorTextDisplay` is the single buffer-body coordinate seam for
+  sanitized output, source-byte/display-cell conversion, wrapping, highlights,
+  scrolling, and mouse hits. It uses the terminal's ambiguous-width policy and
+  profile-owned glyphs; callers do not measure raw body text independently.
 - `dun-ui` sanitizes pane titles and status fields before final ratatui
   rendering, so file names, paths, and status/error messages do not bypass the
   display sanitizer.
@@ -308,7 +315,8 @@ Current implementation:
 - CLI file buffers track read/save metadata snapshots; Save rejects stale
   snapshots instead of silently overwriting external changes.
 - Long-line display work is capped by byte count without splitting a UTF-8
-  character.
+  character. Mapped display text reports truncation and bytes consumed in
+  original source coordinates.
 - A process panic hook uses the in-house lifecycle and sys shim to restore the
   terminal (mouse capture, bracketed paste, alternate screen, raw mode) before
   the release profile's `panic = "abort"` kills the process, so panics do not

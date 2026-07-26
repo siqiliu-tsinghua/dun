@@ -18,6 +18,7 @@ impl UiShell {
             return self.wrapped_cursor_for_buffer(buffer, body);
         }
 
+        let display = self.editor_text_display(buffer.visible_whitespace);
         let position = buffer.buffer.cursor_position();
         if position.line < buffer.first_line {
             return None;
@@ -29,12 +30,12 @@ impl UiShell {
         }
 
         let line = buffer.buffer.line(position.line)?;
-        let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
+        let visible_byte_start = display.display_column_to_source_byte(line, buffer.first_column);
         if position.column < visible_byte_start {
             return None;
         }
-        let body_origin = self.display_column(line, visible_byte_start)?;
-        let display_column = self.display_column(line, position.column)?;
+        let body_origin = display.source_byte_to_display_column(line, visible_byte_start)?;
+        let display_column = display.source_byte_to_display_column(line, position.column)?;
         if display_column < body_origin {
             return None;
         }
@@ -51,6 +52,7 @@ impl UiShell {
     fn wrapped_cursor_for_buffer(&self, buffer: &BufferView<'_>, body: Rect) -> Option<UiCursor> {
         let body_width = usize::from(body.width);
         let body_height = usize::from(body.height);
+        let display = self.editor_text_display(buffer.visible_whitespace);
         let position = buffer.buffer.cursor_position();
         if position.line < buffer.first_line {
             return None;
@@ -67,14 +69,12 @@ impl UiShell {
         }
 
         let line = buffer.buffer.line(position.line)?;
-        let display_column = self.display_column(line, position.column)?;
-        let row_offset = display_column / body_width;
+        let (row_offset, display_column) =
+            display.wrapped_row_column_for_source_byte(line, position.column, body_width)?;
         visual_y = visual_y.saturating_add(row_offset as isize);
         if visual_y < 0 || visual_y >= body_height as isize {
             return None;
         }
-        let display_column = display_column % body_width;
-
         Some(UiCursor {
             x: body.x.saturating_add(display_column as u16),
             y: body.y.saturating_add(visual_y as u16),

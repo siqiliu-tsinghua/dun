@@ -16,6 +16,7 @@ pub struct BufferView<'a> {
     pub highlights: &'a [BufferHighlightSpan],
     pub active_search_match: Option<usize>,
     pub wrap: bool,
+    pub visible_whitespace: bool,
 }
 
 impl<'a> BufferView<'a> {
@@ -30,6 +31,7 @@ impl<'a> BufferView<'a> {
             highlights: &[],
             active_search_match: None,
             wrap: false,
+            visible_whitespace: false,
         }
     }
 
@@ -44,6 +46,7 @@ impl<'a> BufferView<'a> {
             highlights: &[],
             active_search_match: None,
             wrap: false,
+            visible_whitespace: false,
         }
     }
 
@@ -63,6 +66,7 @@ impl<'a> BufferView<'a> {
             highlights: &[],
             active_search_match: None,
             wrap: false,
+            visible_whitespace: false,
         }
     }
 
@@ -83,6 +87,11 @@ impl<'a> BufferView<'a> {
 
     pub fn with_wrap(mut self, wrap: bool) -> Self {
         self.wrap = wrap;
+        self
+    }
+
+    pub const fn with_visible_whitespace(mut self, visible_whitespace: bool) -> Self {
+        self.visible_whitespace = visible_whitespace;
         self
     }
 

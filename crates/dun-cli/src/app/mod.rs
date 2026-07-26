@@ -1,6 +1,7 @@
 mod bootstrap;
 mod buffer_state;
 mod buffer_switcher;
+mod buffer_viewport;
 mod command_line;
 mod command_output;
 mod commands;
@@ -20,10 +21,12 @@ mod state;
 mod status;
 mod status_view;
 mod terminal_profile;
+mod view_commands;
 mod view_state;
 mod windows;
 
-pub(crate) use buffer_state::{BufferHighlight, BufferState, BufferViewContext, editor_body_width};
+pub(crate) use buffer_state::{BufferHighlight, BufferState, BufferViewContext};
+pub(crate) use buffer_viewport::editor_body_width;
 pub(crate) use mouse::MouseDragState;
 pub(crate) use search::{
     BufferSearchState, SearchDirection, SearchSpec, choose_search_match, current_match_selection,

@@ -57,6 +57,18 @@ fn frame_contains_menu_status_and_sanitized_buffer_content() {
 }
 
 #[test]
+fn frame_threads_visible_whitespace_to_editor_text_display() {
+    let workspace = Workspace::new_untitled();
+    let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "a \tb");
+    let buffer_view = BufferView::new(BufferId(1), &buffer).with_visible_whitespace(true);
+    let shell = UiShell::default();
+
+    let frame = shell.frame_for_workspace(&workspace, Rect::new(0, 0, 80, 10), &[buffer_view]);
+
+    assert_eq!(frame.windows[0].body[0].as_plain_text(), "a·→b¶");
+}
+
+#[test]
 fn frame_renders_wrapped_lines_with_plain_gutter() {
     let workspace = Workspace::new_untitled();
     let buffer = TextBuffer::from_text_with_kind(BufferKind::Untitled, "abcd efghij");

@@ -1,8 +1,8 @@
 use dun_core::{Rect, TextRange};
 
 use crate::{
-    BufferView, UiHighlightLine, UiSearchMatchLine, UiSelectionLine, UiShell, WindowGeometry,
-    display_width, wrap_line_segments,
+    BufferView, EditorTextDisplay, UiHighlightLine, UiSearchMatchLine, UiSelectionLine, UiShell,
+    WindowGeometry,
 };
 
 #[derive(Clone, Copy)]
@@ -84,19 +84,20 @@ impl UiShell {
     ) -> Option<(u16, u16, u16)> {
         let body_width = usize::from(body.width);
         let line = buffer.buffer.line(line_index)?;
+        let display = self.editor_text_display(buffer.visible_whitespace);
         if start_column >= end_column {
             return None;
         }
 
-        let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
+        let visible_byte_start = display.display_column_to_source_byte(line, buffer.first_column);
         if end_column <= visible_byte_start {
             return None;
         }
         let start_column = start_column.max(visible_byte_start);
-        let body_origin = self.display_column(line, visible_byte_start)?;
+        let body_origin = display.source_byte_to_display_column(line, visible_byte_start)?;
         let last_column = body_origin.saturating_add(body_width);
-        let start_display = self.display_column(line, start_column)?;
-        let end_display = self.display_column(line, end_column)?;
+        let start_display = display.source_byte_to_display_column(line, start_column)?;
+        let end_display = display.source_byte_to_display_column(line, end_column)?;
         if end_display <= body_origin || start_display >= last_column {
             return None;
         }
@@ -166,6 +167,7 @@ impl UiShell {
     ) -> Vec<UiHighlightLine> {
         let body_width = usize::from(body.width);
         let body_height = usize::from(body.height);
+        let display = self.editor_text_display(buffer.visible_whitespace);
         let mut lines = Vec::new();
         let mut visual_y = -(buffer.first_visual_row as isize);
         for line_index in buffer.first_line..buffer.buffer.line_count() {
@@ -187,6 +189,7 @@ impl UiShell {
                     span.start_column,
                     span.end_column,
                     WrappedLineLayout { visual_y, body },
+                    display,
                 ) {
                     lines.push(UiHighlightLine {
                         y,
@@ -210,6 +213,7 @@ impl UiShell {
     ) -> Vec<UiSelectionLine> {
         let body_width = usize::from(body.width);
         let body_height = usize::from(body.height);
+        let display = self.editor_text_display(buffer.visible_whitespace);
         let mut lines = Vec::new();
         let mut visual_y = -(buffer.first_visual_row as isize);
         for line_index in buffer.first_line..buffer.buffer.line_count() {
@@ -237,6 +241,7 @@ impl UiShell {
                     start_column,
                     end_column,
                     WrappedLineLayout { visual_y, body },
+                    display,
                 ) {
                     lines.push(UiSelectionLine { y, start_x, end_x });
                 }
@@ -293,15 +298,16 @@ impl UiShell {
     ) -> Option<UiSearchMatchLine> {
         let body_width = usize::from(body.width);
         let line = buffer.buffer.line(range.start.line)?;
-        let visible_byte_start = self.byte_column_for_display_column(line, buffer.first_column);
+        let display = self.editor_text_display(buffer.visible_whitespace);
+        let visible_byte_start = display.display_column_to_source_byte(line, buffer.first_column);
         if range.end.column <= visible_byte_start {
             return None;
         }
         let start_column = range.start.column.max(visible_byte_start);
-        let body_origin = self.display_column(line, visible_byte_start)?;
+        let body_origin = display.source_byte_to_display_column(line, visible_byte_start)?;
         let last_column = body_origin.saturating_add(body_width);
-        let start_display = self.display_column(line, start_column)?;
-        let end_display = self.display_column(line, range.end.column)?;
+        let start_display = display.source_byte_to_display_column(line, start_column)?;
+        let end_display = display.source_byte_to_display_column(line, range.end.column)?;
         if end_display <= body_origin || start_display >= last_column {
             return None;
         }
@@ -329,6 +335,7 @@ impl UiShell {
     ) -> Vec<UiSearchMatchLine> {
         let body_width = usize::from(body.width);
         let body_height = usize::from(body.height);
+        let display = self.editor_text_display(buffer.visible_whitespace);
         let mut first_visible_row_by_line = Vec::new();
         let mut visual_y = -(buffer.first_visual_row as isize);
         for line_index in buffer.first_line..buffer.buffer.line_count() {
@@ -362,6 +369,7 @@ impl UiShell {
                 range.start.column,
                 range.end.column,
                 WrappedLineLayout { visual_y, body },
+                display,
             ) {
                 lines.push(UiSearchMatchLine {
                     y,
@@ -381,50 +389,57 @@ impl UiShell {
         start_column: usize,
         end_column: usize,
         layout: WrappedLineLayout,
+        display: EditorTextDisplay,
     ) -> Vec<(u16, u16, u16)> {
         if start_column >= end_column {
             return Vec::new();
         }
-        let Some(start_display) = self.display_column(line, start_column) else {
-            return Vec::new();
-        };
-        let Some(end_display) = self.display_column(line, end_column) else {
-            return Vec::new();
-        };
-        if start_display >= end_display {
+        if display
+            .source_byte_to_display_column(line, start_column)
+            .is_none()
+            || display
+                .source_byte_to_display_column(line, end_column)
+                .is_none()
+        {
             return Vec::new();
         }
 
         let mut spans = Vec::new();
-        let mut segment_start = 0usize;
-        for (row_offset, segment) in wrap_line_segments(
-            line,
-            usize::from(layout.body.width),
-            self.profile.ambiguous_width,
-        )
-        .iter()
-        .enumerate()
+        for (row_offset, segment) in display
+            .wrapped_segments(line, usize::from(layout.body.width))
+            .enumerate()
         {
             let row = layout.visual_y.saturating_add(row_offset as isize);
-            let segment_width = display_width(segment, self.profile.ambiguous_width);
-            let segment_end = segment_start.saturating_add(segment_width);
             if row < 0 {
-                segment_start = segment_end;
                 continue;
             }
             if row >= layout.body.height as isize {
                 break;
             }
-            let start = start_display.max(segment_start);
-            let end = end_display.min(segment_end);
+            let start = start_column.max(segment.start_byte());
+            let end = end_column.min(segment.end_byte());
             if start < end {
+                let local_start = start.saturating_sub(segment.start_byte());
+                let local_end = end.saturating_sub(segment.start_byte());
+                let Some(start_x) =
+                    display.source_byte_to_display_column(segment.source(), local_start)
+                else {
+                    continue;
+                };
+                let Some(end_x) =
+                    display.source_byte_to_display_column(segment.source(), local_end)
+                else {
+                    continue;
+                };
+                if start_x >= end_x {
+                    continue;
+                }
                 spans.push((
                     layout.body.y.saturating_add(row as u16),
-                    layout.body.x.saturating_add((start - segment_start) as u16),
-                    layout.body.x.saturating_add((end - segment_start) as u16),
+                    layout.body.x.saturating_add(start_x as u16),
+                    layout.body.x.saturating_add(end_x as u16),
                 ));
             }
-            segment_start = segment_end;
         }
 
         spans
