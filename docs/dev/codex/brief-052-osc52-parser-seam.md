@@ -25,10 +25,12 @@ behavior and must leave every existing test and golden untouched.
   ALT)`). Do not add always-on OSC consumption: it would change `Alt+]` and,
   worse, swallow real keystrokes typed after it. Terminals never send
   unsolicited OSC 52 responses, so the unarmed path needs no OSC handling.
-- **Typed query action.** Add `RuntimeAction::QueryOsc52Clipboard { max_bytes }`
-  (`terminal/action.rs`); this brief defines it and the arm path but the
-  event-loop drain that sends the query and waits is step 2. `max_bytes` is the
-  decoded-byte limit.
+- **The typed query action is entirely step 2.** This brief does NOT add
+  `RuntimeAction::QueryOsc52Clipboard` — it would make the exhaustive match in
+  `terminal/shell.rs` non-exhaustive, and `shell.rs` is out of scope here.
+  Step 2 owns the whole query-send path (the action variant, its `shell.rs`
+  handler, and the event-loop wait). This brief provides only the parser
+  framing and the `EventReader` arm/response methods those will call.
 - **Response only when armed.** An `Event::Osc52Clipboard` is emitted only for
   a response received while armed; anything OSC-shaped while unarmed is not
   parsed at all (framing isn't entered). Empty payload → emit
@@ -88,29 +90,24 @@ behavior and must leave every existing test and golden untouched.
    - fold the OSC deadline into the existing `pending_escape_deadline()`
      selection (`event_reader.rs:91-106`); plain Paste must NOT gain this OSC
      timeout.
-5. **`crates/dun-cli/src/terminal/action.rs`** — add
-   `RuntimeAction::QueryOsc52Clipboard { max_bytes: usize }` (definition only;
-   the `shell.rs`/`event_loop.rs` handling that actually sends + waits is
-   step 2). If a match becomes non-exhaustive, add a minimal
-   `unreachable!()`-free placeholder arm that does nothing, or gate it — but
-   prefer leaving the send path for step 2 and only adding the variant if it
-   compiles cleanly without a dead arm. If it forces a dead arm, STOP and
-   report so Claude can rescope the 052/053 boundary.
-6. **`crates/dun-cli/src/terminal/event_loop.rs`** — a minimal arm so an
-   unsolicited/leftover `Event::Osc52Clipboard` in the ordinary dispatch is
-   consumed and ignored (no insertion), keeping the ordinary loop total.
-7. **`crates/dun-cli/src/terminal/mod.rs`** — export the new items as needed.
+5. **`crates/dun-cli/src/terminal/event_loop.rs`** — a minimal arm so the newly
+   added `Event::Osc52Clipboard` is exhaustively handled in the ordinary
+   dispatch and simply consumed/ignored (no insertion), keeping the loop total
+   and the `Event` match exhaustive. (Do NOT add any `RuntimeAction` variant —
+   that is step 2; touching `shell.rs` here is out of scope.)
+6. **`crates/dun-cli/src/terminal/mod.rs`** — export the new items as needed.
 
 ## Scope
 
-- Files you MAY modify: the seven items above and their colocated tests
+- Files you MAY modify: the six items above and their colocated tests
   (`terminal/vt/parser/tests.rs`, unit tests in `clipboard.rs` and
   `event_reader.rs`).
-- Files/areas you MUST NOT touch: any config crate, `dun-core` (read-only use
-  of `decode_file_text`), any command/keymap/menu/help/i18n/status file,
-  `app/**`, snapshots, any `Cargo.toml`/`Cargo.lock`, `AGENTS.md`, `CLAUDE.md`,
-  `README.md`, `PROGRESS.md`, `TODO.md`, docs, `.git`, `hosts/**`,
-  `vm-test/**`, `reference/**`.
+- Files/areas you MUST NOT touch: `terminal/action.rs` and `terminal/shell.rs`
+  (the RuntimeAction query path is step 2), any config crate, `dun-core`
+  (read-only use of `decode_file_text`), any command/keymap/menu/help/i18n/
+  status file, `app/**`, snapshots, any `Cargo.toml`/`Cargo.lock`,
+  `AGENTS.md`, `CLAUDE.md`, `README.md`, `PROGRESS.md`, `TODO.md`, docs,
+  `.git`, `hosts/**`, `vm-test/**`, `reference/**`.
 
 If a change needs a file outside Scope, STOP and report.
 
@@ -149,8 +146,9 @@ If a change needs a file outside Scope, STOP and report.
    scrubber, no read-only buffer.
 4. Bounded everything: the decoded cap, the encoded accumulator bound, the OSC
    frame deadline. Malformed → discard to terminator, emit nothing.
-5. Stop-loss: same failure twice, or an out-of-scope file needed (esp. a
-   forced dead match arm in `action.rs`/`event_loop.rs`) → STOP, report.
+5. Stop-loss: same failure twice, or an out-of-scope file needed → STOP,
+   report. (The `RuntimeAction` variant is deliberately deferred to step 2 so
+   `shell.rs` stays untouched; do not add it here.)
 
 ## Verification (MANDATORY — run and paste verbatim)
 
