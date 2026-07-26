@@ -11,3 +11,6 @@
 # Coverage instrumentation output (cargo llvm-cov)
 *.profraw
 *.profdata
+
+# Real-terminal acceptance gallery screenshots (curate before committing any)
+acceptance/gallery/

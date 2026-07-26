@@ -19,7 +19,11 @@ This document is the release terminal matrix source of truth. Automated PTY
 tests cover local regressions, but tagged releases still need a manual pass on
 real external SSH hosts because terminal emulators, multiplexers, locales, and
 low-capability terminal paths can disagree about the same key names and glyph
-capabilities.
+capabilities. The focused real-emulator acceptance pass that fills that
+manual matrix — including OSC 52 read support, modifier-key delivery, and the
+visual perception layer the harness cannot observe — lives in
+[real-terminal-acceptance.md](./real-terminal-acceptance.md) (with
+`acceptance/launch.sh` + `acceptance/fixture.txt`).
 
 The in-house bounded input surface supports classic xterm-family CSI/SS3 keys
 and UTF-8 text, SGR mouse, bracketed paste, CPR and DA1 probe responses, and

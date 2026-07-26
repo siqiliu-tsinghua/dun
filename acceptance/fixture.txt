@@ -1,0 +1,35 @@
+dun real-terminal acceptance fixture — deterministic content for the checklist.
+This file is loaded read/edit; do not save it back (the checklist never saves).
+
+Plain lines for scrolling, bookmarking, and cursor/selection checks:
+  line 04  alpha
+  line 05  bravo
+  line 06  charlie
+  line 07  delta
+  line 08  echo
+
+Wide / ambiguous-width / box-drawing / combining marks (item A3, B4):
+  CJK:      宽字测试 全角ＡＢＣ 日本語 한국어
+  ambiguous:◆ ○ ● │ ─ ┼ ┐ └ ± × ÷ …
+  combining:café  (e + U+0301)   A̋  o͡o   z̈
+
+Whitespace markers (item B5 / F13) — this line has	a leading tab and trailing spaces:
+	indented with a hard tab, then more	tabs	between	words
+
+A deliberately very long line for horizontal scroll and edge indicators (item A4): the quick brown fox jumps over the lazy dog, then keeps running east past the right border so the horizontal edge indicator and Ctrl+X,[ / Ctrl+X,] scrolling can be exercised without wrapping.
+
+Control-byte / sanitizer smoke (should render as visible escapes, never raw):
+  bell^G tab-in-text here, and an escape marker follows — all display-sanitized.
+
+More plain lines so paging and the scrollbar thumb have somewhere to go:
+  line 20
+  line 21
+  line 22
+  line 23
+  line 24
+  line 25
+  line 26
+  line 27
+  line 28
+  line 29
+  line 30
