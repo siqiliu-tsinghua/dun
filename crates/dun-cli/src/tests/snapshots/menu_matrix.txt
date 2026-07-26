@@ -14,6 +14,7 @@ Edit  Redo (R)                edit.redo                         1    1  -       
 Edit  Cut (T)                 edit.cut                          1    1  -            -     -            "Cut: no selection"
 Edit  Copy (C)                edit.copy                         1    1  -            -     -            "Copy: no selection"
 Edit  Copy External (X)       edit.copy_external                1    1  -            -     -            "External copy: no selection"
+Edit  Paste External (E)      edit.paste_external               1    1  -            -     -            "External paste disabled; internal clipboard empty"
 Edit  Paste (P)               edit.paste                        1    1  -            -     -            "Paste: internal clipboard empty; use terminal paste"
 Edit  Select All (A)          edit.select_all                   1    1  -            -     -            -
 Edit  Select Line (L)         edit.select_line                  1    1  -            -     -            -

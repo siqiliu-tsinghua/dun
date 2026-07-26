@@ -21,6 +21,10 @@ const AMBIGUOUS_WIDTH_PROBE_REGEX: &str = r#""\r\u2500\033\\\[6n\033\\\[c""#;
 const NARROW_PROBE_RESPONSE: &[u8] = b"\x1b[1;2R\x1b[?1;2c";
 const WIDE_PROBE_RESPONSE: &[u8] = b"\x1b[1;3R\x1b[?1;2c";
 const PROBE_ELAPSED_MARKER: &str = "DUN_PTY_PROBE_ELAPSED_MS=";
+const OSC52_READ_QUERY: &[u8] = b"\x1b]52;c;?\x07";
+const OSC52_QUERY_OBSERVED_MARKER: &str = "DUN_PTY_OSC52_QUERY_OBSERVED=";
+const OSC52_ELAPSED_MARKER: &str = "DUN_PTY_OSC52_ELAPSED_MS=";
+const OSC52_COMPLETION_MARKER: &str = "DUN_PTY_OSC52_COMPLETION";
 static PTY_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,6 +103,9 @@ pub struct PtyRun {
     pub status: ExitStatus,
     pub output: String,
     pub probe_elapsed: Option<Duration>,
+    pub osc52_query_observed: bool,
+    pub osc52_elapsed: Option<Duration>,
+    pub osc52_completion_output: Option<String>,
 }
 
 impl PtyRun {
@@ -113,6 +120,12 @@ impl PtyRun {
 
     pub fn terminal_grid_for_case(&self, case: TerminalCase) -> TerminalGrid {
         self.terminal_grid(case.cols, case.rows, case.ambiguous_width())
+    }
+
+    pub fn terminal_grid_at_osc52_completion(&self, case: TerminalCase) -> Option<TerminalGrid> {
+        self.osc52_completion_output.as_ref().map(|output| {
+            parse_terminal_grid(output, case.cols, case.rows, case.ambiguous_width(), None)
+        })
     }
 }
 
@@ -143,6 +156,34 @@ pub fn run_dun_in_pty_with_env(
         input,
         extra_env,
     )
+}
+
+pub fn run_dun_osc52_in_pty(
+    expect: &Path,
+    case: TerminalCase,
+    args: &[&OsStr],
+    ready_marker: &str,
+    input_before_query: &[u8],
+    response_after_query: Option<&[u8]>,
+    completion_marker: &str,
+) -> io::Result<PtyRun> {
+    let script_path = temp_path("dun-pty-osc52-expect", "tcl");
+    fs::write(
+        &script_path,
+        osc52_expect_script_for_command(
+            case,
+            dun_binary().as_os_str(),
+            args,
+            ready_marker,
+            input_before_query,
+            response_after_query,
+            completion_marker,
+        ),
+    )?;
+
+    let result = run_expect_script(expect, case, &script_path, &[]);
+    let _ = fs::remove_file(&script_path);
+    result
 }
 
 pub fn run_binary_in_pty(
@@ -203,12 +244,18 @@ fn run_expect_script(
     read_to_end_if_present(&mut stderr, &mut bytes);
 
     let mut output = String::from_utf8_lossy(&bytes).into_owned();
+    let osc52_completion_output = take_osc52_completion_output(&mut output);
     let probe_elapsed = take_probe_elapsed(&mut output);
+    let osc52_query_observed = take_osc52_query_observed(&mut output);
+    let osc52_elapsed = take_osc52_elapsed(&mut output);
 
     Ok(PtyRun {
         status,
         output,
         probe_elapsed,
+        osc52_query_observed,
+        osc52_elapsed,
+        osc52_completion_output,
     })
 }
 
@@ -290,6 +337,135 @@ exit $exit_code
     )
 }
 
+fn osc52_expect_script_for_command(
+    case: TerminalCase,
+    binary: &OsStr,
+    args: &[&OsStr],
+    ready_marker: &str,
+    input_before_query: &[u8],
+    response_after_query: Option<&[u8]>,
+    completion_marker: &str,
+) -> String {
+    let probe_action = match case.probe_response {
+        ProbeResponse::Narrow => {
+            format!("send -- {}", tcl_escaped_bytes(NARROW_PROBE_RESPONSE))
+        }
+        ProbeResponse::Wide => {
+            format!("send -- {}", tcl_escaped_bytes(WIDE_PROBE_RESPONSE))
+        }
+        ProbeResponse::None => String::new(),
+    };
+    let response_action = response_after_query
+        .map(|response| format!("send -- {}", tcl_escaped_bytes(response)))
+        .unwrap_or_default();
+
+    format!(
+        "\
+set timeout 10
+log_user 1
+set probe_started_ms -1
+set probe_elapsed_ms -1
+set osc52_query_observed 0
+set osc52_started_ms -1
+set osc52_elapsed_ms -1
+set ambiguous_width_probe {}
+set osc52_query {}
+spawn -noecho /bin/sh -lc {}
+expect {{
+    -re $ambiguous_width_probe {{
+        set probe_started_ms [clock milliseconds]
+        {}
+        exp_continue
+    }}
+    -re {} {{
+        if {{$probe_started_ms >= 0}} {{
+            set probe_elapsed_ms [expr {{[clock milliseconds] - $probe_started_ms}}]
+        }}
+    }}
+    eof {{
+        catch {{wait}}
+        exit 125
+    }}
+    timeout {{
+        catch {{close}}
+        catch {{wait}}
+        exit 124
+    }}
+}}
+after 100
+set osc52_started_ms [clock milliseconds]
+send -- {}
+expect {{
+    -exact $osc52_query {{
+        set osc52_query_observed 1
+        {}
+    }}
+    eof {{
+        catch {{wait}}
+        exit 125
+    }}
+    timeout {{
+        catch {{close}}
+        catch {{wait}}
+        exit 124
+    }}
+}}
+expect {{
+    -re {} {{
+        set osc52_elapsed_ms [expr {{[clock milliseconds] - $osc52_started_ms}}]
+    }}
+    eof {{
+        catch {{wait}}
+        exit 125
+    }}
+    timeout {{
+        catch {{close}}
+        catch {{wait}}
+        exit 124
+    }}
+}}
+puts \"{}\"
+after 100
+send -- {}
+after 100
+send -- \"d\"
+expect {{
+    eof {{}}
+    timeout {{
+        catch {{close}}
+        catch {{wait}}
+        exit 124
+    }}
+}}
+set wait_result [wait]
+set exit_code [lindex $wait_result 3]
+if {{[lindex $wait_result 4] eq \"CHILDKILLED\"}} {{
+    exec kill -s [lindex $wait_result 5] [pid]
+}}
+if {{$exit_code eq \"\"}} {{
+    exit 1
+}}
+puts \"{}$probe_elapsed_ms\"
+puts \"{}$osc52_query_observed\"
+puts \"{}$osc52_elapsed_ms\"
+exit $exit_code
+",
+        AMBIGUOUS_WIDTH_PROBE_REGEX,
+        tcl_escaped_bytes(OSC52_READ_QUERY),
+        tcl_brace_quote(&shell_command_for_binary(case, binary, args)),
+        probe_action,
+        tcl_brace_quote(&regex_literal(ready_marker)),
+        tcl_escaped_bytes(input_before_query),
+        response_action,
+        tcl_brace_quote(&regex_literal(completion_marker)),
+        OSC52_COMPLETION_MARKER,
+        tcl_escaped_bytes(CTRL_Q),
+        PROBE_ELAPSED_MARKER,
+        OSC52_QUERY_OBSERVED_MARKER,
+        OSC52_ELAPSED_MARKER,
+    )
+}
+
 fn shell_command_for_binary(case: TerminalCase, binary: &OsStr, args: &[&OsStr]) -> String {
     let mut command = format!("stty rows {} cols {}; exec ", case.rows, case.cols);
     command.push_str(&shell_quote(binary));
@@ -361,12 +537,41 @@ fn tcl_escaped_bytes(bytes: &[u8]) -> String {
 }
 
 fn take_probe_elapsed(output: &mut String) -> Option<Duration> {
-    let marker_start = output.rfind(PROBE_ELAPSED_MARKER)?;
-    let value_start = marker_start + PROBE_ELAPSED_MARKER.len();
+    take_duration_marker(output, PROBE_ELAPSED_MARKER)
+}
+
+fn take_osc52_completion_output(output: &mut String) -> Option<String> {
+    let marker_start = output.find(OSC52_COMPLETION_MARKER)?;
+    let completion_output = output[..marker_start].to_string();
+    let marker_end = output[marker_start..]
+        .find('\n')
+        .map_or(output.len(), |offset| marker_start + offset + 1);
+    output.replace_range(marker_start..marker_end, "");
+    Some(completion_output)
+}
+
+fn take_osc52_query_observed(output: &mut String) -> bool {
+    take_marker_value(output, OSC52_QUERY_OBSERVED_MARKER).as_deref() == Some("1")
+}
+
+fn take_osc52_elapsed(output: &mut String) -> Option<Duration> {
+    take_duration_marker(output, OSC52_ELAPSED_MARKER)
+}
+
+fn take_duration_marker(output: &mut String, marker: &str) -> Option<Duration> {
+    take_marker_value(output, marker)?
+        .parse::<u64>()
+        .ok()
+        .map(Duration::from_millis)
+}
+
+fn take_marker_value(output: &mut String, marker: &str) -> Option<String> {
+    let marker_start = output.rfind(marker)?;
+    let value_start = marker_start + marker.len();
     let value_end = output[value_start..]
         .find(['\r', '\n'])
         .map_or(output.len(), |offset| value_start + offset);
-    let millis = output[value_start..value_end].parse::<u64>().ok();
+    let value = output[value_start..value_end].to_string();
     let mut marker_end = value_end;
     while output
         .as_bytes()
@@ -376,7 +581,7 @@ fn take_probe_elapsed(output: &mut String) -> Option<Duration> {
         marker_end += 1;
     }
     output.replace_range(marker_start..marker_end, "");
-    millis.map(Duration::from_millis)
+    Some(value)
 }
 
 fn wait_with_timeout(child: &mut Child, timeout: Duration) -> io::Result<ExitStatus> {

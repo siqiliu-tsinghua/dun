@@ -682,6 +682,164 @@ fn copy_external_honors_osc52_byte_limit() {
 }
 
 #[test]
+fn paste_external_disabled_falls_back_without_querying_even_when_write_is_enabled() {
+    let mut config = Config::default();
+    config.clipboard.osc52.enabled = true;
+    let mut app = AppState::from_config(config);
+    app.buffers[0].buffer.insert_str("abc").unwrap();
+    app.buffers[0]
+        .buffer
+        .set_cursor(Position::new(0, 3))
+        .unwrap();
+    app.kill_ring = Some(" internal".to_string());
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::PasteExternal));
+
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "abc internal"
+    );
+    assert_eq!(app.take_runtime_action(), None);
+    assert_eq!(
+        app.status_message,
+        Some("External paste disabled; pasted internal clipboard".to_string())
+    );
+}
+
+#[test]
+fn paste_external_enabled_requests_typed_query_with_configured_limit() {
+    let mut config = Config::default();
+    config.clipboard.osc52.allow_read = true;
+    config.clipboard.osc52.max_bytes = 37;
+    let mut app = AppState::from_config(config);
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::PasteExternal));
+
+    assert_eq!(
+        app.take_runtime_action(),
+        Some(RuntimeAction::QueryOsc52Clipboard { max_bytes: 37 })
+    );
+    assert_eq!(
+        app.status_message,
+        Some("External paste: waiting for terminal clipboard".to_string())
+    );
+    assert_eq!(app.buffer_state(BufferId(1)).unwrap().buffer.to_text(), "");
+}
+
+#[test]
+fn external_paste_response_replaces_selection_and_keeps_controls_as_sanitized_content() {
+    let mut app = app_with_text("abc");
+    app.buffers[0]
+        .buffer
+        .select(Position::new(0, 1), Position::new(0, 2))
+        .unwrap();
+
+    app.complete_external_paste("X\x1b]0;owned\x07".to_string());
+
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "aX\x1b]0;owned\x07c"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Pasted terminal clipboard".to_string())
+    );
+
+    let buffer_views = app.buffer_views();
+    let frame =
+        app.shell
+            .frame_for_workspace(&app.workspace, Rect::new(0, 0, 80, 10), &buffer_views);
+    assert_eq!(frame.windows[0].body[0].as_plain_text(), "aX␛]0;owned␇c");
+}
+
+#[test]
+fn external_paste_invalid_utf8_uses_the_decoder_escaped_text() {
+    let mut app = AppState::new();
+    let decoded = dun_core::decode_file_text(vec![b'o', b'k', 0xff]).text;
+    assert_eq!(decoded, "ok\\xFF");
+
+    app.complete_external_paste(decoded);
+
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "ok\\xFF"
+    );
+}
+
+#[test]
+fn empty_external_paste_does_not_use_stale_internal_clipboard() {
+    let mut app = app_with_text("unchanged");
+    app.kill_ring = Some("stale".to_string());
+
+    app.complete_external_paste(String::new());
+
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "unchanged"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Terminal clipboard is empty".to_string())
+    );
+}
+
+#[test]
+fn external_paste_timeout_uses_internal_clipboard_exactly_once() {
+    let mut app = app_with_text("replace me");
+    app.kill_ring = Some("fallback".to_string());
+    app.buffers[0]
+        .buffer
+        .select(Position::new(0, 0), Position::new(0, 10))
+        .unwrap();
+
+    app.complete_external_paste_timeout();
+
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "fallback"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Terminal clipboard unavailable; pasted internal clipboard".to_string())
+    );
+}
+
+#[test]
+fn external_paste_timeout_reports_empty_internal_clipboard() {
+    let mut app = app_with_text("unchanged");
+
+    app.complete_external_paste_timeout();
+
+    assert_eq!(
+        app.buffer_state(BufferId(1)).unwrap().buffer.to_text(),
+        "unchanged"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Terminal clipboard unavailable; internal clipboard empty".to_string())
+    );
+}
+
+#[test]
+fn external_paste_preserves_normal_read_only_failure_status() {
+    let mut app = AppState::new();
+    app.handle_command(&EditorCommand::App(AppCommand::Help));
+    let buffer_id = app.workspace.focused_window().unwrap().buffer_id;
+    let before = app.buffer_state(buffer_id).unwrap().buffer.to_text();
+
+    app.complete_external_paste("x".to_string());
+
+    assert_eq!(
+        app.buffer_state(buffer_id).unwrap().buffer.to_text(),
+        before
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Paste failed: buffer is read-only".to_string())
+    );
+}
+
+#[test]
 fn cut_selection_removes_text_and_preserves_internal_clipboard() {
     let mut app = app_with_text("one two");
     app.buffers[0]
@@ -722,6 +880,7 @@ fn internal_paste_replaces_active_selection() {
     assert_eq!(state.buffer.to_text(), "aXc");
     assert_eq!(state.buffer.cursor_position(), Position::new(0, 2));
     assert_eq!(state.buffer.selection_range(), None);
+    assert_eq!(app.take_runtime_action(), None);
 }
 
 #[test]

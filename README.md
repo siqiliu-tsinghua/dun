@@ -193,13 +193,18 @@ so read-only buffers reject mutation. External copy is available only through
 the explicit `edit.copy_external` command and opt-in `clipboard.osc52.enabled`
 configuration; it emits a bounded OSC 52 clipboard sequence and always keeps
 the same text in the internal clipboard as fallback.
+External paste is a separate `edit.paste_external` command (default
+`Ctrl+X,Ctrl+V`) and requires its own `clipboard.osc52.allow_read` opt-in;
+enabling OSC 52 writes does not authorize reads. It waits at most 500 ms for a
+bounded terminal response, pastes valid nonempty text through the normal edit
+path, treats a valid empty response as an empty terminal clipboard, and falls
+back once to the internal clipboard when the response is missing or malformed.
 Terminal bracketed paste is enabled during the TUI session and restored on
 exit. Paste text is treated as untrusted input: editor paste goes through the
 normal buffer insertion path, prompt and file-dialog paste is kept single-line
 and never auto-submits, and confirmation prompts ignore paste. Right-click
 paste only waits for the terminal to deliver bracketed paste data; `dun` does
-not call external clipboard commands, query the terminal clipboard, or perform
-OSC 52 paste.
+not call external clipboard commands.
 Mouse support is optional and disabled by default; when enabled in config,
 left-clicks can focus tiled windows, place the cursor in an editor body, drag
 text selections including edge scrolling, drag split borders, open top-menu

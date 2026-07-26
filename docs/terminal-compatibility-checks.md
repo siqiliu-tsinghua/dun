@@ -23,10 +23,13 @@ capabilities.
 
 The in-house bounded input surface supports classic xterm-family CSI/SS3 keys
 and UTF-8 text, SGR mouse, bracketed paste, CPR and DA1 probe responses, and
-`SIGWINCH`-driven resize events. Kitty keyboard protocol, modifyOtherKeys,
-legacy X10 mouse, rxvt mouse, and win32-input-mode are intentionally out of
-scope; the supported path is the xterm family through direct terminals, tmux,
-or screen.
+`SIGWINCH`-driven resize events. OSC 52 clipboard responses are parsed when
+enabled and are best-effort at the terminal/multiplexer boundary; framing is
+armed only while a configured read is pending. When no read is pending, the
+input bytes `ESC ]` retain their byte-identical `Alt+]` behavior instead of
+entering OSC framing. Kitty keyboard protocol, modifyOtherKeys, legacy X10
+mouse, rxvt mouse, and win32-input-mode are intentionally out of scope; the
+supported path is the xterm family through direct terminals, tmux, or screen.
 
 ## Startup Ambiguous-Width Probe
 
@@ -95,6 +98,11 @@ It also opens fixtures for:
 - a `mouse.enabled = true` config, checking that mouse capture setup still
   starts and exits cleanly;
 - a `40x12` VT100/C-locale startup case.
+
+The PTY suite also matches the exact emitted OSC 52 read query before sending a
+hardcoded response, verifies terminal-control clipboard content stays
+render-sanitized, and verifies the no-response path waits at least 500 ms
+before restoring the internal clipboard once.
 
 Unit coverage also feeds literal input bytes through the in-house VT parser for
 common modified terminal keys such as `Ctrl+Home`, `Ctrl+End`, `Shift+F3`, and
@@ -348,6 +356,13 @@ Editing:
   clipboard write. Record whether the local terminal, SSH path, `tmux`, or
   `screen` accepts or filters the OSC 52 clipboard update; failure to update
   the host clipboard should not break the internal clipboard fallback.
+- With `clipboard.osc52.allow_read = true`, command id
+  `edit.paste_external` should emit the exact OSC 52 read query, accept a
+  bounded response for at most 500 ms, and paste it through the normal edit
+  path. A valid empty response must not use stale internal text; a missing or
+  malformed response should restore the internal clipboard once. Record
+  whether the terminal or multiplexer allows the query—the boundary remains
+  best-effort. With the setting disabled, no query should be emitted.
 - Terminal bracketed paste inserts into editor buffers through the normal edit
   path. In prompts and Open/Save As dialogs, multiline paste is converted to a
   single-line input and does not submit automatically. Right-click paste only

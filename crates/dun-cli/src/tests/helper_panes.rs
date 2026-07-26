@@ -121,6 +121,8 @@ fn config_diagnostics_command_opens_read_only_window_once() {
     assert!(text.contains("theme:"));
     assert!(text.contains("mouse: disabled"));
     assert!(text.contains("defaults: dun --dump-config"));
+    assert!(text.contains("osc52_write: disabled"));
+    assert!(text.contains("osc52_read: disabled"));
     assert!(text.contains("osc52_max_bytes: 16384"));
     assert!(text.contains("bindings:"));
     assert!(text.contains("important_unbound: none"));

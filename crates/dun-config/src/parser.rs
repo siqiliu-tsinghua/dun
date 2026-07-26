@@ -152,6 +152,10 @@ fn apply_config_entry(
             config.clipboard.osc52.enabled = parse_bool(value)
                 .ok_or_else(|| ConfigParseError::line(line_number, "expected true or false"))?;
         }
+        "clipboard.osc52.allow_read" => {
+            config.clipboard.osc52.allow_read = parse_bool(value)
+                .ok_or_else(|| ConfigParseError::line(line_number, "expected true or false"))?;
+        }
         "clipboard.osc52.max_bytes" => {
             let value = parse_byte_count(value, line_number)?;
             config.clipboard.osc52.max_bytes = usize::try_from(value).map_err(|_| {

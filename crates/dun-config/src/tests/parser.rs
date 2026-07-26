@@ -10,6 +10,7 @@ terminal.encoding = ascii
 terminal.colors = mono
 mouse.enabled = true
 clipboard.osc52.enabled = true
+clipboard.osc52.allow_read = true
 clipboard.osc52.max_bytes = 2 KiB
 limits.editable_file_soft_limit_bytes = 2 MiB
 limits.line_display_soft_limit_bytes = 4 KiB
@@ -26,6 +27,7 @@ file_dialog.key.delete_forward = none
     assert_eq!(config.terminal.colors, Some(ColorProfile::Mono));
     assert!(config.mouse.enabled);
     assert!(config.clipboard.osc52.enabled);
+    assert!(config.clipboard.osc52.allow_read);
     assert_eq!(config.clipboard.osc52.max_bytes, 2 * 1024);
     assert_eq!(
         config.limits.editable_file_soft_limit_bytes,
@@ -143,6 +145,17 @@ plugins.idle_after_ms = 60000
 
     assert!(config.plugin_status.status_bar);
     assert_eq!(config.plugin_status.idle_after_ms, 60_000);
+}
+
+#[test]
+fn osc52_read_opt_in_parses_independently_of_write_opt_in() {
+    let read_only = parse_config("clipboard.osc52.allow_read = true").unwrap();
+    assert!(read_only.clipboard.osc52.allow_read);
+    assert!(!read_only.clipboard.osc52.enabled);
+
+    let write_only = parse_config("clipboard.osc52.enabled = true").unwrap();
+    assert!(write_only.clipboard.osc52.enabled);
+    assert!(!write_only.clipboard.osc52.allow_read);
 }
 
 #[test]

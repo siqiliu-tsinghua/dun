@@ -4,26 +4,26 @@ cursor: 45,21
 text:
  0|  File  Edit  View  Help                                                        
  1|┌─ Untitled ───────────────────────────┐┌─ ◆ Help ■ ───────────────────────────┐
- 2|│1│                                    ││ 47│  Ctrl+Z          Undo [edit.undo]│
- 3|│                                      ││ 48│  Ctrl+Y          Redo [edit.redo]│
- 4|│                                      ││ 49│  (unbound)       Cut selection t›│
- 5|│                                      ││ 50│  (unbound)       Copy selection ›│
- 6|│                                      ││ 51│  Ctrl+X,Ctrl+C   Copy selection ›│
- 7|│                                      ││ 52│  (unbound)       Paste internal ›│
- 8|│                                      ││ 53│  Ctrl+A          Select all [edi›█
- 9|│                                      ││ 54│  Ctrl+L          Select current ›█
-10|│                                      ││ 55│  Ctrl+X,Y        Copy current li›█
-11|│                                      ││ 56│  Ctrl+K          Delete current ›│
-12|│                                      ││ 57│  Ctrl+X,U        Move current li›│
-13|│                                      ││ 58│  Ctrl+X,J        Move current li›│
-14|│                                      ││ 59│  Tab             Indent selected›│
-15|│                                      ││ 60│  BackTab         Outdent selecte›│
-16|│                                      ││ 61│  Ctrl+X,T        Trim trailing w›│
-17|│                                      ││ 62│  Ctrl+X,Z        Toggle word wra›│
-18|│                                      ││ 63│  Ctrl+X,.        Toggle visible ›│
-19|│                                      ││ 64│  Ctrl+X,K        Toggle bookmark›│
-20|│                                      ││ 65│  Ctrl+X,N        Go to next book›│
-21|│                                      ││ 66│  Ctrl+X,L        Go to previous ›│
+ 2|│1│                                    ││ 48│  Ctrl+Y          Redo [edit.redo]│
+ 3|│                                      ││ 49│  (unbound)       Cut selection t›│
+ 4|│                                      ││ 50│  (unbound)       Copy selection ›│
+ 5|│                                      ││ 51│  Ctrl+X,Ctrl+C   Copy selection ›│
+ 6|│                                      ││ 52│  Ctrl+X,Ctrl+V   Paste from the ›│
+ 7|│                                      ││ 53│  (unbound)       Paste internal ›│
+ 8|│                                      ││ 54│  Ctrl+A          Select all [edi›█
+ 9|│                                      ││ 55│  Ctrl+L          Select current ›█
+10|│                                      ││ 56│  Ctrl+X,Y        Copy current li›█
+11|│                                      ││ 57│  Ctrl+K          Delete current ›│
+12|│                                      ││ 58│  Ctrl+X,U        Move current li›│
+13|│                                      ││ 59│  Ctrl+X,J        Move current li›│
+14|│                                      ││ 60│  Tab             Indent selected›│
+15|│                                      ││ 61│  BackTab         Outdent selecte›│
+16|│                                      ││ 62│  Ctrl+X,T        Trim trailing w›│
+17|│                                      ││ 63│  Ctrl+X,Z        Toggle word wra›│
+18|│                                      ││ 64│  Ctrl+X,.        Toggle visible ›│
+19|│                                      ││ 65│  Ctrl+X,K        Toggle bookmark›│
+20|│                                      ││ 66│  Ctrl+X,N        Go to next book›│
+21|│                                      ││ 67│  Ctrl+X,L        Go to previous ›│
 22|└──────────────────────────────────────┘└──────────────────────────────────────┘
 23|Help                                                                      [Help]
 
@@ -31,7 +31,7 @@ style:
  0|AABAAAAABAAAAABAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
  1|CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDEEEEEEEEEEDDDDDDDDDDDDDDDDDDDDDDDDDDDD
  2|CFCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGCDFFFCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGD
- 3|CGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGCDFFFCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGD
+ 3|CGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGCDFFFCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGHD
  4|CGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGCDFFFCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGHD
  5|CGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGCDFFFCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGHD
  6|CGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGCDFFFCGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGHD

@@ -191,6 +191,9 @@ impl AppState {
             return;
         }
         let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_BUFFER_MISSING).to_string(),
+            );
             return;
         };
 

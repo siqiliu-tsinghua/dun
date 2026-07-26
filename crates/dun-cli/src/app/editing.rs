@@ -1,5 +1,12 @@
 use crate::*;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InternalPasteOutcome {
+    Pasted,
+    Empty,
+    Failed,
+}
+
 impl AppState {
     pub(crate) fn handle_edit_command(&mut self, command: &EditCommand) {
         match command {
@@ -46,7 +53,20 @@ impl AppState {
                 return;
             }
             EditCommand::Paste => {
-                self.paste_internal_clipboard();
+                match self.paste_internal_clipboard() {
+                    InternalPasteOutcome::Pasted => self.set_status(
+                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_SELECTION)
+                            .to_string(),
+                    ),
+                    InternalPasteOutcome::Empty => self.set_status(
+                        ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_EMPTY).to_string(),
+                    ),
+                    InternalPasteOutcome::Failed => {}
+                }
+                return;
+            }
+            EditCommand::PasteExternal => {
+                self.paste_external();
                 return;
             }
             EditCommand::DeleteLine => {
@@ -198,6 +218,7 @@ impl AppState {
             | EditCommand::CopyExternal
             | EditCommand::CopyLine
             | EditCommand::Paste
+            | EditCommand::PasteExternal
             | EditCommand::DeleteLine
             | EditCommand::MoveLineUp
             | EditCommand::MoveLineDown
@@ -526,6 +547,70 @@ impl AppState {
         );
     }
 
+    fn paste_external(&mut self) {
+        if !self.clipboard.osc52.allow_read {
+            match self.paste_internal_clipboard() {
+                InternalPasteOutcome::Pasted => self.set_status(
+                    ui_text::tr(
+                        &self.shell.catalog,
+                        ui_text::STATUS_EXTERNAL_PASTE_DISABLED_PASTED_INTERNAL,
+                    )
+                    .to_string(),
+                ),
+                InternalPasteOutcome::Empty => self.set_status(
+                    ui_text::tr(
+                        &self.shell.catalog,
+                        ui_text::STATUS_EXTERNAL_PASTE_DISABLED_INTERNAL_EMPTY,
+                    )
+                    .to_string(),
+                ),
+                InternalPasteOutcome::Failed => {}
+            }
+            return;
+        }
+
+        self.set_status(
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_EXTERNAL_PASTE_WAITING).to_string(),
+        );
+        self.runtime_action = Some(RuntimeAction::QueryOsc52Clipboard {
+            max_bytes: self.clipboard.osc52.max_bytes,
+        });
+    }
+
+    pub(crate) fn complete_external_paste(&mut self, text: String) {
+        if text.is_empty() {
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_EXTERNAL_PASTE_EMPTY).to_string(),
+            );
+            return;
+        }
+
+        self.set_status(
+            ui_text::tr(&self.shell.catalog, ui_text::STATUS_EXTERNAL_PASTE_PASTED).to_string(),
+        );
+        self.handle_paste(&text);
+    }
+
+    pub(crate) fn complete_external_paste_timeout(&mut self) {
+        match self.paste_internal_clipboard() {
+            InternalPasteOutcome::Pasted => self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_EXTERNAL_PASTE_UNAVAILABLE_PASTED_INTERNAL,
+                )
+                .to_string(),
+            ),
+            InternalPasteOutcome::Empty => self.set_status(
+                ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_EXTERNAL_PASTE_UNAVAILABLE_INTERNAL_EMPTY,
+                )
+                .to_string(),
+            ),
+            InternalPasteOutcome::Failed => {}
+        }
+    }
+
     fn cut_selection(&mut self) {
         let Some(buffer) = self.focused_buffer_mut() else {
             self.set_status(
@@ -586,31 +671,23 @@ impl AppState {
         }
     }
 
-    fn paste_internal_clipboard(&mut self) {
+    fn paste_internal_clipboard(&mut self) -> InternalPasteOutcome {
         let Some(text) = self.kill_ring.clone() else {
-            self.set_status(
-                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_EMPTY).to_string(),
-            );
-            return;
+            return InternalPasteOutcome::Empty;
         };
         if text.is_empty() {
-            self.set_status(
-                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_EMPTY).to_string(),
-            );
-            return;
+            return InternalPasteOutcome::Empty;
         }
 
         let Some(buffer) = self.focused_buffer_mut() else {
             self.set_status(
                 ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_BUFFER_MISSING).to_string(),
             );
-            return;
+            return InternalPasteOutcome::Failed;
         };
 
         match buffer.buffer.insert_str(&text) {
-            Ok(()) => self.set_status(
-                ui_text::tr(&self.shell.catalog, ui_text::STATUS_PASTE_SELECTION).to_string(),
-            ),
+            Ok(()) => InternalPasteOutcome::Pasted,
             Err(error) => {
                 let status = ui_text::tr_fmt(
                     &self.shell.catalog,
@@ -618,6 +695,7 @@ impl AppState {
                     &[buffer_error_text(&self.shell.catalog, error)],
                 );
                 self.set_status(status);
+                InternalPasteOutcome::Failed
             }
         }
     }

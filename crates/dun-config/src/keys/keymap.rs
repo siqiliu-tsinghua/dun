@@ -48,6 +48,10 @@ impl Keymap {
                     "Ctrl+X,Ctrl+C",
                     EditorCommand::Edit(EditCommand::CopyExternal),
                 ),
+                KeyBinding::new(
+                    "Ctrl+X,Ctrl+V",
+                    EditorCommand::Edit(EditCommand::PasteExternal),
+                ),
                 KeyBinding::new("Ctrl+W", EditorCommand::Edit(EditCommand::Find)),
                 KeyBinding::new("F3", EditorCommand::Edit(EditCommand::FindNext)),
                 KeyBinding::new("Shift+F3", EditorCommand::Edit(EditCommand::FindPrevious)),

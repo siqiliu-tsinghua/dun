@@ -309,7 +309,6 @@ Current mouse baseline:
 
 Deferred clipboard features:
 
-- OSC 52 paste/query support;
 - platform-specific clipboard command integration.
 
 Every feature must remain keyboard accessible.
@@ -321,6 +320,12 @@ Paste policy:
 - `edit.copy_external` may write the active selection through OSC 52 only when
   explicitly enabled in config, and it must keep the same text in the internal
   clipboard as fallback;
+- `edit.paste_external` may query the terminal clipboard only under its
+  separate read opt-in, waits under one 500 ms deadline, and falls back once to
+  the internal clipboard on a missing or malformed response; a valid empty
+  terminal response is not a fallback;
+- enabling OSC 52 writes must not authorize reads, and ordinary internal Paste
+  must never query the terminal;
 - internal clipboard Paste enters through the same edit transaction path as
   normal insertion and can replace an active selection;
 - bracketed paste is enabled only for the TUI session and disabled during
@@ -343,8 +348,7 @@ Paste policy:
   requires a second Enter before overwriting an existing file, while all actual
   open/save file operations still go through the same validated editor file
   I/O paths;
-- platform clipboard commands and OSC 52 paste/query support are out of scope
-  for the baseline.
+- platform clipboard commands are out of scope for the baseline.
 
 ## Plugin, Log, and rum Work
 

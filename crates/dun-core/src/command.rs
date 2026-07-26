@@ -53,6 +53,7 @@ pub enum EditCommand {
     Copy,
     CopyExternal,
     Paste,
+    PasteExternal,
     SelectAll,
     SelectLine,
     CopyLine,

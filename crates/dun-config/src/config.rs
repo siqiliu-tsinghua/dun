@@ -110,6 +110,7 @@ pub struct ClipboardConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Osc52Config {
     pub enabled: bool,
+    pub allow_read: bool,
     pub max_bytes: usize,
 }
 
@@ -117,6 +118,7 @@ impl Default for Osc52Config {
     fn default() -> Self {
         Self {
             enabled: false,
+            allow_read: false,
             max_bytes: 16 * 1024,
         }
     }

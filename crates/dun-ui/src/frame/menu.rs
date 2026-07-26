@@ -108,6 +108,11 @@ const EDIT_ENTRIES: &[EntrySpec] = &[
         EditorCommand::Edit(dun_core::EditCommand::CopyExternal),
     ),
     entry(
+        "menu.edit.paste-external",
+        "Paste External (E)",
+        EditorCommand::Edit(dun_core::EditCommand::PasteExternal),
+    ),
+    entry(
         "menu.edit.paste",
         "Paste (P)",
         EditorCommand::Edit(dun_core::EditCommand::Paste),

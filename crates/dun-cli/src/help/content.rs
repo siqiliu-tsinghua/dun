@@ -607,6 +607,10 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Copy selection through OSC 52 when enabled",
             },
             HelpCommand {
+                command: EditorCommand::Edit(EditCommand::PasteExternal),
+                description: "Paste from the terminal clipboard",
+            },
+            HelpCommand {
                 command: EditorCommand::Edit(EditCommand::Paste),
                 description: "Paste internal clipboard",
             },

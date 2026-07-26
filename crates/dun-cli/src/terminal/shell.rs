@@ -6,26 +6,49 @@ use std::time::{Duration, Instant};
 
 use dun_config::TextCatalog;
 
-use super::{RuntimeAction, SurfaceBackend, TerminalGuard};
+use super::{EventReader, RuntimeAction, SurfaceBackend, TerminalGuard, osc52_read_query};
 use crate::app::AppState;
 use crate::command_output::{CapturedCommandStream, CommandRunResult};
 use crate::ui_text;
+
+pub(crate) const OSC52_READ_TIMEOUT: Duration = Duration::from_millis(500);
+
+pub(crate) struct PendingOsc52Read {
+    pub(crate) deadline: Instant,
+    pub(crate) max_bytes: usize,
+}
 
 pub(crate) fn handle_runtime_action(
     action: RuntimeAction,
     backend: &mut SurfaceBackend,
     app: &mut AppState,
     guard: &mut TerminalGuard,
-) -> io::Result<()> {
+    event_reader: &mut EventReader,
+) -> io::Result<Option<PendingOsc52Read>> {
     match action {
-        RuntimeAction::ShellEscape => run_shell_escape(backend, app, guard),
+        RuntimeAction::ShellEscape => {
+            run_shell_escape(backend, app, guard)?;
+            Ok(None)
+        }
         RuntimeAction::WriteTerminal(payload) => {
-            let mut stdout = io::stdout();
-            stdout.write_all(payload.as_bytes())?;
-            stdout.flush()?;
-            Ok(())
+            write_terminal(&payload)?;
+            Ok(None)
+        }
+        RuntimeAction::QueryOsc52Clipboard { max_bytes } => {
+            event_reader.begin_osc52_query(max_bytes);
+            write_terminal(osc52_read_query())?;
+            Ok(Some(PendingOsc52Read {
+                deadline: Instant::now() + OSC52_READ_TIMEOUT,
+                max_bytes,
+            }))
         }
     }
+}
+
+fn write_terminal(payload: &str) -> io::Result<()> {
+    let mut stdout = io::stdout();
+    stdout.write_all(payload.as_bytes())?;
+    stdout.flush()
 }
 
 fn run_shell_escape(

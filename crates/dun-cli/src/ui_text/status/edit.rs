@@ -111,6 +111,30 @@ pub(crate) const STATUS_EXTERNAL_COPY_COPIED: TextKey = (
 );
 pub(crate) const STATUS_EXTERNAL_COPY_FAILED: TextKey =
     ("status.external-copy.failed", "External copy failed: {}");
+pub(crate) const STATUS_EXTERNAL_PASTE_WAITING: TextKey = (
+    "status.external-paste.waiting",
+    "External paste: waiting for terminal clipboard",
+);
+pub(crate) const STATUS_EXTERNAL_PASTE_PASTED: TextKey =
+    ("status.external-paste.pasted", "Pasted terminal clipboard");
+pub(crate) const STATUS_EXTERNAL_PASTE_EMPTY: TextKey =
+    ("status.external-paste.empty", "Terminal clipboard is empty");
+pub(crate) const STATUS_EXTERNAL_PASTE_UNAVAILABLE_PASTED_INTERNAL: TextKey = (
+    "status.external-paste.unavailable-pasted-internal",
+    "Terminal clipboard unavailable; pasted internal clipboard",
+);
+pub(crate) const STATUS_EXTERNAL_PASTE_UNAVAILABLE_INTERNAL_EMPTY: TextKey = (
+    "status.external-paste.unavailable-internal-empty",
+    "Terminal clipboard unavailable; internal clipboard empty",
+);
+pub(crate) const STATUS_EXTERNAL_PASTE_DISABLED_PASTED_INTERNAL: TextKey = (
+    "status.external-paste.disabled-pasted-internal",
+    "External paste disabled; pasted internal clipboard",
+);
+pub(crate) const STATUS_EXTERNAL_PASTE_DISABLED_INTERNAL_EMPTY: TextKey = (
+    "status.external-paste.disabled-internal-empty",
+    "External paste disabled; internal clipboard empty",
+);
 pub(crate) const STATUS_CUT_BUFFER_MISSING: TextKey = (
     "status.cut.buffer-missing",
     "Cut failed: focused buffer is missing",
@@ -196,6 +220,13 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_EXTERNAL_COPY_TOO_LARGE,
     STATUS_EXTERNAL_COPY_COPIED,
     STATUS_EXTERNAL_COPY_FAILED,
+    STATUS_EXTERNAL_PASTE_WAITING,
+    STATUS_EXTERNAL_PASTE_PASTED,
+    STATUS_EXTERNAL_PASTE_EMPTY,
+    STATUS_EXTERNAL_PASTE_UNAVAILABLE_PASTED_INTERNAL,
+    STATUS_EXTERNAL_PASTE_UNAVAILABLE_INTERNAL_EMPTY,
+    STATUS_EXTERNAL_PASTE_DISABLED_PASTED_INTERNAL,
+    STATUS_EXTERNAL_PASTE_DISABLED_INTERNAL_EMPTY,
     STATUS_CUT_BUFFER_MISSING,
     STATUS_CUT_READ_ONLY,
     STATUS_CUT_NO_SELECTION,

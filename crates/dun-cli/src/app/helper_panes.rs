@@ -410,8 +410,13 @@ impl AppState {
             }
         ));
         out.push_str(&format!(
-            "  osc52: {} (max {} bytes)\n",
+            "  osc52_write: {}, osc52_read: {} (max {} bytes)\n",
             if self.clipboard.osc52.enabled {
+                "enabled"
+            } else {
+                "disabled"
+            },
+            if self.clipboard.osc52.allow_read {
                 "enabled"
             } else {
                 "disabled"
@@ -474,8 +479,16 @@ impl AppState {
 
         out.push_str("\nClipboard\n");
         out.push_str(&format!(
-            "  osc52: {}\n",
+            "  osc52_write: {}\n",
             if self.clipboard.osc52.enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        ));
+        out.push_str(&format!(
+            "  osc52_read: {}\n",
+            if self.clipboard.osc52.allow_read {
                 "enabled"
             } else {
                 "disabled"

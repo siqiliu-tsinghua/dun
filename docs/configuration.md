@@ -38,6 +38,7 @@ mouse.enabled = true | false
 plugins.status_bar = true | false
 plugins.idle_after_ms = 300000
 clipboard.osc52.enabled = true | false
+clipboard.osc52.allow_read = true | false
 clipboard.osc52.max_bytes = 16 KiB
 limits.editable_file_soft_limit_bytes = 16 MiB
 limits.line_display_soft_limit_bytes = 16 KiB
@@ -57,6 +58,7 @@ key.edit.find = Ctrl+W
 key.edit.move_page_down = Ctrl+F
 key.edit.move_page_up = Ctrl+B
 key.edit.copy_external = Ctrl+X,Ctrl+C
+key.edit.paste_external = Ctrl+X,Ctrl+V
 key.window.split_horizontal = Ctrl+X,H
 key.window.focus_left = Ctrl+X,Left
 key.window.resize_right = Ctrl+X,Shift+Right
@@ -172,8 +174,23 @@ terminal bracketed paste data when the terminal supports it.
 External copy is optional and disabled by default. When
 `clipboard.osc52.enabled = true`, `edit.copy_external` copies the active
 selection to the internal clipboard and emits an OSC 52 clipboard write if the
-UTF-8 payload is no larger than `clipboard.osc52.max_bytes`. `dun` does not
-query OSC 52 paste data or call platform clipboard commands.
+UTF-8 payload is no larger than `clipboard.osc52.max_bytes`.
+
+External paste is separately optional and disabled by default. When
+`clipboard.osc52.allow_read = true`, `edit.paste_external` (default
+`Ctrl+X,Ctrl+V`) sends an OSC 52 read query and waits up to 500 ms for a
+response no larger than the shared decoded-byte
+`clipboard.osc52.max_bytes` limit. A nonempty response is pasted through the
+normal edit path; a valid empty response reports an empty terminal clipboard
+without using stale internal data. A missing, malformed, or over-limit
+response falls back once to the process-local clipboard. The ordinary
+`edit.paste` command never queries the terminal. The write opt-in
+`clipboard.osc52.enabled` never grants read permission.
+
+This setting only authorizes `dun` to ask. The terminal or multiplexer owns the
+actual clipboard gate and may filter, deny, or ignore OSC 52 reads, in which
+case the bounded internal fallback applies. `dun` does not call platform
+clipboard commands.
 
 ## Plugin status indicator
 
@@ -305,6 +322,7 @@ theme = dark
 terminal.colors = 16
 mouse.enabled = false
 clipboard.osc52.enabled = false
+clipboard.osc52.allow_read = false
 clipboard.osc52.max_bytes = 16 KiB
 limits.editable_file_soft_limit_bytes = 8 MiB
 
@@ -313,6 +331,7 @@ key.app.reload_config = F5
 key.app.config_diagnostics = F6
 key.edit.find = Ctrl+W
 key.edit.copy_external = Ctrl+X,Ctrl+C
+key.edit.paste_external = Ctrl+X,Ctrl+V
 key.edit.scroll_left = Ctrl+X,[
 key.edit.scroll_right = Ctrl+X,]
 key.window.split_horizontal = Ctrl+X,H

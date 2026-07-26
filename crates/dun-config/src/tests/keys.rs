@@ -109,6 +109,10 @@ fn keymap_finds_bound_command() {
         Some(&EditorCommand::Edit(EditCommand::CopyExternal))
     );
     assert_eq!(
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,Ctrl+V").unwrap()),
+        Some(&EditorCommand::Edit(EditCommand::PasteExternal))
+    );
+    assert_eq!(
         keymap.command_for_sequence(&KeySequence::from_str("F2").unwrap()),
         Some(&EditorCommand::App(AppCommand::StatusHistory))
     );
@@ -261,7 +265,7 @@ fn key_sequences_have_stable_display_text() {
 /// round-tripping catches two ids that parse to the same command.
 #[test]
 fn all_command_ids_round_trip() {
-    const EDITOR_COMMAND_VARIANT_COUNT: usize = 7 + 48 + 17 + 18;
+    const EDITOR_COMMAND_VARIANT_COUNT: usize = 7 + 49 + 17 + 18;
 
     assert_eq!(ALL_COMMAND_IDS.len(), EDITOR_COMMAND_VARIANT_COUNT);
 
@@ -351,6 +355,10 @@ fn command_id_aliases_and_unknown_ids_are_preserved() {
     assert_eq!(
         command_from_id("edit.copy_external"),
         Ok(EditorCommand::Edit(EditCommand::CopyExternal))
+    );
+    assert_eq!(
+        command_from_id("edit.paste_external"),
+        Ok(EditorCommand::Edit(EditCommand::PasteExternal))
     );
     assert!(command_from_id("app.command_output_clear").is_err());
     assert!(command_from_id("app.command_output_save").is_err());

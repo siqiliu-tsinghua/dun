@@ -40,6 +40,10 @@ pub fn default_config_text() -> String {
         config.clipboard.osc52.enabled
     ));
     out.push_str(&format!(
+        "clipboard.osc52.allow_read = {}\n",
+        config.clipboard.osc52.allow_read
+    ));
+    out.push_str(&format!(
         "clipboard.osc52.max_bytes = {}\n",
         config.clipboard.osc52.max_bytes
     ));

@@ -7,12 +7,13 @@ use std::io;
 use std::os::unix::fs::PermissionsExt;
 #[cfg(feature = "test-panic-hook")]
 use std::os::unix::process::ExitStatusExt;
+use std::time::Duration;
 
 mod support;
 
 use support::pty::{
     CTRL_Q, TerminalCase, assert_output_contains, assert_output_not_contains, command_on_path,
-    pty_test_guard, run_dun_in_pty, run_dun_in_pty_with_env, temp_path,
+    pty_test_guard, run_dun_in_pty, run_dun_in_pty_with_env, run_dun_osc52_in_pty, temp_path,
 };
 use support::terminal_grid::assert_line_contains;
 
@@ -224,6 +225,141 @@ fn pty_smoke_quits_cleanly_with_mouse_capture_enabled() -> io::Result<()> {
         run.output
     );
     assert_output_contains(&run.output, "Untitled", case.name);
+
+    Ok(())
+}
+
+#[test]
+fn pty_smoke_pastes_matched_osc52_response_and_sanitizes_controls() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    const PASTE_EXTERNAL: &[u8] = b"\x18\x16";
+    const RESPONSE: &[u8] = b"\x1b]52;c;T1NDNTItc2FmZRtdMDtvd25lZAc=\x07";
+    const RAW_CONTROL_PAYLOAD: &str = "\x1b]0;owned\x07";
+
+    let config_path = temp_path("dun-pty-osc52-read-config", "conf");
+    fs::write(
+        &config_path,
+        "clipboard.osc52.allow_read = true\nclipboard.osc52.max_bytes = 1024\n",
+    )?;
+    let case = TerminalCase::new(
+        "xterm-256color OSC 52 read",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
+    let run = run_dun_osc52_in_pty(
+        &expect,
+        case,
+        &[OsStr::new("--config"), config_path.as_os_str()],
+        "Untitled",
+        PASTE_EXTERNAL,
+        Some(RESPONSE),
+        "OSC52-safe",
+    );
+    let _ = fs::remove_file(&config_path);
+    let run = run?;
+
+    assert!(
+        run.status.success(),
+        "{} failed with status {:?}\n{}",
+        case.name,
+        run.status,
+        run.output
+    );
+    assert!(
+        run.osc52_query_observed,
+        "{} did not observe the exact OSC 52 query\n{}",
+        case.name, run.output
+    );
+    assert_output_contains(&run.output, "\x1b]52;c;?\x07", case.name);
+    assert_output_not_contains(&run.output, RAW_CONTROL_PAYLOAD, case.name);
+
+    let grid = run.terminal_grid_for_case(case);
+    assert_line_contains(&grid, 2, "OSC52-safe␛]0;owned␇");
+
+    Ok(())
+}
+
+#[test]
+fn pty_smoke_osc52_timeout_restores_internal_clipboard_after_500ms() -> io::Result<()> {
+    let _guard = pty_test_guard();
+    let Some(expect) = command_on_path("expect") else {
+        eprintln!("skipping PTY smoke test: expect(1) is not on PATH");
+        return Ok(());
+    };
+
+    // Type the seed, select it, copy it through the Edit-menu mnemonic, delete
+    // the active selection, then issue Ctrl+X,Ctrl+V.
+    const SEED_CLEAR_AND_PASTE_EXTERNAL: &[u8] = b"internal-fallback\x01\x1bec\x1b[3~\x18\x16";
+    const FALLBACK_STATUS: &str = "Terminal clipboard unavailable; pasted internal clipboard";
+
+    let config_path = temp_path("dun-pty-osc52-timeout-config", "conf");
+    fs::write(&config_path, "clipboard.osc52.allow_read = true\n")?;
+    let case = TerminalCase::new(
+        "xterm-256color OSC 52 timeout",
+        "xterm-256color",
+        "en_US.UTF-8",
+        "en_US.UTF-8",
+        false,
+        "UTF-8/256",
+    );
+    let run = run_dun_osc52_in_pty(
+        &expect,
+        case,
+        &[OsStr::new("--config"), config_path.as_os_str()],
+        "Untitled",
+        SEED_CLEAR_AND_PASTE_EXTERNAL,
+        None,
+        "Termi",
+    );
+    let _ = fs::remove_file(&config_path);
+    let run = run?;
+
+    assert!(
+        run.status.success(),
+        "{} failed with status {:?}\n{}",
+        case.name,
+        run.status,
+        run.output
+    );
+    assert!(
+        run.osc52_query_observed,
+        "{} did not observe the exact OSC 52 query\n{}",
+        case.name, run.output
+    );
+    assert_output_contains(&run.output, "\x1b]52;c;?\x07", case.name);
+
+    let elapsed = run
+        .osc52_elapsed
+        .expect("OSC 52 fallback marker should record elapsed time");
+    assert!(
+        elapsed >= Duration::from_millis(500),
+        "fallback completed before 500 ms: {elapsed:?}\n{}",
+        run.output
+    );
+    assert!(
+        elapsed < Duration::from_secs(3),
+        "fallback exceeded the bounded PTY ceiling: {elapsed:?}\n{}",
+        run.output
+    );
+
+    let grid = run
+        .terminal_grid_at_osc52_completion(case)
+        .expect("OSC 52 harness should retain the completion grid");
+    assert_line_contains(&grid, 23, FALLBACK_STATUS);
+    let editor_line = grid.line_text(2);
+    assert_eq!(
+        editor_line.matches("internal-fallback").count(),
+        1,
+        "internal fallback was not restored exactly once: {editor_line:?}"
+    );
 
     Ok(())
 }

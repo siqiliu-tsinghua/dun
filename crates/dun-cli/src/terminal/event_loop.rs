@@ -1,13 +1,16 @@
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use dun_core::Rect;
 
+use super::shell::PendingOsc52Read;
 use super::{
     EventReader, SurfaceBackend, Terminal, TerminalColorRewrite, TerminalGuard, handle_key_event,
     handle_mouse_event, handle_runtime_action, vt::event::Event,
 };
 use crate::AppState;
+
+const EVENT_POLL_SLICE: Duration = Duration::from_millis(250);
 
 pub(crate) fn run_event_loop(
     backend: &mut SurfaceBackend,
@@ -17,6 +20,8 @@ pub(crate) fn run_event_loop(
     guard: &mut TerminalGuard,
     color_rewrite: &TerminalColorRewrite,
 ) -> io::Result<()> {
+    let mut pending_osc52_read = None;
+
     while !app.should_quit {
         guard.set_mouse_enabled(app.mouse_enabled())?;
         color_rewrite.set_profile(app.shell.profile);
@@ -58,7 +63,11 @@ pub(crate) fn run_event_loop(
             panic!("DUN_TEST_PANIC");
         }
 
-        if let Some(event) = event_reader.next_event(Duration::from_millis(250))? {
+        if let Some(pending) = &pending_osc52_read {
+            if poll_pending_osc52_read(event_reader, app, pending)? {
+                pending_osc52_read = None;
+            }
+        } else if let Some(event) = event_reader.next_event(EVENT_POLL_SLICE)? {
             match event {
                 Event::Key(event) => handle_key_event(app, event),
                 Event::Paste(text) => app.handle_paste(&text),
@@ -69,11 +78,45 @@ pub(crate) fn run_event_loop(
         }
 
         if let Some(action) = app.take_runtime_action() {
-            handle_runtime_action(action, backend, app, guard)?;
+            if let Some(pending) = handle_runtime_action(action, backend, app, guard, event_reader)?
+            {
+                pending_osc52_read = Some(pending);
+            }
         }
 
         app.pump_plugins();
     }
 
     Ok(())
+}
+
+fn poll_pending_osc52_read(
+    event_reader: &mut EventReader,
+    app: &mut AppState,
+    pending: &PendingOsc52Read,
+) -> io::Result<bool> {
+    let remaining = pending.deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        event_reader.cancel_osc52_query();
+        app.complete_external_paste_timeout();
+        return Ok(true);
+    }
+
+    let wait = EVENT_POLL_SLICE.min(remaining);
+    if let Some(text) = event_reader.next_osc52_response(wait)? {
+        event_reader.cancel_osc52_query();
+        app.complete_external_paste(text);
+        return Ok(true);
+    }
+
+    if Instant::now() >= pending.deadline {
+        event_reader.cancel_osc52_query();
+        app.complete_external_paste_timeout();
+        return Ok(true);
+    }
+
+    // The response-only reader disarms at each caller deadline. Re-arm for
+    // the next bounded slice while preserving the one absolute 500 ms limit.
+    event_reader.begin_osc52_query(pending.max_bytes);
+    Ok(false)
 }

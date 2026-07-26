@@ -5,6 +5,8 @@ fn default_config_is_valid() {
     let config = Config::default();
 
     assert_eq!(config.theme, ThemeName::Dun);
+    assert!(!config.clipboard.osc52.enabled);
+    assert!(!config.clipboard.osc52.allow_read);
     assert!(config.validate().is_ok());
     assert!(config.keybindings.bindings.len() > 10);
 }
@@ -91,7 +93,25 @@ fn default_config_text_lists_parseable_default_bindings() {
     assert!(text.contains("mouse.enabled = false"));
     assert!(text.contains("plugins.status_bar = false"));
     assert!(text.contains("plugins.idle_after_ms = 300000"));
+    assert!(text.contains("clipboard.osc52.enabled = false"));
+    assert!(text.contains("clipboard.osc52.allow_read = false"));
     assert!(text.contains("key.app.help = F1"));
     assert!(text.contains("key.file_dialog.toggle_hidden = Ctrl+H"));
-    parse_config(&text).unwrap().validate().unwrap();
+    let defaults = parse_config(&text).unwrap();
+    assert!(!defaults.clipboard.osc52.enabled);
+    assert!(!defaults.clipboard.osc52.allow_read);
+
+    let opted_in = text
+        .replace(
+            "clipboard.osc52.enabled = false",
+            "clipboard.osc52.enabled = true",
+        )
+        .replace(
+            "clipboard.osc52.allow_read = false",
+            "clipboard.osc52.allow_read = true",
+        );
+    let opted_in = parse_config(&opted_in).unwrap();
+    assert!(opted_in.clipboard.osc52.enabled);
+    assert!(opted_in.clipboard.osc52.allow_read);
+    opted_in.validate().unwrap();
 }
