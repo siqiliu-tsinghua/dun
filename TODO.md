@@ -605,6 +605,31 @@ deltas non-additive).
       validator, scratch gate, execute submit, plus si-1 gate). macOS budget
       build 691,028 (+8,208 over the stream-read baseline for si-1+si-2).
 
+## Current Stage: OSC 52 Clipboard Read (started 2026-07-27)
+
+User decision 2026-07-27: implement OSC 52 **read** (paste the host/system
+clipboard over SSH via the terminal) — the read counterpart to the OSC 52
+write dun already ships. Platform-specific clipboard commands are rejected.
+Design-of-record decisions: no new input security layer (decoded bytes ride
+the existing `DisplaySanitizer` like any paste; only base64-decode + UTF-8
+validation under a byte cap); the terminal owns the read-gate (most disable or
+prompt by default) so dun must degrade cleanly on no response; opt-in and
+default-off like the write side; safe Rust, no new deps (hand-roll
+`base64_decode` beside the existing encoder); the response parses as a bounded
+accumulate-to-terminator state mirroring `State::Paste`.
+
+- [ ] Design-only brief 051
+  (`docs/dev/codex/brief-051-osc52-read-plan.md`): the plan — query emission,
+  parser extension for the `ESC ] 52 ; c ; <base64> ST|BEL` response, response
+  application (sync-feel vs async), config/trigger surface, no-response
+  fallback, ordered steps, tests, risks. Dispatched 2026-07-27.
+- [ ] Claude reviews/adapts; decides the open questions (separate `allow_read`
+  flag vs reuse `enabled`; distinct `edit.paste_external` command vs
+  overloading Paste; sync bounded-wait vs async event).
+- [ ] Implementation steps per the adapted plan, each its own gated brief.
+- [ ] Dual-platform size measurement + release smoke; bounded-input-surface
+  and terminal-compatibility docs updated.
+
 ## Completed Stage: Restoration Review — F12/F13 (2026-07-23 → 2026-07-26)
 
 **Closed 2026-07-26 at `b9ac165`.** F12 (bookmarks) and F13 (visible
@@ -1034,8 +1059,10 @@ this section focused on post-baseline extensions only.
   still holds); F20 (Outline) still returns as a plugin role. Execution
   tracked in "Current Stage: Restoration Review — F12/F13".
 
-- [ ] OSC 52 paste/query support or platform-specific clipboard command
-  integration.
+- [~] OSC 52 paste/query support or platform-specific clipboard command
+  integration. **ACTIVE 2026-07-27** — OSC 52 read only (platform clipboard
+  commands rejected: they break the no-external-command policy and fail over
+  SSH). See "Current Stage: OSC 52 Clipboard Read".
 - [x] Crash recovery and orphaned atomic-save temp-file cleanup.
 - [ ] `rum` configuration evaluation.
 - [ ] `dun-plugin-rum`.
