@@ -1,6 +1,98 @@
 use crate::*;
 
 impl AppState {
+    pub(super) fn toggle_bookmark(&mut self) {
+        let Some(buffer) = self.focused_buffer_mut() else {
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_BOOKMARK_BUFFER_MISSING)
+                    .to_string(),
+            );
+            return;
+        };
+
+        buffer.normalize_bookmarks();
+        let line = buffer.buffer.cursor_position().line;
+        let key = match buffer.bookmarks.binary_search(&line) {
+            Ok(index) => {
+                buffer.bookmarks.remove(index);
+                ui_text::STATUS_BOOKMARK_REMOVED
+            }
+            Err(index) => {
+                buffer.bookmarks.insert(index, line);
+                ui_text::STATUS_BOOKMARK_ADDED
+            }
+        };
+        self.set_status(ui_text::tr_fmt(
+            &self.shell.catalog,
+            key,
+            &[&(line + 1).to_string()],
+        ));
+    }
+
+    pub(super) fn next_bookmark(&mut self) {
+        self.move_to_bookmark(true);
+    }
+
+    pub(super) fn previous_bookmark(&mut self) {
+        self.move_to_bookmark(false);
+    }
+
+    fn move_to_bookmark(&mut self, forward: bool) {
+        let context = self
+            .focused_buffer_view_context(self.workspace_area)
+            .unwrap_or(BufferViewContext {
+                buffer_id: BufferId(0),
+                body_height: 1,
+                body_width: 1,
+            });
+        let Some(visible_whitespace) = self
+            .focused_buffer()
+            .map(|buffer| buffer.visible_whitespace)
+        else {
+            return;
+        };
+        let display = self.shell.editor_text_display(visible_whitespace);
+        let Some(buffer) = self.focused_buffer_mut() else {
+            return;
+        };
+
+        buffer.normalize_bookmarks();
+        let cursor = buffer.buffer.cursor_position();
+        let target_line = if forward {
+            buffer
+                .bookmarks
+                .iter()
+                .copied()
+                .find(|line| *line > cursor.line)
+                .or_else(|| buffer.bookmarks.first().copied())
+        } else {
+            buffer
+                .bookmarks
+                .iter()
+                .rev()
+                .copied()
+                .find(|line| *line < cursor.line)
+                .or_else(|| buffer.bookmarks.last().copied())
+        };
+
+        let Some(target_line) = target_line else {
+            self.set_status(
+                ui_text::tr(&self.shell.catalog, ui_text::STATUS_BOOKMARK_NONE).to_string(),
+            );
+            return;
+        };
+        let target_column = buffer.clamp_column_to_line(target_line, cursor.column);
+        let _ = buffer
+            .buffer
+            .set_cursor(Position::new(target_line, target_column));
+        buffer.ensure_cursor_visible(context.body_height, context.body_width, display);
+        self.set_status(ui_text::tr_fmt(
+            &self.shell.catalog,
+            ui_text::STATUS_BOOKMARK_LINE,
+            &[&(target_line + 1).to_string()],
+        ));
+    }
+
     pub(super) fn toggle_visible_whitespace(&mut self) {
         let context = self
             .focused_buffer_view_context(self.workspace_area)

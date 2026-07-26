@@ -101,6 +101,15 @@ impl AppState {
                 )),
             );
         }
+        if buffer.bookmarks.contains(&position.line) {
+            parts.insert(
+                4,
+                bracket(ui_text::tr(
+                    &self.shell.catalog,
+                    ui_text::STATUS_DETAIL_BOOKMARK,
+                )),
+            );
+        }
         if let Some(selection) = selection_status(&buffer.buffer, display) {
             parts.insert(4, bracket(&selection));
         }

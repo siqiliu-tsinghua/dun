@@ -54,6 +54,16 @@ pub(crate) const STATUS_WHITESPACE_ON: TextKey = ("status.whitespace.on", "Visib
 pub(crate) const STATUS_WHITESPACE_OFF: TextKey =
     ("status.whitespace.off", "Visible whitespace off");
 pub(crate) const STATUS_DETAIL_WHITESPACE: TextKey = ("status.detail.whitespace", "Whitespace");
+pub(crate) const STATUS_BOOKMARK_BUFFER_MISSING: TextKey = (
+    "status.bookmark.buffer-missing",
+    "Bookmark failed: focused buffer is missing",
+);
+pub(crate) const STATUS_BOOKMARK_ADDED: TextKey = ("status.bookmark.added", "Bookmarked line {}");
+pub(crate) const STATUS_BOOKMARK_REMOVED: TextKey =
+    ("status.bookmark.removed", "Removed bookmark at line {}");
+pub(crate) const STATUS_BOOKMARK_NONE: TextKey = ("status.bookmark.none", "Bookmark: none set");
+pub(crate) const STATUS_BOOKMARK_LINE: TextKey = ("status.bookmark.line", "Bookmark: line {}");
+pub(crate) const STATUS_DETAIL_BOOKMARK: TextKey = ("status.detail.bookmark", "Mark");
 pub(crate) const STATUS_UNDO_BUFFER_MISSING: TextKey = (
     "status.undo.buffer-missing",
     "Undo failed: focused buffer is missing",
@@ -162,6 +172,12 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_WHITESPACE_ON,
     STATUS_WHITESPACE_OFF,
     STATUS_DETAIL_WHITESPACE,
+    STATUS_BOOKMARK_BUFFER_MISSING,
+    STATUS_BOOKMARK_ADDED,
+    STATUS_BOOKMARK_REMOVED,
+    STATUS_BOOKMARK_NONE,
+    STATUS_BOOKMARK_LINE,
+    STATUS_DETAIL_BOOKMARK,
     STATUS_UNDO_BUFFER_MISSING,
     STATUS_UNDO_FAILED,
     STATUS_REDO_BUFFER_MISSING,

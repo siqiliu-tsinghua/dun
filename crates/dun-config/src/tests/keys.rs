@@ -81,6 +81,18 @@ fn keymap_finds_bound_command() {
         Some(&EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace))
     );
     assert_eq!(
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,K").unwrap()),
+        Some(&EditorCommand::Edit(EditCommand::ToggleBookmark))
+    );
+    assert_eq!(
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,N").unwrap()),
+        Some(&EditorCommand::Edit(EditCommand::NextBookmark))
+    );
+    assert_eq!(
+        keymap.command_for_sequence(&KeySequence::from_str("Ctrl+X,L").unwrap()),
+        Some(&EditorCommand::Edit(EditCommand::PreviousBookmark))
+    );
+    assert_eq!(
         keymap.command_for_sequence(&KeySequence::from_str("Ctrl+Right").unwrap()),
         Some(&EditorCommand::Edit(EditCommand::MoveWordRight))
     );
@@ -249,7 +261,7 @@ fn key_sequences_have_stable_display_text() {
 /// round-tripping catches two ids that parse to the same command.
 #[test]
 fn all_command_ids_round_trip() {
-    const EDITOR_COMMAND_VARIANT_COUNT: usize = 7 + 45 + 17 + 18;
+    const EDITOR_COMMAND_VARIANT_COUNT: usize = 7 + 48 + 17 + 18;
 
     assert_eq!(ALL_COMMAND_IDS.len(), EDITOR_COMMAND_VARIANT_COUNT);
 

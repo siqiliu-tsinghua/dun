@@ -23,7 +23,7 @@ impl UiShell {
                 break;
             }
 
-            let marker = ' ';
+            let bookmarked = buffer.bookmarks.contains(&line_index);
             let visual_rows = if buffer.wrap {
                 let body_width = usize::from(geometry.body.width).max(1);
                 self.wrapped_visual_line_count(buffer, line_index, body_width)
@@ -39,7 +39,13 @@ impl UiShell {
                 if lines.len() >= gutter_height {
                     break;
                 }
+                let marked = bookmarked && row_offset == 0;
                 let label = if row_offset == 0 {
+                    let marker = if marked {
+                        self.glyphs.indicators.bookmark
+                    } else {
+                        ' '
+                    };
                     format!("{:>label_digits$}{marker}", line_index + 1)
                 } else {
                     format!("{:>label_digits$} ", "")
@@ -47,6 +53,7 @@ impl UiShell {
                 lines.push(UiGutterLine {
                     y: geometry.gutter.y.saturating_add(lines.len() as u16),
                     label,
+                    marked,
                 });
             }
         }

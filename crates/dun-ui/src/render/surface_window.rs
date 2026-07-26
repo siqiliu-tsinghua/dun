@@ -220,7 +220,7 @@ fn draw_gutter(
 
         surface.style_run(gutter_area.x, y, gutter_area.width, style);
         surface.set_text(gutter_area.x, y, &line.label, style);
-        if gutter_area.width >= separator_width && separator_width > 0 {
+        if !line.marked && gutter_area.width >= separator_width && separator_width > 0 {
             set_char(
                 surface,
                 right.saturating_sub(separator_width),

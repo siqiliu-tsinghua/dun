@@ -216,6 +216,21 @@ const VIEW_ENTRIES: &[EntrySpec] = &[
         EditorCommand::Edit(dun_core::EditCommand::ToggleVisibleWhitespace),
     ),
     entry(
+        "menu.view.toggle-bookmark",
+        "Toggle Bookmark (K)",
+        EditorCommand::Edit(dun_core::EditCommand::ToggleBookmark),
+    ),
+    entry(
+        "menu.view.next-bookmark",
+        "Next Bookmark (N)",
+        EditorCommand::Edit(dun_core::EditCommand::NextBookmark),
+    ),
+    entry(
+        "menu.view.previous-bookmark",
+        "Previous Bookmark (L)",
+        EditorCommand::Edit(dun_core::EditCommand::PreviousBookmark),
+    ),
+    entry(
         "menu.view.scroll-left",
         "Scroll Left ([)",
         EditorCommand::Edit(dun_core::EditCommand::ScrollLeft),

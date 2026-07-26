@@ -70,6 +70,12 @@ impl Keymap {
                     "Ctrl+X,.",
                     EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace),
                 ),
+                KeyBinding::new("Ctrl+X,K", EditorCommand::Edit(EditCommand::ToggleBookmark)),
+                KeyBinding::new("Ctrl+X,N", EditorCommand::Edit(EditCommand::NextBookmark)),
+                KeyBinding::new(
+                    "Ctrl+X,L",
+                    EditorCommand::Edit(EditCommand::PreviousBookmark),
+                ),
                 KeyBinding::new("Left", EditorCommand::Edit(EditCommand::MoveLeft)),
                 KeyBinding::new("Right", EditorCommand::Edit(EditCommand::MoveRight)),
                 KeyBinding::new("Up", EditorCommand::Edit(EditCommand::MoveUp)),

@@ -25,6 +25,7 @@ pub(crate) struct BufferState {
     pub(crate) search: Option<BufferSearchState>,
     pub(crate) word_wrap: bool,
     pub(crate) visible_whitespace: bool,
+    pub(crate) bookmarks: Vec<usize>,
     pub(crate) highlight: Option<BufferHighlight>,
 }
 
@@ -42,6 +43,7 @@ impl BufferState {
             search: None,
             word_wrap: false,
             visible_whitespace: false,
+            bookmarks: Vec::new(),
             highlight: None,
         }
     }
@@ -59,6 +61,7 @@ impl BufferState {
             search: None,
             word_wrap: false,
             visible_whitespace: false,
+            bookmarks: Vec::new(),
             highlight: None,
         }
     }
@@ -119,5 +122,25 @@ impl BufferState {
             column -= 1;
         }
         column
+    }
+
+    pub(crate) fn normalize_bookmarks(&mut self) {
+        let last_line = self.buffer.line_count().saturating_sub(1);
+        for bookmark in &mut self.bookmarks {
+            *bookmark = (*bookmark).min(last_line);
+        }
+        self.bookmarks.sort_unstable();
+        self.bookmarks.dedup();
+    }
+
+    pub(crate) fn remap_bookmarks_for_line_move(&mut self, source: usize, destination: usize) {
+        for bookmark in &mut self.bookmarks {
+            if *bookmark == source {
+                *bookmark = destination;
+            } else if *bookmark == destination {
+                *bookmark = source;
+            }
+        }
+        self.normalize_bookmarks();
     }
 }

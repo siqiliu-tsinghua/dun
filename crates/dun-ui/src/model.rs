@@ -17,6 +17,7 @@ pub struct BufferView<'a> {
     pub active_search_match: Option<usize>,
     pub wrap: bool,
     pub visible_whitespace: bool,
+    pub bookmarks: &'a [usize],
 }
 
 impl<'a> BufferView<'a> {
@@ -32,6 +33,7 @@ impl<'a> BufferView<'a> {
             active_search_match: None,
             wrap: false,
             visible_whitespace: false,
+            bookmarks: &[],
         }
     }
 
@@ -47,6 +49,7 @@ impl<'a> BufferView<'a> {
             active_search_match: None,
             wrap: false,
             visible_whitespace: false,
+            bookmarks: &[],
         }
     }
 
@@ -67,6 +70,7 @@ impl<'a> BufferView<'a> {
             active_search_match: None,
             wrap: false,
             visible_whitespace: false,
+            bookmarks: &[],
         }
     }
 
@@ -92,6 +96,11 @@ impl<'a> BufferView<'a> {
 
     pub const fn with_visible_whitespace(mut self, visible_whitespace: bool) -> Self {
         self.visible_whitespace = visible_whitespace;
+        self
+    }
+
+    pub const fn with_bookmarks(mut self, bookmarks: &'a [usize]) -> Self {
+        self.bookmarks = bookmarks;
         self
     }
 
@@ -378,6 +387,7 @@ pub struct UiWindow {
 pub struct UiGutterLine {
     pub y: u16,
     pub label: String,
+    pub marked: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

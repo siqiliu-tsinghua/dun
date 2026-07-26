@@ -51,6 +51,7 @@ fn frame_contains_menu_status_and_sanitized_buffer_content() {
         vec![UiGutterLine {
             y: 1,
             label: "1 ".to_string(),
+            marked: false,
         }]
     );
     assert_eq!(frame.windows[0].cursor, Some(UiCursor { x: 3, y: 1 }));
@@ -453,10 +454,12 @@ fn frame_maps_scrolled_line_number_gutter() {
             UiGutterLine {
                 y: 1,
                 label: " 9 ".to_string(),
+                marked: false,
             },
             UiGutterLine {
                 y: 2,
                 label: "10 ".to_string(),
+                marked: false,
             },
         ]
     );

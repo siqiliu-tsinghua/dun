@@ -53,6 +53,9 @@ impl AppState {
                 args,
                 EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace),
             ),
+            "mark" | "bookmark" => {
+                self.run_no_arg_command(args, EditorCommand::Edit(EditCommand::ToggleBookmark))
+            }
             "find" => self.run_find_command(args),
             "replace" => self.run_replace_command(args),
             "goto" | "gotoline" | "line" => self.run_go_to_line_command(args),

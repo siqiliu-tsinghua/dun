@@ -21,6 +21,7 @@ pub struct IndicatorGlyphs {
     pub dirty: char,
     pub read_only: char,
     pub collapsed: char,
+    pub bookmark: char,
     pub ellipsis: char,
     pub truncation: char,
 }
@@ -60,6 +61,7 @@ impl GlyphSet {
                 dirty: '●',
                 read_only: '■',
                 collapsed: '▶',
+                bookmark: '*',
                 ellipsis: '…',
                 truncation: '…',
             },
@@ -91,6 +93,7 @@ impl GlyphSet {
                 dirty: '*',
                 read_only: '#',
                 collapsed: '>',
+                bookmark: '*',
                 ellipsis: '.',
                 truncation: '~',
             },
@@ -129,6 +132,7 @@ mod tests {
         assert_eq!(glyphs.border.top_left, '┌');
         assert_eq!(glyphs.border.cross, '┼');
         assert_eq!(glyphs.indicators.dirty, '●');
+        assert_eq!(glyphs.indicators.bookmark, '*');
         assert_eq!(glyphs.whitespace.space, '·');
         assert_eq!(glyphs.whitespace.tab, '→');
         assert_eq!(glyphs.whitespace.end_of_line, '¶');
@@ -143,6 +147,7 @@ mod tests {
         assert_eq!(glyphs.border.vertical, '|');
         assert_eq!(glyphs.border.cross, '+');
         assert_eq!(glyphs.indicators.collapsed, '>');
+        assert_eq!(glyphs.indicators.bookmark, '*');
         assert_eq!(glyphs.whitespace.space, '.');
         assert_eq!(glyphs.whitespace.tab, '>');
         assert_eq!(glyphs.whitespace.end_of_line, '$');

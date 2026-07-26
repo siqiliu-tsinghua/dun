@@ -310,6 +310,23 @@ fn visible_whitespace_snapshot() {
     );
 }
 
+/// Protects the bookmark gutter edge and the cursor-line status bracket.
+#[test]
+fn bookmark_snapshot() {
+    let mut app = fixed_app_with_text("alpha\nbookmarked line\ngamma");
+    app.buffers[0]
+        .buffer
+        .set_cursor(Position::new(1, 4))
+        .unwrap();
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleBookmark));
+    app.status_message = None;
+
+    assert_snapshot(
+        "bookmark",
+        &app_snapshot(&mut app, STANDARD_WIDTH, STANDARD_HEIGHT, &[]),
+    );
+}
+
 /// Protects Open's modal blanking: real editor text must not bleed through.
 #[test]
 fn open_dialog_snapshot() {
@@ -440,7 +457,7 @@ fn split_two_panes_snapshot() {
     );
 }
 
-/// Protects the tiled, read-only Help screen and the restored whitespace row.
+/// Protects the tiled, read-only Help screen and the restored marker rows.
 #[test]
 fn help_screen_snapshot() {
     let mut app = fixed_app();
@@ -450,9 +467,9 @@ fn help_screen_snapshot() {
         .find(|&line| {
             help.buffer
                 .line(line)
-                .is_some_and(|text| text.contains("edit.toggle_visible_whitespace"))
+                .is_some_and(|text| text.contains("edit.previous_bookmark"))
         })
-        .expect("visible-whitespace Help row");
+        .expect("previous-bookmark Help row");
     help.buffer.set_cursor(Position::new(line, 0)).unwrap();
 
     assert_snapshot(
