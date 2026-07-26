@@ -623,10 +623,26 @@ accumulate-to-terminator state mirroring `State::Paste`.
   parser extension for the `ESC ] 52 ; c ; <base64> ST|BEL` response, response
   application (sync-feel vs async), config/trigger surface, no-response
   fallback, ordered steps, tests, risks. Dispatched 2026-07-27.
-- [ ] Claude reviews/adapts; decides the open questions (separate `allow_read`
-  flag vs reuse `enabled`; distinct `edit.paste_external` command vs
-  overloading Paste; sync bounded-wait vs async event).
-- [ ] Implementation steps per the adapted plan, each its own gated brief.
+- [x] Claude reviewed/adapted the plan 2026-07-27; decisions frozen: separate
+  `clipboard.osc52.allow_read` (default false, shares `max_bytes`); distinct
+  `edit.paste_external` command bound `Ctrl+X,Ctrl+V` + menu `Paste External
+  (E)` (internal Paste untouched); synchronous-feel 500 ms bounded wait (not
+  async — a delayed reply could paste into the wrong buffer/selection, and
+  OSC 52 has no request id); empty response = valid empty clipboard (no stale
+  fallback); typed `RuntimeAction::QueryOsc52Clipboard { max_bytes }`.
+  **Refinement beyond the plan: OSC 52 framing is armed-gated** — when no read
+  is pending, `ESC ]` keeps today's `Alt+]` behavior; OSC consumption happens
+  only in the ~500 ms armed window, so default input stays byte-identical.
+  Late-response ambiguity accepted + documented (no quarantine).
+- [ ] Implementation steps per the adapted plan, each its own gated brief:
+  - [ ] Step 1 — decoder + armed parser framing + event seam (brief 052,
+    dispatched 2026-07-27). Byte-neutral to user behavior; nothing triggers a
+    query yet.
+  - [ ] Step 2 — config + command + keymap + menu + 500 ms wait + fallback +
+    PTY + behavior docs (brief 053). **User-visible; holds for a veto window
+    on the frozen decisions before dispatch.**
+  - [ ] Step 3 — closure: mutation evidence, dual-platform measurement,
+    terminal/tmux/screen reality matrix (brief 054).
 - [ ] Dual-platform size measurement + release smoke; bounded-input-surface
   and terminal-compatibility docs updated.
 
