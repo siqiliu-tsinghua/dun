@@ -639,8 +639,9 @@ accumulate-to-terminator state mirroring `State::Paste`.
     dispatched 2026-07-27). Byte-neutral to user behavior; nothing triggers a
     query yet.
   - [ ] Step 2 — config + command + keymap + menu + 500 ms wait + fallback +
-    PTY + behavior docs (brief 053). **User-visible; holds for a veto window
-    on the frozen decisions before dispatch.**
+    PTY + behavior docs (brief 053, dispatched 2026-07-27). User confirmed the
+    veto-window decisions: `Ctrl+X,Ctrl+V` and the 500 ms synchronous wait.
+    The `editing.rs`→`app/clipboard.rs` split is deliberately NOT bundled here.
   - [ ] Step 3 — closure: mutation evidence, dual-platform measurement,
     terminal/tmux/screen reality matrix (brief 054).
 - [ ] Dual-platform size measurement + release smoke; bounded-input-surface
