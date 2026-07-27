@@ -10,8 +10,16 @@
 //! because only its handshake can advertise the UI it contributes, while
 //! highlight-only hosts keep the memory-saving lazy launch on their first job.
 
+mod menu;
+mod worker;
+
+use menu::{resolve_plugin_menu, top_level_mnemonic};
+use worker::host_worker;
+#[cfg(test)]
+pub(crate) use worker::next_worker_action_for_tests;
+
 use std::collections::VecDeque;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -21,17 +29,14 @@ use dun_config::{
 };
 use dun_core::{BufferId, EditorCommand, PluginActionKind};
 use dun_plugin::{
-    Capability, GrantedCapabilities, HostClient, InputSnapshot, PluginActionKind as WireActionKind,
-    PluginKeybinding, PluginMenu, Policy, Role, StreamChunk, StyleSpan, TrustClass,
+    Capability, GrantedCapabilities, PluginActionKind as WireActionKind, PluginKeybinding,
+    PluginMenu, Policy, Role, StreamChunk, StyleSpan, TrustClass,
 };
-use dun_ui::{
-    MenuEntry, MenuItem, built_in_menu_mnemonics, compose_translated_menu_label,
-    english_menu_mnemonic, menu_label_mnemonic,
-};
+use dun_ui::{MenuItem, built_in_menu_mnemonics};
 
 /// Do not relaunch a failed host more often than this; failures otherwise
 /// turn every editor tick into a spawn attempt.
-const RELAUNCH_COOLDOWN: Duration = Duration::from_secs(5);
+pub(super) const RELAUNCH_COOLDOWN: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HighlightJob {
@@ -673,7 +678,7 @@ fn resolve_plugin_keybinding(
 
 /// Map the wire action kind to the dun-core kind (two identical enums kept in
 /// separate crates because `dun-plugin` has no `dun-core` dependency).
-fn action_kind(kind: WireActionKind) -> PluginActionKind {
+pub(super) fn action_kind(kind: WireActionKind) -> PluginActionKind {
     match kind {
         WireActionKind::Surface => PluginActionKind::Surface,
         WireActionKind::Scratch => PluginActionKind::Scratch,
@@ -686,113 +691,6 @@ fn action_kind(kind: WireActionKind) -> PluginActionKind {
 /// and the item's `action_id`, so dispatch can route the invocation back to
 /// the owning host. Labels are resolved against the active locale `tags`; the
 /// display sanitizer still runs at render time.
-fn resolve_plugin_menu(
-    plugin_id: &str,
-    menu: &PluginMenu,
-    tags: &[String],
-    mnemonic: char,
-) -> MenuItem {
-    // Entry mnemonics are author-chosen or absent — never derived. Duplicates
-    // within one menu drop only the *later* entry's shortcut, not the entry
-    // and not its siblings: a dropdown item stays reachable by arrows, Enter
-    // and the mouse, so silently removing it would be a worse trade than
-    // losing one letter. (A top-level collision is different and rejects the
-    // whole subtree, because there the menu becomes unreachable entirely.)
-    let mut claimed_entry_mnemonics: Vec<char> = Vec::new();
-    let entries = menu
-        .items
-        .iter()
-        .map(|item| {
-            let base = item.label.resolve(tags);
-            let label = match item.mnemonic {
-                // Always composed, never conditionally: `entry_mnemonic` reads
-                // ONLY a trailing `(M)` and has no first-character fallback,
-                // so an entry whose suffix is omitted has no working key even
-                // when its text starts with that very letter.
-                Some(mnemonic) if !claimed_entry_mnemonics.contains(&mnemonic) => {
-                    claimed_entry_mnemonics.push(mnemonic);
-                    compose_translated_menu_label(base, mnemonic)
-                }
-                _ => base.to_string(),
-            };
-            MenuEntry::new(
-                label,
-                EditorCommand::PluginAction {
-                    plugin_id: plugin_id.to_string(),
-                    action_id: item.action_id.clone(),
-                    kind: action_kind(item.kind),
-                },
-            )
-        })
-        .collect();
-    let translation = menu.top_label.resolve_translation(tags);
-    let base = translation.unwrap_or_else(|| menu.top_label.fallback());
-    MenuItem::new(
-        top_level_label(base, translation.is_some(), mnemonic),
-        entries,
-    )
-}
-
-/// Render a **top-level** label so it and the matcher agree about the mnemonic.
-///
-/// Two reasons to append `(M)`, and they are not the same reason:
-///
-/// - a translation is actively selected. Then the suffix goes on even when the
-///   translated text happens to equal the English, because every other menu in
-///   a translated UI carries one and a bare plugin label would read as having
-///   no key at all;
-/// - the rendered text would not resolve to this mnemonic anyway — a
-///   translated label (`日志过滤`), or an author-declared letter that is not
-///   the first one (`Log Filter` asking for `G`). Without the suffix the
-///   declared key would simply not work, since the top-level matcher falls
-///   back to the label's first character.
-///
-/// Plain English whose first letter already *is* the mnemonic gets nothing,
-/// so `Log Filter` stays `Log Filter` exactly as `File` stays `File`.
-fn top_level_label(base: &str, translated: bool, mnemonic: char) -> String {
-    let already_matches =
-        menu_label_mnemonic(base).is_some_and(|derived| derived.eq_ignore_ascii_case(&mnemonic));
-    if translated || !already_matches {
-        compose_translated_menu_label(base, mnemonic)
-    } else {
-        base.to_string()
-    }
-}
-
-/// The top-level mnemonic: the host's choice if it declared one, else derived.
-///
-/// Unlike dropdown entries this one still derives when absent, because a
-/// top-level menu without a mnemonic cannot be opened from the keyboard at
-/// all. An author-declared mnemonic is taken as-is — it is already validated
-/// as a single non-parenthesis ASCII graphic by the protocol layer — and only
-/// the collision check in the caller can reject it.
-fn top_level_mnemonic(menu: &PluginMenu, english_label: &str) -> Option<char> {
-    menu.top_mnemonic
-        .or_else(|| valid_plugin_menu_mnemonic(english_label))
-}
-
-/// A plugin menu that declared no mnemonic falls back to its first English
-/// ASCII letter. A raw English label may already carry a parenthesized
-/// mnemonic; accept it only when that suffix agrees with the first-letter
-/// rule, because dun-ui's matcher prefers it.
-fn valid_plugin_menu_mnemonic(label: &str) -> Option<char> {
-    let mnemonic = english_menu_mnemonic(label)?;
-    if trailing_parenthesized_mnemonic(label)
-        .is_some_and(|embedded| !embedded.eq_ignore_ascii_case(&mnemonic))
-    {
-        return None;
-    }
-    Some(mnemonic)
-}
-
-fn trailing_parenthesized_mnemonic(label: &str) -> Option<char> {
-    let without_close = label.trim_end().strip_suffix(')')?;
-    let (_, contents) = without_close.rsplit_once('(')?;
-    let mut chars = contents.chars();
-    let mnemonic = chars.next()?;
-    chars.next().is_none().then_some(mnemonic)
-}
-
 /// Map a configured role name to the protocol `Role`, if the protocol models
 /// it yet. Config accepts role names ahead of the protocol client
 /// (`TextTransform`, `ConfigHelper` have no `Role` variant yet); those grant
@@ -809,325 +707,6 @@ fn plugin_trust(trust: PluginTrust) -> TrustClass {
     match trust {
         PluginTrust::PureSandbox => TrustClass::PureSandbox,
         PluginTrust::UserTrustedExternal => TrustClass::UserTrustedExternal,
-    }
-}
-
-/// One gathered round of worker input: the newest highlight job wins, every
-/// surface action and stream chunk is kept in order, plus whether an eager
-/// launch was requested.
-struct WorkerAction {
-    launch: bool,
-    job: Option<HighlightJob>,
-    surface: Vec<String>,
-    stream: Vec<StreamChunk>,
-    execute: Vec<String>,
-}
-
-impl WorkerAction {
-    fn is_empty(&self) -> bool {
-        !self.launch
-            && self.job.is_none()
-            && self.surface.is_empty()
-            && self.stream.is_empty()
-            && self.execute.is_empty()
-    }
-}
-
-fn host_worker(
-    command: &Path,
-    plugin_id: &str,
-    policy: Policy,
-    roles: &[Role],
-    trust: TrustClass,
-    messages: &mpsc::Receiver<WorkerMessage>,
-    events: &mpsc::Sender<HostEvent>,
-) {
-    let mut client: Option<HostClient> = None;
-    let mut last_failure: Option<Instant> = None;
-    let mut unloaded = false;
-
-    while let Ok(action) = next_worker_action(messages, &mut client, &mut unloaded) {
-        if action.is_empty() {
-            continue;
-        }
-
-        if client.is_none() {
-            if last_failure.is_some_and(|failed| failed.elapsed() < RELAUNCH_COOLDOWN) {
-                continue;
-            }
-            match HostClient::launch(command, plugin_id, policy.clone(), roles, trust) {
-                Ok(launched) => {
-                    let _ = events.send(HostEvent::Started {
-                        menu: launched.menu().cloned(),
-                        keybinding: launched.keybinding().cloned(),
-                    });
-                    client = Some(launched);
-                    last_failure = None;
-                }
-                Err(error) => {
-                    last_failure = Some(Instant::now());
-                    report_launch_failure(&action, &error.to_string(), events);
-                    continue;
-                }
-            }
-        }
-
-        if let Some(job) = action.job {
-            serve_job(&mut client, job, events, &mut last_failure);
-        }
-        for action_id in action.surface {
-            serve_surface(&mut client, action_id, events, &mut last_failure);
-        }
-        for chunk in action.stream {
-            serve_stream(&mut client, chunk, events, &mut last_failure);
-        }
-        for snippet in action.execute {
-            serve_execute(&mut client, snippet, events, &mut last_failure);
-        }
-    }
-}
-
-/// Report a launch failure to every piece of work the round owed an answer: a
-/// failed highlight job, each surface action, or — for a bare eager launch —
-/// a single `StartFailed`.
-fn report_launch_failure(action: &WorkerAction, error: &str, events: &mpsc::Sender<HostEvent>) {
-    let mut reported = false;
-    if let Some(job) = &action.job {
-        let _ = events.send(HostEvent::Highlight(failure_outcome(job, error)));
-        reported = true;
-    }
-    for action_id in &action.surface {
-        let _ = events.send(HostEvent::Surface {
-            action_id: action_id.clone(),
-            result: Err(error.to_string()),
-        });
-        reported = true;
-    }
-    for _ in &action.stream {
-        let _ = events.send(HostEvent::StreamVerdict {
-            result: Err(error.to_string()),
-        });
-        reported = true;
-    }
-    for _ in &action.execute {
-        let _ = events.send(HostEvent::Surface {
-            action_id: "execute".to_string(),
-            result: Err(error.to_string()),
-        });
-        reported = true;
-    }
-    if !reported {
-        let _ = events.send(HostEvent::StartFailed {
-            error: error.to_string(),
-        });
-    }
-}
-
-/// Run one highlight job against the launched client. A protocol violation
-/// kills the host (dropping the client) so the next job relaunches after the
-/// cooldown.
-fn serve_job(
-    client: &mut Option<HostClient>,
-    job: HighlightJob,
-    events: &mpsc::Sender<HostEvent>,
-    last_failure: &mut Option<Instant>,
-) {
-    let Some(active) = client.as_mut() else {
-        return;
-    };
-    let Ok(first_line) = u32::try_from(job.first_line) else {
-        let _ = events.send(HostEvent::Highlight(failure_outcome(
-            &job,
-            "snapshot start exceeds u32 lines",
-        )));
-        return;
-    };
-    let snapshot = InputSnapshot {
-        buffer_revision: job.revision,
-        language: job.language.clone(),
-        first_line,
-        lines: job.lines.clone(),
-    };
-    match active.request_highlight(&snapshot) {
-        Ok(spans) => {
-            *last_failure = None;
-            let _ = events.send(HostEvent::Highlight(HighlightOutcome {
-                buffer_id: job.buffer_id,
-                revision: job.revision,
-                result: Ok(spans),
-            }));
-        }
-        Err(error) => {
-            *client = None;
-            *last_failure = Some(Instant::now());
-            let _ = events.send(HostEvent::Highlight(failure_outcome(
-                &job,
-                &error.to_string(),
-            )));
-        }
-    }
-}
-
-/// Run one surface-write action request against the launched client. Like
-/// `serve_job`, a violation kills the host so the next request relaunches.
-fn serve_surface(
-    client: &mut Option<HostClient>,
-    action_id: String,
-    events: &mpsc::Sender<HostEvent>,
-    last_failure: &mut Option<Instant>,
-) {
-    let Some(active) = client.as_mut() else {
-        let _ = events.send(HostEvent::Surface {
-            action_id,
-            result: Err("plugin host unavailable".to_string()),
-        });
-        return;
-    };
-    match active.request_surface(&action_id) {
-        Ok(lines) => {
-            *last_failure = None;
-            let _ = events.send(HostEvent::Surface {
-                action_id,
-                result: Ok(lines),
-            });
-        }
-        Err(error) => {
-            *client = None;
-            *last_failure = Some(Instant::now());
-            let _ = events.send(HostEvent::Surface {
-                action_id,
-                result: Err(error.to_string()),
-            });
-        }
-    }
-}
-
-/// Run one stream-read chunk against the launched client. Like `serve_job`, a
-/// violation kills the host so the next request relaunches.
-fn serve_stream(
-    client: &mut Option<HostClient>,
-    chunk: StreamChunk,
-    events: &mpsc::Sender<HostEvent>,
-    last_failure: &mut Option<Instant>,
-) {
-    let Some(active) = client.as_mut() else {
-        let _ = events.send(HostEvent::StreamVerdict {
-            result: Err("plugin host unavailable".to_string()),
-        });
-        return;
-    };
-    match active.request_stream_filter(&chunk) {
-        Ok(keep) => {
-            *last_failure = None;
-            let _ = events.send(HostEvent::StreamVerdict { result: Ok(keep) });
-        }
-        Err(error) => {
-            *client = None;
-            *last_failure = Some(Instant::now());
-            let _ = events.send(HostEvent::StreamVerdict {
-                result: Err(error.to_string()),
-            });
-        }
-    }
-}
-
-/// Submit one scratch snippet to the launched client (`execute`) and report the
-/// host's result lines as a `Surface` event so they fill the surface window.
-/// Like `serve_job`, a violation kills the host so the next request relaunches.
-fn serve_execute(
-    client: &mut Option<HostClient>,
-    snippet: String,
-    events: &mpsc::Sender<HostEvent>,
-    last_failure: &mut Option<Instant>,
-) {
-    let Some(active) = client.as_mut() else {
-        let _ = events.send(HostEvent::Surface {
-            action_id: "execute".to_string(),
-            result: Err("plugin host unavailable".to_string()),
-        });
-        return;
-    };
-    match active.request_execute(&snippet) {
-        Ok(lines) => {
-            *last_failure = None;
-            let _ = events.send(HostEvent::Surface {
-                action_id: "execute".to_string(),
-                result: Ok(lines),
-            });
-        }
-        Err(error) => {
-            *client = None;
-            *last_failure = Some(Instant::now());
-            let _ = events.send(HostEvent::Surface {
-                action_id: "execute".to_string(),
-                result: Err(error.to_string()),
-            });
-        }
-    }
-}
-
-fn next_worker_action(
-    messages: &mpsc::Receiver<WorkerMessage>,
-    client: &mut Option<HostClient>,
-    unloaded: &mut bool,
-) -> Result<WorkerAction, mpsc::RecvError> {
-    let mut action = WorkerAction {
-        launch: false,
-        job: None,
-        surface: Vec::new(),
-        stream: Vec::new(),
-        execute: Vec::new(),
-    };
-    apply_worker_message(messages.recv()?, client, unloaded, &mut action);
-    while let Ok(message) = messages.try_recv() {
-        apply_worker_message(message, client, unloaded, &mut action);
-    }
-
-    if *unloaded {
-        Ok(WorkerAction {
-            launch: false,
-            job: None,
-            surface: Vec::new(),
-            stream: Vec::new(),
-            execute: Vec::new(),
-        })
-    } else {
-        Ok(action)
-    }
-}
-
-fn apply_worker_message(
-    message: WorkerMessage,
-    client: &mut Option<HostClient>,
-    unloaded: &mut bool,
-    action: &mut WorkerAction,
-) {
-    match message {
-        WorkerMessage::Job(job) => action.job = Some(job),
-        WorkerMessage::Surface(action_id) => action.surface.push(action_id),
-        WorkerMessage::Stream(chunk) => action.stream.push(chunk),
-        WorkerMessage::Execute(snippet) => action.execute.push(snippet),
-        WorkerMessage::Launch => action.launch = true,
-        WorkerMessage::Load => *unloaded = false,
-        WorkerMessage::Unload => {
-            if let Some(active) = client.take() {
-                let _ = active.shutdown();
-            }
-            *unloaded = true;
-            action.launch = false;
-            action.job = None;
-            action.surface.clear();
-            action.stream.clear();
-            action.execute.clear();
-        }
-    }
-}
-
-fn failure_outcome(job: &HighlightJob, message: &str) -> HighlightOutcome {
-    HighlightOutcome {
-        buffer_id: job.buffer_id,
-        revision: job.revision,
-        result: Err(message.to_string()),
     }
 }
 
@@ -1191,13 +770,4 @@ impl PluginHosts {
             menu_rejections: Vec::new(),
         }
     }
-}
-
-#[cfg(test)]
-pub(crate) fn next_worker_action_for_tests(
-    messages: &mpsc::Receiver<WorkerMessage>,
-    unloaded: &mut bool,
-) -> Result<(bool, Option<HighlightJob>), mpsc::RecvError> {
-    let mut client = None;
-    next_worker_action(messages, &mut client, unloaded).map(|action| (action.launch, action.job))
 }
