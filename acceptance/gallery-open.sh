@@ -31,6 +31,24 @@ mv "$wrapper_base" "$wrapper"
     # Terminal.app and iTerm2 run a .command file from the user's home, not
     # from the repo, so relative --file arguments would not resolve.
     printf 'cd %q || exit 1\n' "$repo_root"
+    # The locale must be BAKED IN, not inherited: `open -a` does not propagate
+    # the caller's environment. Terminal.app then runs the .command through a
+    # login shell that sets LANG from the user's profile, and kitty runs it
+    # with no profile at all — so a caller-side `LC_ALL=xx gallery-open.sh`
+    # silently produced the user's own language in one emulator and English in
+    # another, never the requested one. Verified: inside a Terminal session
+    # launched with `env LC_ALL=de_DE.UTF-8 open -a Terminal`, LC_ALL is unset
+    # and LANG is the profile's.
+    # DUN_PYGMENTS_PYTHON rides along for the same reason: launch.sh reads it,
+    # and it would be dropped by `open -a` exactly like the locale was.
+    for var in LC_ALL LC_MESSAGES LANG DUN_PYGMENTS_PYTHON; do
+        eval "value=\${$var-}"
+        if [ -n "${value:-}" ]; then
+            printf 'export %s=%q\n' "$var" "$value"
+        else
+            printf 'unset %s\n' "$var"
+        fi
+    done
     printf 'exec %q %q %q -- ' "$repo_root/acceptance/gallery-run.sh" "$rows" "$cols"
     for a in "$@"; do printf '%q ' "$a"; done
     echo

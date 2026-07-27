@@ -151,9 +151,25 @@ if [ -n "$syntax" ]; then
             fi
             ;;
         pygments)
+            # Pygments is not in the standard library and is usually absent
+            # from the system python. Point DUN_PYGMENTS_PYTHON at one that
+            # has it (a throwaway venv is fine) instead of installing into the
+            # system interpreter. The check is up front and fatal on purpose:
+            # a host that starts but cannot import pygments still connects and
+            # still shows up in the status bar, and returns no spans — in a
+            # screenshot that is indistinguishable from a file with nothing to
+            # highlight.
+            pyg_python="${DUN_PYGMENTS_PYTHON:-$(command -v python3)}"
+            if ! "$pyg_python" -c "import pygments" 2>/dev/null; then
+                echo "--syntax pygments: $pyg_python cannot import pygments" >&2
+                echo "point DUN_PYGMENTS_PYTHON at an interpreter that can, e.g." >&2
+                echo "  python3 -m venv /tmp/pygvenv && /tmp/pygvenv/bin/pip install Pygments" >&2
+                echo "  DUN_PYGMENTS_PYTHON=/tmp/pygvenv/bin/python acceptance/launch.sh --syntax pygments" >&2
+                exit 2
+            fi
             host_cmd="$scratch/pygments-wrapper"
             printf '#!/bin/sh\nexec %s %s\n' \
-                "$(command -v python3)" \
+                "$pyg_python" \
                 "$repo_root/hosts/python-pygments/dun-pygments-host.py" > "$host_cmd"
             chmod +x "$host_cmd"
             ;;
