@@ -19,11 +19,4 @@ impl StatusLevel {
             Self::Info
         }
     }
-
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Info => "info",
-            Self::Error => "error",
-        }
-    }
 }

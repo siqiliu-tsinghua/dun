@@ -257,10 +257,9 @@ impl AppState {
             );
             return;
         };
-        let Some(line_index) = self
-            .buffer_state(buffer_id)
-            .and_then(|buffer| line_with_exact_text(&buffer.buffer, section.heading()))
-        else {
+        let Some(line_index) = self.buffer_state(buffer_id).and_then(|buffer| {
+            line_with_exact_text(&buffer.buffer, section.heading(&self.shell.catalog))
+        }) else {
             self.set_status(ui_text::tr_fmt(
                 &self.shell.catalog,
                 ui_text::STATUS_CONFIG_DIAGNOSTICS_SECTION_NOT_FOUND,
@@ -352,17 +351,28 @@ impl AppState {
     }
 
     pub(crate) fn status_history_text(&self) -> String {
-        let mut out = String::from("Dun Status History\n\n");
+        let mut out =
+            ui_text::tr(&self.shell.catalog, ui_text::WINDOW_STATUS_HISTORY_HEADING).to_string();
+        out.push_str("\n\n");
         if self.status_history.is_empty() {
-            out.push_str("No status messages yet.\n");
+            out.push_str(ui_text::tr(
+                &self.shell.catalog,
+                ui_text::WINDOW_STATUS_HISTORY_EMPTY,
+            ));
+            out.push('\n');
             return out;
         }
 
         for (index, entry) in self.status_history.iter().enumerate() {
+            let level_key = match entry.level {
+                StatusLevel::Info => ui_text::WINDOW_STATUS_HISTORY_LEVEL_INFO,
+                StatusLevel::Error => ui_text::WINDOW_STATUS_HISTORY_LEVEL_ERROR,
+            };
+            let level = ui_text::tr(&self.shell.catalog, level_key);
             out.push_str(&format!(
                 "{:>3}. [{}] {}\n",
                 index + 1,
-                entry.level.label(),
+                level,
                 entry.message
             ));
         }
@@ -371,7 +381,12 @@ impl AppState {
     }
 
     fn config_diagnostics_text(&self) -> String {
-        let mut out = String::from("Dun Config Diagnostics\n\n");
+        let mut out = ui_text::tr(
+            &self.shell.catalog,
+            ui_text::WINDOW_CONFIG_DIAGNOSTICS_HEADING,
+        )
+        .to_string();
+        out.push_str("\n\n");
         let important_unbound = important_config_diagnostic_commands()
             .iter()
             .filter(|command| self.shell.keymap.sequence_for_command(command).is_none())
@@ -383,7 +398,8 @@ impl AppState {
             important_unbound.join(", ")
         };
 
-        out.push_str("Summary\n");
+        out.push_str(ConfigDiagnosticsSection::Summary.heading(&self.shell.catalog));
+        out.push('\n');
         out.push_str(&format!(
             "  config: {}\n",
             self.config_source.diagnostics_text()
@@ -429,12 +445,16 @@ impl AppState {
             important_unbound_text
         ));
 
-        out.push_str("\nPaths\n");
+        out.push('\n');
+        out.push_str(ConfigDiagnosticsSection::Paths.heading(&self.shell.catalog));
+        out.push('\n');
         out.push_str(&format!("  {DUN_CONFIG_ENV}: {}\n", env_config_path_text()));
         out.push_str(&format!("  default path: {}\n", default_config_path_text()));
         out.push_str("  defaults: dun --dump-config\n");
 
-        out.push_str("\nSource\n");
+        out.push('\n');
+        out.push_str(ConfigDiagnosticsSection::Source.heading(&self.shell.catalog));
+        out.push('\n');
         out.push_str(&format!(
             "  active: {}\n",
             self.config_source.diagnostics_text()
@@ -444,7 +464,9 @@ impl AppState {
             self.config_request.diagnostics_text()
         ));
 
-        out.push_str("\nTerminal\n");
+        out.push('\n');
+        out.push_str(ConfigDiagnosticsSection::Terminal.heading(&self.shell.catalog));
+        out.push('\n');
         out.push_str(&format!(
             "  detected: {}\n",
             terminal_profile_status(self.detected_profile)
@@ -467,7 +489,9 @@ impl AppState {
             }
         ));
 
-        out.push_str("\nInput\n");
+        out.push('\n');
+        out.push_str(ConfigDiagnosticsSection::Input.heading(&self.shell.catalog));
+        out.push('\n');
         out.push_str(&format!(
             "  mouse: {}\n",
             if self.mouse_enabled {
@@ -477,7 +501,9 @@ impl AppState {
             }
         ));
 
-        out.push_str("\nClipboard\n");
+        out.push('\n');
+        out.push_str(ConfigDiagnosticsSection::Clipboard.heading(&self.shell.catalog));
+        out.push('\n');
         out.push_str(&format!(
             "  osc52_write: {}\n",
             if self.clipboard.osc52.enabled {
@@ -499,7 +525,9 @@ impl AppState {
             self.clipboard.osc52.max_bytes
         ));
 
-        out.push_str("\nLimits\n");
+        out.push('\n');
+        out.push_str(ConfigDiagnosticsSection::Limits.heading(&self.shell.catalog));
+        out.push('\n');
         out.push_str(&format!(
             "  editable_file_soft_limit_bytes: {}\n",
             self.limits.editable_file_soft_limit_bytes
@@ -509,7 +537,9 @@ impl AppState {
             self.limits.line_display_soft_limit_bytes
         ));
 
-        out.push_str("\nKeymap\n");
+        out.push('\n');
+        out.push_str(ConfigDiagnosticsSection::Keymap.heading(&self.shell.catalog));
+        out.push('\n');
         out.push_str(&format!(
             "  bindings: {}\n",
             self.shell.keymap.bindings.len()
@@ -527,7 +557,9 @@ impl AppState {
             out.push_str(&format!("  {command:<28} {sequence}\n"));
         }
 
-        out.push_str("\nFile Dialog Keymap\n");
+        out.push('\n');
+        out.push_str(ConfigDiagnosticsSection::FileDialogKeymap.heading(&self.shell.catalog));
+        out.push('\n');
         out.push_str(&format!(
             "  bindings: {}\n",
             self.file_dialog_keys.bindings.len()

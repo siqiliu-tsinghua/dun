@@ -83,18 +83,19 @@ pub(crate) enum ConfigDiagnosticsSection {
 }
 
 impl ConfigDiagnosticsSection {
-    pub(crate) const fn heading(self) -> &'static str {
-        match self {
-            Self::Summary => "Summary",
-            Self::Paths => "Paths",
-            Self::Source => "Source",
-            Self::Terminal => "Terminal",
-            Self::Input => "Input",
-            Self::Clipboard => "Clipboard",
-            Self::Limits => "Limits",
-            Self::Keymap => "Keymap",
-            Self::FileDialogKeymap => "File Dialog Keymap",
-        }
+    pub(crate) fn heading(self, catalog: &TextCatalog) -> &str {
+        let key = match self {
+            Self::Summary => ui_text::WINDOW_CONFIG_DIAGNOSTICS_SECTION_SUMMARY,
+            Self::Paths => ui_text::WINDOW_CONFIG_DIAGNOSTICS_SECTION_PATHS,
+            Self::Source => ui_text::WINDOW_CONFIG_DIAGNOSTICS_SECTION_SOURCE,
+            Self::Terminal => ui_text::WINDOW_CONFIG_DIAGNOSTICS_SECTION_TERMINAL,
+            Self::Input => ui_text::WINDOW_CONFIG_DIAGNOSTICS_SECTION_INPUT,
+            Self::Clipboard => ui_text::WINDOW_CONFIG_DIAGNOSTICS_SECTION_CLIPBOARD,
+            Self::Limits => ui_text::WINDOW_CONFIG_DIAGNOSTICS_SECTION_LIMITS,
+            Self::Keymap => ui_text::WINDOW_CONFIG_DIAGNOSTICS_SECTION_KEYMAP,
+            Self::FileDialogKeymap => ui_text::WINDOW_CONFIG_DIAGNOSTICS_SECTION_FILE_DIALOG_KEYMAP,
+        };
+        ui_text::tr(catalog, key)
     }
 
     pub(crate) const fn label(self) -> &'static str {

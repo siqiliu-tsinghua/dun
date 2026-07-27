@@ -252,6 +252,143 @@ fn shipped_zh_catalog_translates_the_whole_help_window() {
 }
 
 #[test]
+fn shipped_zh_config_diagnostics_jump_finds_the_translated_heading() {
+    let mut app = AppState::new();
+    app.shell.catalog = shipped_zh_catalog();
+
+    app.jump_config_diagnostics_section(ConfigDiagnosticsSection::FileDialogKeymap);
+
+    let window = app.workspace.focused_window().unwrap();
+    assert_eq!(window.kind, WindowKind::ConfigDiagnostics);
+    let buffer = app.buffer_state(window.buffer_id).unwrap();
+    assert_eq!(
+        buffer.buffer.line(buffer.buffer.cursor_position().line),
+        Some("文件对话框快捷键")
+    );
+}
+
+#[test]
+fn shipped_zh_config_diagnostics_body_has_no_english_headings() {
+    let mut app = AppState::new();
+    app.shell.catalog = shipped_zh_catalog();
+
+    app.open_config_diagnostics_screen();
+
+    let window = app.workspace.focused_window().unwrap();
+    let text = app.buffer_state(window.buffer_id).unwrap().buffer.to_text();
+    for translated in [
+        "Dun 配置诊断",
+        "摘要",
+        "路径",
+        "来源",
+        "终端",
+        "输入",
+        "剪贴板",
+        "限制",
+        "快捷键",
+        "文件对话框快捷键",
+    ] {
+        assert!(
+            text.lines().any(|line| line == translated),
+            "missing translated heading `{translated}`"
+        );
+    }
+    for english in [
+        "Dun Config Diagnostics",
+        "Summary",
+        "Paths",
+        "Source",
+        "Terminal",
+        "Input",
+        "Clipboard",
+        "Limits",
+        "Keymap",
+        "File Dialog Keymap",
+    ] {
+        assert!(
+            !text.contains(english),
+            "English heading leaked into translated diagnostics: `{english}`"
+        );
+    }
+}
+
+#[test]
+fn empty_catalog_keeps_diagnostic_window_body_headings_exactly_english() {
+    let mut app = AppState::new();
+
+    app.open_config_diagnostics_screen();
+
+    let window = app.workspace.focused_window().unwrap();
+    let text = app.buffer_state(window.buffer_id).unwrap().buffer.to_text();
+    let expected = [
+        "Dun Config Diagnostics",
+        "Summary",
+        "Paths",
+        "Source",
+        "Terminal",
+        "Input",
+        "Clipboard",
+        "Limits",
+        "Keymap",
+        "File Dialog Keymap",
+    ];
+    let actual = text
+        .lines()
+        .filter(|line| expected.contains(line))
+        .collect::<Vec<_>>();
+    assert_eq!(actual, expected);
+
+    assert_eq!(
+        AppState::new().status_history_text(),
+        "Dun Status History\n\nNo status messages yet.\n"
+    );
+}
+
+/// The severity tags are catalog-driven now, so the English defaults need a
+/// test of their own: `StatusLevel::label()` used to hold them and is gone.
+#[test]
+fn empty_catalog_keeps_status_history_levels_exactly_english() {
+    let mut app = AppState::new();
+    app.set_status("Opened sample.txt");
+    app.set_status("Save failed: disk full");
+
+    let text = app.status_history_text();
+
+    assert!(text.contains("[info] Opened sample.txt"), "{text}");
+    assert!(text.contains("[error] Save failed: disk full"), "{text}");
+}
+
+#[test]
+fn shipped_zh_status_history_body_translates_heading_and_levels() {
+    let mut app = AppState::new();
+    app.shell.catalog = shipped_zh_catalog();
+    app.set_status("Opened sample.txt");
+    app.set_status("Save failed: disk full");
+
+    let text = app.status_history_text();
+
+    assert!(text.starts_with("Dun 状态历史\n\n"));
+    assert!(text.contains("[信息] Opened sample.txt"));
+    assert!(text.contains("[错误] Save failed: disk full"));
+    assert!(!text.contains("Dun Status History"));
+    assert!(!text.contains("[info]"));
+    assert!(!text.contains("[error]"));
+}
+
+/// The empty-history line is the one full sentence in this window that brief
+/// 054 did not cover; it is catalog-driven now like the rest of the body.
+#[test]
+fn shipped_zh_status_history_translates_the_empty_message() {
+    let mut app = AppState::new();
+    app.shell.catalog = shipped_zh_catalog();
+
+    let text = app.status_history_text();
+
+    assert_eq!(text, "Dun 状态历史\n\n暂无状态消息。\n");
+    assert!(!text.contains("No status messages yet."));
+}
+
+#[test]
 fn every_shipped_translation_is_valid_and_complete() {
     const DESTRUCTIVE_ACTION_KEYS: [&str; 3] = [
         "confirm.button.save",

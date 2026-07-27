@@ -93,6 +93,40 @@ pub(crate) const WINDOW_SEARCH_RESULTS_TITLE: TextKey =
 pub(crate) const WINDOW_COMMAND_OUTPUT_TITLE: TextKey =
     ("window.command-output.title", "Command Output");
 
+// Helper-window body text.
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_HEADING: TextKey = (
+    "window.config-diagnostics.heading",
+    "Dun Config Diagnostics",
+);
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_SECTION_SUMMARY: TextKey =
+    ("window.config-diagnostics.section.summary", "Summary");
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_SECTION_PATHS: TextKey =
+    ("window.config-diagnostics.section.paths", "Paths");
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_SECTION_SOURCE: TextKey =
+    ("window.config-diagnostics.section.source", "Source");
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_SECTION_TERMINAL: TextKey =
+    ("window.config-diagnostics.section.terminal", "Terminal");
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_SECTION_INPUT: TextKey =
+    ("window.config-diagnostics.section.input", "Input");
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_SECTION_CLIPBOARD: TextKey =
+    ("window.config-diagnostics.section.clipboard", "Clipboard");
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_SECTION_LIMITS: TextKey =
+    ("window.config-diagnostics.section.limits", "Limits");
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_SECTION_KEYMAP: TextKey =
+    ("window.config-diagnostics.section.keymap", "Keymap");
+pub(crate) const WINDOW_CONFIG_DIAGNOSTICS_SECTION_FILE_DIALOG_KEYMAP: TextKey = (
+    "window.config-diagnostics.section.file-dialog-keymap",
+    "File Dialog Keymap",
+);
+pub(crate) const WINDOW_STATUS_HISTORY_HEADING: TextKey =
+    ("window.status-history.heading", "Dun Status History");
+pub(crate) const WINDOW_STATUS_HISTORY_LEVEL_INFO: TextKey =
+    ("window.status-history.level.info", "info");
+pub(crate) const WINDOW_STATUS_HISTORY_LEVEL_ERROR: TextKey =
+    ("window.status-history.level.error", "error");
+pub(crate) const WINDOW_STATUS_HISTORY_EMPTY: TextKey =
+    ("window.status-history.empty", "No status messages yet.");
+
 #[cfg(test)]
 pub(super) const ALL: &[TextKey] = &[
     PROMPT_COMMAND_TITLE,
@@ -153,4 +187,18 @@ pub(super) const ALL: &[TextKey] = &[
     WINDOW_STATUS_HISTORY_TITLE,
     WINDOW_SEARCH_RESULTS_TITLE,
     WINDOW_COMMAND_OUTPUT_TITLE,
+    WINDOW_CONFIG_DIAGNOSTICS_HEADING,
+    WINDOW_CONFIG_DIAGNOSTICS_SECTION_SUMMARY,
+    WINDOW_CONFIG_DIAGNOSTICS_SECTION_PATHS,
+    WINDOW_CONFIG_DIAGNOSTICS_SECTION_SOURCE,
+    WINDOW_CONFIG_DIAGNOSTICS_SECTION_TERMINAL,
+    WINDOW_CONFIG_DIAGNOSTICS_SECTION_INPUT,
+    WINDOW_CONFIG_DIAGNOSTICS_SECTION_CLIPBOARD,
+    WINDOW_CONFIG_DIAGNOSTICS_SECTION_LIMITS,
+    WINDOW_CONFIG_DIAGNOSTICS_SECTION_KEYMAP,
+    WINDOW_CONFIG_DIAGNOSTICS_SECTION_FILE_DIALOG_KEYMAP,
+    WINDOW_STATUS_HISTORY_HEADING,
+    WINDOW_STATUS_HISTORY_LEVEL_INFO,
+    WINDOW_STATUS_HISTORY_LEVEL_ERROR,
+    WINDOW_STATUS_HISTORY_EMPTY,
 ];
