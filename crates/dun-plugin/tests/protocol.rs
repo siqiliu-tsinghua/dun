@@ -289,9 +289,9 @@ fn menu_from_ungranted_host_is_ignored() {
 }
 
 #[test]
-fn keybinding_granted_host_contributes_its_leader_and_chords() {
+fn keybinding_granted_host_contributes_its_chords() {
     // A log-filter role is granted `keybinding`, so the fixture's advertised
-    // leader + chords are parsed and exposed.
+    // chords are parsed and exposed; the leader is dun's, not the host's.
     let client = HostClient::launch(
         Path::new(FIXTURE_HOST),
         "highlight",
@@ -302,8 +302,7 @@ fn keybinding_granted_host_contributes_its_leader_and_chords() {
     .expect("log-filter host launches");
     let keybinding = client
         .keybinding()
-        .expect("a keybinding-granted host contributes a leader");
-    assert_eq!(keybinding.leader, "Ctrl+J");
+        .expect("a keybinding-granted host contributes chords");
     assert_eq!(keybinding.chords.len(), 1);
     assert_eq!(keybinding.chords[0].key, "p");
     assert_eq!(keybinding.chords[0].action_id, "ping");
@@ -312,7 +311,7 @@ fn keybinding_granted_host_contributes_its_leader_and_chords() {
 #[test]
 fn keybinding_from_ungranted_host_is_ignored() {
     // A syntax-highlight role has no `keybinding` capability, so the same
-    // advertised leader is dropped rather than honored.
+    // advertised contribution is dropped rather than honored.
     let client = HostClient::launch(
         Path::new(FIXTURE_HOST),
         "highlight",
@@ -323,7 +322,7 @@ fn keybinding_from_ungranted_host_is_ignored() {
     .expect("syntax-highlight host launches");
     assert!(
         client.keybinding().is_none(),
-        "a host without the keybinding capability must not contribute a leader"
+        "a host without the keybinding capability must not contribute chords"
     );
 }
 

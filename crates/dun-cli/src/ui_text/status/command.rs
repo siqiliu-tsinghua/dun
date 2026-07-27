@@ -89,7 +89,15 @@ pub(crate) const STATUS_PLUGIN_WINDOW_LIMIT: TextKey = (
 );
 pub(crate) const STATUS_PLUGIN_KEYBINDING_CONFLICT: TextKey = (
     "status.plugin.keybinding-conflict",
-    "Plugin {} keybinding ignored: leader conflicts",
+    "Plugin {} keybinding ignored: chord already claimed",
+);
+/// A global failure, not a per-plugin one: the reserved leader itself is bound
+/// in the user's keymap, so no plugin can bind anything. Distinct from a chord
+/// clash on purpose — telling a user "chord already claimed" when they had
+/// rebound the leader would send them looking in the wrong place.
+pub(crate) const STATUS_PLUGIN_KEYBINDING_LEADER_TAKEN: TextKey = (
+    "status.plugin.keybinding-leader-taken",
+    "Plugin keybindings disabled: {} is bound in your keymap",
 );
 pub(crate) const STATUS_PLUGIN_MENU_INVALID_MNEMONIC: TextKey = (
     "status.plugin.menu-invalid-mnemonic",
@@ -210,6 +218,7 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_COMMAND_CONFIG_SECTION, STATUS_COMMAND_CONFIG_SECTION_ARITY, STATUS_PLUGIN_NOT_CONFIGURED, STATUS_PLUGIN_IS_LOADED,
     STATUS_PLUGIN_IS_UNLOADED, STATUS_PLUGIN_UNLOADED, STATUS_PLUGIN_LOADED, STATUS_PLUGIN_LOADED_EAGER,
     STATUS_PLUGIN_USAGE, STATUS_PLUGIN_UNKNOWN_ID, STATUS_PLUGIN_FAILED, STATUS_PLUGIN_WINDOW_LIMIT, STATUS_PLUGIN_KEYBINDING_CONFLICT,
+    STATUS_PLUGIN_KEYBINDING_LEADER_TAKEN,
     STATUS_PLUGIN_MENU_INVALID_MNEMONIC, STATUS_PLUGIN_MENU_MNEMONIC_CONFLICT, STATUS_THEME_CHANGED,
     STATUS_THEME_CURRENT, STATUS_THEME_UNKNOWN,
     STATUS_CONFIG_RELOAD_FAILED, STATUS_CONFIG_RELOADED_DISABLED, STATUS_CONFIG_RELOADED_PATH, STATUS_CONFIG_RELOADED_ENVIRONMENT,

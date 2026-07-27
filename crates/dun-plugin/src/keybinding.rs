@@ -1,11 +1,12 @@
 //! Typed contribution model and validator for the `keybinding` capability.
 //!
-//! A host reserves one leader prefix key and binds chords beneath it (Emacs
-//! `C-x` style; docs/plugin-protocol.md). This module validates structure only
-//! — bounded counts, no control/space characters, distinct chord keys. The
-//! leader and chord *keys* are opaque strings here: `dun-plugin` has no key
-//! model, so `dun` parses them into real keystrokes and checks the leader for
-//! collisions against the live keymap.
+//! A host declares chords that `dun` binds beneath the one leader prefix it
+//! reserves for every plugin (Emacs `C-x` style; docs/plugin-protocol.md).
+//! Hosts do not choose the leader: a shared, editor-owned prefix is what makes
+//! a plugin binding structurally incapable of shadowing an editor key. This
+//! module validates structure only — bounded counts, no control/space
+//! characters, distinct chord keys. Chord *keys* are opaque strings here:
+//! `dun-plugin` has no key model, so `dun` parses them into real keystrokes.
 
 use crate::json::Json;
 use crate::menu::PluginActionKind;
@@ -24,20 +25,22 @@ pub struct PluginChord {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PluginKeybinding {
-    /// The leader prefix keystroke spec string, parsed by `dun`.
-    pub leader: String,
     pub chords: Vec<PluginChord>,
 }
 
 impl PluginKeybinding {
     pub fn from_payload(payload: &Json) -> Result<Self, &'static str> {
-        let leader = payload
-            .get("leader")
-            .ok_or("keybinding payload has no leader")?
-            .as_str()
-            .ok_or("keybinding leader is not a string")?;
-        if !is_valid_token(leader, KEYBINDING_MAX_KEY_CHARS) {
-            return Err("keybinding leader is empty, too long, or has a non-graphic character");
+        // `leader` is accepted and ignored. Hosts no longer choose one: `dun`
+        // reserves a single leader for every plugin, which is what makes a
+        // plugin binding structurally unable to shadow an editor key. Older
+        // hosts still send the field, so rejecting it would break them for no
+        // gain; it is validated as a token only so a malformed payload still
+        // fails loudly rather than silently.
+        if let Some(leader) = payload.get("leader") {
+            let leader = leader.as_str().ok_or("keybinding leader is not a string")?;
+            if !is_valid_token(leader, KEYBINDING_MAX_KEY_CHARS) {
+                return Err("keybinding leader is empty, too long, or has a non-graphic character");
+            }
         }
 
         let chords = payload
@@ -88,10 +91,7 @@ impl PluginKeybinding {
             });
         }
 
-        Ok(Self {
-            leader: leader.to_string(),
-            chords: validated,
-        })
+        Ok(Self { chords: validated })
     }
 }
 
@@ -123,19 +123,23 @@ mod tests {
     }
 
     #[test]
-    fn accepts_a_leader_with_chords() {
+    fn accepts_chords_and_ignores_a_legacy_leader() {
         let payload = payload("Ctrl+J", vec![chord("f", "filter"), chord("c", "clear")]);
         let binding = PluginKeybinding::from_payload(&payload).expect("valid keybinding");
-        assert_eq!(binding.leader, "Ctrl+J");
+        // The host's own leader choice is accepted for compatibility and then
+        // discarded: dun reserves the one leader every plugin binds under.
         assert_eq!(binding.chords.len(), 2);
         assert_eq!(binding.chords[1].key, "c");
         assert_eq!(binding.chords[1].action_id, "clear");
     }
 
+    /// A leader is no longer required: dun supplies it. A payload with only
+    /// chords is now the expected shape.
     #[test]
-    fn rejects_missing_leader() {
+    fn accepts_a_payload_without_a_leader() {
         let payload = json::obj([("chords", Json::Arr(vec![chord("f", "filter")]))]);
-        assert_eq!(error(&payload), "keybinding payload has no leader");
+        let binding = PluginKeybinding::from_payload(&payload).expect("valid keybinding");
+        assert_eq!(binding.chords.len(), 1);
     }
 
     #[test]

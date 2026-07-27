@@ -6,7 +6,7 @@
 -- full example of a host that exercises the whole capability surface beyond
 -- syntax-highlight: framed stdio (u32 little-endian length + JSON) with a
 -- hand-rolled JSON layer, a `hello-ack` that contributes a menu subtree and a
--- Ctrl+T keybinding leader (each action tagged scratch/execute/surface), and
+-- keybinding chords under dun's reserved leader (each action tagged), and
 -- the log-filter request handling. Configure:
 --
 --     plugin.logfilter.command = /path/to/dun-lua-logfilter-host.lua
@@ -265,8 +265,8 @@ local function hello_payload()
       },
     },
     keybinding = {
-      __order = { "leader", "chords" },
-      leader = "Ctrl+T",
+      -- No leader: dun reserves one prefix for every plugin.
+      __order = { "chords" },
       chords = {
         chord("e", "edit", "scratch"),
         chord("a", "apply", "execute"),

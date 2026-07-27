@@ -1470,8 +1470,9 @@ fn keybinding_leader_chord_dispatches_a_plugin_action() {
     let mut app = app_with_keybinding_host("logf", keybinding("Ctrl+J", "o", "open"));
     assert_eq!(app.shell.plugin_keymap.bindings.len(), 1);
 
-    // The leader alone is a pending prefix: consumed, nothing dispatched.
-    assert!(app.handle_key_stroke(stroke("Ctrl+J")));
+    // The host's own "Ctrl+J" is ignored: dun binds every plugin under its
+    // reserved leader, so the sequence is Ctrl+T then the chord.
+    assert!(app.handle_key_stroke(stroke("Ctrl+T")));
     assert_eq!(surface_window_count(&app), 0);
 
     // The chord completes the sequence and dispatches the plugin action, which
@@ -1485,7 +1486,7 @@ fn keybinding_leader_chord_dispatches_a_plugin_action() {
 fn keybinding_leader_then_unbound_key_cancels_without_dispatch() {
     let mut app = app_with_keybinding_host("logf", keybinding("Ctrl+J", "o", "open"));
 
-    assert!(app.handle_key_stroke(stroke("Ctrl+J")));
+    assert!(app.handle_key_stroke(stroke("Ctrl+T")));
     // A key that is not a chord under the leader cancels the pending prefix.
     app.handle_key_stroke(stroke("z"));
     assert_eq!(surface_window_count(&app), 0);
@@ -1493,25 +1494,70 @@ fn keybinding_leader_then_unbound_key_cancels_without_dispatch() {
 }
 
 #[test]
-fn keybinding_leader_colliding_with_a_built_in_prefix_is_rejected() {
-    // `Ctrl+X` is the built-in leader for many bindings, so a plugin claiming it
-    // would shadow them; its whole contribution is dropped.
-    let app = app_with_keybinding_host("logf", keybinding("Ctrl+X", "o", "open"));
+fn plugin_keybindings_are_dropped_when_the_reserved_leader_is_taken() {
+    // A plugin can no longer collide with an editor key by choosing a bad
+    // leader -- it does not choose one. The remaining way to lose the prefix
+    // is the user binding it themselves, and then every plugin loses at once.
+    let mut app = AppState::new();
+    app.shell.keymap.bindings.push(dun_config::KeyBinding {
+        sequence: KeySequence::single(stroke(crate::plugins::PLUGIN_LEADER)),
+        command: EditorCommand::App(dun_core::AppCommand::Help),
+    });
+    let (mut host, _messages, events) = PluginHost::for_tests_granted("logf", eager_grant());
+    events
+        .send(HostEvent::Started {
+            menu: None,
+            keybinding: Some(keybinding("Ctrl+J", "o", "open")),
+        })
+        .unwrap();
+    assert!(host.poll().is_empty());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+    app.pump_plugins();
+
     assert!(
         app.shell.plugin_keymap.bindings.is_empty(),
-        "a leader that collides with a built-in prefix must not install"
+        "no plugin may bind when the reserved leader is not free"
+    );
+    assert_eq!(
+        app.status_message,
+        Some("Plugin keybindings disabled: Ctrl+T is bound in your keymap".to_string()),
+        "the reported cause must be the leader, not a chord clash"
     );
 }
 
 #[test]
 fn a_rejected_keybinding_reports_a_status_message() {
-    // A colliding leader is dropped from the keymap — a silent no-op before —
-    // so the user now gets a status message naming the plugin instead.
-    let app = app_with_keybinding_host("logf", keybinding("Ctrl+X", "o", "open"));
-    assert!(app.shell.plugin_keymap.bindings.is_empty());
+    // Two plugins want the same chord under the shared leader. The later one
+    // is dropped -- a silent no-op before -- so the user gets a status message
+    // naming it and can fix it in that plugin's own config.
+    let mut app = AppState::new();
+    let (mut alpha, _am, alpha_events) = PluginHost::for_tests_granted("alpha", eager_grant());
+    let (mut logf, _lm, logf_events) = PluginHost::for_tests_granted("logf", eager_grant());
+    alpha_events
+        .send(HostEvent::Started {
+            menu: None,
+            keybinding: Some(keybinding("Ctrl+J", "o", "alpha-open")),
+        })
+        .unwrap();
+    logf_events
+        .send(HostEvent::Started {
+            menu: None,
+            keybinding: Some(keybinding("Ctrl+J", "o", "open")),
+        })
+        .unwrap();
+    assert!(alpha.poll().is_empty());
+    assert!(logf.poll().is_empty());
+    app.plugin_hosts = PluginHosts::for_tests(vec![alpha, logf]);
+    app.pump_plugins();
+
+    assert_eq!(
+        app.shell.plugin_keymap.bindings.len(),
+        1,
+        "the first claimant keeps the chord"
+    );
     assert_eq!(
         app.status_message,
-        Some("Plugin logf keybinding ignored: leader conflicts".to_string()),
+        Some("Plugin logf keybinding ignored: chord already claimed".to_string()),
         "a rejected keybinding must be reported, not silent"
     );
     assert_eq!(
@@ -1532,7 +1578,7 @@ fn an_accepted_keybinding_reports_nothing() {
 }
 
 #[test]
-fn two_plugins_cannot_claim_the_same_leader() {
+fn two_plugins_cannot_claim_the_same_chord() {
     let mut app = AppState::new();
     let (mut alpha, _am, alpha_events) = PluginHost::for_tests_granted("alpha", eager_grant());
     let (mut beta, _bm, beta_events) = PluginHost::for_tests_granted("beta", eager_grant());
@@ -1545,7 +1591,7 @@ fn two_plugins_cannot_claim_the_same_leader() {
     beta_events
         .send(HostEvent::Started {
             menu: None,
-            keybinding: Some(keybinding("Ctrl+J", "b", "beta-open")),
+            keybinding: Some(keybinding("Ctrl+J", "a", "beta-open")),
         })
         .unwrap();
     assert!(alpha.poll().is_empty());
@@ -1553,7 +1599,8 @@ fn two_plugins_cannot_claim_the_same_leader() {
     app.plugin_hosts = PluginHosts::for_tests(vec![alpha, beta]);
     app.pump_plugins();
 
-    // Only the first claimant (config order) keeps the leader.
+    // Both bind under the same reserved leader, so the clash is the chord
+    // itself; only the first claimant in config order keeps it.
     assert_eq!(app.shell.plugin_keymap.bindings.len(), 1);
     assert_eq!(
         app.shell.plugin_keymap.bindings[0].command,

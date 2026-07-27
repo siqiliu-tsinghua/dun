@@ -4,7 +4,7 @@
 Speaks the framed-stdio protocol from docs/plugin-protocol.md as a
 `user-trusted-external` host for the `log-filter` role. It is the first
 reference host that exercises the whole capability surface beyond
-syntax-highlight: it contributes a menu and a keybinding leader, owns an
+syntax-highlight: it contributes a menu and keybinding chords, owns an
 editable scratch window and a surface window, and filters the command-output
 stream.
 
@@ -97,7 +97,8 @@ def hello_payload():
             ],
         },
         "keybinding": {
-            "leader": "Ctrl+T",
+            # No leader: dun reserves one prefix for every plugin, which is
+            # what makes a plugin binding unable to shadow an editor key.
             "chords": [
                 {"key": "e", "action_id": "edit", "kind": "scratch"},
                 {"key": "a", "action_id": "apply", "kind": "execute"},

@@ -570,14 +570,28 @@ impl PluginHosts {
     /// already claimed by an earlier plugin this pass is rejected — its whole
     /// contribution is dropped — so a plugin can never shadow an existing
     /// binding or another plugin's leader.
-    pub(crate) fn resolved_keybindings(&self, base: &Keymap) -> (Keymap, Vec<String>) {
+    pub(crate) fn resolved_keybindings(&self, base: &Keymap) -> (Keymap, Vec<String>, bool) {
         let mut bindings: Vec<KeyBinding> = Vec::new();
-        let mut claimed_leaders: Vec<KeyStroke> = Vec::new();
+        let mut claimed_chords: Vec<KeyStroke> = Vec::new();
         let mut rejected: Vec<String> = Vec::new();
+        let Some(leader) = plugin_leader(base) else {
+            // The reserved leader is unusable because the editor's own keymap
+            // took it. Report every contribution rather than binding some of
+            // them somewhere unexpected.
+            return (
+                Keymap {
+                    bindings: Vec::new(),
+                },
+                self.keybindings()
+                    .map(|(plugin_id, _)| plugin_id.to_string())
+                    .collect(),
+                true,
+            );
+        };
         for (plugin_id, keybinding) in self.keybindings() {
-            match resolve_plugin_keybinding(plugin_id, keybinding, base, &claimed_leaders) {
+            match resolve_plugin_keybinding(plugin_id, keybinding, leader, &claimed_chords) {
                 Some(resolved) => {
-                    claimed_leaders.push(resolved.leader);
+                    claimed_chords.extend(resolved.chords);
                     bindings.extend(resolved.bindings);
                 }
                 // A host that advertised a keybinding but was rejected (leader
@@ -586,12 +600,33 @@ impl PluginHosts {
                 None => rejected.push(plugin_id.to_string()),
             }
         }
-        (Keymap { bindings }, rejected)
+        (Keymap { bindings }, rejected, false)
     }
 }
 
+/// The one leader prefix every plugin binds under.
+///
+/// Reserving a single editor-owned prefix is what makes a plugin binding
+/// structurally unable to shadow an editor key — the property per-plugin
+/// leaders could only ever check for, never guarantee. `Ctrl+T` is the choice
+/// because the free Ctrl-letters are I, J, M, T and U, and three of those are
+/// unreachable in a terminal: Ctrl+I is byte 0x09 (Tab), Ctrl+M is 0x0D
+/// (Enter) and Ctrl+J is 0x0A, all matched before the Ctrl-letter branch in
+/// `terminal/vt/parser`. T was already the reference host's own pick.
+pub(crate) const PLUGIN_LEADER: &str = "Ctrl+T";
+
+/// The reserved leader, unless the editor's own keymap has claimed it — a
+/// user may rebind anything, so this is checked rather than assumed.
+fn plugin_leader(base: &Keymap) -> Option<KeyStroke> {
+    let leader: KeyStroke = PLUGIN_LEADER.parse().ok()?;
+    let sequence = KeySequence::single(leader);
+    let free =
+        base.command_for_sequence(&sequence).is_none() && !base.has_sequence_prefix(&sequence);
+    free.then_some(leader)
+}
+
 struct ResolvedKeybinding {
-    leader: KeyStroke,
+    chords: Vec<KeyStroke>,
     bindings: Vec<KeyBinding>,
 }
 
@@ -602,22 +637,23 @@ struct ResolvedKeybinding {
 fn resolve_plugin_keybinding(
     plugin_id: &str,
     keybinding: &PluginKeybinding,
-    base: &Keymap,
-    claimed_leaders: &[KeyStroke],
+    leader: KeyStroke,
+    claimed_chords: &[KeyStroke],
 ) -> Option<ResolvedKeybinding> {
-    let leader: KeyStroke = keybinding.leader.parse().ok()?;
-    // The leader must be an entirely free prefix: not a complete binding, not
-    // the start of any existing sequence, and not already taken by a plugin.
-    let leader_seq = KeySequence::single(leader);
-    if base.command_for_sequence(&leader_seq).is_some()
-        || base.has_sequence_prefix(&leader_seq)
-        || claimed_leaders.contains(&leader)
-    {
-        return None;
-    }
+    // Every chord must be free under the shared leader. A plugin whose chord
+    // an earlier plugin already claimed loses its whole contribution rather
+    // than landing half-bound: a host that believes it owns `<leader> f` and
+    // silently does not is worse than one that is told it was rejected. The
+    // user resolves it by editing that plugin's own config, which is where a
+    // plugin's settings live.
     let mut bindings = Vec::with_capacity(keybinding.chords.len());
+    let mut taken = Vec::with_capacity(keybinding.chords.len());
     for chord in &keybinding.chords {
         let key: KeyStroke = chord.key.parse().ok()?;
+        if claimed_chords.contains(&key) || taken.contains(&key) {
+            return None;
+        }
+        taken.push(key);
         bindings.push(KeyBinding {
             sequence: KeySequence {
                 strokes: vec![leader, key],
@@ -629,7 +665,10 @@ fn resolve_plugin_keybinding(
             },
         });
     }
-    Some(ResolvedKeybinding { leader, bindings })
+    Some(ResolvedKeybinding {
+        chords: taken,
+        bindings,
+    })
 }
 
 /// Map the wire action kind to the dun-core kind (two identical enums kept in

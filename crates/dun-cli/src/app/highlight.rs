@@ -113,7 +113,8 @@ impl AppState {
             };
             self.set_status(message);
         }
-        let (keymap, rejected) = self.plugin_hosts.resolved_keybindings(&self.shell.keymap);
+        let (keymap, rejected, leader_taken) =
+            self.plugin_hosts.resolved_keybindings(&self.shell.keymap);
         if keymap.bindings != self.shell.plugin_keymap.bindings {
             self.shell.plugin_keymap = keymap;
         }
@@ -125,12 +126,24 @@ impl AppState {
                 .find(|id| !self.shell.plugin_keybinding_rejections.contains(*id))
                 .cloned();
             self.shell.plugin_keybinding_rejections = rejected;
-            if let Some(id) = newly {
-                self.set_status(ui_text::tr_fmt(
-                    &self.shell.catalog,
-                    ui_text::STATUS_PLUGIN_KEYBINDING_CONFLICT,
-                    &[&id],
-                ));
+            if newly.is_some() {
+                // One message for the whole batch when the reserved leader is
+                // the cause: every plugin fails at once, and naming them one by
+                // one would bury the single fact that matters.
+                let status = if leader_taken {
+                    ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PLUGIN_KEYBINDING_LEADER_TAKEN,
+                        &[crate::plugins::PLUGIN_LEADER],
+                    )
+                } else {
+                    ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PLUGIN_KEYBINDING_CONFLICT,
+                        &[newly.as_deref().unwrap_or_default()],
+                    )
+                };
+                self.set_status(status);
             }
         }
     }

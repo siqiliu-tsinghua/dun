@@ -199,7 +199,7 @@ ones — trust-gated.
 | `window` | tiled window / dock | create and destroy its own windows | ≤2 per plugin + aggregate/terminal-size fallback; destroy own only; `user-trusted-external` |
 | `scratch-input` | editable scratch buffer + execute | own a window backed by a `dun`-native editable buffer; the user edits it with `dun`'s own editing engine; an `execute` action submits the whole buffer text to the host as one blob (no keystroke routing). The submitted snippet runs in the host's interpreter, never in `dun`. | one scratch window; `user-trusted-external` |
 | `menu` | menu bar | create one top-level menu entry; all items hang beneath it; each item dispatches a request to the host | one top-level subtree; bounded item count/depth/label length; label i18n required; `user-trusted-external` |
-| `keybinding` | keymap + event loop | reserve one leader prefix key and bind chords beneath it (Emacs `C-x` style) | one leader; must not shadow existing bindings; `user-trusted-external` |
+| `keybinding` | keymap + event loop | bind chords beneath the single leader prefix `dun` reserves for all plugins (Emacs `C-x` style) | ≤32 chords; the leader is `dun`'s, not the plugin's; first claimant wins a chord; `user-trusted-external` |
 
 Read-only and validated-write capabilities (`buffer-read`, `stream-read`,
 `overlay-write`, `surface-write`) are eligible for `pure-sandbox` auto-granting.
@@ -219,7 +219,8 @@ Each plugin gets a namespaced slice of `dun`-owned UI surfaces, all tagged by
   lower`. Splitting the focused window again instead would put a third
   column on screen, and at 80 columns that leaves every pane too narrow to
   read;
-- one keybinding leader prefix and its chord space;
+- a chord space beneath the shared plugin leader (the prefix itself is
+  `dun`'s, shared by every plugin, and never a plugin's to claim);
 - at most two windows.
 
 Ownership makes "destroy/remove only your own" automatic: each surface is a
@@ -234,6 +235,48 @@ same shape: a menu-contribution message carries labels as a locale-tag map. The
 author must supply at least `en_US`; other tags are optional. `dun` resolves by
 the active locale and falls back to `en_US`. A single-tag contribution is legal;
 a contribution missing `en_US` is rejected.
+
+### The reserved plugin leader
+
+Every plugin binds under one editor-owned prefix, **`Ctrl+T`**. Hosts do not
+choose it and no longer declare `leader`; the field is accepted and ignored so
+older hosts keep working.
+
+A shared prefix is what makes a plugin binding *structurally* unable to shadow
+an editor key. The previous per-plugin leader could only ever be **checked**
+against the live keymap — and a check is the wrong tool, because it turns a
+design guarantee into a runtime race the user has to be told about.
+
+`Ctrl+T` rather than another letter: the unbound Ctrl-letters are I, J, M, T
+and U, and three of those are unreachable in a terminal — Ctrl+I arrives as
+byte `0x09` (Tab), Ctrl+M as `0x0D` (Enter) and Ctrl+J as `0x0A`, all matched
+before the Ctrl-letter branch of the input parser. T was already the reference
+host's own pick.
+
+Two ways a plugin still loses a binding, and they report differently on
+purpose:
+
+- **a chord another plugin claimed first.** Configuration order wins and the
+  later host's whole contribution is dropped, so it is never half-bound. The
+  user resolves it by editing *that plugin's* config — see below.
+- **the leader itself is bound in the user's keymap.** Then no plugin can bind
+  anything, and one message names the leader instead of blaming a chord.
+
+### Where a plugin's own settings live
+
+`dun`'s config owns the *grant* — `plugin.<id>.command`, `trust`, `roles` and
+the resource limits. Those are `dun`'s decisions about a plugin, and `trust` is
+a security gate.
+
+Everything else belongs to the plugin. A host should read its own settings from
+its own directory, so that installing is unpacking a folder and uninstalling is
+deleting one. `dun` never reads, validates or dumps that file: a setting for a
+plugin that is not installed simply does not exist as far as the editor is
+concerned, and `--dump-config` keeps showing only what `dun` itself owns.
+
+This is also the answer to "how do I change a plugin's shortcut": edit the
+plugin's own config, and its host declares different chords at the next
+handshake. No protocol change and no editor change is involved.
 
 ### Menu mnemonics
 
