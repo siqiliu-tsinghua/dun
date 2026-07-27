@@ -305,6 +305,40 @@ const MENUS: &[MenuSpec] = &[
     },
 ];
 
+/// Derive the invariant mnemonic for an English top-level menu label.
+///
+/// The source-label rule accepts only an ASCII letter in the first position
+/// and normalizes it to uppercase. It differs from rendered-label matching
+/// because a translated label carries this English mnemonic in trailing
+/// parentheses rather than at the start of its translated base text.
+pub fn english_menu_mnemonic(label: &str) -> Option<char> {
+    let mnemonic = label.chars().next()?;
+    mnemonic
+        .is_ascii_alphabetic()
+        .then(|| mnemonic.to_ascii_uppercase())
+}
+
+/// Compose the rendered form of a translated top-level menu label.
+///
+/// This rule appends the mnemonic derived from the English source label;
+/// rendered-label matching differs because it must read that suffix before
+/// falling back to the first character of an untranslated label.
+pub fn compose_translated_menu_label(base: &str, mnemonic: char) -> String {
+    format!("{base} ({mnemonic})")
+}
+
+/// Iterate the invariant top-level mnemonics derived directly from `MENUS`.
+///
+/// Built-in source labels use their first ASCII letter, while rendered-label
+/// matching must prefer the appended suffix on translated labels. A label
+/// without a valid source mnemonic is therefore a bug in the built-in table.
+pub fn built_in_menu_mnemonics() -> impl Iterator<Item = char> {
+    MENUS.iter().map(|menu| {
+        english_menu_mnemonic(menu.english)
+            .expect("built-in menu labels must start with an ASCII letter")
+    })
+}
+
 /// Every catalog key the menu bar can look up, with its English default.
 /// The translation-completeness test walks this so a new language file cannot
 /// ship with untranslated menus.
@@ -326,10 +360,17 @@ impl UiShell {
     fn menu_label(&self, key: &str, english: &'static str) -> Cow<'static, str> {
         match self.catalog.get(key) {
             None => Cow::Borrowed(english),
-            Some(base) => {
-                let mnemonic = english.chars().next().unwrap_or('?');
-                Cow::Owned(format!("{base} ({mnemonic})"))
-            }
+            // No usable mnemonic means the built-in table is wrong, which
+            // `built_in_top_level_mnemonics_are_unique_ascii_letters` catches
+            // at test time. Do NOT panic here: this runs on every frame, and
+            // killing a live editing session over a cosmetic table mistake is
+            // a far worse outcome than showing one menu untranslated. Falling
+            // back to the English label also keeps the menu reachable, since
+            // matching falls back to a label's first character.
+            Some(base) => match english_menu_mnemonic(english) {
+                Some(mnemonic) => Cow::Owned(compose_translated_menu_label(base, mnemonic)),
+                None => Cow::Borrowed(english),
+            },
         }
     }
 

@@ -285,9 +285,16 @@ impl UiShell {
 /// parens ("文件 (F)"), which must win over the first letter; untranslated
 /// labels ("File") keep the first-letter rule.
 fn mnemonic_matches(label: &str, ch: char) -> bool {
-    entry_mnemonic(label)
-        .or_else(|| label.chars().next())
-        .is_some_and(|mnemonic| mnemonic.eq_ignore_ascii_case(&ch))
+    menu_label_mnemonic(label).is_some_and(|mnemonic| mnemonic.eq_ignore_ascii_case(&ch))
+}
+
+/// Read the mnemonic from a rendered top-level menu label without changing case.
+///
+/// The matching rule prefers a trailing parenthesized mnemonic and otherwise
+/// uses the first character. It differs from English source-label derivation
+/// because translated labels carry the invariant English mnemonic in a suffix.
+pub(crate) fn menu_label_mnemonic(label: &str) -> Option<char> {
+    entry_mnemonic(label).or_else(|| label.chars().next())
 }
 
 /// Menu-bar items take their mnemonic from the first letter ("File" -> F), but

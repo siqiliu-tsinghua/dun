@@ -14,6 +14,26 @@ fn shell_with_zh_menus() -> UiShell {
 }
 
 #[test]
+fn english_menu_mnemonic_accepts_only_ascii_letter_starts() {
+    assert_eq!(english_menu_mnemonic("File"), Some('F'));
+    assert_eq!(english_menu_mnemonic("log Filter"), Some('L'));
+    assert_eq!(english_menu_mnemonic("1 Log Filter"), None);
+    assert_eq!(english_menu_mnemonic("日志过滤"), None);
+    assert_eq!(english_menu_mnemonic(""), None);
+}
+
+#[test]
+fn built_in_top_level_mnemonics_are_unique_ascii_letters() {
+    let mnemonics = built_in_menu_mnemonics().collect::<Vec<_>>();
+    assert_eq!(mnemonics, ['F', 'E', 'V', 'H']);
+
+    for (index, mnemonic) in mnemonics.iter().enumerate() {
+        assert!(mnemonic.is_ascii_alphabetic());
+        assert!(!mnemonics[..index].contains(mnemonic));
+    }
+}
+
+#[test]
 fn empty_catalog_keeps_english_labels_borrowed() {
     let shell = UiShell::default();
     let menu = shell.menu_bar(None);

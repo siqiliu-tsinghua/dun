@@ -1,4 +1,12 @@
 use super::support::*;
+use crate::hit::menu_label_mnemonic;
+
+#[test]
+fn rendered_menu_label_mnemonic_prefers_suffix_without_changing_case() {
+    assert_eq!(menu_label_mnemonic("文件 (f)"), Some('f'));
+    assert_eq!(menu_label_mnemonic("File"), Some('F'));
+    assert_eq!(menu_label_mnemonic(""), None);
+}
 
 #[test]
 fn menu_hit_tests_map_columns_and_dropdown_rows() {
