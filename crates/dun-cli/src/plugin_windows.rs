@@ -31,6 +31,16 @@ impl PluginWindows {
         self.count(plugin_id) < MAX_WINDOWS_PER_PLUGIN
     }
 
+    /// The plugin's first window, if it still has one. Placement uses it as
+    /// the anchor for the second pane so a plugin's windows share one column
+    /// instead of each taking a slice of the width.
+    pub(crate) fn first(&self, plugin_id: &str) -> Option<WindowId> {
+        self.entries
+            .iter()
+            .find(|entry| entry.plugin_id == plugin_id)
+            .and_then(|entry| entry.windows.first().copied())
+    }
+
     pub(crate) fn record_opened(&mut self, plugin_id: &str, window: WindowId) -> bool {
         if !self.can_open(plugin_id) || self.owns(plugin_id, window) {
             return false;

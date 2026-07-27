@@ -754,6 +754,62 @@ fn scratch_window_count(app: &AppState) -> usize {
         .count()
 }
 
+/// A plugin may own two windows. The second must stack under the first, not
+/// split whatever is focused: the latter produced three side-by-side columns
+/// and at 80 columns left every pane too narrow to read.
+#[test]
+fn a_plugins_second_window_stacks_under_its_first_instead_of_taking_a_third_column() {
+    use dun_core::{Axis, LayoutNode};
+
+    let mut app = AppState::new();
+    let (host, _m, _e) = PluginHost::for_tests_granted("logf", eager_grant());
+    app.plugin_hosts = PluginHosts::for_tests(vec![host]);
+    let main = app.workspace.focused;
+
+    app.handle_command(&plugin_action_kind(
+        "logf",
+        "input",
+        PluginActionKind::Scratch,
+    ));
+    let scratch = app.workspace.focused;
+    assert_ne!(scratch, main);
+
+    app.handle_command(&plugin_action("logf", "open"));
+    let surface = app.workspace.focused;
+    assert_eq!(app.plugin_windows.count("logf"), 2);
+
+    // main | scratch
+    //        surface
+    let LayoutNode::Split {
+        axis: Axis::Horizontal,
+        first,
+        second,
+        ..
+    } = &app.workspace.root
+    else {
+        panic!(
+            "editor should keep its own column: {:?}",
+            app.workspace.root
+        );
+    };
+    assert_eq!(
+        **first,
+        LayoutNode::Leaf(main),
+        "the editor must stay on the left, not be pushed into the plugin column"
+    );
+    let LayoutNode::Split {
+        axis: Axis::Vertical,
+        first: upper,
+        second: lower,
+        ..
+    } = &**second
+    else {
+        panic!("the plugin column should be stacked, got {second:?}");
+    };
+    assert_eq!(**upper, LayoutNode::Leaf(scratch));
+    assert_eq!(**lower, LayoutNode::Leaf(surface));
+}
+
 #[test]
 fn scratch_action_opens_an_editable_window_only_with_the_grant() {
     // A window-only host (no scratch-input): a Scratch action opens nothing.

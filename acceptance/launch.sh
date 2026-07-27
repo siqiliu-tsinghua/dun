@@ -58,6 +58,7 @@ encoding="utf8"
 colors="256"
 lang=""          # empty = inherit the ambient locale, like a real user
 syntax=""        # empty = no highlight host; else syntect|pygments|lua
+logfilter=""     # empty = no log-filter host; else python|lua
 
 # Catalog tag -> a POSIX locale whose locale_candidates() actually resolves to
 # that catalog file. Keep in sync with i18n/ and dun-config's locale_script().
@@ -90,6 +91,7 @@ while [ $# -gt 0 ]; do
         --file) shift; file="$1" ;;
         --lang) shift; lang="${1:-}" ;;
         --syntax) syntax="${2:-syntect}"; case "${2:-}" in syntect|pygments|lua) shift ;; esac ;;
+        --logfilter) logfilter="${2:-python}"; case "${2:-}" in python|lua) shift ;; esac ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
     shift
@@ -175,6 +177,41 @@ plugin.$syntax.trust = user-trusted-external
 plugin.$syntax.roles = syntax-highlight
 EOF
     echo "syntax : $syntax -> $host_cmd" >&2
+fi
+
+# Optional log-filter host. Unlike the highlight hosts this one is UI-invasive:
+# it contributes a top-level "Log Filter" menu, a Ctrl+T keybinding leader, and
+# up to two windows of its own, so it is what the split/menu appearance pass
+# needs. Same cleared-environment rule — script hosts get a wrapper.
+if [ -n "$logfilter" ]; then
+    case "$logfilter" in
+        python)
+            lf_cmd="$scratch/logfilter-python-wrapper"
+            printf '#!/bin/sh\nexec %s %s\n' \
+                "$(command -v python3)" \
+                "$repo_root/hosts/python-logfilter/dun-python-logfilter-host.py" > "$lf_cmd"
+            ;;
+        lua)
+            lf_lua="$(command -v lua5.4 || command -v lua5.3 || command -v lua || true)"
+            if [ -z "$lf_lua" ]; then
+                echo "no lua interpreter found for --logfilter lua" >&2
+                exit 2
+            fi
+            lf_cmd="$scratch/logfilter-lua-wrapper"
+            printf '#!/bin/sh\nexec %s %s\n' \
+                "$lf_lua" \
+                "$repo_root/hosts/lua-logfilter/dun-lua-logfilter-host.lua" > "$lf_cmd"
+            ;;
+        *) echo "unknown --logfilter host: $logfilter (python|lua)" >&2; exit 2 ;;
+    esac
+    chmod +x "$lf_cmd"
+    cat >> "$config" <<EOF
+plugins.status_bar = true
+plugin.logfilter.command = $lf_cmd
+plugin.logfilter.trust = user-trusted-external
+plugin.logfilter.roles = log-filter
+EOF
+    echo "logfilt: $logfilter -> $lf_cmd (leader Ctrl+T; Ctrl+T e edit, Ctrl+T a apply)" >&2
 fi
 
 # dun resolves catalogs relative to the active config file, so they have to

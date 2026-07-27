@@ -212,6 +212,13 @@ Each plugin gets a namespaced slice of `dun`-owned UI surfaces, all tagged by
 `plugin_id`:
 
 - one menu subtree (one top-level entry, every item beneath it);
+- up to two tiled windows, placed by `dun` — a plugin never asks for a
+  position. The first splits the focused window **side by side**, so the
+  editor keeps its own column and the plugin gets the other. The second
+  stacks **under the plugin's own first window**, giving `main | upper /
+  lower`. Splitting the focused window again instead would put a third
+  column on screen, and at 80 columns that leaves every pane too narrow to
+  read;
 - one keybinding leader prefix and its chord space;
 - at most two windows.
 

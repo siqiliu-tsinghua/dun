@@ -5,11 +5,23 @@ use super::*;
 
 impl Workspace {
     pub fn split_focused(&mut self, axis: Axis) -> Result<WindowId, WorkspaceError> {
-        if !self.root.contains(self.focused) {
+        self.split_window(self.focused, axis)
+    }
+
+    /// Split a specific window rather than the focused one. Callers that need
+    /// to grow a layout around a window they own — a plugin stacking its
+    /// second pane under its first — cannot use `split_focused`, because by
+    /// then the focus is wherever the user left it.
+    pub fn split_window(
+        &mut self,
+        target: WindowId,
+        axis: Axis,
+    ) -> Result<WindowId, WorkspaceError> {
+        if !self.root.contains(target) {
             return Err(WorkspaceError::FocusMissing);
         }
 
-        let old = self.focused;
+        let old = target;
         let new = self.create_untitled_window();
         let replacement = LayoutNode::Split {
             axis,

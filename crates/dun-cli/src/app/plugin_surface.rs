@@ -207,7 +207,7 @@ impl AppState {
 
         // FocusMissing is effectively unreachable (there is always a focused
         // window); if the split cannot happen, nothing is opened or recorded.
-        let window_id = self.workspace.split_focused(Axis::Horizontal).ok()?;
+        let window_id = self.split_for_plugin_window(plugin_id)?;
         let buffer_id = self.workspace.window(window_id).ok()?.buffer_id;
         let surface = BufferState::new(
             buffer_id,
@@ -226,6 +226,22 @@ impl AppState {
         }
         self.plugin_windows.record_opened(plugin_id, window_id);
         Some(window_id)
+    }
+
+    /// Where a new plugin window goes.
+    ///
+    /// The first one splits the focused window side by side, so the editor
+    /// keeps the left column and the plugin gets the right. The second one
+    /// stacks **under the plugin's own first window** rather than splitting
+    /// whatever happens to be focused: splitting the focused window again
+    /// gave three columns side by side, and at 80 columns that left every
+    /// pane too narrow to read. Anchoring on the plugin's first window
+    /// instead keeps both plugin panes in one column — main | upper / lower.
+    fn split_for_plugin_window(&mut self, plugin_id: &str) -> Option<WindowId> {
+        match self.plugin_windows.first(plugin_id) {
+            Some(anchor) => self.workspace.split_window(anchor, Axis::Vertical).ok(),
+            None => self.workspace.split_focused(Axis::Horizontal).ok(),
+        }
     }
 
     /// The plugin's existing editable scratch window, if one is still open.
@@ -265,7 +281,7 @@ impl AppState {
             return None;
         }
 
-        let window_id = self.workspace.split_focused(Axis::Horizontal).ok()?;
+        let window_id = self.split_for_plugin_window(plugin_id)?;
         let buffer_id = self.workspace.window(window_id).ok()?.buffer_id;
         let scratch = BufferState::new(
             buffer_id,
