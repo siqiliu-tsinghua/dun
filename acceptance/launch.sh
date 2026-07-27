@@ -18,6 +18,29 @@
 #     --16color        terminal.colors = 16
 #     --mono           terminal.colors = mono
 #     --file PATH      open PATH instead of the default fixture
+#     --lang TAG       Optional sugar for the i18n gallery sweep only.
+#
+# LANGUAGE IS ENV-DRIVEN. dun picks the UI language itself from the first
+# nonempty of LC_ALL / LC_MESSAGES / LANG (crates/dun-cli/src/i18n_loading.rs),
+# and this script passes the ambient environment through untouched. So the
+# normal way to select a language is the normal way:
+#
+#   LC_ALL=ja_JP.UTF-8 acceptance/launch.sh
+#
+# What the script must do regardless of language is copy the catalogs: dun
+# resolves `i18n/` NEXT TO THE ACTIVE CONFIG FILE, and this script's config
+# lives in a throwaway scratch dir, so without the copy every launch would be
+# silently English. That copy always happens.
+#
+# --lang TAG is a convenience for sweeping all ten catalogs in one pass; it
+# only sets LC_ALL for that run. TAG is a catalog name from i18n/ (de es fr it
+# ja ko pt ru zh-Hans zh-Hant) or `en`. It exists because the tag is NOT usable
+# as a locale directly: locale_candidates() upper-cases the region subtag, so
+# LC_ALL=zh-Hans yields ["zh-HANS","zh"] and matches zh-Hans.conf only on a
+# case-insensitive filesystem (macOS) — silently English on Linux. Each tag
+# therefore maps to a real POSIX locale below. --ascii forces English by design
+# (the sanitizer would escape non-ASCII labels), so --lang + --ascii is
+# rejected rather than silently ignored.
 #
 # Examples:
 #   acceptance/launch.sh msedit --mouse
@@ -33,6 +56,27 @@ osc52_read="false"
 mouse="false"
 encoding="utf8"
 colors="256"
+lang=""          # empty = inherit the ambient locale, like a real user
+syntax=""        # empty = no highlight host; else syntect|pygments|lua
+
+# Catalog tag -> a POSIX locale whose locale_candidates() actually resolves to
+# that catalog file. Keep in sync with i18n/ and dun-config's locale_script().
+locale_for_tag() {
+    case "$1" in
+        en)      echo "C" ;;
+        de)      echo "de_DE.UTF-8" ;;
+        es)      echo "es_ES.UTF-8" ;;
+        fr)      echo "fr_FR.UTF-8" ;;
+        it)      echo "it_IT.UTF-8" ;;
+        ja)      echo "ja_JP.UTF-8" ;;
+        ko)      echo "ko_KR.UTF-8" ;;
+        pt)      echo "pt_PT.UTF-8" ;;
+        ru)      echo "ru_RU.UTF-8" ;;
+        zh-Hans) echo "zh_CN.UTF-8" ;;
+        zh-Hant) echo "zh_TW.UTF-8" ;;
+        *)       return 1 ;;
+    esac
+}
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -44,10 +88,26 @@ while [ $# -gt 0 ]; do
         --16color) colors="16" ;;
         --mono) colors="mono" ;;
         --file) shift; file="$1" ;;
+        --lang) shift; lang="${1:-}" ;;
+        --syntax) syntax="${2:-syntect}"; case "${2:-}" in syntect|pygments|lua) shift ;; esac ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
     shift
 done
+
+locale=""
+if [ -n "$lang" ]; then
+    if ! locale="$(locale_for_tag "$lang")"; then
+        echo "unknown --lang tag: $lang" >&2
+        echo "known tags: en $(ls "$repo_root/i18n" | sed 's/\.conf$//' | tr '\n' ' ')" >&2
+        exit 2
+    fi
+    if [ "$lang" != "en" ] && [ "$encoding" = "ascii" ]; then
+        echo "--lang $lang with --ascii: dun forces English on ASCII terminals," >&2
+        echo "so this combination cannot show translated text. Drop one of them." >&2
+        exit 2
+    fi
+fi
 
 # Prefer the size-budget build; fall back to a plain release build; build if neither exists.
 bin=""
@@ -75,12 +135,70 @@ clipboard.osc52.enabled = $osc52_write
 clipboard.osc52.allow_read = $osc52_read
 EOF
 
+# Optional syntax-highlight host (hosts/README.md). dun launches the command
+# directly — no shell, no arguments, CLEARED ENVIRONMENT — so interpreter-based
+# hosts get an absolute-path wrapper written next to the config.
+if [ -n "$syntax" ]; then
+    case "$syntax" in
+        syntect)
+            host_cmd="$repo_root/hosts/rust-syntect/target/release/dun-syntect-host"
+            if [ ! -x "$host_cmd" ]; then
+                echo "syntect host not built: $host_cmd" >&2
+                echo "build it with: (cd hosts/rust-syntect && cargo build --release)" >&2
+                exit 2
+            fi
+            ;;
+        pygments)
+            host_cmd="$scratch/pygments-wrapper"
+            printf '#!/bin/sh\nexec %s %s\n' \
+                "$(command -v python3)" \
+                "$repo_root/hosts/python-pygments/dun-pygments-host.py" > "$host_cmd"
+            chmod +x "$host_cmd"
+            ;;
+        lua)
+            lua_bin="$(command -v lua5.4 || command -v lua5.3 || command -v lua || true)"
+            if [ -z "$lua_bin" ]; then
+                echo "no lua interpreter found for --syntax lua" >&2
+                exit 2
+            fi
+            host_cmd="$scratch/lua-wrapper"
+            printf '#!/bin/sh\nexec %s %s\n' \
+                "$lua_bin" "$repo_root/hosts/lua/dun-lua-host.lua" > "$host_cmd"
+            chmod +x "$host_cmd"
+            ;;
+        *) echo "unknown --syntax engine: $syntax (syntect|pygments|lua)" >&2; exit 2 ;;
+    esac
+    cat >> "$config" <<EOF
+plugins.status_bar = true
+plugin.$syntax.command = $host_cmd
+plugin.$syntax.trust = user-trusted-external
+plugin.$syntax.roles = syntax-highlight
+EOF
+    echo "syntax : $syntax -> $host_cmd" >&2
+fi
+
+# dun resolves catalogs relative to the active config file, so they have to
+# travel with the throwaway config — always, so that the ambient locale can
+# resolve exactly as it would against a real ~/.config/dun/i18n.
+cp -R "$repo_root/i18n" "$scratch/i18n"
+
 echo "dun    : $bin" >&2
 echo "config : $config (theme=$theme encoding=$encoding colors=$colors mouse=$mouse osc52_write=$osc52_write osc52_read=$osc52_read)" >&2
 echo "file   : $file" >&2
-echo "(resize the window as the checklist item asks, then interact)" >&2
+echo "catalog: $scratch/i18n (10 files)" >&2
 
-DUN_CONFIG="$config" "$bin" "$file"
+# Language is env-driven, exactly as it is for a real user: dun reads the first
+# nonempty of LC_ALL/LC_MESSAGES/LANG itself. Without --lang the ambient
+# environment is passed through untouched, so the launcher exercises the real
+# path instead of a launcher-only override. --lang is only sugar for the
+# gallery sweep and is equivalent to setting LC_ALL yourself.
+if [ -n "$lang" ]; then
+    echo "lang   : --lang $lang -> LC_ALL=$locale (overriding the ambient locale)" >&2
+    DUN_CONFIG="$config" LC_ALL="$locale" "$bin" "$file"
+else
+    echo "lang   : inherited from the environment (LC_ALL=${LC_ALL:-unset} LC_MESSAGES=${LC_MESSAGES:-unset} LANG=${LANG:-unset})" >&2
+    DUN_CONFIG="$config" "$bin" "$file"
+fi
 status=$?
 rm -rf "$scratch"
 exit $status

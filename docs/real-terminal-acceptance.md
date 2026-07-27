@@ -38,11 +38,42 @@ extrapolated into a universal support claim.
 
 ```
 acceptance/launch.sh [dun|msedit|dark|turbo] [--osc52-read] [--osc52-write] \
-                     [--mouse] [--ascii] [--16color] [--mono] [--file PATH]
+                     [--mouse] [--ascii] [--16color] [--mono] [--file PATH] \
+                     [--lang TAG] [--syntax syntect|pygments|lua]
 ```
 
 Resize the emulator window to the size the item asks for (usually **80×24**)
 before reading the result. Quit dun with `Ctrl+Q`.
+
+**Language is env-driven**, exactly as it is for a real user: dun reads the
+first nonempty of `LC_ALL`/`LC_MESSAGES`/`LANG`, and `launch.sh` passes the
+ambient environment through untouched — `LC_ALL=ja_JP.UTF-8 acceptance/launch.sh`
+is the normal way to select one. What `launch.sh` must always do is copy `i18n/`
+next to its throwaway config, because dun resolves catalogs relative to the
+active config file; without that copy every launch is silently English.
+`--lang TAG` is only sugar for sweeping all ten catalogs. It exists because a
+catalog tag is **not** usable as a locale: `locale_candidates()` upper-cases the
+region subtag, so `LC_ALL=zh-Hans` yields `["zh-HANS","zh"]` and matches
+`zh-Hans.conf` only on a case-insensitive filesystem (macOS) — silently English
+on Linux. `--ascii` forces English by design, so `--lang` + `--ascii` is
+rejected rather than silently ignored.
+
+### Helper scripts
+
+| Script | What it does |
+| --- | --- |
+| `acceptance/gallery-run.sh R C -- ARGS` | pins the window to R×C with the `CSI 8;R;C t` sequence (kitty, iTerm2 and Terminal.app all honour it), then hands off to `launch.sh`. One geometry mechanism for all three emulators. |
+| `acceptance/gallery-open.sh EMU R C -- ARGS` | opens that in `kitty`, `iterm` or `terminal`. kitty takes a command directly; the other two only accept a **script file** via `open -a`, so the args are baked into a generated `.command` wrapper (which also `cd`s to the repo, since those two run a `.command` from the user's home). |
+| `acceptance/sweep-menus.sh` | headless: opens each top-level menu in each shipped language, saves the 80×24 grid. |
+| `acceptance/sweep-states.sh` | headless: opens every dialog and editor state (via `Alt+<mnemonic>` then the entry's bare mnemonic) in each language. Never sends Enter, so Save As / Run Command are shown but never executed. |
+
+The two sweeps drive dun in a **detached tmux session** — no GUI terminal is
+involved and nothing is injected into any on-screen application. This is the
+same mechanism the harness tests use (`crates/dun-cli/src/tests/tmux_*.rs`).
+Text grids beat screenshots for i18n review: they diff, they grep, and every
+row's display width can be checked mechanically. Mnemonics are stable Latin
+characters in every catalog (the translated label carries them in trailing
+parens), so one key sequence drives all languages.
 
 ## Section A — Cross-checks against the byte-precise harness (calibration)
 
@@ -102,6 +133,107 @@ into docs).
 | D4 | Visible whitespace + bookmarks (the restored F12/F13) | `Ctrl+X,.` then `Ctrl+X,K` on a couple of lines |
 | D5 | Log-filter plugin surface | configure a `hosts/` log-filter host, trigger its menu |
 | D6 | Wide-glyph / CJK rendering | the fixture's CJK lines, dun theme |
+| D7 | Syntax highlighting | `launch.sh --syntax syntect --file acceptance/fixture-code.rs` (also `lua`; `pygments` needs Pygments installed) |
+| D8 | Capability fallbacks | `--ascii` / `--16color` / `--mono` |
+| D9 | UI language | `LC_ALL=<locale> launch.sh` — one per script family (Han, Kana/Hangul, Cyrillic, long Latin) |
+
+### Capturing a window
+
+`screencapture -x -o -l<CGWindowID> out.png` grabs **one window by id**, from
+its own backing store, so occlusion and stacking do not matter. This is what
+makes the pass work at all: the Claude Code terminal window covers most of the
+screen, and a full-screen grab is useless when the target is behind it. Get the
+id from a window enumerator built on `CGWindowListCopyWindowInfo` (owner name +
+title + bounds); match the window a launch created by diffing the id list
+before and after.
+
+**Do not time a `--syntax` shot with a guessed sleep.** The plugin status
+indicator means the host *connected*, not that spans have been applied, so it
+is not a readiness signal for a screenshot. Measure readiness instead: run the
+same launch headlessly in a detached tmux pane and poll `capture-pane -p -e`
+until an SGR colour change actually appears on a keyword line (`38;5;173m` on
+`use std::collections::HashMap;` in the code fixture), then take the GUI shot
+with that time plus a margin. Measured here: **both syntect and lua paint spans
+1.0 s after dun is up** — the engine is not the slow part. What broke a 2 s
+GUI wait was the whole launch chain in front of it (emulator start, the
+launcher's own settle sleeps, the catalog copy, dun start, host spawn); lua's
+extra interpreter spawn was only what tipped it over. A 5 s wait covers both.
+
+## Pass of 2026-07-27 — i18n sweep + gallery
+
+**Headless i18n sweep (220 grids, `acceptance/gallery/text/`).** 11 tags
+(`en` + the ten catalogs) x 4 menus, plus 16 dialogs/states x 11 tags.
+Mechanically checked: **no row exceeds 80 display columns**, **no dropdown
+panel is clipped**, **entry counts match English everywhere** (file 10, edit 18,
+view 19, help 1), and **no entry is left untranslated** in any catalog.
+
+Widest dropdown panel, in display columns (English in brackets):
+
+| Menu | Widest languages | English |
+| --- | --- | --- |
+| edit | **pt 65**, fr 61, es 57, ru 56 | 36 |
+| view | it 46, fr 46, pt 43 | — |
+| file | ko 42, ja 40, fr 40, de 39 | 31 |
+
+Counter-intuitive but measured: the Romance languages, not German, are what
+push the panels widest. Portuguese `Copiar para a área de transferência
+externa (X)` plus `Ctrl+X,Ctrl+C` takes the Edit panel to **65 of 80 columns**,
+leaving 15 columns of headroom; German is only 39. **The pt Edit menu is the
+first thing that will overflow** if an Edit entry grows or a native-speaker
+review lengthens that string — check it at 80 columns before landing either.
+
+Translation-quality note (not a mechanism bug): `pt.conf` uses Brazilian
+forms (`Arquivo`), while the tag maps to `pt_PT`; European Portuguese would be
+`Ficheiro`. One for the native-speaker review.
+
+**Gallery — 39 shots, 13 per emulator, 0 failures.** Capture sizes: kitty
+1362x850, Terminal.app 1800x1198, iTerm2 1140x994.
+
+**iTerm2 needs its own capture path.** `open -a iTerm <script>` opens a new
+*tab*, not a new window, so the window-id-diff that works for kitty and
+Terminal.app finds nothing after the first launch (a naive sweep scored 1/13)
+and every shot carries tab-bar chrome. The fix is to **quit iTerm before each
+shot**: the relaunch opens the script in a brand-new window with a single tab,
+and iTerm hides the tab bar when a window has only one tab. iTerm still
+restores a couple of dead sessions on relaunch, but those are titled `-zsh`,
+so the live window is the one whose title is not that.
+
+Verify this mechanically rather than by eye: the tab bar is ~70 px tall, so a
+clean iTerm capture is **1140x924** and a tabbed one **1140x994**.
+
+**Height alone is not enough — check file size too.** Height only proves the
+tab bar is absent; a window that was captured before dun painted is the right
+height and completely blank, and will be recorded as a pass. PNG size catches
+it: a blank frame compresses to a fraction of a rendered one. Flag any capture
+under ~50% of that emulator's median size. In this pass exactly one shot of 39
+was blank that way (`iterm-fallback-mono`, 29 KB against a 183 KB median, all
+others 87–113%); a re-capture with a size assertion and retry fixed it. Bake
+both oracles into the sweep — capture, assert `size > threshold` and
+`height != tabbed`, retry otherwise.
+
+**iTerm2 ignores `CSI 8 t` by default**, so its windows stay at the profile's
+geometry — **25 text rows, not the requested 24** (visible as `View 1-21/36` in
+the status bar). Sending the sequence a second time after the window settles
+does not help. `DisableWindowSizeChangeEscapeCodes` and friends are unset here,
+so this is iTerm's built-in default of treating window-resize sequences as
+potentially insecure; enabling them is a user preference change, deliberately
+not made for this pass. kitty and Terminal.app both honour the sequence and
+give exactly 24 rows, so read the iTerm column as one row taller by design.
+
+**D8 `--ascii` is a positive result, not a rendering failure.** Under
+`terminal.encoding = ascii` the CJK fixture line renders as
+`\u{5bbd}\u{5b57}\u{6d4b}\u{8bd5}` and the box-drawing chrome falls back to
+`|`/`#`. That is the sanitizer doing its job: on a terminal declared
+ASCII-only, every non-ASCII codepoint becomes a **visible, unambiguous,
+lossless** escape instead of bytes the emulator would mangle. The UI is English
+even under `LC_ALL=zh_CN.UTF-8`, which is the documented ASCII-forces-English
+rule. Read these shots as evidence for the sanitize-controls invariant holding
+in a real emulator — do not file them as missing-glyph bugs.
+
+Engine difference visible in the D7 shots: syntect marks type names
+(`Budget`, `new`) with the **emphasis** class and the lua mini-lexer does not,
+so the same file renders with bold type names under one host and not the other.
+Both are correct — the lua host is a deliberately minimal example.
 
 ## Results matrix (fill per run)
 
