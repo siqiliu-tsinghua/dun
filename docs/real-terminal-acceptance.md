@@ -113,10 +113,26 @@ diverge (+ what diverged).
 | # | Check | How |
 | --- | --- | --- |
 | C1 | The seven-step remote loop (README "Product Goal") | from the emulator, `ssh` into a host/VM, run dun on a remote file, edit + save; confirm OSC 52 write/read pass through the local emulator's clipboard |
+| C2 | Rendering over SSH, every emulator x every VM | `acceptance/gallery-ssh.sh <debian\|freebsd\|solaris> 24 80`, launched through `gallery-open.sh` like a local capture |
 
 The `vm-test/` VMs are convenient SSH targets. This is the only path that
 exercises the full local-emulator ↔ SSH ↔ remote-dun chain that the local PTY
 harness does not.
+
+`gallery-ssh.sh` needs `ssh -t`: without a forced PTY the remote dun sees no
+terminal at all. Window geometry is still set locally with `CSI 8 t` and
+travels to the remote PTY over the link, so the remote editor lays out at the
+size the local emulator was told to be.
+
+**Make the remote host identify itself in the captured content.** The three VMs
+run the same dun over the same fixture, so their captures are byte-identical —
+a first pass produced three iTerm2 PNGs with the same MD5, and the only reason
+kitty's and Terminal.app's differed was that their title bars happen to carry
+the per-run wrapper filename. A screenshot that cannot distinguish "connected
+to three machines" from "connected to one machine three times" proves nothing,
+so the runner prepends `uname` + `hostname` to the remote fixture and every
+capture carries its own provenance. The window title is not enough: iTerm2
+shows only `ssh`.
 
 ## Section D — Gallery screenshots (docs / website)
 
@@ -251,6 +267,18 @@ Engine difference visible in the D7 shots: syntect marks type names
 (`Budget`, `new`) with the **emphasis** class and the lua mini-lexer does not,
 so the same file renders with bold type names under one host and not the other.
 Both are correct — the lua host is a deliberately minimal example.
+
+### SSH pass of 2026-07-27
+
+Nine captures, 3 emulators x 3 VMs, all at HEAD (`5934810`) built on each VM.
+Verified mechanically rather than by eye — three rounds of this session were
+lost to reading the wrong quantity, so the oracle is a headless 80x24 grid per
+VM, not the images: **24 rows each, no row over 80 display columns, and the
+only line that differs between the three is the host-identity line itself.**
+
+Solaris's historical ambiguous-width problem did not reappear over SSH:
+`◆ ○ ● │ ─ ┼ ┐ └ ± × ÷` and the CJK line render as they do locally, so the
+stage-B width auto-detection survives the link.
 
 ## Results matrix (fill per run)
 
