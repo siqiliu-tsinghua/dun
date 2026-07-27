@@ -16,6 +16,7 @@ pub use frame::menu::{
     built_in_menu_mnemonics, compose_translated_menu_label, english_menu_mnemonic,
     menu_translation_keys,
 };
+pub use hit::menu_label_mnemonic;
 pub use model::{
     BufferHighlightSpan, BufferView, HighlightClass, MenuBar, MenuEntry, MenuItem, MenuSelection,
     PluginIndicator, StatusBar, UiCursor, UiFrame, UiGutterLine, UiHighlightLine,

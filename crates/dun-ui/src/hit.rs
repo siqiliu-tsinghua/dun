@@ -293,7 +293,7 @@ fn mnemonic_matches(label: &str, ch: char) -> bool {
 /// The matching rule prefers a trailing parenthesized mnemonic and otherwise
 /// uses the first character. It differs from English source-label derivation
 /// because translated labels carry the invariant English mnemonic in a suffix.
-pub(crate) fn menu_label_mnemonic(label: &str) -> Option<char> {
+pub fn menu_label_mnemonic(label: &str) -> Option<char> {
     entry_mnemonic(label).or_else(|| label.chars().next())
 }
 

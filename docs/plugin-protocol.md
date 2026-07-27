@@ -235,17 +235,47 @@ author must supply at least `en_US`; other tags are optional. `dun` resolves by
 the active locale and falls back to `en_US`. A single-tag contribution is legal;
 a contribution missing `en_US` is rejected.
 
-The top-level menu mnemonic is always the first character of the `en_US`
-label, accepted only when it is an ASCII letter and normalized to uppercase.
-The English fallback is rendered unchanged; when an active translation is
-selected, `dun` composes `translated label (M)` with that English mnemonic.
+### Menu mnemonics
+
+Mnemonics are the author's to choose. `dun` supplies no general rule for
+dropdown entries because none exists: an IDE host's `Find References` and
+`Format Document` both begin with `F`, and only its author knows which should
+own the key. Both levels therefore take an **optional** declaration, and both
+are **language-independent** — the same key works in every locale, which is
+the same invariant `dun`'s own menus hold (see `docs/i18n.md`).
+
+| | field | when omitted |
+| --- | --- | --- |
+| top-level | `top_mnemonic` | derived from the `en_US` label's first character, accepted only when it is an ASCII letter |
+| dropdown entry | `mnemonic` on the item | **no letter shortcut**; arrows, Enter and the mouse still reach it |
+
+A declared mnemonic is one ASCII graphic character — deliberately as wide as
+`dun`'s own set, which uses `.`, `[` and `]` as well as letters
+(`Visible Whitespace (.)`, `Scroll Left ([)`). Parentheses are the single
+exclusion: labels render as `label (M)` and the matcher reads the last
+parenthesised group, so a parenthesis mnemonic would parse ambiguously.
+
+Rendering differs between the two levels, and the difference is load-bearing
+rather than cosmetic. The top-level matcher falls back to a label's first
+character, so `Log Filter` needing `L` is left alone and only gains ` (M)`
+when an active translation is selected or the declared letter is not the
+first one. **The entry matcher has no such fallback** — it reads only a
+trailing `(M)` — so a declared entry mnemonic is *always* composed, even when
+the label already starts with that letter. Omitting the suffix there would
+leave a key that silently does nothing.
+
+Collisions differ too. Built-in menus claim first, then plugin menus in
+configuration order; a built-in or earlier-plugin collision rejects the whole
+conflicting **subtree**, because a top-level menu nobody can open is useless.
+A duplicate *within* one plugin's dropdown drops only the later entry's
+shortcut: the entry and its siblings stay, since they remain reachable by
+arrows, Enter and the mouse. Each subtree rejection produces a translated
+status diagnostic naming the plugin and, for a collision, the mnemonic. Claims
+are recomputed on refresh, so unloading an earlier host can promote a later
+contribution.
+
 A raw English label whose trailing parenthesized mnemonic contradicts the
-first-character rule is invalid. Built-in menus claim their mnemonics first,
-then plugin menus claim in configuration order; a built-in collision or a
-later plugin collision rejects only the conflicting menu subtree. Each
-rejection produces a translated status diagnostic naming the plugin and,
-for a collision, the mnemonic. Claims are recomputed on refresh, so unloading
-an earlier host can promote a later contribution.
+derived first-character rule is invalid.
 
 ### Error and diagnostic surface
 

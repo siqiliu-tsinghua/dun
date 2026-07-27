@@ -81,6 +81,14 @@ impl PluginActionKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PluginMenuItem {
     pub label: LabelSet,
+    /// Author-chosen keyboard mnemonic, language-independent.
+    ///
+    /// `dun` deliberately does not derive one for dropdown entries: no general
+    /// rule survives contact with a real plugin (an IDE host's `Find
+    /// References` and `Format Document` both start with `F`, and only its
+    /// author knows which should own the key). Absent simply means the entry
+    /// has no letter shortcut; arrows, Enter and the mouse still reach it.
+    pub mnemonic: Option<char>,
     pub action_id: String,
     pub kind: PluginActionKind,
 }
@@ -88,6 +96,11 @@ pub struct PluginMenuItem {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PluginMenu {
     pub top_label: LabelSet,
+    /// Author-chosen mnemonic for the top-level entry. Unlike dropdown
+    /// entries this one *does* fall back to a derivation (the `en_US` label's
+    /// first ASCII letter), because a top-level menu with no mnemonic is
+    /// unreachable from the keyboard entirely.
+    pub top_mnemonic: Option<char>,
     pub items: Vec<PluginMenuItem>,
 }
 
@@ -132,8 +145,10 @@ impl PluginMenu {
                 return Err("menu action_id contains a non-graphic character");
             }
             let kind = PluginActionKind::from_field(item.get("kind"))?;
+            let mnemonic = parse_mnemonic(item.get("mnemonic"))?;
             validated.push(PluginMenuItem {
                 label,
+                mnemonic,
                 action_id: action_id.to_string(),
                 kind,
             });
@@ -141,9 +156,37 @@ impl PluginMenu {
 
         Ok(Self {
             top_label,
+            top_mnemonic: parse_mnemonic(payload.get("top_mnemonic"))?,
             items: validated,
         })
     }
+}
+
+/// Parse an optional `mnemonic` field: exactly one ASCII graphic character.
+///
+/// The character set is deliberately as wide as `dun`'s own — built-in entries
+/// use `.`, `[` and `]` as well as letters (`Visible Whitespace (.)`,
+/// `Scroll Left ([)`), so restricting plugins to letters would make the two
+/// sets inconsistent. Parentheses are the one exclusion: the rendered form is
+/// `label (M)` and the matcher reads the *last* parenthesised group, so a
+/// mnemonic of `(` or `)` would make the label parse ambiguously.
+fn parse_mnemonic(value: Option<&Json>) -> Result<Option<char>, &'static str> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let text = value.as_str().ok_or("menu mnemonic is not a string")?;
+    let mut chars = text.chars();
+    let mnemonic = chars.next().ok_or("menu mnemonic is empty")?;
+    if chars.next().is_some() {
+        return Err("menu mnemonic is longer than one character");
+    }
+    if !mnemonic.is_ascii_graphic() {
+        return Err("menu mnemonic is not an ASCII graphic character");
+    }
+    if mnemonic == '(' || mnemonic == ')' {
+        return Err("menu mnemonic cannot be a parenthesis");
+    }
+    Ok(Some(mnemonic))
 }
 
 fn parse_label_set(value: &Json) -> Result<LabelSet, &'static str> {

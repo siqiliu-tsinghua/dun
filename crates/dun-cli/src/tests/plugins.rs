@@ -74,6 +74,161 @@ fn menu_with_top_labels(english: &str, translations: &[(&str, &str)]) -> PluginM
     PluginMenu::from_payload(&payload).expect("valid menu payload")
 }
 
+/// A menu whose host declares its own mnemonics: `top_mnemonic` plus one per
+/// item. `items` is `(en_US label, action_id, mnemonic)`.
+fn menu_with_declared_mnemonics(
+    english: &str,
+    top_mnemonic: Option<&str>,
+    items: &[(&str, &str, Option<&str>)],
+) -> PluginMenu {
+    let mut fields = vec![
+        (
+            "top_label".to_string(),
+            json::obj([("en_US", json::str(english))]),
+        ),
+        (
+            "items".to_string(),
+            Json::Arr(
+                items
+                    .iter()
+                    .map(|(label, action_id, mnemonic)| {
+                        let mut item = vec![
+                            (
+                                "label".to_string(),
+                                json::obj([("en_US", json::str(label))]),
+                            ),
+                            ("action_id".to_string(), json::str(action_id)),
+                        ];
+                        if let Some(mnemonic) = mnemonic {
+                            item.push(("mnemonic".to_string(), json::str(mnemonic)));
+                        }
+                        Json::Obj(item)
+                    })
+                    .collect(),
+            ),
+        ),
+    ];
+    if let Some(top_mnemonic) = top_mnemonic {
+        fields.push(("top_mnemonic".to_string(), json::str(top_mnemonic)));
+    }
+    PluginMenu::from_payload(&Json::Obj(fields)).expect("valid menu payload")
+}
+
+fn rendered_plugin_entry_labels(app: &AppState) -> Vec<String> {
+    let buffer_views = app.buffer_views();
+    app.shell
+        .frame_for_workspace(&app.workspace, Rect::new(0, 0, 120, 20), &buffer_views)
+        .menu
+        .items
+        .last()
+        .expect("a menu bar item")
+        .entries
+        .iter()
+        .map(|entry| entry.label.clone().into_owned())
+        .collect()
+}
+
+/// Entry mnemonics are the host's to choose; dun derives nothing. No general
+/// rule exists — an IDE host's `Find References` and `Format Document` both
+/// start with `F` and only its author knows which should own the key.
+#[test]
+fn declared_entry_mnemonics_are_composed_and_undeclared_ones_are_left_alone() {
+    let menu = menu_with_declared_mnemonics(
+        "Tools",
+        None,
+        &[
+            ("Find References", "find", Some("R")),
+            ("Format Document", "format", Some("F")),
+            ("Plain", "plain", None),
+        ],
+    );
+    let mut app = AppState::new();
+    app.plugin_hosts = PluginHosts::for_tests(vec![started_menu_host("tools", menu)]);
+    app.refresh_plugin_contributions();
+
+    assert_eq!(
+        rendered_plugin_entry_labels(&app),
+        vec![
+            "Find References (R)".to_string(),
+            "Format Document (F)".to_string(),
+            "Plain".to_string(),
+        ],
+        "declared mnemonics compose; an undeclared one stays bare"
+    );
+}
+
+/// The entry matcher reads ONLY a trailing `(M)` — unlike the top-level one it
+/// has no first-character fallback. So an entry suffix must be composed even
+/// when the label already starts with that letter, or the key silently does
+/// nothing. This asymmetry is exactly what a well-meaning refactor would
+/// "simplify" away.
+#[test]
+fn an_entry_mnemonic_matching_its_own_first_letter_is_still_composed() {
+    let menu = menu_with_declared_mnemonics("Tools", None, &[("Edit Pattern", "edit", Some("E"))]);
+    let mut app = AppState::new();
+    app.plugin_hosts = PluginHosts::for_tests(vec![started_menu_host("tools", menu)]);
+    app.refresh_plugin_contributions();
+
+    assert_eq!(
+        rendered_plugin_entry_labels(&app),
+        vec!["Edit Pattern (E)".to_string()],
+        "without the suffix `entry_mnemonic` finds nothing and the key is dead"
+    );
+}
+
+/// A duplicate drops only the later entry's *shortcut*. The entry itself stays
+/// — arrows, Enter and the mouse still reach it — and its siblings are
+/// untouched. A top-level collision is the case that rejects a whole subtree,
+/// because there the menu becomes unreachable entirely.
+#[test]
+fn a_duplicate_entry_mnemonic_drops_only_the_later_shortcut() {
+    let menu = menu_with_declared_mnemonics(
+        "Tools",
+        None,
+        &[
+            ("Edit Pattern", "edit", Some("E")),
+            ("Export", "export", Some("E")),
+            ("Apply", "apply", Some("A")),
+        ],
+    );
+    let mut app = AppState::new();
+    app.plugin_hosts = PluginHosts::for_tests(vec![started_menu_host("tools", menu)]);
+    app.refresh_plugin_contributions();
+
+    assert_eq!(
+        rendered_plugin_entry_labels(&app),
+        vec![
+            "Edit Pattern (E)".to_string(),
+            "Export".to_string(),
+            "Apply (A)".to_string(),
+        ],
+        "the second E loses its key; it and its siblings survive"
+    );
+}
+
+/// A host may pick a letter that is not the label's first: then the suffix is
+/// mandatory even in plain English, because the top-level matcher would
+/// otherwise derive the first character and the declared key would not work.
+#[test]
+fn a_declared_top_mnemonic_that_is_not_the_first_letter_is_shown_in_english() {
+    let menu = menu_with_declared_mnemonics("Log Filter", Some("G"), &[("Run", "run", None)]);
+    let mut app = AppState::new();
+    app.plugin_hosts = PluginHosts::for_tests(vec![started_menu_host("logf", menu)]);
+    app.refresh_plugin_contributions();
+
+    let buffer_views = app.buffer_views();
+    let menu = app
+        .shell
+        .frame_for_workspace(&app.workspace, Rect::new(0, 0, 120, 20), &buffer_views)
+        .menu;
+    assert_eq!(menu.items.last().unwrap().label, "Log Filter (G)");
+    assert_eq!(
+        app.shell.menu_index_for_mnemonic('g'),
+        Some(4),
+        "the declared key must actually open it"
+    );
+}
+
 fn started_menu_host(plugin_id: &str, menu: PluginMenu) -> PluginHost {
     let (mut host, _messages, events) = PluginHost::for_tests_granted(plugin_id, eager_grant());
     events

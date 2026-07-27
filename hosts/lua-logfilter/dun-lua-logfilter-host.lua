@@ -227,10 +227,15 @@ end
 -- Contributions and request handling
 -- ---------------------------------------------------------------------------
 
-local function menu_item(label, action_id, kind)
+-- Entry mnemonics must be declared: dun derives one for the top-level label
+-- but deliberately not for entries, so an entry without `mnemonic` has no
+-- letter shortcut (arrows/Enter/mouse still reach it). Language-independent,
+-- like dun's own.
+local function menu_item(label, mnemonic, action_id, kind)
   return {
-    __order = { "label", "action_id", "kind" },
+    __order = { "label", "mnemonic", "action_id", "kind" },
     label = { __order = { "en_US" }, en_US = label },
+    mnemonic = mnemonic,
     action_id = action_id,
     kind = kind,
   }
@@ -254,9 +259,9 @@ local function hello_payload()
       __order = { "top_label", "items" },
       top_label = { __order = { "en_US", "zh-CN" }, en_US = "Log Filter", ["zh-CN"] = "日志过滤" },
       items = {
-        menu_item("Edit Pattern", "edit", "scratch"),
-        menu_item("Apply Pattern", "apply", "execute"),
-        menu_item("Show Status", "status", "surface"),
+        menu_item("Edit Pattern", "E", "edit", "scratch"),
+        menu_item("Apply Pattern", "A", "apply", "execute"),
+        menu_item("Show Status", "S", "status", "surface"),
       },
     },
     keybinding = {

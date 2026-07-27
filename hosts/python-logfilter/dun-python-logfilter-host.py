@@ -70,11 +70,30 @@ def hello_payload():
         "host_id": HOST_ID,
         "trust": "user-trusted-external",
         "menu": {
+            # No top_mnemonic: dun derives `L` from the en_US label's first
+            # letter. Entry mnemonics have no such derivation and must be
+            # declared, or the entries are reachable only by arrows, Enter and
+            # the mouse. They are language-independent, like dun's own.
             "top_label": {"en_US": "Log Filter", "zh-CN": "日志过滤"},
             "items": [
-                {"label": {"en_US": "Edit Pattern"}, "action_id": "edit", "kind": "scratch"},
-                {"label": {"en_US": "Apply Pattern"}, "action_id": "apply", "kind": "execute"},
-                {"label": {"en_US": "Show Status"}, "action_id": "status", "kind": "surface"},
+                {
+                    "label": {"en_US": "Edit Pattern"},
+                    "mnemonic": "E",
+                    "action_id": "edit",
+                    "kind": "scratch",
+                },
+                {
+                    "label": {"en_US": "Apply Pattern"},
+                    "mnemonic": "A",
+                    "action_id": "apply",
+                    "kind": "execute",
+                },
+                {
+                    "label": {"en_US": "Show Status"},
+                    "mnemonic": "S",
+                    "action_id": "status",
+                    "kind": "surface",
+                },
             ],
         },
         "keybinding": {
