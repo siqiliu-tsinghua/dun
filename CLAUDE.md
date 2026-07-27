@@ -47,10 +47,16 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **677,940 bytes** (2026-07-23, crossterm replacement complete at
-  `877b7ad`; net −21,336 from the 699,276 stage-B baseline).
-- Debian: **739,632 bytes** at `877b7ad` — **binding platform**, margin
-  308,944 bytes (2026-07-23, last measured). The crossterm-replacement track
+- macOS: **706,748 bytes** (2026-07-27, `9200e5e`).
+- Debian: **764,208 bytes** at `4f91b01` — **binding platform**, margin
+  284,368 bytes (2026-07-27, binding measurement from a clean git archive).
+  The last two commits are refactor/doc-only and byte-neutral on macOS, so
+  Debian is measured through them by construction; re-measure on the next
+  runtime change. The 2026-07-27 stage added ~4 KiB total: the diagnostic-
+  window i18n keys (+4,096 Debian) and the plugin menu/leader work (+8 macOS,
+  0 Debian).
+- Earlier baseline for context: macOS 677,940 / Debian 739,632 at `877b7ad`
+  (2026-07-23, crossterm replacement complete). The crossterm-replacement track
   (five steps, `cf1a5b6`..`877b7ad`) made dun's terminal I/O fully in-house
   and shrank the binding binary 24,656 bytes net from the 764,288 stage-B
   baseline: step 1 own output escapes (−4,096), step 2 rustix sys shim
@@ -199,8 +205,9 @@ Sequencing (stages 1–2 completed 2026-07-10):
    docs/i18n.md). The whole UI translates (menus, help, dialogs, every
    status message); English is compiled in as the `&'static` fallback and
    ten languages ship as external `i18n/<tag>.conf` files, which cost the
-   binary nothing. Remaining work is additive: native-speaker corrections
-   to the nine machine-translated files.
+   binary nothing. Nine of the ten are machine-translated and unreviewed —
+   there is no native-speaker reviewer, so that is stated as provenance in
+   docs/i18n.md rather than tracked as outstanding work.
 5. ~~Distinctive plugins~~ — DONE, stage closed 2026-07-23
    (capability-model-first, reframed 2026-07-16): `role` is a **named bundle
    of inward capabilities** — typed, validated channels into `dun`-owned
@@ -235,11 +242,38 @@ Sequencing (stages 1–2 completed 2026-07-10):
    best-effort, PTY-verified, not a measured matrix. Binding Debian 760,112
    (+4,096 over `b9ac165`, margin 288,464); four-platform 845/0.
 
+8. ~~Real-terminal acceptance + the plugin-UI defects it found~~ — DONE,
+   stage closed 2026-07-27 (`d3eacda`..`4149566`, 17 commits). The pass ran
+   for real: 51 screenshots (3 emulators x 14 local scenarios, plus 3
+   emulators x 3 VMs over live SSH) and 232 headless 80x24 text grids
+   (11 languages x 20 dialog/editor states, plus the log-filter surface).
+   Tooling is in `acceptance/` and documented in
+   docs/real-terminal-acceptance.md.
+
+   **The screenshots were not the product — the defects they exposed were.**
+   Five were found by looking at output, none by reading code: the two
+   diagnostic windows were half-translated in all eleven languages; a
+   plugin's top-level menu was keyboard-unreachable in every translated
+   language (English worked only because `Log Filter` starts with `L`);
+   plugin dropdown entries had no mnemonic even in English; a plugin's second
+   window split the layout into three unreadable columns; and plugin leaders
+   used a runtime check where a structural guarantee belonged. Plus two gaps
+   of my own: the reserved `Ctrl+T` was never disclosed to users, and the
+   gallery's locale dimension had never actually taken effect.
+
+   Protocol changes: menu items take an optional `mnemonic` and menus a
+   `top_mnemonic` (authors choose; no derivation rule survives a real
+   plugin), and `Ctrl+T` is reserved for every plugin instead of hosts
+   picking their own leader. A plugin's own settings live with the plugin,
+   not in dun's config — install is unpacking a folder, uninstall is
+   deleting one.
+
 Next stage: none active — pick from the queue with the user. Remaining:
-native-speaker i18n corrections (additive); F20 Outline as a plugin
-`DocumentStructure` role; rum evaluation stays externally blocked on
-rum-ext's resource/type base. Optional follow-up: live real-terminal OSC 52
-read acceptance (user-driven, like the tmux log-filter acceptance).
+F20 Outline as a plugin `DocumentStructure` role; rum evaluation stays
+externally blocked on rum-ext's resource/type base; plugin dropdown entries
+still have no mnemonic when a host declares none (deliberate — see
+docs/plugin-protocol.md "Menu mnemonics"). Optional follow-up: live
+real-terminal OSC 52 read acceptance (user-driven).
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,
