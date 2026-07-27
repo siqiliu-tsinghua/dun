@@ -380,7 +380,7 @@ impl AppState {
         out
     }
 
-    fn config_diagnostics_text(&self) -> String {
+    pub(crate) fn config_diagnostics_text(&self) -> String {
         let mut out = ui_text::tr(
             &self.shell.catalog,
             ui_text::WINDOW_CONFIG_DIAGNOSTICS_HEADING,
@@ -545,6 +545,19 @@ impl AppState {
             self.shell.keymap.bindings.len()
         ));
         out.push_str(&format!("  important_unbound: {important_unbound_text}\n"));
+        // The reserved plugin leader is a key the user does not own, and until
+        // now nothing said so: binding it yourself silently disabled every
+        // plugin's chords, reported only by a status message at the next
+        // handshake. State it, and state whether it is still free.
+        out.push_str(&format!(
+            "  plugin_leader: {} ({})\n",
+            crate::plugins::PLUGIN_LEADER,
+            if crate::plugins::plugin_leader(&self.shell.keymap).is_some() {
+                "reserved for plugins"
+            } else {
+                "UNAVAILABLE - bound in your keymap, plugin chords are disabled"
+            }
+        ));
         let mut bindings = self
             .shell
             .keymap

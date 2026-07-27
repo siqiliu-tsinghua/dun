@@ -68,7 +68,11 @@ pub fn default_config_text() -> String {
 # plugin.example.trust = user-trusted-external\n\
 # plugin.example.roles = syntax-highlight, log-filter\n\
 # plugin.example.timeout_ms = 2000\n\
-# plugin.example.max_frame_bytes = 256 KiB\n",
+# plugin.example.max_frame_bytes = 256 KiB\n\
+#\n\
+# Ctrl+T is reserved: every plugin binds its chords under it, so a plugin can\n\
+# never shadow an editor key. Binding Ctrl+T yourself below disables all\n\
+# plugin chords. A plugin's own settings live with the plugin, not here.\n",
     );
 
     out.push_str("\n# Global editor command keybindings\n");

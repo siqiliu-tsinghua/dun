@@ -446,3 +446,28 @@ fn focused_detail_status_reports_selection_summary() {
         "[LF] [UTF-8] [Spaces:4] 1:4 [Sel 3c] [View 1-1/1] [UTF-8/256c] [Win 1/1]"
     );
 }
+
+/// The reserved plugin leader is a key the user does not own. Nothing said so
+/// until now: binding Ctrl+T yourself silently disabled every plugin's chords,
+/// reported only by a status message at the next handshake. Config diagnostics
+/// must state both the reservation and whether it still holds.
+#[test]
+fn config_diagnostics_report_the_reserved_plugin_leader() {
+    let app = AppState::new();
+    let text = app.config_diagnostics_text();
+    assert!(
+        text.contains("plugin_leader: Ctrl+T (reserved for plugins)"),
+        "the reservation must be discoverable, not folklore:\n{text}"
+    );
+
+    let mut taken = AppState::new();
+    taken.shell.keymap.bindings.push(dun_config::KeyBinding {
+        sequence: dun_config::KeySequence::single("Ctrl+T".parse().expect("parses")),
+        command: EditorCommand::App(dun_core::AppCommand::Help),
+    });
+    let text = taken.config_diagnostics_text();
+    assert!(
+        text.contains("UNAVAILABLE"),
+        "a user who bound it must be told their plugin chords are off:\n{text}"
+    );
+}

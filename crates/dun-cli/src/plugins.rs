@@ -617,7 +617,7 @@ pub(crate) const PLUGIN_LEADER: &str = "Ctrl+T";
 
 /// The reserved leader, unless the editor's own keymap has claimed it — a
 /// user may rebind anything, so this is checked rather than assumed.
-fn plugin_leader(base: &Keymap) -> Option<KeyStroke> {
+pub(crate) fn plugin_leader(base: &Keymap) -> Option<KeyStroke> {
     let leader: KeyStroke = PLUGIN_LEADER.parse().ok()?;
     let sequence = KeySequence::single(leader);
     let free =
