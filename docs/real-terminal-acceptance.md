@@ -194,9 +194,26 @@ forms (`Arquivo`), while the tag maps to `pt_PT`; European Portuguese would be
 Terminal.app finds nothing after the first launch (a naive sweep scored 1/13)
 and every shot carries tab-bar chrome. The fix is to **quit iTerm before each
 shot**: the relaunch opens the script in a brand-new window with a single tab,
-and iTerm hides the tab bar when a window has only one tab. iTerm still
-restores a couple of dead sessions on relaunch, but those are titled `-zsh`,
-so the live window is the one whose title is not that.
+and iTerm hides the tab bar when a window has only one tab.
+
+**Prerequisite: turn off iTerm2's startup windows** (its "restore windows" /
+`OpenNoWindowsAtStartup` behaviour). Measured on a cold launch with the
+default setting, iTerm creates **two windows of its own before the document
+even opens** — so a quit-per-shot sweep flashes two junk windows per capture
+and the run looks broken:
+
+| cold launch | default setting | startup windows off |
+| --- | --- | --- |
+| no document | 2 windows | **0** |
+| with document | 3 windows | **1** (the document) |
+
+The junk windows are self-cleaning and never corrupted a capture, but one of
+them carries a tab bar, which is what makes the run look like the sweep is
+accumulating tabs. Note how to tell them apart **without opening a single
+image**: at this font the document window is `570x462` logical and a
+tab-barred one is `570x497`. A 35-point (70-pixel) height difference is a tab
+bar. Read the geometry column, not the window count — counting windows is what
+hid this for three rounds of testing.
 
 Verify this mechanically rather than by eye: the tab bar is ~70 px tall, so a
 clean iTerm capture is **1140x924** and a tabbed one **1140x994**.
