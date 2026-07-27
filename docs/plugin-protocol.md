@@ -235,6 +235,18 @@ author must supply at least `en_US`; other tags are optional. `dun` resolves by
 the active locale and falls back to `en_US`. A single-tag contribution is legal;
 a contribution missing `en_US` is rejected.
 
+The top-level menu mnemonic is always the first character of the `en_US`
+label, accepted only when it is an ASCII letter and normalized to uppercase.
+The English fallback is rendered unchanged; when an active translation is
+selected, `dun` composes `translated label (M)` with that English mnemonic.
+A raw English label whose trailing parenthesized mnemonic contradicts the
+first-character rule is invalid. Built-in menus claim their mnemonics first,
+then plugin menus claim in configuration order; a built-in collision or a
+later plugin collision rejects only the conflicting menu subtree. Each
+rejection produces a translated status diagnostic naming the plugin and,
+for a collision, the mnemonic. Claims are recomputed on refresh, so unloading
+an earlier host can promote a later contribution.
+
 ### Error and diagnostic surface
 
 Snippet execution failures and any host-side error surface through a
@@ -352,7 +364,8 @@ fails the handshake. Menus are therefore static, fixed at launch; a dynamic
 side each worker ships the validated contribution to the main thread with its
 launch report, where it lives on the host's `PluginHost` entry (cleared on
 unload, reinstalled by the relaunch handshake). `dun` resolves it (labels
-against the active locale) into the menu bar after the built-in menus; an
+against the active locale and top-level mnemonic policy under Menu label i18n)
+into the menu bar after the built-in menus; an
 invoked item is an `EditorCommand::PluginAction { plugin_id, action_id }`
 (not user-bindable — a generic `command_id`, `plugin.action`, no
 `command_from_id` round-trip; the same command a `keybinding` leader chord

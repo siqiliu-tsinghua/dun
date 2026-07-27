@@ -34,6 +34,8 @@ pub(crate) struct AppState {
     pub(crate) kill_ring: Option<String>,
     pub(crate) recent_file_dialog_input: Option<String>,
     pub(crate) runtime_action: Option<RuntimeAction>,
+    /// Configured hosts plus the current plugin-menu rejection set, retained
+    /// across refreshes so each newly rejected subtree is reported once.
     pub(crate) plugin_hosts: PluginHosts,
     /// Active locale chain used to resolve plugin-contributed menu labels
     /// (empty falls back to the required `en_US`, matching the English-on-ASCII
@@ -42,4 +44,11 @@ pub(crate) struct AppState {
     /// Per-plugin ownership of the surface windows opened from plugin menus,
     /// mirrored against real `WindowId`s in the workspace.
     pub(crate) plugin_windows: PluginWindows,
+}
+
+impl AppState {
+    #[cfg(test)]
+    pub(crate) fn plugin_menu_rejections(&self) -> &[crate::plugins::PluginMenuRejection] {
+        self.plugin_hosts.menu_rejections()
+    }
 }

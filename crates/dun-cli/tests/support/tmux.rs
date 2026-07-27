@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -59,6 +60,30 @@ impl TmuxSession {
             OsStr::new(env!("CARGO_BIN_EXE_dun")),
             args,
         )
+    }
+
+    pub fn start_dun_with_locale(
+        label: &str,
+        cols: u16,
+        rows: u16,
+        locale: &str,
+        args: &[&OsStr],
+    ) -> io::Result<Option<Self>> {
+        // Opt in by wrapping only this dun process with a second `env`.
+        // `start_dun` keeps the harness's pinned English locale unchanged.
+        let lc_all = OsString::from(format!("LC_ALL={locale}"));
+        let lc_messages = OsString::from(format!("LC_MESSAGES={locale}"));
+        let lang = OsString::from(format!("LANG={locale}"));
+        let lc_ctype = OsString::from(format!("LC_CTYPE={locale}"));
+        let mut localized_args = vec![
+            lc_all.as_os_str(),
+            lc_messages.as_os_str(),
+            lang.as_os_str(),
+            lc_ctype.as_os_str(),
+            OsStr::new(env!("CARGO_BIN_EXE_dun")),
+        ];
+        localized_args.extend_from_slice(args);
+        Self::start_executable(label, cols, rows, OsStr::new("env"), &localized_args)
     }
 
     pub fn start_executable(

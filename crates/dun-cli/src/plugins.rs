@@ -24,7 +24,10 @@ use dun_plugin::{
     Capability, GrantedCapabilities, HostClient, InputSnapshot, PluginActionKind as WireActionKind,
     PluginKeybinding, PluginMenu, Policy, Role, StreamChunk, StyleSpan, TrustClass,
 };
-use dun_ui::{MenuEntry, MenuItem};
+use dun_ui::{
+    MenuEntry, MenuItem, built_in_menu_mnemonics, compose_translated_menu_label,
+    english_menu_mnemonic,
+};
 
 /// Do not relaunch a failed host more often than this; failures otherwise
 /// turn every editor tick into a spawn attempt.
@@ -416,12 +419,32 @@ impl PluginHost {
 /// Every configured host, in configuration order.
 pub(crate) struct PluginHosts {
     hosts: Vec<PluginHost>,
+    menu_rejections: Vec<PluginMenuRejection>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ResolvedPluginMenus {
+    pub(crate) items: Vec<MenuItem>,
+    pub(crate) rejections: Vec<PluginMenuRejection>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PluginMenuRejection {
+    pub(crate) plugin_id: String,
+    pub(crate) reason: PluginMenuRejectionReason,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PluginMenuRejectionReason {
+    InvalidEnglishMnemonic,
+    MnemonicConflict(char),
 }
 
 impl PluginHosts {
     pub(crate) fn from_entries(entries: &[PluginEntry]) -> Self {
         Self {
             hosts: entries.iter().map(PluginHost::from_entry).collect(),
+            menu_rejections: Vec::new(),
         }
     }
 
@@ -476,14 +499,58 @@ impl PluginHosts {
         })
     }
 
-    /// Every host's menu contribution resolved into a dun-ui menu item, in
-    /// configuration order, ready to append after the built-in menus. `tags`
-    /// is the active locale chain used to pick each label (empty falls back to
-    /// the required `en_US`).
-    pub(crate) fn resolved_menu_items(&self, tags: &[String]) -> Vec<MenuItem> {
-        self.menus()
-            .map(|(plugin_id, menu)| resolve_plugin_menu(plugin_id, menu, tags))
-            .collect()
+    /// Every accepted host menu, plus a typed rejection for each subtree whose
+    /// English mnemonic is invalid or already claimed. Built-ins seed the
+    /// claimed set; plugins then claim in configuration order.
+    pub(crate) fn resolved_menu_items(&self, tags: &[String]) -> ResolvedPluginMenus {
+        let mut resolved = ResolvedPluginMenus {
+            items: Vec::new(),
+            rejections: Vec::new(),
+        };
+        let mut claimed = built_in_menu_mnemonics().collect::<Vec<_>>();
+        for (plugin_id, menu) in self.menus() {
+            let english_label = menu.top_label.fallback();
+            let mnemonic = match valid_plugin_menu_mnemonic(english_label) {
+                Some(mnemonic) => mnemonic,
+                None => {
+                    resolved.rejections.push(PluginMenuRejection {
+                        plugin_id: plugin_id.to_string(),
+                        reason: PluginMenuRejectionReason::InvalidEnglishMnemonic,
+                    });
+                    continue;
+                }
+            };
+            if claimed.contains(&mnemonic) {
+                resolved.rejections.push(PluginMenuRejection {
+                    plugin_id: plugin_id.to_string(),
+                    reason: PluginMenuRejectionReason::MnemonicConflict(mnemonic),
+                });
+                continue;
+            }
+            claimed.push(mnemonic);
+            resolved
+                .items
+                .push(resolve_plugin_menu(plugin_id, menu, tags, mnemonic));
+        }
+        resolved
+    }
+
+    pub(crate) fn replace_menu_rejections(
+        &mut self,
+        rejections: Vec<PluginMenuRejection>,
+    ) -> Vec<PluginMenuRejection> {
+        let newly_rejected = rejections
+            .iter()
+            .filter(|rejection| !self.menu_rejections.contains(*rejection))
+            .cloned()
+            .collect();
+        self.menu_rejections = rejections;
+        newly_rejected
+    }
+
+    #[cfg(test)]
+    pub(crate) fn menu_rejections(&self) -> &[PluginMenuRejection] {
+        &self.menu_rejections
     }
 
     /// Keybinding contributions gathered from every host that advertised one
@@ -580,7 +647,12 @@ fn action_kind(kind: WireActionKind) -> PluginActionKind {
 /// and the item's `action_id`, so dispatch can route the invocation back to
 /// the owning host. Labels are resolved against the active locale `tags`; the
 /// display sanitizer still runs at render time.
-fn resolve_plugin_menu(plugin_id: &str, menu: &PluginMenu, tags: &[String]) -> MenuItem {
+fn resolve_plugin_menu(
+    plugin_id: &str,
+    menu: &PluginMenu,
+    tags: &[String],
+    mnemonic: char,
+) -> MenuItem {
     let entries = menu
         .items
         .iter()
@@ -595,7 +667,32 @@ fn resolve_plugin_menu(plugin_id: &str, menu: &PluginMenu, tags: &[String]) -> M
             )
         })
         .collect();
-    MenuItem::new(menu.top_label.resolve(tags).to_string(), entries)
+    let top_label = match menu.top_label.resolve_translation(tags) {
+        Some(base) => compose_translated_menu_label(base, mnemonic),
+        None => menu.top_label.fallback().to_string(),
+    };
+    MenuItem::new(top_label, entries)
+}
+
+/// A plugin menu must use its first English ASCII letter. A raw English label
+/// may already carry a parenthesized mnemonic; accept it only when that suffix
+/// agrees with the first-letter rule, because dun-ui's matcher prefers it.
+fn valid_plugin_menu_mnemonic(label: &str) -> Option<char> {
+    let mnemonic = english_menu_mnemonic(label)?;
+    if trailing_parenthesized_mnemonic(label)
+        .is_some_and(|embedded| !embedded.eq_ignore_ascii_case(&mnemonic))
+    {
+        return None;
+    }
+    Some(mnemonic)
+}
+
+fn trailing_parenthesized_mnemonic(label: &str) -> Option<char> {
+    let without_close = label.trim_end().strip_suffix(')')?;
+    let (_, contents) = without_close.rsplit_once('(')?;
+    let mut chars = contents.chars();
+    let mnemonic = chars.next()?;
+    chars.next().is_none().then_some(mnemonic)
 }
 
 /// Map a configured role name to the protocol `Role`, if the protocol models
@@ -991,7 +1088,10 @@ impl PluginHost {
 #[cfg(test)]
 impl PluginHosts {
     pub(crate) fn for_tests(hosts: Vec<PluginHost>) -> Self {
-        Self { hosts }
+        Self {
+            hosts,
+            menu_rejections: Vec::new(),
+        }
     }
 }
 

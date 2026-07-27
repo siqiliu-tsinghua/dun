@@ -84,11 +84,34 @@ impl AppState {
     /// gatherers skip hosts with no contribution). `plugin load`/`unload` call
     /// it directly for a synchronous refresh.
     pub(crate) fn refresh_plugin_contributions(&mut self) {
-        let items = self
+        let resolved_menus = self
             .plugin_hosts
             .resolved_menu_items(&self.plugin_menu_tags);
-        if items != self.shell.plugin_menu_items {
-            self.shell.plugin_menu_items = items;
+        if resolved_menus.items != self.shell.plugin_menu_items {
+            self.shell.plugin_menu_items = resolved_menus.items;
+        }
+        let newly_rejected = self
+            .plugin_hosts
+            .replace_menu_rejections(resolved_menus.rejections);
+        for rejection in newly_rejected {
+            let message = match rejection.reason {
+                crate::plugins::PluginMenuRejectionReason::InvalidEnglishMnemonic => {
+                    ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PLUGIN_MENU_INVALID_MNEMONIC,
+                        &[&rejection.plugin_id],
+                    )
+                }
+                crate::plugins::PluginMenuRejectionReason::MnemonicConflict(mnemonic) => {
+                    let mnemonic = mnemonic.to_string();
+                    ui_text::tr_fmt(
+                        &self.shell.catalog,
+                        ui_text::STATUS_PLUGIN_MENU_MNEMONIC_CONFLICT,
+                        &[&rejection.plugin_id, &mnemonic],
+                    )
+                }
+            };
+            self.set_status(message);
         }
         let (keymap, rejected) = self.plugin_hosts.resolved_keybindings(&self.shell.keymap);
         if keymap.bindings != self.shell.plugin_keymap.bindings {

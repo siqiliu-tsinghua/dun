@@ -86,6 +86,21 @@ fn start_with_host(label: &str, cols: u16) -> io::Result<Option<TmuxSession>> {
     )
 }
 
+fn start_with_host_locale(label: &str, cols: u16, locale: &str) -> io::Result<Option<TmuxSession>> {
+    let (Some(python), Some(host)) = (python3(), host_script()) else {
+        eprintln!("skipping tmux log-filter test: python3 or the host is unavailable");
+        return Ok(None);
+    };
+    let config = write_config(&python, &host)?;
+    TmuxSession::start_dun_with_locale(
+        label,
+        cols,
+        24,
+        locale,
+        &[OsStr::new("--config"), config.as_os_str()],
+    )
+}
+
 #[test]
 fn tmux_logfilter_menu_is_injected_after_handshake() -> io::Result<()> {
     let _guard = tmux_test_guard();
@@ -101,6 +116,38 @@ fn tmux_logfilter_menu_is_injected_after_handshake() -> io::Result<()> {
         screen.line(0).contains("Log Filter"),
         "menu bar (row 0) should carry the plugin menu: {:?}\n{}",
         screen.line(0),
+        screen.text
+    );
+    Ok(())
+}
+
+#[test]
+fn tmux_translated_logfilter_menu_opens_with_english_alt_l() -> io::Result<()> {
+    let _guard = tmux_test_guard();
+
+    let Some(english) = start_with_host("logfilter-mnemonic-en", 100)? else {
+        return Ok(());
+    };
+    english.capture_until_contains("Log Filter", STARTUP_TIMEOUT)?;
+    english.send_keys(&["M-l"])?;
+    let screen = english.capture_until_contains("Edit Pattern", INTERACTION_TIMEOUT)?;
+    assert!(
+        screen.text.contains("Edit Pattern"),
+        "Alt+L should open the English plugin menu\n{}",
+        screen.text
+    );
+    drop(english);
+
+    let Some(translated) = start_with_host_locale("logfilter-mnemonic-zh", 100, "zh_CN.UTF-8")?
+    else {
+        return Ok(());
+    };
+    translated.capture_until_contains("日志过滤 (L)", STARTUP_TIMEOUT)?;
+    translated.send_keys(&["M-l"])?;
+    let screen = translated.capture_until_contains("Edit Pattern", INTERACTION_TIMEOUT)?;
+    assert!(
+        screen.text.contains("Edit Pattern"),
+        "Alt+L should open the translated plugin menu\n{}",
         screen.text
     );
     Ok(())

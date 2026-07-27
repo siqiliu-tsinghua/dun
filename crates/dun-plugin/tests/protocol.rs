@@ -258,6 +258,12 @@ fn menu_granted_host_contributes_its_menu() {
     let menu = client
         .menu()
         .expect("a menu-granted host contributes a menu");
+    assert_eq!(menu.top_label.fallback(), "Fixture");
+    assert_eq!(menu.top_label.resolve_translation(&[]), None);
+    assert_eq!(
+        menu.top_label.resolve_translation(&["zh-CN".to_string()]),
+        Some("夹具")
+    );
     assert_eq!(menu.top_label.resolve(&[]), "Fixture");
     assert_eq!(menu.top_label.resolve(&["zh-CN".to_string()]), "夹具");
     assert_eq!(menu.items.len(), 1);

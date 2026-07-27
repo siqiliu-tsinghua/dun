@@ -16,14 +16,32 @@ pub const MENU_FALLBACK_TAG: &str = "en_US";
 pub struct LabelSet(Vec<(String, String)>);
 
 impl LabelSet {
-    pub fn resolve(&self, active_tags: &[String]) -> &str {
+    /// The required English source label.
+    ///
+    /// Construction validates this entry; the empty fallback is a defensive
+    /// degradation if that invariant is ever broken internally.
+    pub fn fallback(&self) -> &str {
+        self.get(MENU_FALLBACK_TAG).unwrap_or_default()
+    }
+
+    /// Resolve only an actively selected locale tag.
+    ///
+    /// `None` means the caller must use [`Self::fallback`]. Keeping that state
+    /// separate lets menu composition distinguish a selected translation from
+    /// English fallback even when both strings happen to be equal.
+    pub fn resolve_translation(&self, active_tags: &[String]) -> Option<&str> {
         for tag in active_tags {
             if let Some(label) = self.get(tag) {
-                return label;
+                return Some(label);
             }
         }
-        self.get(MENU_FALLBACK_TAG)
-            .expect("validated label set has an en_US fallback")
+        None
+    }
+
+    /// Compatibility wrapper returning an active translation or `en_US`.
+    pub fn resolve(&self, active_tags: &[String]) -> &str {
+        self.resolve_translation(active_tags)
+            .unwrap_or_else(|| self.fallback())
     }
 
     fn get(&self, tag: &str) -> Option<&str> {
@@ -233,6 +251,19 @@ mod tests {
         let labels = parse_label_set(&bilingual_labels()).expect("valid labels");
         assert_eq!(labels.resolve(&["fr".into()]), "Tools");
         assert_eq!(labels.resolve(&[]), "Tools");
+    }
+
+    #[test]
+    fn translation_selection_is_distinct_when_text_equals_fallback() {
+        let labels = parse_label_set(&json::obj([
+            ("en_US", json::str("Tools")),
+            ("fr", json::str("Tools")),
+        ]))
+        .expect("valid labels");
+
+        assert_eq!(labels.fallback(), "Tools");
+        assert_eq!(labels.resolve_translation(&["fr".into()]), Some("Tools"));
+        assert_eq!(labels.resolve_translation(&["de".into()]), None);
     }
 
     #[test]

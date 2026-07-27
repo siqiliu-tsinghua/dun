@@ -2,9 +2,13 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
+use dun_plugin::json::{self, Json};
+use dun_plugin::{GrantedCapabilities, PluginMenu, Role, TrustClass};
+
 use super::support::*;
 use crate::config_loading::ConfigSource;
 use crate::i18n_loading::{catalog_from_dir, i18n_dir_for_source};
+use crate::plugins::PluginHost;
 
 fn temp_i18n_dir(name: &str) -> PathBuf {
     let dir = temp_file_path(name);
@@ -77,6 +81,42 @@ fn menu_uses_translation_key(key: &str) -> bool {
                 .iter()
                 .any(|entry| entry.label.contains(MARKER))
     })
+}
+
+fn accepted_plugin_menu_host() -> PluginHost {
+    let payload = json::obj([
+        ("top_label", json::obj([("en_US", json::str("Tools"))])),
+        (
+            "items",
+            Json::Arr(vec![json::obj([
+                ("label", json::obj([("en_US", json::str("Run"))])),
+                ("action_id", json::str("run")),
+            ])]),
+        ),
+    ]);
+    let menu = PluginMenu::from_payload(&payload).expect("valid menu payload");
+    let granted =
+        GrantedCapabilities::for_roles(&[Role::LogFilter], TrustClass::UserTrustedExternal);
+    let (mut host, _messages, events) = PluginHost::for_tests_granted("tools", granted);
+    events
+        .send(HostEvent::Started {
+            menu: Some(menu),
+            keybinding: None,
+        })
+        .unwrap();
+    assert!(host.poll().is_empty(), "handshake events are absorbed");
+    host
+}
+
+fn rendered_top_level_menu_labels(app: &AppState) -> Vec<String> {
+    let buffer_views = app.buffer_views();
+    app.shell
+        .frame_for_workspace(&app.workspace, Rect::new(0, 0, 120, 20), &buffer_views)
+        .menu
+        .items
+        .into_iter()
+        .map(|item| item.label.into_owned())
+        .collect()
 }
 
 #[test]
@@ -386,6 +426,57 @@ fn shipped_zh_status_history_translates_the_empty_message() {
 
     assert_eq!(text, "Dun 状态历史\n\n暂无状态消息。\n");
     assert!(!text.contains("No status messages yet."));
+}
+
+#[test]
+fn plugin_menu_resolution_preserves_builtin_labels_and_indices() {
+    const BUILT_IN_MENU_COUNT: usize = 4;
+
+    for path in shipped_catalog_files() {
+        let text = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+        let lang = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or_else(|| panic!("{} has no UTF-8 language tag", path.display()));
+        let catalog = dun_config::parse_catalog(&text, lang)
+            .unwrap_or_else(|error| panic!("{} does not parse: {error}", path.display()));
+
+        let mut before = AppState::new();
+        before.shell.catalog = catalog.clone();
+        let before_labels = rendered_top_level_menu_labels(&before);
+        assert_eq!(before_labels.len(), BUILT_IN_MENU_COUNT);
+        for (index, mnemonic) in ['F', 'E', 'V', 'H'].into_iter().enumerate() {
+            assert_eq!(
+                before.shell.menu_index_for_mnemonic(mnemonic),
+                Some(index),
+                "{}: built-in mnemonic {mnemonic} moved before plugin resolution",
+                path.display()
+            );
+        }
+
+        let mut after = AppState::new();
+        after.shell.catalog = catalog;
+        after.plugin_hosts = PluginHosts::for_tests(vec![accepted_plugin_menu_host()]);
+        after.refresh_plugin_contributions();
+        let after_labels = rendered_top_level_menu_labels(&after);
+
+        assert_eq!(
+            after_labels[..BUILT_IN_MENU_COUNT],
+            before_labels,
+            "{}: adding an accepted plugin must leave the built-in prefix byte-identical",
+            path.display()
+        );
+        assert_eq!(after_labels[BUILT_IN_MENU_COUNT], "Tools");
+        for (index, mnemonic) in ['F', 'E', 'V', 'H'].into_iter().enumerate() {
+            assert_eq!(
+                after.shell.menu_index_for_mnemonic(mnemonic),
+                Some(index),
+                "{}: built-in mnemonic {mnemonic} moved after plugin resolution",
+                path.display()
+            );
+        }
+    }
 }
 
 #[test]

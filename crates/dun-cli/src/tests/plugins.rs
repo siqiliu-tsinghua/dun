@@ -9,7 +9,10 @@ use dun_plugin::{
 };
 
 use super::support::app_with_text;
-use crate::plugins::{PluginActivity, PluginHost, WorkerMessage, next_worker_action_for_tests};
+use crate::plugins::{
+    PluginActivity, PluginHost, PluginMenuRejection, PluginMenuRejectionReason, WorkerMessage,
+    next_worker_action_for_tests,
+};
 use crate::*;
 
 fn span(line: u32, start_col: u32, end_col: u32) -> StyleSpan {
@@ -49,6 +52,362 @@ fn sample_menu() -> PluginMenu {
         ),
     ]);
     PluginMenu::from_payload(&payload).expect("valid menu payload")
+}
+
+fn menu_with_top_labels(english: &str, translations: &[(&str, &str)]) -> PluginMenu {
+    let mut top_labels = vec![("en_US".to_string(), json::str(english))];
+    top_labels.extend(
+        translations
+            .iter()
+            .map(|(tag, label)| ((*tag).to_string(), json::str(label))),
+    );
+    let payload = json::obj([
+        ("top_label", Json::Obj(top_labels)),
+        (
+            "items",
+            Json::Arr(vec![json::obj([
+                ("label", json::obj([("en_US", json::str("Run"))])),
+                ("action_id", json::str("run")),
+            ])]),
+        ),
+    ]);
+    PluginMenu::from_payload(&payload).expect("valid menu payload")
+}
+
+fn started_menu_host(plugin_id: &str, menu: PluginMenu) -> PluginHost {
+    let (mut host, _messages, events) = PluginHost::for_tests_granted(plugin_id, eager_grant());
+    events
+        .send(HostEvent::Started {
+            menu: Some(menu),
+            keybinding: None,
+        })
+        .unwrap();
+    assert!(host.poll().is_empty(), "handshake events are absorbed");
+    host
+}
+
+#[test]
+fn translated_plugin_menu_opens_on_same_alt_chord_as_english() {
+    let menu = menu_with_top_labels("Log Filter", &[("zh-CN", "日志过滤")]);
+
+    let mut english = AppState::new();
+    english.plugin_hosts =
+        PluginHosts::for_tests(vec![started_menu_host("logfilter", menu.clone())]);
+    english.pump_plugins();
+
+    let mut translated = AppState::new();
+    translated.plugin_menu_tags = vec!["zh-CN".to_string()];
+    translated.plugin_hosts = PluginHosts::for_tests(vec![started_menu_host("logfilter", menu)]);
+    translated.pump_plugins();
+
+    assert_eq!(english.shell.menu_index_for_mnemonic('l'), Some(4));
+    assert_eq!(
+        translated.shell.menu_index_for_mnemonic('l'),
+        english.shell.menu_index_for_mnemonic('l'),
+        "the active translation must not change the plugin menu's Alt chord"
+    );
+
+    handle_key_event(
+        &mut english,
+        TerminalKeyEvent::new(TerminalKeyCode::Char('l'), TerminalKeyModifiers::ALT),
+    );
+    handle_key_event(
+        &mut translated,
+        TerminalKeyEvent::new(TerminalKeyCode::Char('l'), TerminalKeyModifiers::ALT),
+    );
+    assert_eq!(english.active_menu, Some(4));
+    assert_eq!(translated.active_menu, Some(4));
+}
+
+fn app_with_menu_contributions(contributions: Vec<(&str, PluginMenu)>, tags: &[&str]) -> AppState {
+    let mut app = AppState::new();
+    app.plugin_menu_tags = tags.iter().map(|tag| (*tag).to_string()).collect();
+    app.plugin_hosts = PluginHosts::for_tests(
+        contributions
+            .into_iter()
+            .map(|(plugin_id, menu)| started_menu_host(plugin_id, menu))
+            .collect(),
+    );
+    app.refresh_plugin_contributions();
+    app
+}
+
+#[test]
+fn translated_plugin_menu_composes_the_english_mnemonic() {
+    let menu = menu_with_top_labels("Log Filter", &[("zh-CN", "日志过滤"), ("fr", "Log Filter")]);
+    let english = app_with_menu_contributions(vec![("logfilter", menu.clone())], &[]);
+    let translated = app_with_menu_contributions(vec![("logfilter", menu.clone())], &["zh-CN"]);
+    let equal_text_translation = app_with_menu_contributions(vec![("logfilter", menu)], &["fr"]);
+
+    assert_eq!(english.shell.plugin_menu_items[0].label, "Log Filter");
+    assert_eq!(translated.shell.plugin_menu_items[0].label, "日志过滤 (L)");
+    assert_eq!(
+        equal_text_translation.shell.plugin_menu_items[0].label, "Log Filter (L)",
+        "translation selection is distinct from fallback even when text is equal"
+    );
+    assert_eq!(
+        translated.shell.plugin_menu_items[0].entries[0].label, "Run",
+        "dropdown entries remain unchanged and carry no new mnemonic"
+    );
+}
+
+#[test]
+fn plugin_menu_rejects_non_ascii_english_mnemonic() {
+    let app = app_with_menu_contributions(
+        vec![("non-ascii", menu_with_top_labels("日志过滤", &[]))],
+        &[],
+    );
+
+    assert!(app.shell.plugin_menu_items.is_empty());
+    assert_eq!(
+        app.plugin_menu_rejections(),
+        &[PluginMenuRejection {
+            plugin_id: "non-ascii".to_string(),
+            reason: PluginMenuRejectionReason::InvalidEnglishMnemonic,
+        }]
+    );
+    assert_eq!(
+        app.status_message.as_deref(),
+        Some("Plugin non-ascii menu ignored: en_US label has no valid mnemonic")
+    );
+}
+
+#[test]
+fn plugin_menu_rejects_digit_english_mnemonic() {
+    let app = app_with_menu_contributions(
+        vec![("digit", menu_with_top_labels("1 Log Filter", &[]))],
+        &[],
+    );
+
+    assert!(app.shell.plugin_menu_items.is_empty());
+    assert_eq!(
+        app.plugin_menu_rejections()[0].reason,
+        PluginMenuRejectionReason::InvalidEnglishMnemonic
+    );
+    assert_eq!(
+        app.status_message.as_deref(),
+        Some("Plugin digit menu ignored: en_US label has no valid mnemonic")
+    );
+}
+
+#[test]
+fn plugin_menu_rejects_conflicting_embedded_english_mnemonic() {
+    let app = app_with_menu_contributions(
+        vec![("embedded", menu_with_top_labels("Log Filter (X) ", &[]))],
+        &[],
+    );
+
+    assert!(app.shell.plugin_menu_items.is_empty());
+    assert_eq!(
+        app.plugin_menu_rejections()[0].reason,
+        PluginMenuRejectionReason::InvalidEnglishMnemonic
+    );
+    assert_eq!(
+        app.status_message.as_deref(),
+        Some("Plugin embedded menu ignored: en_US label has no valid mnemonic")
+    );
+}
+
+#[test]
+fn matching_embedded_english_mnemonic_is_accepted() {
+    let app = app_with_menu_contributions(
+        vec![("matching", menu_with_top_labels("Log Filter (L)", &[]))],
+        &[],
+    );
+
+    assert_eq!(app.shell.plugin_menu_items[0].label, "Log Filter (L)");
+    assert!(app.plugin_menu_rejections().is_empty());
+    assert!(app.status_message.is_none());
+}
+
+#[test]
+fn plugin_menu_colliding_with_builtin_is_rejected_and_reported() {
+    let app = app_with_menu_contributions(
+        vec![("files-extra", menu_with_top_labels("Files Extra", &[]))],
+        &[],
+    );
+
+    assert_eq!(
+        app.shell.menu_index_for_mnemonic('f'),
+        Some(0),
+        "File must remain the first menu"
+    );
+    assert_eq!(app.shell.menu_count(), 4);
+    assert!(app.shell.plugin_menu_items.is_empty());
+    assert_eq!(
+        app.plugin_menu_rejections(),
+        &[PluginMenuRejection {
+            plugin_id: "files-extra".to_string(),
+            reason: PluginMenuRejectionReason::MnemonicConflict('F'),
+        }]
+    );
+    assert_eq!(
+        app.status_message.as_deref(),
+        Some("Plugin files-extra menu ignored: mnemonic F conflicts")
+    );
+}
+
+#[test]
+fn later_plugin_with_duplicate_mnemonic_is_rejected_and_reported() {
+    let mut app = app_with_menu_contributions(
+        vec![
+            ("alpha", menu_with_top_labels("Log Filter", &[])),
+            ("beta", menu_with_top_labels("Language", &[])),
+        ],
+        &[],
+    );
+
+    assert_eq!(app.shell.plugin_menu_items.len(), 1);
+    assert_eq!(app.shell.plugin_menu_items[0].label, "Log Filter");
+    assert_eq!(
+        app.plugin_menu_rejections(),
+        &[PluginMenuRejection {
+            plugin_id: "beta".to_string(),
+            reason: PluginMenuRejectionReason::MnemonicConflict('L'),
+        }]
+    );
+    assert_eq!(
+        app.status_message.as_deref(),
+        Some("Plugin beta menu ignored: mnemonic L conflicts")
+    );
+    assert_eq!(app.status_history.len(), 1);
+
+    app.refresh_plugin_contributions();
+    assert_eq!(
+        app.status_history.len(),
+        1,
+        "an unchanged rejection must be reported only once"
+    );
+}
+
+#[test]
+fn unloading_first_claimant_promotes_later_plugin_menu() {
+    let alpha_menu = menu_with_top_labels("Log Filter", &[]);
+    let beta_menu = menu_with_top_labels("Language", &[]);
+    let (mut alpha, _alpha_messages, alpha_events) =
+        PluginHost::for_tests_granted("alpha", eager_grant());
+    alpha_events
+        .send(HostEvent::Started {
+            menu: Some(alpha_menu.clone()),
+            keybinding: None,
+        })
+        .unwrap();
+    assert!(alpha.poll().is_empty());
+    let beta = started_menu_host("beta", beta_menu);
+
+    let mut app = AppState::new();
+    app.plugin_hosts = PluginHosts::for_tests(vec![alpha, beta]);
+    app.refresh_plugin_contributions();
+    assert_eq!(app.shell.plugin_menu_items[0].label, "Log Filter");
+    assert_eq!(app.plugin_menu_rejections()[0].plugin_id, "beta");
+
+    app.plugin_hosts.get_mut("alpha").unwrap().unload();
+    app.refresh_plugin_contributions();
+    assert_eq!(app.shell.plugin_menu_items.len(), 1);
+    assert_eq!(app.shell.plugin_menu_items[0].label, "Language");
+    assert!(app.plugin_menu_rejections().is_empty());
+
+    app.plugin_hosts.get_mut("alpha").unwrap().load();
+    alpha_events
+        .send(HostEvent::Started {
+            menu: Some(alpha_menu),
+            keybinding: None,
+        })
+        .unwrap();
+    app.pump_plugins();
+    assert_eq!(app.shell.plugin_menu_items[0].label, "Log Filter");
+    assert_eq!(app.plugin_menu_rejections()[0].plugin_id, "beta");
+    assert_eq!(
+        app.status_history
+            .iter()
+            .filter(|entry| entry.message == "Plugin beta menu ignored: mnemonic L conflicts")
+            .count(),
+        2,
+        "a rejection may report again after clearing"
+    );
+}
+
+#[test]
+fn accepted_plugin_menu_reports_no_rejection() {
+    let app = app_with_menu_contributions(
+        vec![
+            ("tools", menu_with_top_labels("Tools", &[])),
+            ("logs", menu_with_top_labels("Logs", &[])),
+        ],
+        &[],
+    );
+
+    assert_eq!(
+        app.shell
+            .plugin_menu_items
+            .iter()
+            .map(|item| item.label.as_ref())
+            .collect::<Vec<_>>(),
+        ["Tools", "Logs"]
+    );
+    assert!(app.plugin_menu_rejections().is_empty());
+    assert!(app.status_message.is_none());
+    assert!(app.status_history.is_empty());
+}
+
+#[test]
+fn new_plugin_menu_rejections_are_each_reported_once() {
+    let mut app = app_with_menu_contributions(
+        vec![
+            ("invalid", menu_with_top_labels("1 Invalid", &[])),
+            ("conflict", menu_with_top_labels("File Extra", &[])),
+        ],
+        &[],
+    );
+
+    assert_eq!(app.plugin_menu_rejections().len(), 2);
+    assert_eq!(
+        app.status_history
+            .iter()
+            .map(|entry| entry.message.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "Plugin invalid menu ignored: en_US label has no valid mnemonic",
+            "Plugin conflict menu ignored: mnemonic F conflicts",
+        ]
+    );
+
+    app.refresh_plugin_contributions();
+    assert_eq!(app.status_history.len(), 2);
+}
+
+#[test]
+fn translated_plugin_menu_is_mouse_hittable_at_its_rendered_columns() {
+    let app = app_with_menu_contributions(
+        vec![(
+            "logfilter",
+            menu_with_top_labels("Log Filter", &[("zh-CN", "日志过滤")]),
+        )],
+        &["zh-CN"],
+    );
+    let buffer_views = app.buffer_views();
+    let frame =
+        app.shell
+            .frame_for_workspace(&app.workspace, Rect::new(0, 0, 80, 20), &buffer_views);
+    assert_eq!(
+        frame
+            .menu
+            .items
+            .iter()
+            .map(|item| item.label.as_ref())
+            .collect::<Vec<_>>(),
+        ["File", "Edit", "View", "Help", "日志过滤 (L)"]
+    );
+
+    assert_eq!(app.shell.menu_index_at_column(24), Some(3));
+    for column in [25, 26, 32, 38] {
+        assert_eq!(
+            app.shell.menu_index_at_column(column),
+            Some(4),
+            "rendered plugin-menu column {column} must be clickable"
+        );
+    }
+    assert_eq!(app.shell.menu_index_at_column(39), None);
 }
 
 #[test]
