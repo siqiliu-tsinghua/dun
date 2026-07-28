@@ -60,6 +60,15 @@ sudo pkg install -y tmux    # for the tmux_grid tests
   --workspace`. Without it FreeBSD defaults to `C`, and `dun` falls back to
   ASCII/English (by design).
 
+## Clock: keep NTP enabled
+
+VirtualBox's "Default" paravirtualization interface resolves to **None** for a
+FreeBSD guest — check `Logs/VBox.log` for `GIM: Using provider` — so the guest
+gets no paravirtualized clock and its time can drift. `ntpd` is enabled here
+and keeps it within milliseconds. Do not install the VirtualBox Guest Additions
+for time sync; on the Solaris guest its `VBoxService` measurably made the clock
+worse under load.
+
 ## FreeBSD-specific gotchas
 
 - **`/usr/bin/edit` is `ee` (easy editor), not Microsoft Edit.** The Microsoft

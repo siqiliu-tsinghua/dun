@@ -258,17 +258,12 @@ image.
 
 ## Known per-platform quirks
 
-- **Do not install the VirtualBox Guest Additions on the Solaris guest.** Its time sync *causes*
-  clock drift there rather than correcting it: the same 90-second CPU load
-  moves the clock by eleven seconds with VBoxService running and by less than
-  0.15 s without it, and the drift reproduces on re-enabling. Solaris runs
-  `ntpd` instead. Measured four ways in
-  [solaris-vm.md](./solaris-vm.md#do-not-run-vboxservice-on-this-guest).
-  Debian and FreeBSD run neither VBoxService nor Guest Additions time sync and
-  show no drift; Debian additionally gets a paravirtualized clock because
-  VirtualBox's "Default" paravirtualization interface resolves to `KVM` for a
-  Linux guest and to `None` for FreeBSD and Solaris (check any VM's
-  `Logs/VBox.log` for `GIM: Using provider`).
+- **Solaris and FreeBSD get no paravirtualized clock.** VirtualBox's "Default"
+  paravirtualization interface resolves to `KVM` for a Linux guest but to
+  `None` for those two (`Logs/VBox.log`, `GIM: Using provider`), so their clocks
+  can drift. Both run `ntpd`. Do not install the Guest Additions for time sync —
+  on Solaris its `VBoxService` measurably made the clock worse under load.
+
 - **Solaris renders ambiguous-width glyphs double-wide** under `tmux` — box
   drawing and `◆` included. This is a real property of that terminal, not a
   `dun` defect. `dun` probes for it at startup and adapts; if the probe cannot

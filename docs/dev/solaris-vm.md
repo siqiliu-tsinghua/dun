@@ -119,82 +119,19 @@ platform).
 - There is no `/usr/bin/edit` on Solaris, so the Microsoft Edit tests skip
   cleanly (they gate on `microsoft_edit_on_path`).
 
-## Do not install the Guest Additions on this guest
+## Clock: enable NTP, do not install the Guest Additions
 
-**The VirtualBox Guest Additions time sync is the cause of clock drift on this
-VM, not the cure.** The package was removed on 2026-07-28
-(`pkgrm SUNWvboxguest`, which unloads both kernel modules without a reboot) and
-`ntpd` disciplines the clock. Do not reinstall it: nothing here uses shared
-folders, pointer integration, or host time sync, and its two modules are not
-signed by a certificate Solaris trusts, so each boot logged
+VirtualBox's "Default" paravirtualization interface resolves to **None** for a
+Solaris guest — check any VM's `Logs/VBox.log` for `GIM: Using provider` — so
+the guest gets no paravirtualized clock and its time can drift. Run `ntpd`:
+this guest has `/etc/inet/ntp.conf` pointing at `pool.ntp.org`, which the
+Solaris installer never offers to set up.
 
-```
-WARNING: Signature verification of module /usr/kernel/drv/amd64/vboxms failed
-WARNING: Signature verification of module /usr/kernel/drv/amd64/vboxguest failed
-```
-
-which is noise — the modules loaded anyway — but noise that outlived its
-purpose once the service was disabled.
-
-Measured 2026-07-28, four trials of the same 90-second four-way CPU load, with
-the guest-versus-host offset sampled every 30 seconds afterwards:
-
-| Sample | VBoxService only | Both daemons | **ntpd only** | **Neither** | VBoxService again |
-| --- | --- | --- | --- | --- | --- |
-| baseline | +0.10 | +0.19 | +0.13 | +0.70 | +0.18 |
-| load ends | −3.97 | −3.97 | **+0.19** | **+0.74** | −0.45 |
-| +60 s | −7.74 | −7.73 | **+0.21** | **+0.75** | −4.23 |
-| +120 s | −11.45 | −11.43 | **+0.24** | **+0.74** | −8.01 |
-| +180 s | −8.95 | −10.07 | **+0.26** | **+0.76** | −4.98 |
-
-With VBoxService running the clock loses about eleven seconds and keeps losing
-for two minutes *after* the load stops, then recovers at roughly 1.9 s per
-30 s. Without it the same load moves the clock by less than 0.15 s. Enabling
-`ntpd` alongside VBoxService changes nothing, which is what isolates the cause;
-re-enabling VBoxService reproduces the drift.
-
-The fourth column is the one that settles it. With **no time discipline at
-all** — the guest's original state — the same load moves the clock by 0.06 s
-across the whole trial. A bare Solaris guest does not lose time under load;
-the loss is manufactured by the thing installed to prevent it.
-
-That column was added after the fact, and its absence was a real gap: the first
-load test on this guest was run *after* VBoxService was installed, with no
-before-measurement to compare against, so the recovery it showed was credited
-to the treatment when it was the treatment correcting its own damage. The
-argument that `ntpd` could not be masking a loss in the third column — its
-maximum slew is 500 ppm, about 0.01 s over three minutes — was sound, but it
-was an argument. The fourth column is an observation.
-
-The likely mechanism is VBoxService's latency filter failing under load. It
-polls the host every 10 s and is supposed to discard a sample whose round trip
-exceeded `--timesync-max-latency` (250 ms), but a saturated guest makes those
-queries slow, and a latency-polluted sample is read as real drift. The shape of
-the curve — a steady slew in the wrong direction while the load lasts and
-beyond, then a steady slew back — is what a correction daemon acting on bad
-samples looks like, not what a guest losing timer interrupts looks like.
-
-An earlier note here recorded the opposite conclusion, that Guest Additions
-were the fix. That was wrong, and it was wrong because it was reasoned from the
-`Time of Day clock error: reason [Stalled]` warning rather than measured. The
-warning is real and appears on this guest, but it does not establish which
-component moves the clock.
-
-This VM has `ntpd` configured against `pool.ntp.org` in `/etc/inet/ntp.conf`;
-the Solaris installer never asked, which is why it ran without any time
-discipline until 2026-07-28. Debian and FreeBSD were configured with NTP at
-install time and show no drift under the same load.
-
-**One thing remains unexplained, which is why `ntpd` stays on.** The offset
-that started this investigation was 41 seconds after 11 h 20 m of uptime, a
-rate of 0.10 %. The neither-daemon trial free-runs at 0.02 %, five times
-slower, which over that uptime would give about 8 seconds rather than 41. So
-the original offset is explained neither by load — that trial rules it out —
-nor by the free-running rate measured since. `tod_faulted` differed between the
-two observations (1 then, 5 now) and its meaning could not be resolved on this
-guest: the kernel CTF has no such type and Solaris ships no matching header. A
-longer free-run measurement would settle the rate question; nobody has needed
-the answer badly enough to tie up the VM for an hour.
+Do **not** install the VirtualBox Guest Additions for time sync. Measured on
+2026-07-28, its `VBoxService` made the clock *worse* under sustained CPU load —
+losing about eleven seconds where the same load with `ntpd` alone moved it by
+under 0.15 s — and its kernel modules are unsigned as far as Solaris is
+concerned, so every boot logs two signature warnings.
 
 ## Working Conventions
 
