@@ -24,10 +24,38 @@ rules — cost nothing, because it added branches to render paths that already
 existed rather than new ones. The same shape as the bookmark remap in
 `1d078cb`, which was also free.
 
-Reference measurements, **not** budget platforms — plain `cargo build --release`
-with no build-std, on rust 1.96 and 1.87 rather than the 1.85 baseline, so they
-are not comparable to the two rows above: FreeBSD 1,026,240, Solaris 1,284,032.
-Their purpose is proving the tree builds and passes there, not size.
+Reference platforms, measured the same way (build-std, locked) but **not** part
+of the budget: FreeBSD **698,344**, Solaris **1,087,760**.
+
+FreeBSD lands between macOS and Debian. **Solaris is over the 1 MiB line by
+39,184 bytes, and that is expected and fine** — it has always been over, it has
+never been a budget platform, and no gate counts it. The budget contract names
+macOS and Debian only (`AGENTS.md`, `docs/dev/PLAN.md`). Solaris runs a
+different toolchain (rust 1.87 against the 1.85 baseline), the native Solaris
+linker, and a libc that shares little with the others; that a static-ish binary
+comes out 300 KB larger there is a property of the platform, not a regression
+in `dun`. The number is recorded here so nobody rediscovers it and mistakes it
+for one — an omission in earlier audits, which listed the reference platforms
+without their build-std figures at all.
+
+Where the 300 KB actually goes, from `size -A` on both binaries — and it is
+**not** libc, which was the standing guess:
+
+| Section | Debian | Solaris |
+| --- | --- | --- |
+| `.text` | 540,994 | 567,540 |
+| `.rodata` | 105,880 | 109,000 |
+| `.dynstr` | **1,528** | **249,169** |
+| `.SUNW_ldynsym` | — | **71,712** |
+| `.rela.dyn` / `.SUNW_reloc` | 67,416 | 72 |
+
+Code is only 5% larger, which is what a different compiler version and ABI
+should cost. The gap is the symbol tables: the Solaris linker keeps function
+names in the dynamic symbol table for `pstack` and friends, including the
+Solaris-only `.SUNW_ldynsym` and its two sort tables, where GNU `ld` discards
+nearly all of it. That is platform metadata, unrelated to how much code `dun`
+has, and no amount of writing smaller code would move it — a second reason it
+does not belong in the budget.
 
 ## 2026-07-28 — folding step 1 (line-level seam)
 

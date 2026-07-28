@@ -59,9 +59,11 @@ x86_64 AND Debian x86_64.
   **placeholder rendering +0** (`0c4e921`), commands and ten catalogs +4,096
   (`60bc2fa`). Brief 058 estimated 32–64 KiB for the feature; it came in at
   half the low end, and the render step was free because it added branches to
-  paths that already existed. Reference-only, not budget platforms: FreeBSD
-  1,026,240 and Solaris 1,284,032, both plain `cargo build --release` on
-  different toolchains with no build-std.
+  paths that already existed. Reference platforms, same build-std
+  contract but outside the budget: FreeBSD **698,344**, Solaris
+  **1,087,760**. Solaris is 39,184 over the 1 MiB line and always has been —
+  different toolchain, native linker, different libc. It is not a budget
+  platform and no gate counts it.
 - Earlier: macOS 710,860 / Debian 776,496 at `058447f`. The +8,192 over
   v0.1.0 is attributed: `1d078cb` (bookmarks into `TextBuffer`, with the
   per-buffer `Vec<usize>` and the remap) measured **768,304, byte-identical**
