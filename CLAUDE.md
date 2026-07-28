@@ -62,8 +62,14 @@ x86_64 AND Debian x86_64.
   paths that already existed. Reference platforms, same build-std
   contract but outside the budget: FreeBSD **698,344**, Solaris
   **1,087,760**. Solaris is 39,184 over the 1 MiB line and always has been —
-  different toolchain, native linker, different libc. It is not a budget
-  platform and no gate counts it.
+  and the cause is **not code**: `.text` differs 5%, while `.dynstr` is
+  249,169 against Debian's 1,528, plus a Solaris-only `.SUNW_ldynsym` (71,712)
+  and two sort tables that the native linker keeps so `pstack` can name
+  frames. It is not a budget platform and no gate counts it; never trim code
+  in response to that number. One link flag recovers it if a downstream
+  packager needs it — `-C link-arg=-znoldynsym` gives 744,880 — while `strip`
+  moves zero bytes and `-z strip-class=nonalloc` makes it 377 KB *larger*
+  (measured 2026-07-29; mechanism in docs/dev/release-size-audit.md).
 - Earlier: macOS 710,860 / Debian 776,496 at `058447f`. The +8,192 over
   v0.1.0 is attributed: `1d078cb` (bookmarks into `TextBuffer`, with the
   per-buffer `Vec<usize>` and the remap) measured **768,304, byte-identical**

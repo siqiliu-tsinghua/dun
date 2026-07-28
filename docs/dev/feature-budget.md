@@ -26,6 +26,16 @@ tests, documents, `target/` intermediates, local reference checkouts, external
 plugin host executables, future optional runtime packages, or bundled example
 plugins that are not linked into `target/release/dun`.
 
+**Only those two platforms are audited.** FreeBSD and Solaris build the same
+way and are recorded as reference points, but neither is a gate. FreeBSD lands
+between macOS and Debian; **Solaris measures above 1 MiB and always has**, and
+that is expected rather than a failure — the excess is the native linker's
+symbol tables (`.dynstr` plus a Solaris-only `.SUNW_ldynsym`, kept so `pstack`
+can name frames), not `dun` code, whose `.text` differs by 5%. Never invoke the
+Budget Failure Rule below over a Solaris number, and never trim a feature in
+response to one. Figures, the section breakdown, and the single link flag that
+recovers it are in [release-size-audit.md](./release-size-audit.md).
+
 The checked-in `[profile.release]` plus `scripts/release-build.sh` is the
 release-size recipe. Do not use a different profile or plain-cargo build to
 claim v0.1 budget compliance. The script prints the binary path and size.

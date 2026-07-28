@@ -11,6 +11,31 @@ The binding binary-size budget stays macOS + Debian
 a reference point only (its toolchain and `pkg` Rust version differ from the
 budget baseline).
 
+**The Solaris binary is over 1 MiB, and that is expected.** It has measured
+above the line since the first build here — 1,087,760 bytes against Debian's
+784,688 at the same commit. The gap is not code: `.text` differs by 5%, while
+`.dynstr` is 249,169 bytes against Debian's 1,528, plus a Solaris-only
+`.SUNW_ldynsym` at 71,712 and two sort tables. The native link editor keeps
+local function names in the dynamic symbol table so `pstack` and `dtrace` can
+name frames; GNU `ld` discards nearly all of it. Do not treat the number as a
+regression, and do not try to trim code in response — no gate counts this
+platform.
+
+If you do need it smaller, exactly one lever works, and the two obvious
+candidates do not:
+
+```text
+RUSTFLAGS="-C link-arg=-znoldynsym"   # 1,087,760 -> 744,880 bytes
+```
+
+`strip` and `strip -x` move **zero** bytes (the release profile already sets
+`strip = "symbols"`, and what is left is allocable), and
+`-z strip-class=nonalloc` makes the binary **377 KB larger** — it replaces the
+strip directive `rustc` emits, and that class excludes `symbol`, so `.symtab`
+returns. The cost of `-znoldynsym` is that stack traces lose local function
+names. The project does not use it by default. Measurements and the mechanism:
+[release-size-audit.md](./release-size-audit.md).
+
 ## Connection
 
 - VirtualBox VM: Oracle Solaris 11.4 (SunOS 5.11), x86-64.

@@ -63,6 +63,52 @@ nearly all of it. That is platform metadata, unrelated to how much code `dun`
 has, and no amount of writing smaller code would move it — a second reason it
 does not belong in the budget.
 
+### Recovering it (measured 2026-07-29, not a recommendation)
+
+Since the overage is metadata, a link flag reaches it where source changes
+cannot. All four variants were built the same way (build-std, locked) at
+`dbbed50`:
+
+| Build | Bytes | vs baseline |
+| --- | --- | --- |
+| baseline (`strip = "symbols"`) | 1,087,760 | — |
+| `strip` / `strip -x` afterwards | 1,087,760 | **0** |
+| `-z strip-class=nonalloc` | 1,464,504 | **+376,744** |
+| `-z noldynsym` | **744,880** | **−342,880** |
+| both of the above | 1,121,552 | +33,792 |
+
+Three results here are worth keeping, because two of them are the opposite of
+the obvious guess:
+
+- **`strip` does nothing.** The release profile already sets
+  `strip = "symbols"`, and what remains is `.dynstr`/`.SUNW_ldynsym`, which
+  carry `SHF_ALLOC`. `strip` cannot remove allocable sections by definition, so
+  neither `strip` nor `strip -x` moves a single byte.
+- **`-z strip-class=nonalloc` makes the binary 377 KB *larger*.** Passing any
+  explicit `strip-class` replaces the one `rustc` emits for
+  `-Cstrip=symbols`, and `ld(1)` states that the `nonalloc` class encapsulates
+  every other class *except* `symbol` — so `.symtab` comes back. The
+  combined row confirms the mechanism arithmetically: 1,464,504 − 342,952 =
+  1,121,552 exactly.
+- **`-z noldynsym` removes 342,880 bytes** and puts Solaris at 744,880 —
+  inside the 1 MiB line, and below Debian's 784,688. Sections after the flag:
+  `.dynstr` 249,169 → 2,301, `.SUNW_ldynsym` and both sort tables gone,
+  `.text` 567,540 → 567,028 (unchanged, as expected — no code was removed).
+  The binary was smoke-tested on the guest: `file` reports a stripped ELF,
+  `--version` and `--dump-config` both work.
+
+The flag is not specific to the budget build: on a plain
+`cargo build --release` on the same guest it takes 1,284,032 down to 1,032,024,
+a 252,008-byte saving. That is the form the user guide documents, since a plain
+build is what a Solaris user is likely to run.
+
+The cost is what the section exists for: `pstack`, `dtrace` and friends lose
+local function names in stack traces from this binary. The project does not
+adopt the flag — Solaris is not a budget platform, and a debuggable default is
+worth more there than bytes nobody is counting. It is documented so that a
+downstream packager who *is* counting knows the lever exists, knows it is the
+only one that works, and does not waste an afternoon on `strip`.
+
 ## 2026-07-28 — folding step 1 (line-level seam)
 
 | platform | commit | bytes | vs v0.1.0 | margin |
