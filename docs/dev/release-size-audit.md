@@ -1,5 +1,35 @@
 # Release Size Audit
 
+## 2026-07-28 — v0.1.0 sign-off (binding)
+
+| platform | commit | bytes | budget | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | `9d2ca10` | 706,748 | 1,048,576 | 341,828 |
+| Debian x86_64 | `9d2ca10` | 768,304 | 1,048,576 | 280,272 |
+
+Smoke on Debian: ELF 64-bit LSB pie, stripped; `ldd` unchanged at
+libgcc/libm/libc/ld-linux; `--version` prints `dun 0.1.0` and exits 0;
+`--dump-config` prints 192 parseable lines and exits 0.
+
+**Attribution of the +4,096 over the previously recorded 764,208.** It is not
+from the v0.1 wrap-up stage. Three measurements, in order:
+
+- `4f91b01` rebuilt today → 764,208, reproducing the recorded figure exactly,
+  so the toolchain and environment have not drifted;
+- `63088ff`, the tip before the wrap-up stage began → 768,304, so the page was
+  already spent before any of this stage's commits;
+- `9d2ca10` (HEAD) → 768,304, byte-identical to `63088ff`, confirming that a
+  stage of documentation, metadata and test changes is byte-neutral on the
+  binding platform.
+
+The page therefore belongs to `9200e5e`, the plugin-leader disclosure, whose
+Debian cost was recorded as 0 on the strength of a +8-byte macOS delta rather
+than a Debian measurement. macOS deltas are proxies; this is what it looks like
+when the proxy misses a page boundary.
+
+Four-platform functional matrix at `9d2ca10`: 875 passed / 0 failed on macOS,
+Debian, FreeBSD, and Solaris.
+
 This document records lightweight release binary size checks for `dun`.
 Results are machine-local baselines, not release claims.
 

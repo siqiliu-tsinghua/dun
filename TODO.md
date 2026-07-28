@@ -170,29 +170,41 @@ GitHub release attaches macOS/Debian binaries (lean: no, see C5).
 
 ### C. Release artifacts
 
-- [ ] Add `LICENSE`: MIT, `Copyright (c) 2026 Si-Qi Liu`. `Cargo.toml:17`
-  has declared `license = "MIT"` all along with no such file in the tree.
-- [ ] Write `CHANGELOG.md` for v0.1.0 by distilling *user-visible* changes
-  out of docs/dev/PROGRESS.md's 1,360 lines of development record.
-- [ ] Complete the `Cargo.toml` package metadata: `description`,
-  `repository`, `authors`, `keywords`, `categories`, `readme`.
-- [ ] Decide `docs/dev/PLAN.md:275` — "Security audit suite for plugin policy after
-  plugin APIs exist" is still unchecked, and the plugin APIs now exist.
-  Thirteen trust/policy tests live in `dun-config/src/tests/plugins.rs` and
-  `dun-cli/src/tests/plugins/`, but there is no named audit suite the way
-  control-byte rendering has one. Either build the suite or record why the
-  existing coverage closes it. Do not tag v0.1 with an open security box.
-- [ ] Decide whether the GitHub release attaches macOS/Debian binaries.
-  Current lean: no. `scripts/release-build.sh` depends on `RUSTC_BOOTSTRAP`
-  and rust-src, so an outsider cannot reproduce the bytes; publishing
-  binaries without a reproducible recipe is a liability. Ship source-build
-  instructions instead.
-- [ ] Confirm with the user whether the public repository should carry the
-  conventional `CONTRIBUTING.md` (a short pointer to AGENTS.md) and
-  `SECURITY.md` (how to report a vulnerability).
-- [ ] Release sign-off: run the release smoke checklist, the dual-platform
-  size gate, and the four-platform functional matrix, then tag `v0.1.0`.
-  This is the only step that needs the VMs — ask the user to start all three.
+- [x] Add `LICENSE`: MIT, `Copyright (c) 2026 Si-Qi Liu`.
+- [x] Write `CHANGELOG.md` for v0.1.0 from the user-visible surface, including
+  a Known Limitations section (unbound cut/copy/paste, terminal-dependent
+  OSC 52 paste, plugin entries without a declared mnemonic).
+- [x] Complete the `Cargo.toml` metadata: authors, readme, keywords and
+  categories at workspace level, inherited by all six crates. `repository` is
+  left commented until the public URL exists — a wrong one is worse than none.
+- [x] Close `docs/dev/PLAN.md:275`, the plugin-policy security audit item. The
+  suite it asked for already existed as `crates/dun-plugin/tests/protocol.rs`
+  (29 tests over the real transport), so the work was verifying that rather
+  than writing code. AUDIT.md now maps every checklist line to its test, and
+  the trust gate was mutation-proven (disabling the comparison makes
+  `host_over_claiming_trust_is_rejected_at_launch` fail). The non-plugin rows
+  were already covered too, so that section became a coverage map instead of a
+  wish list.
+- [x] Decide on release binaries: **no** (user decision 2026-07-28). The
+  build-std contract is not byte-reproducible for an outsider; ship source
+  build instructions instead.
+- [x] Add `CONTRIBUTING.md` and `SECURITY.md` (user decision 2026-07-28).
+  SECURITY.md routes reports through GitHub's private vulnerability reporting
+  rather than publishing an address, and is explicit that what a
+  `user-trusted-external` host does outside the protocol is out of scope.
+- [x] Release sign-off, 2026-07-28 at `9d2ca10`:
+  - fmt clean, clippy clean, 875 passed / 0 failed;
+  - `scripts/check-links.py` reports 0 broken targets;
+  - size gate — macOS 706,748, Debian 768,304, margin 280,272. The +4,096 over
+    the last recorded Debian figure was **attributed rather than waved
+    through**: rebuilding `4f91b01` reproduced 764,208 exactly (environment
+    stable), `63088ff` — the tip before this stage — already measured 768,304,
+    and HEAD is byte-identical to it. The page belongs to `9200e5e`, whose
+    Debian cost had been recorded as 0 from a macOS proxy;
+  - Debian smoke: ELF PIE stripped, `ldd` unchanged, `--version`,
+    `--dump-config`;
+  - four-platform matrix 875/0 on macOS, Debian, FreeBSD, Solaris.
+- [ ] Tag `v0.1.0` and create the public repository.
 
 ## Completed Stage: Feature Triage and Slimming (2026-07-10)
 

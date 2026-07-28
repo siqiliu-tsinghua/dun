@@ -51,14 +51,20 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **706,748 bytes** (2026-07-27, `9200e5e`).
-- Debian: **764,208 bytes** at `4f91b01` — **binding platform**, margin
-  284,368 bytes (2026-07-27, binding measurement from a clean git archive).
-  The last two commits are refactor/doc-only and byte-neutral on macOS, so
-  Debian is measured through them by construction; re-measure on the next
-  runtime change. The 2026-07-27 stage added ~4 KiB total: the diagnostic-
-  window i18n keys (+4,096 Debian) and the plugin menu/leader work (+8 macOS,
-  0 Debian).
+- macOS: **706,748 bytes** (2026-07-28, `9d2ca10`, v0.1.0 sign-off).
+- Debian: **768,304 bytes** at `9d2ca10` — **binding platform**, margin
+  280,272 bytes (2026-07-28, v0.1.0 sign-off, clean git archive).
+  **No measurement debt.** The +4,096 over the previously recorded 764,208
+  is not from the v0.1 wrap-up stage: `63088ff`, the tip before it began,
+  measures 768,304 too, and rebuilding `4f91b01` reproduces 764,208 exactly,
+  so the environment is stable and the page belongs to `9200e5e` (the plugin
+  leader disclosure), which the earlier entry assumed byte-neutral on Debian
+  without measuring it. The wrap-up stage itself is byte-identical on both
+  platforms — measured, not inferred from "docs only". Correcting the earlier
+  entry: the 2026-07-27 stage cost ~8 KiB on Debian, not ~4 KiB — the
+  diagnostic-window i18n keys (+4,096) *and* the plugin menu/leader work
+  (+4,096, recorded then as "0 Debian" from a macOS delta of +8 rather than
+  from a measurement).
 - Earlier baseline for context: macOS 677,940 / Debian 739,632 at `877b7ad`
   (2026-07-23, crossterm replacement complete). The crossterm-replacement track
   (five steps, `cf1a5b6`..`877b7ad`) made dun's terminal I/O fully in-house

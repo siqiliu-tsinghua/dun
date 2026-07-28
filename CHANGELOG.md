@@ -4,7 +4,7 @@ Notable user-visible changes. This project follows [semantic
 versioning](https://semver.org/); the development record behind each entry is
 in [docs/dev/PROGRESS.md](docs/dev/PROGRESS.md).
 
-## v0.1.0 — unreleased
+## v0.1.0 — 2026-07-28
 
 First release. `dun` is a terminal text editor for remote operations work: a
 single binary under 1 MiB, a tiling keyboard-first interface, and a plugin
