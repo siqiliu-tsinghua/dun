@@ -33,8 +33,9 @@ One paragraph. What must be true when you are done.
 
 - Files you MAY modify: <explicit list, or "NONE — diagnostic only">.
 - Files/areas you MUST NOT touch (defaults for every brief):
-  - `AGENTS.md`, `CLAUDE.md`, `README.md`, `PROGRESS.md`, `TODO.md`,
-    `docs/**` (except a doc file this brief explicitly lists as in-scope);
+  - `AGENTS.md`, `CLAUDE.md`, `README.md`, `TODO.md`, and `docs/**`
+    (which now includes `docs/dev/PROGRESS.md`), except a doc file this brief
+    explicitly lists as in-scope;
   - `.git`, git config, `Cargo.toml`, `Cargo.lock` (unless the Goal is
     exactly a dependency change);
   - `vm-test/**` (contains local SSH keys), `reference/**`.
@@ -62,9 +63,10 @@ implementation: code + tests).
    `use crate::*`; if you move or remove a symbol, the import lists in
    `main.rs` must be updated in the same change.
 5. **Tests are layered and colocated.** Unit/behavior tests live in each
-   crate's `src/tests/` behavior modules; dun-ui rendering tests use the
-   ratatui `TestBackend` snapshot helpers; PTY/tmux tests live in
-   `crates/dun-cli/tests/`. Match the local style of the file you extend.
+   crate's `src/tests/` behavior modules; dun-ui rendering tests assert on the
+   in-house `Surface` grid (ratatui was retired at `858e876` — there is no
+   `TestBackend`); PTY/tmux tests live in `crates/dun-cli/tests/`. Match the
+   local style of the file you extend.
 6. **Terminal-detection env is pinned in harnesses.** Any test that spawns
    the editor must pin/clear TERM, COLORTERM, LANG, LC_CTYPE, NO_COLOR (see
    `crates/dun-cli/tests/support/`); a leaked variable makes the test
