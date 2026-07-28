@@ -278,8 +278,11 @@ Sequencing (stages 1–2 completed 2026-07-10):
    not in dun's config — install is unpacking a folder, uninstall is
    deleting one.
 
-9. **ACTIVE — v0.1 wrap-up and public release** (roadmap agreed 2026-07-27,
-   execution starts 2026-07-28; task list in TODO.md "Current Stage"). The
+9. ~~v0.1 wrap-up and public release~~ — **DONE, tagged `v0.1.0`
+   2026-07-28** (`1ad72d4`..`029ea08`). One step remains and it is not
+   engineering: the user creates the public GitHub repository, then
+   `Cargo.toml`'s commented `repository`, README's `<repository-url>`, the
+   remote, and the push of `main` + the tag all follow. The
    runtime is done: no active code stage, four-platform 845/0, binding Debian
    760,112 with 288,464 to spare. What is missing is everything around the
    code. **No runtime code changes in this stage** — therefore no size
