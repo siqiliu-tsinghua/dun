@@ -157,9 +157,9 @@ have it, because comparable figures for FreeBSD and Solaris are recorded too
 even though neither gates a commit. Ordinary `cargo build` and `cargo test`
 never need it. On Solaris the component is not where `cargo` expects it and has
 to be linked from `/opt`; the recipe for the existing guest is in
-[solaris-vm.md](./solaris-vm.md). On FreeBSD the script itself will not run —
-the base system has no `bash` — so invoke the equivalent `cargo` command
-directly if you want a build-std figure there.
+[solaris-vm.md](./solaris-vm.md). The script is POSIX `sh` and runs on all
+four platforms — it is interpreted by `dash` on Debian and `ksh93` on Solaris,
+so keep bashisms out of it.
 
 The guests these instructions were checked against carry `rustc` 1.85 on
 Debian, 1.96 on FreeBSD, and 1.87 on Solaris — the floor is 1.85 and newer is

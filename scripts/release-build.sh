@@ -1,5 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # The budget release build for dun (build contract decided 2026-07-10).
+#
+# POSIX sh, deliberately: the FreeBSD base system has no bash, and this script
+# has to run on all four measured platforms.
 #
 # Rebuilds std with the workspace release profile and NO default std
 # features: panic-backtrace symbolization (gimli/addr2line/rustc_demangle)
@@ -14,10 +17,17 @@
 #
 # Dev builds and `cargo test` keep the plain stable path; only this budget
 # build uses build-std.
-set -euo pipefail
+# No `pipefail`: it is not POSIX and Debian's /bin/sh is dash. The one pipeline
+# that matters is guarded by the emptiness check below instead, which also says
+# something useful when it fires.
+set -eu
 
-repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+repo_root=$(cd "$(dirname "$0")/.." && pwd)
 triple=$(rustc -vV | sed -n 's/^host: //p')
+if [ -z "$triple" ]; then
+    echo "release-build: no host triple in \`rustc -vV\`; is rustc on PATH?" >&2
+    exit 1
+fi
 
 # Solaris only: drop .SUNW_ldynsym. The native link editor keeps local function
 # names in the dynamic symbol table so pstack and dtrace can name frames; in a
@@ -41,8 +51,8 @@ RUSTC_BOOTSTRAP=1 cargo build --release --locked -p dun-cli \
 
 bin="$repo_root/target/$triple/release/dun"
 case "$(uname -s)" in
-    Darwin) size=$(stat -f%z "$bin") ;;
-    *) size=$(stat -c%s "$bin") ;;
+    Darwin | FreeBSD) size=$(stat -f%z "$bin") ;;   # BSD stat
+    *) size=$(stat -c%s "$bin") ;;                  # GNU/Solaris stat
 esac
 echo "binary: $bin"
 echo "size:   $size bytes (budget 1048576)"

@@ -139,9 +139,14 @@ host.
 but making all four *audited* would double the per-step measurement cost —
 every size-affecting commit would need two more VM builds — to add a gate that
 cannot fire first: Debian has the smallest margin, and Solaris `.text` tracks
-it within 5%. FreeBSD and Solaris are recorded, not enforced. FreeBSD cannot
-run this script at all today (no `bash` in the base system); its figure comes
-from the equivalent `cargo` invocation by hand.
+it within 5%. FreeBSD and Solaris are recorded, not enforced.
+
+The script became POSIX `sh` in the same change, so it now runs on all four
+platforms — FreeBSD has no `bash`, which is why its figure had been taken by
+hand until now. Verified afterwards on each: macOS 719,100, Debian 784,688
+(`dash`), FreeBSD 698,344, Solaris 744,880 (`ksh93`, flag still applied), every
+one of them a no-op rebuild, which is the proof that no platform's compile
+flags moved.
 
 ## 2026-07-28 — folding step 1 (line-level seam)
 
