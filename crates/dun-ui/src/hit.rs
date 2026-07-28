@@ -1,8 +1,8 @@
 use dun_core::{EditorCommand, Position, Rect, Workspace};
 
 use crate::{
-    BufferView, MenuSelection, UiMouseHit, UiMouseTarget, UiOverlay, UiShell, UiWindow,
-    WindowGeometry,
+    BufferView, EditorVisualRows, MenuSelection, UiMouseHit, UiMouseTarget, UiOverlay, UiShell,
+    UiWindow, VisibleLine, WindowGeometry,
 };
 
 impl UiShell {
@@ -193,12 +193,11 @@ impl UiShell {
             && local_y < geometry.body.y.saturating_add(geometry.body.height);
         if on_right_border && on_body_row {
             if let Some(buffer) = buffers.iter().find(|buffer| buffer.id == window.buffer_id) {
-                if let Some((first_line, first_visual_row)) =
-                    self.scrollbar_target_line_for_buffer(buffer, geometry, local_y)
+                if let Some(top) = self.scrollbar_target_line_for_buffer(buffer, geometry, local_y)
                 {
                     return UiMouseTarget::Scrollbar {
-                        first_line,
-                        first_visual_row,
+                        first_line: top.anchor_line,
+                        first_visual_row: top.wrapped_row,
                     };
                 }
             }
@@ -222,12 +221,18 @@ impl UiShell {
             return self.hit_test_wrapped_body(buffer, geometry, local_x, local_y);
         }
 
-        let line_index = buffer
-            .first_line
-            .saturating_add(local_y.saturating_sub(geometry.body.y) as usize);
-        if line_index >= buffer.buffer.line_count() {
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
             return UiMouseTarget::Body(super::buffer_end_position(buffer.buffer));
-        }
+        };
+        let row = first_row.saturating_add(local_y.saturating_sub(geometry.body.y) as usize);
+        let Some(item) = line_map.item_for_visible_row(row) else {
+            return UiMouseTarget::Body(super::buffer_end_position(buffer.buffer));
+        };
+        let line_index = match item {
+            VisibleLine::Source { line } => line,
+            VisibleLine::Fold { range } => range.start_line,
+        };
 
         let body_x = buffer
             .first_column
@@ -251,33 +256,16 @@ impl UiShell {
         let body_x = local_x.saturating_sub(geometry.body.x) as usize;
         let target_row = local_y.saturating_sub(geometry.body.y) as usize;
         let display = self.editor_text_display(buffer.visible_whitespace);
-        let mut visual_row = 0usize;
-
-        for line_index in buffer.first_line..buffer.buffer.line_count() {
-            let line_rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
-            let start_offset = if line_index == buffer.first_line {
-                buffer.first_visual_row.min(line_rows.saturating_sub(1))
-            } else {
-                0
-            };
-            let visible_rows = line_rows.saturating_sub(start_offset);
-            if target_row < visual_row.saturating_add(visible_rows) {
-                let row_offset = start_offset.saturating_add(target_row.saturating_sub(visual_row));
-                let line = buffer.buffer.line(line_index).unwrap_or_default();
-                return UiMouseTarget::Body(Position::new(
-                    line_index,
-                    display.source_byte_for_wrapped_row_column(
-                        line,
-                        row_offset,
-                        body_x.min(body_width.saturating_sub(1)),
-                        body_width,
-                    ),
-                ));
-            }
-            visual_row = visual_row.saturating_add(visible_rows);
-        }
-
-        UiMouseTarget::Body(super::buffer_end_position(buffer.buffer))
+        let rows = EditorVisualRows::new(buffer.buffer, buffer.line_display(), display, body_width);
+        let global_row = rows
+            .global_row_for_top(buffer.top)
+            .saturating_add(target_row);
+        UiMouseTarget::Body(
+            rows.position_for_global_row_column(
+                global_row,
+                body_x.min(body_width.saturating_sub(1)),
+            ),
+        )
     }
 }
 

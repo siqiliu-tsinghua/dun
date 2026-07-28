@@ -1,5 +1,5 @@
 use crate::*;
-use dun_ui::EditorTextDisplay;
+use dun_ui::{EditorLineDisplay, EditorTextDisplay};
 
 pub(crate) fn replacement_status_text<'a>(
     catalog: &'a TextCatalog,
@@ -33,7 +33,8 @@ pub(crate) fn scroll_status(
     context: Option<BufferViewContext>,
     display: EditorTextDisplay,
 ) -> String {
-    let total = buffer.buffer.line_count().max(1);
+    let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds);
+    let total = line_map.visible_row_count().max(1);
     let context = context.unwrap_or(BufferViewContext {
         buffer_id: buffer.id,
         body_height: 1,
@@ -47,7 +48,11 @@ pub(crate) fn scroll_status(
         let end_row = start_row
             .saturating_add(context.body_height.max(1))
             .min(total_rows);
-        let line = buffer.first_line.min(total.saturating_sub(1)) + 1;
+        let line = line_map
+            .placement_for_source_line(buffer.first_line)
+            .and_then(|row| line_map.source_anchor_for_visible_row(row))
+            .unwrap_or(0)
+            + 1;
         return format!(
             "View V{}-{end_row}/{total_rows} L{line} wrap",
             start_row + 1
@@ -55,7 +60,10 @@ pub(crate) fn scroll_status(
     }
 
     let height = context.body_height.max(1);
-    let start = buffer.first_line.min(total.saturating_sub(1));
+    let start = line_map
+        .placement_for_source_line(buffer.first_line)
+        .unwrap_or(0)
+        .min(total.saturating_sub(1));
     let end = start.saturating_add(height).min(total);
     let max_column = buffer.max_line_display_width(display);
     let body_width = context.body_width;

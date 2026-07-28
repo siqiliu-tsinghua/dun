@@ -21,6 +21,7 @@ impl AppState {
                     buffer.first_column,
                 )
                 .with_first_visual_row(buffer.first_visual_row)
+                .with_folds(&buffer.folds)
                 .with_search(search_matches, active_search_match)
                 .with_wrap(buffer.word_wrap)
                 .with_visible_whitespace(buffer.visible_whitespace)

@@ -5,12 +5,13 @@ use dun_core::{
 };
 use dun_term::BorderGlyphs;
 
+use crate::{EditorLineDisplay, FoldSet, ViewportTop};
+
 #[derive(Clone, Copy, Debug)]
 pub struct BufferView<'a> {
     pub id: BufferId,
     pub buffer: &'a TextBuffer,
-    pub first_line: usize,
-    pub first_visual_row: usize,
+    pub top: ViewportTop,
     pub first_column: usize,
     pub search_matches: &'a [SearchMatch],
     pub highlights: &'a [BufferHighlightSpan],
@@ -18,6 +19,7 @@ pub struct BufferView<'a> {
     pub wrap: bool,
     pub visible_whitespace: bool,
     pub bookmarks: &'a [usize],
+    folds: &'a FoldSet,
 }
 
 impl<'a> BufferView<'a> {
@@ -25,8 +27,7 @@ impl<'a> BufferView<'a> {
         Self {
             id,
             buffer,
-            first_line: 0,
-            first_visual_row: 0,
+            top: ViewportTop::new(0, 0),
             first_column: 0,
             search_matches: &[],
             highlights: &[],
@@ -34,6 +35,7 @@ impl<'a> BufferView<'a> {
             wrap: false,
             visible_whitespace: false,
             bookmarks: &[],
+            folds: &EMPTY_FOLD_SET,
         }
     }
 
@@ -41,8 +43,7 @@ impl<'a> BufferView<'a> {
         Self {
             id,
             buffer,
-            first_line,
-            first_visual_row: 0,
+            top: ViewportTop::new(first_line, 0),
             first_column: 0,
             search_matches: &[],
             highlights: &[],
@@ -50,6 +51,7 @@ impl<'a> BufferView<'a> {
             wrap: false,
             visible_whitespace: false,
             bookmarks: &[],
+            folds: &EMPTY_FOLD_SET,
         }
     }
 
@@ -62,8 +64,7 @@ impl<'a> BufferView<'a> {
         Self {
             id,
             buffer,
-            first_line,
-            first_visual_row: 0,
+            top: ViewportTop::new(first_line, 0),
             first_column,
             search_matches: &[],
             highlights: &[],
@@ -71,11 +72,17 @@ impl<'a> BufferView<'a> {
             wrap: false,
             visible_whitespace: false,
             bookmarks: &[],
+            folds: &EMPTY_FOLD_SET,
         }
     }
 
     pub const fn with_first_visual_row(mut self, first_visual_row: usize) -> Self {
-        self.first_visual_row = first_visual_row;
+        self.top.wrapped_row = first_visual_row;
+        self
+    }
+
+    pub const fn with_folds(mut self, folds: &'a FoldSet) -> Self {
+        self.folds = folds;
         self
     }
 
@@ -108,7 +115,13 @@ impl<'a> BufferView<'a> {
         self.highlights = highlights;
         self
     }
+
+    pub(crate) fn line_display(&self) -> EditorLineDisplay<'a> {
+        EditorLineDisplay::new(self.buffer.line_count(), self.folds)
+    }
 }
+
+static EMPTY_FOLD_SET: FoldSet = FoldSet::empty();
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UiScrollbar {

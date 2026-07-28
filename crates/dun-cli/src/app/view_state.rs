@@ -1,4 +1,5 @@
 use crate::*;
+use dun_ui::EditorLineDisplay;
 
 impl AppState {
     pub(crate) fn focused_buffer_mut(&mut self) -> Option<&mut BufferState> {
@@ -82,10 +83,11 @@ impl AppState {
             .into_iter()
             .find(|layout| layout.id == window.id)?;
         let buffer = self.buffer_state(buffer_id)?;
+        let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds);
         let geometry = self.shell.window_geometry(
             layout.rect.width,
             layout.rect.height,
-            Some(buffer.buffer.line_count()),
+            Some(line_map.visible_row_count()),
         );
         let body_height = usize::from(geometry.body.height);
         let body_width = usize::from(geometry.body.width);

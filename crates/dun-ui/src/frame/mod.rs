@@ -66,7 +66,7 @@ impl UiShell {
     ) -> UiWindow {
         let buffer = buffers.iter().find(|buffer| buffer.id == window.buffer_id);
         let line_count = match (window.collapsed, buffer) {
-            (false, Some(buffer)) => Some(buffer.buffer.line_count()),
+            (false, Some(buffer)) => Some(buffer.line_display().visible_row_count()),
             _ => None,
         };
         let geometry = self.window_geometry(rect.width, rect.height, line_count);

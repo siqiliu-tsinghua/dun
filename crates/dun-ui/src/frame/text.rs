@@ -1,6 +1,6 @@
 use dun_core::SanitizedLine;
 
-use crate::{BufferView, UiShell, WindowGeometry};
+use crate::{BufferView, EditorVisualRows, UiShell, ViewportTop, VisibleLine, WindowGeometry};
 
 impl UiShell {
     pub(super) fn sanitize_buffer_body(
@@ -17,15 +17,26 @@ impl UiShell {
         }
 
         let display = self.editor_text_display(buffer.visible_whitespace);
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
+            return Vec::new();
+        };
         let mut lines = Vec::new();
-        for line_index in buffer.first_line..buffer.buffer.line_count() {
+        for item in line_map.iter_from_visible_row(first_row) {
             if lines.len() >= body_height {
                 break;
             }
 
-            let line = buffer.buffer.line(line_index).unwrap_or_default();
-            let start = display.display_column_to_source_byte(line, buffer.first_column);
-            lines.push(display.sanitize_line(&line[start..]));
+            match item {
+                VisibleLine::Source { line } => {
+                    let source = buffer.buffer.line(line).unwrap_or_default();
+                    let start = display.display_column_to_source_byte(source, buffer.first_column);
+                    lines.push(display.sanitize_line(&source[start..]));
+                }
+                VisibleLine::Fold { .. } => {
+                    lines.push(self.display_sanitizer.sanitize_line(""));
+                }
+            }
         }
 
         lines
@@ -39,30 +50,41 @@ impl UiShell {
         let body_height = usize::from(geometry.body.height);
         let body_width = usize::from(geometry.body.width).max(1);
         let display = self.editor_text_display(buffer.visible_whitespace);
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
+            return Vec::new();
+        };
         let mut lines = Vec::new();
 
-        for line_index in buffer.first_line..buffer.buffer.line_count() {
+        for (item_index, item) in line_map.iter_from_visible_row(first_row).enumerate() {
             if lines.len() >= body_height {
                 break;
             }
 
-            let line = buffer.buffer.line(line_index).unwrap_or_default();
-            let start_offset = if line_index == buffer.first_line {
-                buffer.first_visual_row.min(
-                    self.wrapped_visual_line_count(buffer, line_index, body_width)
-                        .saturating_sub(1),
-                )
-            } else {
-                0
-            };
-            for segment in display
-                .wrapped_segments(line, body_width)
-                .skip(start_offset)
-            {
-                if lines.len() >= body_height {
-                    break;
+            match item {
+                VisibleLine::Source { line } => {
+                    let source = buffer.buffer.line(line).unwrap_or_default();
+                    let visual_rows = display.wrapped_row_count(source, body_width);
+                    let start_offset = if item_index == 0 {
+                        buffer.top.wrapped_row.min(visual_rows.saturating_sub(1))
+                    } else {
+                        0
+                    };
+                    for segment in display
+                        .wrapped_segments(source, body_width)
+                        .skip(start_offset)
+                    {
+                        if lines.len() >= body_height {
+                            break;
+                        }
+                        lines.push(display.sanitize_wrapped_segment(segment));
+                    }
                 }
-                lines.push(display.sanitize_wrapped_segment(segment));
+                VisibleLine::Fold { .. } => {
+                    if item_index != 0 || buffer.top.wrapped_row == 0 {
+                        lines.push(self.display_sanitizer.sanitize_line(""));
+                    }
+                }
             }
         }
 
@@ -75,11 +97,23 @@ impl UiShell {
         line_index: usize,
         body_width: usize,
     ) -> usize {
-        let Some(line) = buffer.buffer.line(line_index) else {
+        let line_map = buffer.line_display();
+        let Some(row) = line_map.placement_for_source_line(line_index) else {
             return 1;
         };
-        self.editor_text_display(buffer.visible_whitespace)
-            .wrapped_row_count(line, body_width.max(1))
+        match line_map.item_for_visible_row(row) {
+            Some(VisibleLine::Source { line }) if line == line_index => buffer
+                .buffer
+                .line(line)
+                .map(|source| {
+                    self.editor_text_display(buffer.visible_whitespace)
+                        .wrapped_row_count(source, body_width.max(1))
+                })
+                .unwrap_or(1),
+            Some(VisibleLine::Fold { range }) if range.start_line == line_index => 1,
+            Some(VisibleLine::Fold { .. }) => 0,
+            Some(VisibleLine::Source { .. }) | None => 1,
+        }
     }
 
     pub(super) fn wrapped_total_visual_rows(
@@ -87,10 +121,14 @@ impl UiShell {
         buffer: &BufferView<'_>,
         body_width: usize,
     ) -> usize {
-        (0..buffer.buffer.line_count())
-            .map(|line_index| self.wrapped_visual_line_count(buffer, line_index, body_width))
-            .sum::<usize>()
-            .max(1)
+        EditorVisualRows::new(
+            buffer.buffer,
+            buffer.line_display(),
+            self.editor_text_display(buffer.visible_whitespace),
+            body_width,
+        )
+        .total_rows()
+        .max(1)
     }
 
     pub(super) fn wrapped_top_visual_row(
@@ -98,11 +136,13 @@ impl UiShell {
         buffer: &BufferView<'_>,
         body_width: usize,
     ) -> usize {
-        let previous_rows = (0..buffer.first_line.min(buffer.buffer.line_count()))
-            .map(|line_index| self.wrapped_visual_line_count(buffer, line_index, body_width))
-            .sum::<usize>();
-        let current_rows = self.wrapped_visual_line_count(buffer, buffer.first_line, body_width);
-        previous_rows.saturating_add(buffer.first_visual_row.min(current_rows.saturating_sub(1)))
+        EditorVisualRows::new(
+            buffer.buffer,
+            buffer.line_display(),
+            self.editor_text_display(buffer.visible_whitespace),
+            body_width,
+        )
+        .global_row_for_top(buffer.top)
     }
 
     pub(super) fn wrapped_position_for_top_row(
@@ -110,16 +150,13 @@ impl UiShell {
         buffer: &BufferView<'_>,
         body_width: usize,
         target_row: usize,
-    ) -> (usize, usize) {
-        let mut remaining = target_row;
-        for line_index in 0..buffer.buffer.line_count() {
-            let rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
-            if remaining < rows {
-                return (line_index, remaining);
-            }
-            remaining = remaining.saturating_sub(rows);
-        }
-
-        (buffer.buffer.line_count().saturating_sub(1), 0)
+    ) -> ViewportTop {
+        EditorVisualRows::new(
+            buffer.buffer,
+            buffer.line_display(),
+            self.editor_text_display(buffer.visible_whitespace),
+            body_width,
+        )
+        .top_for_global_row(target_row)
     }
 }

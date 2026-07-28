@@ -3,6 +3,7 @@
 mod fallback;
 mod hit;
 mod i18n;
+mod line_map;
 mod markers;
 mod model;
 mod overlay;

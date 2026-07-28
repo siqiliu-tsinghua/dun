@@ -3,6 +3,7 @@
 mod display_map;
 mod frame;
 mod hit;
+mod line_map;
 mod model;
 mod render;
 mod shell;
@@ -17,6 +18,10 @@ pub use frame::menu::{
     menu_translation_keys,
 };
 pub use hit::menu_label_mnemonic;
+pub use line_map::{
+    EditorLineDisplay, EditorVisualRows, FoldRange, FoldSet, ViewportTop, VisibleLine,
+    VisibleLineIter,
+};
 pub use model::{
     BufferHighlightSpan, BufferView, HighlightClass, MenuBar, MenuEntry, MenuItem, MenuSelection,
     PluginIndicator, StatusBar, UiCursor, UiFrame, UiGutterLine, UiHighlightLine,

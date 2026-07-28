@@ -1,4 +1,4 @@
-use crate::{BufferView, UiGutterLine, UiShell, WindowGeometry};
+use crate::{BufferView, UiGutterLine, UiShell, VisibleLine, WindowGeometry};
 
 impl UiShell {
     pub(super) fn gutter_for_buffer(
@@ -17,21 +17,30 @@ impl UiShell {
                 .width
                 .saturating_sub(geometry.border_columns),
         );
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
+            return Vec::new();
+        };
         let mut lines = Vec::new();
-        for line_index in buffer.first_line..buffer.buffer.line_count() {
+        for (item_index, item) in line_map.iter_from_visible_row(first_row).enumerate() {
             if lines.len() >= gutter_height {
                 break;
             }
 
-            let bookmarked = buffer.bookmarks.contains(&line_index);
-            let visual_rows = if buffer.wrap {
-                let body_width = usize::from(geometry.body.width).max(1);
-                self.wrapped_visual_line_count(buffer, line_index, body_width)
-            } else {
-                1
+            let line_index = match item {
+                VisibleLine::Source { line } => line,
+                VisibleLine::Fold { range } => range.start_line,
             };
-            let start_offset = if buffer.wrap && line_index == buffer.first_line {
-                buffer.first_visual_row.min(visual_rows.saturating_sub(1))
+            let bookmarked = buffer.bookmarks.contains(&line_index);
+            let visual_rows = match item {
+                VisibleLine::Source { .. } if buffer.wrap => {
+                    let body_width = usize::from(geometry.body.width).max(1);
+                    self.wrapped_visual_line_count(buffer, line_index, body_width)
+                }
+                VisibleLine::Source { .. } | VisibleLine::Fold { .. } => 1,
+            };
+            let start_offset = if buffer.wrap && item_index == 0 {
+                buffer.top.wrapped_row.min(visual_rows.saturating_sub(1))
             } else {
                 0
             };

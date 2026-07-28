@@ -1,4 +1,7 @@
-use crate::{BufferView, UiHorizontalEdgeLine, UiScrollbar, UiShell, WindowGeometry};
+use crate::{
+    BufferView, UiHorizontalEdgeLine, UiScrollbar, UiShell, ViewportTop, VisibleLine,
+    WindowGeometry,
+};
 
 impl UiShell {
     pub(super) fn scrollbar_for_buffer(
@@ -17,7 +20,13 @@ impl UiShell {
                 self.wrapped_top_visual_row(buffer, body_width),
             )
         } else {
-            (buffer.buffer.line_count(), buffer.first_line)
+            let line_map = buffer.line_display();
+            (
+                line_map.visible_row_count(),
+                line_map
+                    .placement_for_source_line(buffer.top.anchor_line)
+                    .unwrap_or(0),
+            )
         };
         if total <= body_height {
             return None;
@@ -47,7 +56,7 @@ impl UiShell {
         buffer: &BufferView<'_>,
         geometry: WindowGeometry,
         local_y: u16,
-    ) -> Option<(usize, usize)> {
+    ) -> Option<ViewportTop> {
         let body_height = usize::from(geometry.body.height);
         if body_height == 0 {
             return None;
@@ -56,7 +65,7 @@ impl UiShell {
         let total = if buffer.wrap {
             self.wrapped_total_visual_rows(buffer, body_width)
         } else {
-            buffer.buffer.line_count()
+            buffer.line_display().visible_row_count()
         };
         if total <= body_height {
             return None;
@@ -66,14 +75,17 @@ impl UiShell {
         let max_track_y = body_height.saturating_sub(1);
         let max_first_row = total.saturating_sub(body_height);
         if max_track_y == 0 {
-            return Some((0, 0));
+            return Some(ViewportTop::default());
         }
 
         let target_row = track_y.min(max_track_y).saturating_mul(max_first_row) / max_track_y;
         if buffer.wrap {
             Some(self.wrapped_position_for_top_row(buffer, body_width, target_row))
         } else {
-            Some((target_row, 0))
+            buffer
+                .line_display()
+                .source_anchor_for_visible_row(target_row)
+                .map(|line| ViewportTop::new(line, 0))
         }
     }
     pub(super) fn horizontal_edges_for_buffer(
@@ -92,11 +104,19 @@ impl UiShell {
         }
 
         let display = self.editor_text_display(buffer.visible_whitespace);
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
+            return Vec::new();
+        };
         let mut lines = Vec::new();
-        for (visible_y, line_index) in (buffer.first_line..buffer.buffer.line_count())
+        for (visible_y, item) in line_map
+            .iter_from_visible_row(first_row)
             .take(body_height)
             .enumerate()
         {
+            let VisibleLine::Source { line: line_index } = item else {
+                continue;
+            };
             let line = buffer.buffer.line(line_index).unwrap_or_default();
             let width = display.line_display_width(line);
             let visible_byte_start =

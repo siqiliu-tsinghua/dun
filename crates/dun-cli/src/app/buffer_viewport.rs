@@ -1,7 +1,7 @@
 use crate::*;
 use dun_core::DisplaySanitizer;
 use dun_term::GlyphSet;
-use dun_ui::EditorTextDisplay;
+use dun_ui::{EditorLineDisplay, EditorTextDisplay, EditorVisualRows, ViewportTop, VisibleLine};
 
 pub(crate) trait EditorDisplayArg {
     fn into_editor_text_display(self) -> EditorTextDisplay;
@@ -39,14 +39,28 @@ impl BufferState {
             return;
         }
         self.first_visual_row = 0;
+        let line_map = self.line_display();
+        let cursor_line = self.buffer.cursor_position().line;
+        let Some(cursor_row) = line_map.placement_for_source_line(cursor_line) else {
+            return;
+        };
         if body_height == 0 {
-            self.first_line = self.buffer.cursor_position().line;
+            self.first_line = line_map
+                .source_anchor_for_visible_row(cursor_row)
+                .unwrap_or(cursor_line);
         } else {
-            let cursor_line = self.buffer.cursor_position().line;
-            if cursor_line < self.first_line {
-                self.first_line = cursor_line;
-            } else if cursor_line >= self.first_line.saturating_add(body_height) {
-                self.first_line = cursor_line.saturating_sub(body_height - 1);
+            let first_row = line_map
+                .placement_for_source_line(self.first_line)
+                .unwrap_or(0);
+            if cursor_row < first_row {
+                self.first_line = line_map
+                    .source_anchor_for_visible_row(cursor_row)
+                    .unwrap_or(cursor_line);
+            } else if cursor_row >= first_row.saturating_add(body_height) {
+                let target_row = cursor_row.saturating_sub(body_height - 1);
+                self.first_line = line_map
+                    .source_anchor_for_visible_row(target_row)
+                    .unwrap_or(cursor_line);
             }
         }
 
@@ -90,7 +104,18 @@ impl BufferState {
     pub(crate) fn move_page_up(&mut self, lines: usize) -> bool {
         let mut moved = false;
         for _ in 0..lines.max(1) {
-            moved |= self.buffer.move_up();
+            let current = self.buffer.cursor_position();
+            let target = self.line_display().previous_visible_anchor(current.line);
+            if target == current.line.checked_sub(1) || target.is_none() {
+                moved |= self.buffer.move_up();
+            } else if let Some(target_line) = target {
+                let target_column =
+                    self.clamp_column_to_line(target_line, self.buffer.cursor().preferred_column);
+                moved |= self
+                    .buffer
+                    .set_cursor(Position::new(target_line, target_column))
+                    .is_ok();
+            }
         }
         moved
     }
@@ -98,7 +123,18 @@ impl BufferState {
     pub(crate) fn move_page_down(&mut self, lines: usize) -> bool {
         let mut moved = false;
         for _ in 0..lines.max(1) {
-            moved |= self.buffer.move_down();
+            let current = self.buffer.cursor_position();
+            let target = self.line_display().next_visible_anchor(current.line);
+            if target == current.line.checked_add(1) || target.is_none() {
+                moved |= self.buffer.move_down();
+            } else if let Some(target_line) = target {
+                let target_column =
+                    self.clamp_column_to_line(target_line, self.buffer.cursor().preferred_column);
+                moved |= self
+                    .buffer
+                    .set_cursor(Position::new(target_line, target_column))
+                    .is_ok();
+            }
         }
         moved
     }
@@ -151,14 +187,21 @@ impl BufferState {
 
         let old_first_line = self.first_line;
         self.first_visual_row = 0;
-        let max_first_line = self.buffer.line_count().saturating_sub(body_height.max(1));
-        self.first_line = if delta < 0 {
-            self.first_line.saturating_sub(delta.unsigned_abs())
+        let line_map = self.line_display();
+        let first_row = line_map
+            .placement_for_source_line(self.first_line)
+            .unwrap_or(0);
+        let max_first_row = line_map
+            .visible_row_count()
+            .saturating_sub(body_height.max(1));
+        let target_row = if delta < 0 {
+            first_row.saturating_sub(delta.unsigned_abs())
         } else {
-            self.first_line
-                .saturating_add(delta as usize)
-                .min(max_first_line)
+            first_row.saturating_add(delta as usize).min(max_first_row)
         };
+        self.first_line = line_map
+            .source_anchor_for_visible_row(target_row)
+            .unwrap_or(0);
 
         self.keep_cursor_inside_visible_lines(body_height);
         self.first_line != old_first_line
@@ -187,8 +230,16 @@ impl BufferState {
         }
 
         let old_first_line = self.first_line;
-        let max_first_line = self.buffer.line_count().saturating_sub(body_height.max(1));
-        self.first_line = first_line.min(max_first_line);
+        let line_map = self.line_display();
+        let target_row = line_map
+            .placement_for_source_line(first_line)
+            .unwrap_or_else(|| line_map.visible_row_count().saturating_sub(1));
+        let max_first_row = line_map
+            .visible_row_count()
+            .saturating_sub(body_height.max(1));
+        self.first_line = line_map
+            .source_anchor_for_visible_row(target_row.min(max_first_row))
+            .unwrap_or(0);
         self.first_visual_row = 0;
         self.keep_cursor_inside_visible_lines(body_height);
         self.first_line != old_first_line
@@ -227,7 +278,21 @@ impl BufferState {
     pub(crate) fn extend_page_up(&mut self, lines: usize) -> bool {
         let mut moved = false;
         for _ in 0..lines.max(1) {
-            moved |= self.buffer.extend_selection_up();
+            let current = self.buffer.cursor_position();
+            let target = self.line_display().previous_visible_anchor(current.line);
+            if target == current.line.checked_sub(1) || target.is_none() {
+                moved |= self.buffer.extend_selection_up();
+            } else if let Some(target_line) = target {
+                let anchor = self
+                    .buffer
+                    .selection()
+                    .map(|selection| selection.anchor)
+                    .unwrap_or(current);
+                let target_column =
+                    self.clamp_column_to_line(target_line, self.buffer.cursor().preferred_column);
+                let target = Position::new(target_line, target_column);
+                moved |= self.buffer.select(anchor, target).is_ok() && target != current;
+            }
         }
         moved
     }
@@ -235,7 +300,21 @@ impl BufferState {
     pub(crate) fn extend_page_down(&mut self, lines: usize) -> bool {
         let mut moved = false;
         for _ in 0..lines.max(1) {
-            moved |= self.buffer.extend_selection_down();
+            let current = self.buffer.cursor_position();
+            let target = self.line_display().next_visible_anchor(current.line);
+            if target == current.line.checked_add(1) || target.is_none() {
+                moved |= self.buffer.extend_selection_down();
+            } else if let Some(target_line) = target {
+                let anchor = self
+                    .buffer
+                    .selection()
+                    .map(|selection| selection.anchor)
+                    .unwrap_or(current);
+                let target_column =
+                    self.clamp_column_to_line(target_line, self.buffer.cursor().preferred_column);
+                let target = Position::new(target_line, target_column);
+                moved |= self.buffer.select(anchor, target).is_ok() && target != current;
+            }
         }
         moved
     }
@@ -365,10 +444,7 @@ impl BufferState {
         display: impl EditorDisplayArg,
     ) -> usize {
         let display = display.into_editor_text_display();
-        (0..self.buffer.line_count())
-            .map(|line_index| self.wrapped_line_visual_rows(line_index, body_width, display))
-            .sum::<usize>()
-            .max(1)
+        self.visual_rows(body_width, display).total_rows().max(1)
     }
 
     pub(crate) fn wrapped_top_visual_row(
@@ -377,13 +453,15 @@ impl BufferState {
         display: impl EditorDisplayArg,
     ) -> usize {
         let display = display.into_editor_text_display();
-        self.wrapped_visual_row_for_line(self.first_line, body_width, display)
-            .saturating_add(
-                self.first_visual_row.min(
-                    self.wrapped_line_visual_rows(self.first_line, body_width, display)
-                        .saturating_sub(1),
-                ),
-            )
+        let top = ViewportTop::new(
+            self.first_line,
+            self.first_visual_row.min(
+                self.wrapped_line_visual_rows(self.first_line, body_width, display)
+                    .saturating_sub(1),
+            ),
+        );
+        self.visual_rows(body_width, display)
+            .global_row_for_top(top)
     }
 
     pub(crate) fn wrapped_visual_row_for_line(
@@ -393,9 +471,8 @@ impl BufferState {
         display: impl EditorDisplayArg,
     ) -> usize {
         let display = display.into_editor_text_display();
-        (0..line_index.min(self.buffer.line_count()))
-            .map(|line| self.wrapped_line_visual_rows(line, body_width, display))
-            .sum()
+        self.visual_rows(body_width, display)
+            .global_row_for_position(Position::new(line_index, 0))
     }
 
     pub(crate) fn set_wrapped_top_visual_row(
@@ -409,20 +486,11 @@ impl BufferState {
         let max_row = self
             .wrapped_total_visual_rows(body_width, display)
             .saturating_sub(1);
-        let mut remaining = target_row.min(max_row);
-        for line_index in 0..self.buffer.line_count() {
-            let rows = self.wrapped_line_visual_rows(line_index, body_width, display);
-            if remaining < rows {
-                self.first_line = line_index;
-                self.first_visual_row = remaining;
-                self.first_column = 0;
-                return;
-            }
-            remaining = remaining.saturating_sub(rows);
-        }
-
-        self.first_line = self.buffer.line_count().saturating_sub(1);
-        self.first_visual_row = 0;
+        let top = self
+            .visual_rows(body_width, display)
+            .top_for_global_row(target_row.min(max_row));
+        self.first_line = top.anchor_line;
+        self.first_visual_row = top.wrapped_row;
         self.first_column = 0;
     }
 
@@ -433,18 +501,8 @@ impl BufferState {
         display: impl EditorDisplayArg,
     ) -> usize {
         let display = display.into_editor_text_display();
-        self.wrapped_visual_row_for_line(position.line, body_width, display)
-            .saturating_add(self.wrapped_row_offset_for_position(position, body_width, display))
-    }
-
-    pub(crate) fn wrapped_row_offset_for_position(
-        &self,
-        position: Position,
-        body_width: usize,
-        display: impl EditorDisplayArg,
-    ) -> usize {
-        self.wrapped_row_column_for_position(position, body_width, display)
-            .0
+        self.visual_rows(body_width, display)
+            .global_row_for_position(position)
     }
 
     pub(crate) fn wrapped_visual_column_for_position(
@@ -493,10 +551,20 @@ impl BufferState {
         display: impl EditorDisplayArg,
     ) -> usize {
         let display = display.into_editor_text_display();
-        let Some(line) = self.buffer.line(line_index) else {
+        let line_map = self.line_display();
+        let Some(row) = line_map.placement_for_source_line(line_index) else {
             return 1;
         };
-        display.wrapped_row_count(line, body_width)
+        match line_map.item_for_visible_row(row) {
+            Some(VisibleLine::Source { line }) if line == line_index => self
+                .buffer
+                .line(line)
+                .map(|source| display.wrapped_row_count(source, body_width))
+                .unwrap_or(1),
+            Some(VisibleLine::Fold { range }) if range.start_line == line_index => 1,
+            Some(VisibleLine::Fold { .. }) => 0,
+            Some(VisibleLine::Source { .. }) | None => 1,
+        }
     }
 
     pub(crate) fn position_for_wrapped_visual_row(
@@ -507,19 +575,28 @@ impl BufferState {
     ) -> Position {
         let display = display.into_editor_text_display();
         let body_width = body_width.max(1);
-        let mut remaining = target_row;
-        for line_index in 0..self.buffer.line_count() {
-            let rows = self.wrapped_line_visual_rows(line_index, body_width, display);
-            if remaining < rows {
-                let line = self.buffer.line(line_index).unwrap_or_default();
-                return Position::new(
-                    line_index,
-                    byte_column_for_wrapped_row_start(line, remaining, body_width, display),
-                );
-            }
-            remaining = remaining.saturating_sub(rows);
+        let visual_rows = self.visual_rows(body_width, display);
+        if target_row >= visual_rows.total_rows() {
+            return visual_rows.position_for_global_row_column(target_row, 0);
         }
-        buffer_end_position(&self.buffer)
+        let top = visual_rows.top_for_global_row(target_row);
+        let line_map = self.line_display();
+        let Some(row) = line_map.placement_for_source_line(top.anchor_line) else {
+            return buffer_end_position(&self.buffer);
+        };
+        match line_map.item_for_visible_row(row) {
+            Some(VisibleLine::Source { line }) => Position::new(
+                line,
+                byte_column_for_wrapped_row_start(
+                    self.buffer.line(line).unwrap_or_default(),
+                    top.wrapped_row,
+                    body_width,
+                    display,
+                ),
+            ),
+            Some(VisibleLine::Fold { range }) => Position::new(range.start_line, 0),
+            None => buffer_end_position(&self.buffer),
+        }
     }
 
     pub(crate) fn position_for_wrapped_visual_row_column(
@@ -531,25 +608,29 @@ impl BufferState {
     ) -> Position {
         let display = display.into_editor_text_display();
         let body_width = body_width.max(1);
-        let mut remaining = target_row;
-        for line_index in 0..self.buffer.line_count() {
-            let rows = self.wrapped_line_visual_rows(line_index, body_width, display);
-            if remaining < rows {
-                let line = self.buffer.line(line_index).unwrap_or_default();
-                return Position::new(
-                    line_index,
-                    byte_column_for_wrapped_row_column(
-                        line,
-                        remaining,
-                        target_column,
-                        body_width,
-                        display,
-                    ),
-                );
-            }
-            remaining = remaining.saturating_sub(rows);
+        let visual_rows = self.visual_rows(body_width, display);
+        if target_row >= visual_rows.total_rows() {
+            return visual_rows.position_for_global_row_column(target_row, target_column);
         }
-        buffer_end_position(&self.buffer)
+        let top = visual_rows.top_for_global_row(target_row);
+        let line_map = self.line_display();
+        let Some(row) = line_map.placement_for_source_line(top.anchor_line) else {
+            return buffer_end_position(&self.buffer);
+        };
+        match line_map.item_for_visible_row(row) {
+            Some(VisibleLine::Source { line }) => Position::new(
+                line,
+                byte_column_for_wrapped_row_column(
+                    self.buffer.line(line).unwrap_or_default(),
+                    top.wrapped_row,
+                    target_column,
+                    body_width,
+                    display,
+                ),
+            ),
+            Some(VisibleLine::Fold { range }) => Position::new(range.start_line, 0),
+            None => buffer_end_position(&self.buffer),
+        }
     }
 
     pub(crate) fn keep_cursor_inside_visible_wrapped_rows(
@@ -580,10 +661,29 @@ impl BufferState {
             .buffer
             .set_cursor(self.position_for_wrapped_visual_row(target_row, body_width, display));
     }
+
+    fn line_display(&self) -> EditorLineDisplay<'_> {
+        EditorLineDisplay::new(self.buffer.line_count(), &self.folds)
+    }
+
+    fn visual_rows(
+        &self,
+        body_width: usize,
+        display: EditorTextDisplay,
+    ) -> EditorVisualRows<'_, '_> {
+        EditorVisualRows::new(
+            &self.buffer,
+            self.line_display(),
+            display,
+            body_width.max(1),
+        )
+    }
 }
 
 pub(crate) fn editor_body_width(shell: &UiShell, buffer: &BufferState, rect: Rect) -> usize {
-    let geometry = shell.window_geometry(rect.width, rect.height, Some(buffer.buffer.line_count()));
+    let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds);
+    let geometry =
+        shell.window_geometry(rect.width, rect.height, Some(line_map.visible_row_count()));
     debug_assert_eq!(
         usize::from(geometry.border_columns),
         char_width(shell.glyphs.border.vertical, shell.profile.ambiguous_width).unwrap_or(1)

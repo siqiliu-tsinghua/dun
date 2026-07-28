@@ -1,4 +1,5 @@
 use crate::*;
+use dun_ui::EditorLineDisplay;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum MouseDragState {
@@ -217,7 +218,9 @@ impl AppState {
                     .ok()
                     .is_some_and(|window| window.buffer_id == buffer_id)
             })?;
-        let line_count = self.buffer_state(buffer_id)?.buffer.line_count();
+        let buffer = self.buffer_state(buffer_id)?;
+        let line_count =
+            EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds).visible_row_count();
         let geometry =
             self.shell
                 .window_geometry(layout.rect.width, layout.rect.height, Some(line_count));
@@ -235,18 +238,25 @@ impl AppState {
             let buffer = self.buffer_state_mut(buffer_id)?;
             if workspace_y <= top {
                 buffer.scroll_view_lines(-1, body_height, body_width, display);
-                buffer.first_line
             } else if workspace_y >= bottom {
                 buffer.scroll_view_lines(1, body_height, body_width, display);
-                buffer
-                    .first_line
-                    .saturating_add(body_height.saturating_sub(1))
-                    .min(buffer.buffer.line_count().saturating_sub(1))
-            } else {
-                buffer
-                    .first_line
-                    .saturating_add(workspace_y.saturating_sub(top) as usize)
             }
+            let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds);
+            let first_row = line_map
+                .placement_for_source_line(buffer.first_line)
+                .unwrap_or(0);
+            let row_offset = if workspace_y <= top {
+                0
+            } else if workspace_y >= bottom {
+                body_height.saturating_sub(1)
+            } else {
+                workspace_y.saturating_sub(top) as usize
+            };
+            line_map.source_anchor_for_visible_row(
+                first_row
+                    .saturating_add(row_offset)
+                    .min(line_map.visible_row_count().saturating_sub(1)),
+            )?
         };
 
         let x = workspace_x

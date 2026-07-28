@@ -1,4 +1,5 @@
 use crate::*;
+use dun_ui::{EditorLineDisplay, FoldSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BufferViewContext {
@@ -22,6 +23,7 @@ pub(crate) struct BufferState {
     pub(crate) first_line: usize,
     pub(crate) first_visual_row: usize,
     pub(crate) first_column: usize,
+    pub(crate) folds: FoldSet,
     pub(crate) search: Option<BufferSearchState>,
     pub(crate) word_wrap: bool,
     pub(crate) visible_whitespace: bool,
@@ -39,6 +41,7 @@ impl BufferState {
             first_line: 0,
             first_visual_row: 0,
             first_column: 0,
+            folds: FoldSet::empty(),
             search: None,
             word_wrap: false,
             visible_whitespace: false,
@@ -56,6 +59,7 @@ impl BufferState {
             first_line: 0,
             first_visual_row: 0,
             first_column: 0,
+            folds: FoldSet::empty(),
             search: None,
             word_wrap: false,
             visible_whitespace: false,
@@ -94,12 +98,21 @@ impl BufferState {
             return;
         }
 
+        let line_map = EditorLineDisplay::new(self.buffer.line_count(), &self.folds);
         let cursor = self.buffer.cursor_position();
-        let last_visible = self
-            .first_line
+        let Some(first_row) = line_map.placement_for_source_line(self.first_line) else {
+            return;
+        };
+        let last_row = first_row
             .saturating_add(body_height.saturating_sub(1))
-            .min(self.buffer.line_count().saturating_sub(1));
-        let target_line = cursor.line.clamp(self.first_line, last_visible);
+            .min(line_map.visible_row_count().saturating_sub(1));
+        let cursor_row = line_map
+            .placement_for_source_line(cursor.line)
+            .unwrap_or(last_row);
+        let target_row = cursor_row.clamp(first_row, last_row);
+        let target_line = line_map
+            .source_anchor_for_visible_row(target_row)
+            .unwrap_or(cursor.line);
         if target_line == cursor.line {
             return;
         }

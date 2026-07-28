@@ -2,7 +2,7 @@ use dun_core::{Rect, TextRange};
 
 use crate::{
     BufferView, EditorTextDisplay, UiHighlightLine, UiSearchMatchLine, UiSelectionLine, UiShell,
-    WindowGeometry,
+    VisibleLine, WindowGeometry,
 };
 
 #[derive(Clone, Copy)]
@@ -30,16 +30,19 @@ impl UiShell {
             return self.selection_for_wrapped_buffer(buffer, range, body);
         }
 
-        let mut lines = Vec::new();
-        let visible_start = buffer.first_line;
-        let visible_end = buffer.first_line.saturating_add(body_height);
-        let start_line = range.start.line.max(visible_start);
-        let end_line = range.end.line.min(visible_end.saturating_sub(1));
-        if start_line > end_line {
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
             return Vec::new();
-        }
+        };
 
-        for line_index in start_line..=end_line {
+        let mut lines = Vec::new();
+        for item in line_map.iter_from_visible_row(first_row).take(body_height) {
+            let VisibleLine::Source { line: line_index } = item else {
+                continue;
+            };
+            if line_index < range.start.line || line_index > range.end.line {
+                continue;
+            }
             if let Some(line) = self.selection_line(buffer, line_index, range, body) {
                 lines.push(line);
             }
@@ -82,6 +85,7 @@ impl UiShell {
         end_column: usize,
         body: Rect,
     ) -> Option<(u16, u16, u16)> {
+        let y = self.body_row_for_source(buffer, line_index, body)?;
         let body_width = usize::from(body.width);
         let line = buffer.buffer.line(line_index)?;
         let display = self.editor_text_display(buffer.visible_whitespace);
@@ -109,8 +113,7 @@ impl UiShell {
         }
 
         Some((
-            body.y
-                .saturating_add((line_index - buffer.first_line) as u16),
+            y,
             body.x.saturating_add(start_x as u16),
             body.x.saturating_add(end_x as u16),
         ))
@@ -134,13 +137,8 @@ impl UiShell {
             return self.plugin_highlights_for_wrapped_buffer(buffer, body);
         }
 
-        let visible_start = buffer.first_line;
-        let visible_end = buffer.first_line.saturating_add(body_height);
         let mut lines = Vec::new();
         for span in buffer.highlights {
-            if span.line < visible_start || span.line >= visible_end {
-                continue;
-            }
             if let Some((y, start_x, end_x)) = self.body_span_for_columns(
                 buffer,
                 span.line,
@@ -168,13 +166,26 @@ impl UiShell {
         let body_width = usize::from(body.width);
         let body_height = usize::from(body.height);
         let display = self.editor_text_display(buffer.visible_whitespace);
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
+            return Vec::new();
+        };
         let mut lines = Vec::new();
-        let mut visual_y = -(buffer.first_visual_row as isize);
-        for line_index in buffer.first_line..buffer.buffer.line_count() {
+        let mut visual_y = -(buffer.top.wrapped_row as isize);
+        for item in line_map.iter_from_visible_row(first_row) {
             if visual_y >= body_height as isize {
                 break;
             }
-            let visual_rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
+            let visual_rows = match item {
+                VisibleLine::Source { line } => {
+                    self.wrapped_visual_line_count(buffer, line, body_width)
+                }
+                VisibleLine::Fold { .. } => 1,
+            };
+            let VisibleLine::Source { line: line_index } = item else {
+                visual_y = visual_y.saturating_add(visual_rows as isize);
+                continue;
+            };
             let Some(line) = buffer.buffer.line(line_index) else {
                 visual_y = visual_y.saturating_add(visual_rows as isize);
                 continue;
@@ -214,13 +225,26 @@ impl UiShell {
         let body_width = usize::from(body.width);
         let body_height = usize::from(body.height);
         let display = self.editor_text_display(buffer.visible_whitespace);
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
+            return Vec::new();
+        };
         let mut lines = Vec::new();
-        let mut visual_y = -(buffer.first_visual_row as isize);
-        for line_index in buffer.first_line..buffer.buffer.line_count() {
+        let mut visual_y = -(buffer.top.wrapped_row as isize);
+        for item in line_map.iter_from_visible_row(first_row) {
             if visual_y >= body_height as isize {
                 break;
             }
-            let visual_rows = self.wrapped_visual_line_count(buffer, line_index, body_width);
+            let visual_rows = match item {
+                VisibleLine::Source { line } => {
+                    self.wrapped_visual_line_count(buffer, line, body_width)
+                }
+                VisibleLine::Fold { .. } => 1,
+            };
+            let VisibleLine::Source { line: line_index } = item else {
+                visual_y = visual_y.saturating_add(visual_rows as isize);
+                continue;
+            };
             if line_index >= range.start.line && line_index <= range.end.line {
                 let Some(line) = buffer.buffer.line(line_index) else {
                     visual_y = visual_y.saturating_add(visual_rows as isize);
@@ -270,15 +294,10 @@ impl UiShell {
             return self.search_matches_for_wrapped_buffer(buffer, body);
         }
 
-        let visible_start = buffer.first_line;
-        let visible_end = buffer.first_line.saturating_add(body_height);
         let mut lines = Vec::new();
         for (index, item) in buffer.search_matches.iter().enumerate() {
             let range = item.range;
             if range.is_empty() || range.start.line != range.end.line {
-                continue;
-            }
-            if range.start.line < visible_start || range.start.line >= visible_end {
                 continue;
             }
             if let Some(line) = self.search_match_line(buffer, range, body, index) {
@@ -296,6 +315,7 @@ impl UiShell {
         body: Rect,
         index: usize,
     ) -> Option<UiSearchMatchLine> {
+        let y = self.body_row_for_source(buffer, range.start.line, body)?;
         let body_width = usize::from(body.width);
         let line = buffer.buffer.line(range.start.line)?;
         let display = self.editor_text_display(buffer.visible_whitespace);
@@ -319,9 +339,7 @@ impl UiShell {
         }
 
         Some(UiSearchMatchLine {
-            y: body
-                .y
-                .saturating_add((range.start.line - buffer.first_line) as u16),
+            y,
             start_x: body.x.saturating_add(start_x as u16),
             end_x: body.x.saturating_add(end_x as u16),
             active: buffer.active_search_match == Some(index),
@@ -336,16 +354,28 @@ impl UiShell {
         let body_width = usize::from(body.width);
         let body_height = usize::from(body.height);
         let display = self.editor_text_display(buffer.visible_whitespace);
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
+            return Vec::new();
+        };
         let mut first_visible_row_by_line = Vec::new();
-        let mut visual_y = -(buffer.first_visual_row as isize);
-        for line_index in buffer.first_line..buffer.buffer.line_count() {
+        let mut visual_y = -(buffer.top.wrapped_row as isize);
+        for item in line_map.iter_from_visible_row(first_row) {
             if visual_y >= body_height as isize {
                 break;
             }
+            let visual_rows = match item {
+                VisibleLine::Source { line } => {
+                    self.wrapped_visual_line_count(buffer, line, body_width)
+                }
+                VisibleLine::Fold { .. } => 1,
+            };
+            let VisibleLine::Source { line: line_index } = item else {
+                visual_y = visual_y.saturating_add(visual_rows as isize);
+                continue;
+            };
             first_visible_row_by_line.push((line_index, visual_y));
-            visual_y = visual_y.saturating_add(
-                self.wrapped_visual_line_count(buffer, line_index, body_width) as isize,
-            );
+            visual_y = visual_y.saturating_add(visual_rows as isize);
         }
 
         let mut lines = Vec::new();
@@ -381,6 +411,17 @@ impl UiShell {
         }
 
         lines
+    }
+
+    fn body_row_for_source(&self, buffer: &BufferView<'_>, line: usize, body: Rect) -> Option<u16> {
+        let line_map = buffer.line_display();
+        let row = line_map.placement_for_source_line(line)?;
+        if line_map.item_for_visible_row(row) != Some(VisibleLine::Source { line }) {
+            return None;
+        }
+        let first_row = line_map.placement_for_source_line(buffer.top.anchor_line)?;
+        let body_row = row.checked_sub(first_row)?;
+        (body_row < usize::from(body.height)).then(|| body.y.saturating_add(body_row as u16))
     }
 
     fn wrapped_highlight_spans(

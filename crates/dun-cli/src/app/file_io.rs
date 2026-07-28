@@ -1,4 +1,5 @@
 use crate::*;
+use dun_ui::{EditorLineDisplay, ViewportTop};
 
 impl AppState {
     pub(crate) fn reset_focused_to_untitled(&mut self) {
@@ -195,16 +196,7 @@ impl AppState {
             .map_err(|_| io::Error::other("focused window is missing"))?;
         let window_id = window.id;
         let buffer_id = window.buffer_id;
-        let (
-            path,
-            cursor,
-            first_line,
-            first_visual_row,
-            first_column,
-            word_wrap,
-            visible_whitespace,
-            bookmarks,
-        ) = {
+        let (path, cursor, viewport_top, first_column, word_wrap, visible_whitespace, bookmarks) = {
             let buffer = self
                 .buffer_state(buffer_id)
                 .ok_or_else(|| io::Error::other("focused buffer is missing"))?;
@@ -217,8 +209,7 @@ impl AppState {
             (
                 path,
                 buffer.buffer.cursor_position(),
-                buffer.first_line,
-                buffer.first_visual_row,
+                ViewportTop::new(buffer.first_line, buffer.first_visual_row),
                 buffer.first_column,
                 buffer.word_wrap,
                 buffer.visible_whitespace,
@@ -241,10 +232,18 @@ impl AppState {
             .min(reloaded.buffer.line_count().saturating_sub(1));
         let column = reloaded.clamp_column_to_line(line, cursor.column);
         let _ = reloaded.buffer.set_cursor(Position::new(line, column));
-        reloaded.first_line = first_line.min(reloaded.buffer.line_count().saturating_sub(1));
+        let line_map = EditorLineDisplay::new(reloaded.buffer.line_count(), &reloaded.folds);
+        let top_row = line_map
+            .placement_for_source_line(
+                viewport_top
+                    .anchor_line
+                    .min(reloaded.buffer.line_count().saturating_sub(1)),
+            )
+            .unwrap_or(0);
+        reloaded.first_line = line_map.source_anchor_for_visible_row(top_row).unwrap_or(0);
         reloaded.first_column = if reloaded.word_wrap { 0 } else { first_column };
         reloaded.first_visual_row = if reloaded.word_wrap {
-            first_visual_row
+            viewport_top.wrapped_row
         } else {
             0
         };
