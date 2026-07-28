@@ -52,11 +52,13 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- **Measurement debt (opened 2026-07-28):** the bookmark remap moves a
-  `Vec<usize>` into `TextBuffer`, so every buffer carries it. Not yet
-  measured on either platform — the VMs were down for unrelated work.
-  Measure before the next release claim.
-- macOS: **706,748 bytes** (2026-07-28, tag `v0.1.0`).
+- macOS: **710,860 bytes** / Debian: **776,496 bytes** at `058447f`
+  (2026-07-28) — margin 272,080. **No measurement debt.** The +8,192 over
+  v0.1.0 is attributed: `1d078cb` (bookmarks into `TextBuffer`, with the
+  per-buffer `Vec<usize>` and the remap) measured **768,304, byte-identical**
+  to the tag, so the whole page pair belongs to `058447f`, the line-level
+  seam. Codex's plan estimated 32–64 KiB for all of folding; step 1 spent 8.
+- Release baseline: macOS **706,748** / Debian **768,304** (tag `v0.1.0`).
 - Debian: **768,304 bytes** at tag `v0.1.0` — **binding platform**, margin
   280,272 bytes (2026-07-28, v0.1.0 sign-off, clean git archive).
   **No measurement debt.** The +4,096 over the previously recorded 764,208

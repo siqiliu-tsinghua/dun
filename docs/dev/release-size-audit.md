@@ -1,5 +1,22 @@
 # Release Size Audit
 
+## 2026-07-28 — folding step 1 (line-level seam)
+
+| platform | commit | bytes | vs v0.1.0 | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | `058447f` | 710,860 | +4,112 | 337,716 |
+| Debian x86_64 | `058447f` | 776,496 | +8,192 | 272,080 |
+
+Attributed rather than lumped, after the v0.1.0 sign-off showed what an
+unattributed page costs later. `1d078cb` — bookmarks moved into `TextBuffer`,
+adding a `Vec<usize>` per buffer plus the remap inside `replace_range_inner` —
+measures **768,304 on Debian, byte-identical to the tag**. The `Vec` fits in
+existing padding and LTO absorbs the remap, so bookmark correctness came free.
+The two pages belong entirely to `058447f`, the `EditorLineDisplay` /
+`EditorVisualRows` seam and the ~19 files routed through it.
+
+For scale: the plan in brief 058 estimated 32–64 KiB for folding as a whole.
+
 ## 2026-07-28 — v0.1.0 sign-off (binding)
 
 | platform | commit | bytes | budget | margin |
