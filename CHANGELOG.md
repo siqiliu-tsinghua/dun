@@ -31,6 +31,15 @@ in [docs/dev/PROGRESS.md](docs/dev/PROGRESS.md).
   binds either chord to something else will be rejected at startup with a
   message naming both commands and how to unbind one
   (`key.edit.unfold_all = none`).
+- **Solaris builds are ~343 KB smaller.** `scripts/release-build.sh` now links
+  with `-z noldynsym` on Solaris, dropping the symbol-table sections the native
+  link editor keeps so `pstack` and `dtrace` can name local frames. Stack
+  traces from a release binary lose those names; set
+  `DUN_SOLARIS_KEEP_LDYNSYM=1` to keep them, which is also what you need if you
+  link with GNU `ld`. All four supported platforms now build under the 1 MiB
+  budget.
+- `scripts/release-build.sh` is POSIX `sh` instead of `bash`, so it runs on
+  FreeBSD, whose base system has no `bash`.
 
 ## v0.1.0 — 2026-07-28
 

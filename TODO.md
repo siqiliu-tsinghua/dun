@@ -3,10 +3,61 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
 
-## Current Stage: v0.1 Wrap-Up and Public Release
+## Current Stage: none
 
-Roadmap agreed 2026-07-27; execution starts 2026-07-28. The runtime is done
-for v0.1 — no active code stage, four-platform matrix 845/0, binding Debian
+`dun` is between stages as of 2026-07-29. `main` carries v0.1.0 plus the
+folding stage, which is **unreleased** — CHANGELOG's `Unreleased` section is
+the list of what a v0.2 would contain. The project owner's attention moves to
+`rum`/`rum-ext`; the likely next session here is PR/issue triage on the public
+repository rather than a code stage.
+
+State at this point:
+
+| | |
+| --- | --- |
+| Four-platform matrix | **906 / 0** (macOS, Debian, FreeBSD, Solaris) |
+| Binding size | Debian **784,688**, margin 263,888 |
+| Other platforms | macOS 719,100, FreeBSD 698,344, Solaris 744,880 |
+| Last runtime-code commit | `60bc2fa` (folding step 4) |
+| Measurement debt | none |
+
+Nothing is blocked on this repository. What is queued is blocked elsewhere or
+cancelled: rum evaluation waits on rum-ext's resource/type base, F20 Outline
+was cancelled outright 2026-07-28, and the plugin memory watchdog is an open
+design question with no owner. Optional and user-driven: live real-terminal
+OSC 52 read acceptance.
+
+## Completed Stage: Folding (2026-07-28 → 2026-07-29)
+
+Plan brief 058 → implementation briefs 059–063, plan-first Codex with every
+step gated by Claude. Recorded here after the fact: this stage ran in session
+without TODO entries, which is the gap this section closes.
+
+- [x] Fix bookmark remapping first (`1d078cb`) — found while reviewing the
+  fold plan, done first because folding needs the same remap. Byte-identical.
+- [x] Step 1: the line-level display seam, `EditorLineDisplay` as sibling of
+  `EditorTextDisplay` (`058447f`, +8,192).
+- [x] Step 2: `FoldSet`/`FoldRange` on `TextBuffer`, remapped in
+  `replace_range_inner` — the one primitive every mutation reaches
+  (`d7e91fb`, +4,096).
+- [x] Step 3: the placeholder row, and collapsing the duplicate fold set my
+  own step split had created (`0c4e921`, **+0**).
+- [x] Step 4: `edit.toggle_fold` / `edit.unfold_all` with the full trail —
+  keys, View menu, help, status messages, ten catalogs (`60bc2fa`, +4,096).
+- [x] Four-platform functional matrix: 906/0.
+- [x] Tail: root-cause the Solaris binary's 1,087,760 (linker metadata, not
+  code), adopt `-znoldynsym` as the platform default (`6bab7c9`), convert
+  `release-build.sh` to POSIX `sh` so it runs on all four (`609a38e`).
+
+Total cost 16,384 bytes against brief 058's 32–64 KiB estimate. The recurring
+failure mode, named three times before it stopped: **tests covered the path
+that does not execute.** Two briefs stopped on under-scoped MAY-modify lists,
+both because scope was written from recollection instead of `grep`.
+
+## Completed Stage: v0.1 Wrap-Up and Public Release (closed 2026-07-28)
+
+Roadmap agreed 2026-07-27; executed 2026-07-28. State at the time this stage
+began: no active code stage, four-platform matrix 845/0, binding Debian
 760,112 bytes with 288,464 to spare. What is missing is everything *around*
 the code: docs that describe a project which no longer exists in places, no
 user-facing documentation of any kind, and none of the release artifacts.

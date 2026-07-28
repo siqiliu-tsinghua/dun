@@ -142,6 +142,8 @@ buffer, `Ctrl+L` the current line.
 | Toggle visible whitespace | `Ctrl+X,.` |
 | Toggle bookmark | `Ctrl+X,K` |
 | Next / previous bookmark | `Ctrl+X,N` / `Ctrl+X,L` |
+| Fold selection / unfold at cursor | `Ctrl+X,F` |
+| Unfold everything | `Ctrl+X,A` |
 | Go to line | `Ctrl+G` |
 
 Undo groups typing into sensible transactions: a run of ordinary characters
@@ -189,6 +191,22 @@ Bookmarks are per-buffer positions marked with a `*` in the gutter; `Ctrl+X,N`
 and `Ctrl+X,L` cycle through them in document order and wrap around. Visible
 whitespace draws tabs and trailing spaces as marks; it is off by default and
 costs nothing when off.
+
+**Folding** collapses a range of lines into a single row so a long file fits on
+one screen. Select two or more lines and press `Ctrl+X,F`; the range becomes one
+placeholder row showing how many lines are hidden and an excerpt of the first
+one. `Ctrl+X,F` with the cursor on a placeholder (or anywhere inside the folded
+range) opens it again, and `Ctrl+X,A` unfolds everything in the buffer.
+
+Folds are manual — `dun` never guesses structure from the file's type, so
+folding works the same on a config file, a log, and a language it has never
+seen. They do not nest, they are not saved to disk, and an edit that touches a
+folded range drops that fold rather than leaving it pointing at lines that
+moved. Anything that jumps to a hidden line — Go To Line, a bookmark jump, a
+submitted search — opens the fold around it first, so the cursor never lands in
+text you cannot see. The live preview while you are still typing in the Find
+prompt deliberately does not, so cancelling a search leaves your folds as they
+were.
 
 ## Find and replace
 

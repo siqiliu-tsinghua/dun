@@ -10,9 +10,9 @@ and the active working plan. Keep all three in sync.
 Rust 1.85 workspace, six crates under `crates/`:
 
 - `dun-core`: buffers, undo/redo, search, tiled workspace state, and the
-  typed `EditorCommand` enum (`src/command.rs` — 94 command variants across
-  `App`/`Edit`/`File`/`Window`, of which 91 have command ids; the mechanical
-  enumeration of user-visible features).
+  typed `EditorCommand` enum (`src/command.rs` — 93 command variants across
+  `App`/`Edit`/`File`/`Window`, every one with a command id, held equal by a
+  test; the mechanical enumeration of user-visible features).
 - `dun-term`: terminal capability profiles, color/glyph fallback, themes.
 - `dun-config`: typed config, keymap, command-id parsing, validation.
 - `dun-ui`: backend-neutral frame model rendered onto the in-house `Surface`
@@ -20,7 +20,7 @@ Rust 1.85 workspace, six crates under `crates/`:
 - `dun-plugin`: the protocol client, its hand-rolled JSON, and the per-role
   output validators.
 - `dun-cli`: terminal lifecycle (in-house VT since `877b7ad`), event loop,
-  command application (the largest crate, ~31k lines including its tests —
+  command application (the largest crate, ~36k lines including its tests —
   most UX weight lives here).
 
 Docs are load-bearing in this repo: any behavior or architecture change must
@@ -350,6 +350,32 @@ Sequencing (stages 1–2 completed 2026-07-10):
      dual-platform size gate + four-platform matrix + tag `v0.1.0`. **The VMs
      are needed only here.**
 
+10. ~~Folding~~ — **DONE, stage closed 2026-07-29** (`1d078cb`..`609a38e`).
+    Manual folds that need no type knowledge and no plugin, so they work on
+    the cold open that motivates the feature. Plan brief 058 → implementation
+    briefs 059–063, every step Claude-gated. Four steps plus a prerequisite
+    fix: bookmark remap repaired first (`1d078cb`, byte-identical) because
+    folding needed the same remapping; then the line-level display seam
+    (`058447f`), fold state and edit remap on `TextBuffer` (`d7e91fb`), the
+    placeholder row (`0c4e921`, **+0 bytes**), and the commands with their
+    full trail — keys, menu, help, status messages, ten catalogs (`60bc2fa`).
+    `Ctrl+X,F` toggles, `Ctrl+X,A` unfolds all.
+
+    Cost 16,384 bytes on the binding platform against brief 058's 32–64 KiB
+    estimate; four-platform matrix **906/0**. One recurring failure mode,
+    named three times by Codex before it stopped recurring: **tests covered
+    the path that does not execute** (step 1's identity mapping untested while
+    its fold path was; step 2's degenerate-range guard asserted but never
+    reached; step 3's maintained fold set was not the rendered one — a
+    duplicate created by my own step split). Two briefs (059, 062) stopped on
+    under-scoped MAY-modify lists, both times because I wrote scope from
+    recollection instead of `grep`.
+
+    Tail work, same stage: the Solaris binary's 1,087,760 was root-caused to
+    linker metadata rather than code, `-znoldynsym` adopted as the platform's
+    default link flag (`6bab7c9`), and `release-build.sh` converted to POSIX
+    `sh` so it runs on all four platforms (`609a38e`).
+
 Queue: **F20 Outline is cancelled** (user decision 2026-07-28) — the need is
 too small to carry, and a plugin-delivered navigation aid is absent exactly
 when it would matter, on a cold open of an unfamiliar file on a strange host.
@@ -359,11 +385,14 @@ still have no mnemonic when a host declares none (deliberate — see
 docs/plugin-protocol.md "Menu mnemonics"). Optional follow-up: live
 real-terminal OSC 52 read acceptance (user-driven).
 
-**Candidate next stage: folding** (raised 2026-07-28). Unlike the outline it
-degrades gracefully — manual and indent-based folds need no type knowledge and
-no plugin, so they work on the cold open that motivates the feature. Cost is
-not the budget (margin 280,272) but a line-level display seam that does not
-exist yet; see the assessment recorded with the decision.
+**No active code stage as of 2026-07-29.** `main` carries v0.1.0 plus the
+folding stage, which is unreleased — CHANGELOG's `Unreleased` section is the
+list. The likely next session is not a code stage at all but PR/issue triage
+on the public repository; the user's own attention moves to `rum`/`rum-ext`.
+Current figures, all four verified through `scripts/release-build.sh` at the
+2026-07-29 tip: macOS **719,100**, Debian **784,688** (binding, margin
+263,888), FreeBSD **698,344**, Solaris **744,880**. The last runtime-code
+commit is `60bc2fa`; everything after it is docs and the build script.
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,

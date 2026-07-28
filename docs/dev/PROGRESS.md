@@ -1358,3 +1358,86 @@ This is an append-only progress log. Keep new entries dated and factual.
   terminal-compatibility-checks, editor-baseline, AUDIT, release-size-audit,
   TODO, CLAUDE). The `editing.rs`→`app/clipboard.rs` split was deliberately not
   bundled and remains available if the file crosses the size guideline.
+
+- Wrapped up v0.1 and published the project (2026-07-27 → 2026-07-28, stage
+  "v0.1 Wrap-Up and Public Release", `1ad72d4`..`029ea08`, tagged `v0.1.0`).
+  Three serial stages, none of them runtime code. **A — cleanup and
+  relocation:** split `docs/` (user-facing) from `docs/dev/` (process,
+  measurement, method, VM manuals, 58 Codex briefs), moved PLAN/PROGRESS/AUDIT
+  under `docs/dev/` so the root keeps only README/AGENTS/CLAUDE/TODO, and put
+  every cross-link behind a new `scripts/check-links.py` — which found 11 stale
+  paths outside markdown (shell scripts, Rust `//!` comments) that a
+  markdown-only checker would have missed. The pre-publication scan replaced
+  the sample logs' real attributable IPs with RFC 5737 blocks; regeneration
+  shifted the whole corpus because rejection sampling consumes the random
+  stream differently, so every figure in the README had to be recomputed.
+  **B — documentation:** wrote the four missing documents (user guide,
+  plugin-author guide, test-tooling onboarding, configuration reference) and
+  rewrote README, which still called `dun` "planned" and "ratatui-based" two
+  months after ratatui was retired. The plugin-author guide's minimal host was
+  rejected three times by `check-host.py` before it passed — the guide's
+  example is now executable rather than illustrative. **C — release
+  artifacts:** LICENSE (MIT), CHANGELOG distilled from this log, Cargo
+  metadata, and the sign-off. Curated gallery screenshots were captured on
+  real terminals through an orthogonal design (four themes x i18n x three
+  syntax-highlight hosts x the log-filter scenario) so a few images cover many
+  claims. Published to a public GitHub repository with full history; the
+  historical sample-log IPs were deliberately not scrubbed from it.
+
+- Completed the Folding stage (2026-07-28 → 2026-07-29, plan brief 058 →
+  implementation briefs 059–063, `1d078cb`..`609a38e`). Chosen over F20
+  Outline, which was cancelled the same week: an outline needs type knowledge
+  and would therefore be absent exactly when it matters, on a cold open of an
+  unfamiliar file on a strange host, whereas manual folds degrade gracefully.
+  A bookmark-remapping defect found while reviewing the fold plan was fixed
+  first (`1d078cb`, byte-identical) because folding needed the same remap.
+  Then four gated steps: the line-level display seam `EditorLineDisplay`, a
+  sibling of the within-line `EditorTextDisplay` (`058447f`, +8,192);
+  `FoldSet`/`FoldRange` owned by `TextBuffer` and remapped inside
+  `replace_range_inner`, the one primitive every mutation reaches (`d7e91fb`,
+  +4,096); the placeholder row, whose untrusted excerpt is sanitised
+  separately from its trusted prefix so the prefix cannot depend on file
+  content (`0c4e921`, **+0 bytes** — it added branches to paths that already
+  existed); and the commands with their full trail — `Ctrl+X,F` toggle,
+  `Ctrl+X,A` unfold all, View menu, help, status messages, ten catalogs
+  (`60bc2fa`, +4,096). Total 16,384 against brief 058's 32–64 KiB estimate;
+  four-platform matrix 906/0. One failure mode recurred three times and is
+  worth naming: **tests covered the path that does not execute** — step 1's
+  identity mapping was untested while its fold path was, step 2's
+  degenerate-range guard was asserted but never reached, and step 3 found the
+  fold set that edits maintained was not the one that rendered, a duplicate
+  created by Claude's own step split. Two briefs stopped on under-scoped
+  MAY-modify lists, both because scope was written from recollection instead
+  of `grep`. Codex also detected Move Line by comparing replacement text
+  inside the generic primitive; reversed at the gate as fixing at the wrong
+  layer.
+
+- Root-caused and fixed the Solaris binary's size, then made the budget script
+  portable (2026-07-29, `1a6a74a`, `6bab7c9`, `609a38e`). The Solaris
+  reference build had measured over 1 MiB since the first build on that guest
+  and no document said why, so the number invited the wrong conclusion. It is
+  not code: `.text` differs from Debian by 5%, while `.dynstr` is 249,169
+  against 1,528, plus a Solaris-only `.SUNW_ldynsym` (71,712) and two sort
+  tables the native link editor keeps so `pstack` can name frames. Measuring
+  the levers rather than guessing found two of the three obvious ones wrong —
+  `strip`/`strip -x` move zero bytes (the profile already strips, and what
+  remains is allocable), and `-z strip-class=nonalloc` makes the binary
+  376,744 bytes *larger* because an explicit strip-class replaces the one
+  `rustc` emits and that class excludes `symbol`, so `.symtab` returns. Only
+  `-z noldynsym` works: 1,087,760 → 744,880, adopted as the platform default
+  in `scripts/release-build.sh` with `DUN_SOLARIS_KEEP_LDYNSYM=1` to opt out.
+  Verified functionally, not just by size: suite 906/0 with the flag, release
+  panic path 12/12, and the shipped build-std combination hand-checked through
+  `pty_smoke`'s own criteria (SIGABRT plus `[?1049l` in the raw PTY output)
+  because `cargo test -Zbuild-std` cannot run at all — `libc` fails with a
+  duplicate `core` lang item, reproducibly and independently of the flag, which
+  also means the suite has never run under build-std on any platform. The
+  script then became POSIX `sh`: it had been `bash`, which the FreeBSD base
+  system lacks, and an earlier session had misread `env: bash: not found` as
+  "this platform cannot do build-std" and recorded a wrong conclusion from it.
+  Dropping the shebang required dropping `pipefail` (not POSIX; Debian's
+  `/bin/sh` is dash) and giving FreeBSD BSD `stat -f%z`. All four platforms
+  verified through the script's own shebang, every one a no-op rebuild: macOS
+  719,100, Debian 784,688 (dash), FreeBSD 698,344, Solaris 744,880 (ksh93).
+  The gate stays macOS + Debian — auditing four would double per-step
+  measurement cost to add a gate that cannot fire first.

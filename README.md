@@ -27,9 +27,10 @@ half-written save may be the outage.
 
 `dun` treats those as the primary case rather than the degraded one:
 
-- **It fits in the places you have to work.** The release binary is 768 KB on
-  Debian x86-64 and 707 KB on macOS, against a hard 1 MiB budget that every
-  change is measured against. Copy one file to the host and you are done.
+- **It fits in the places you have to work.** The release binary is 785 KB on
+  Debian x86-64 and 719 KB on macOS — and 698 KB on FreeBSD, 745 KB on
+  Solaris — against a hard 1 MiB budget that every change is measured against.
+  Copy one file to the host and you are done.
 - **It degrades on purpose.** Each theme carries 256-color, 16-color, and
   monochrome variants, reached by capability detection or forced by config.
   Box drawing falls back to ASCII. Ambiguous-width glyphs are probed at
@@ -54,7 +55,8 @@ side. Buffers are shared, so the same file can be open in several windows.
 Ordinary editing with the expected shape — undo grouped into sensible
 transactions, word-wise movement and deletion, selection by keyboard,
 line operations, bookmarks, visible whitespace, word wrap that scrolls and
-selects by visual row.
+selects by visual row, and manual folding that collapses a selected range to
+one row without needing to know the file's type.
 
 Find and replace with `/i`, `/c`, `/w` flags, live match preview, an
 interactive replace, a `replace all` that lands in one undo transaction, and a
@@ -64,7 +66,7 @@ read-only Search Results list you can jump from.
 and captures stdout and stderr into a read-only pane with a byte cap and a
 timeout — useful for pulling a log into the editor without leaving it.
 
-`Ctrl+P` opens a command prompt with Tab completion over every one of the 91
+`Ctrl+P` opens a command prompt with Tab completion over every one of the 93
 command ids, so anything bindable is also runnable by name.
 
 Ten interface languages ship as external catalogs — `de`, `es`, `fr`, `it`,
