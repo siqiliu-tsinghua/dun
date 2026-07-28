@@ -52,6 +52,10 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
+- **Measurement debt (opened 2026-07-28):** the bookmark remap moves a
+  `Vec<usize>` into `TextBuffer`, so every buffer carries it. Not yet
+  measured on either platform — the VMs were down for unrelated work.
+  Measure before the next release claim.
 - macOS: **706,748 bytes** (2026-07-28, tag `v0.1.0`).
 - Debian: **768,304 bytes** at tag `v0.1.0` — **binding platform**, margin
   280,272 bytes (2026-07-28, v0.1.0 sign-off, clean git archive).

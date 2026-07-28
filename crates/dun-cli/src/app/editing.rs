@@ -294,10 +294,7 @@ impl AppState {
         };
 
         let status = match buffer.buffer.delete_current_line() {
-            Ok(true) => {
-                buffer.normalize_bookmarks();
-                "Deleted line".to_string()
-            }
+            Ok(true) => "Deleted line".to_string(),
             Ok(false) => "Delete line: nothing deleted".to_string(),
             Err(error) => ui_text::tr_fmt(
                 &self.shell.catalog,
@@ -320,7 +317,6 @@ impl AppState {
             return;
         };
 
-        let source_line = buffer.buffer.cursor_position().line;
         let moved = if direction < 0 {
             buffer.buffer.move_current_line_up()
         } else {
@@ -328,8 +324,6 @@ impl AppState {
         };
         let status = match moved {
             Ok(true) => {
-                let destination_line = buffer.buffer.cursor_position().line;
-                buffer.remap_bookmarks_for_line_move(source_line, destination_line);
                 if direction < 0 {
                     "Moved line up".to_string()
                 } else {

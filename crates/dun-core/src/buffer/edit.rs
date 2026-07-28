@@ -239,11 +239,36 @@ impl TextBuffer {
             replacement.push(format!("{}{}", parts[parts.len() - 1], suffix));
         }
 
+        // Bookmarks are line markers, so every replacement that changes the
+        // line structure has to move them. This is the one primitive every
+        // mutation reaches -- ordinary edits, bulk replace, undo and redo --
+        // which is why the remap lives here rather than at any call site.
+        // Operations that mean something more specific than "these lines
+        // became those lines", such as swapping two adjacent lines, adjust
+        // their own bookmarks around this call; they know their intent, and
+        // this primitive should not try to infer it from the text.
+        let removed = range.end.line - range.start.line + 1;
+        let inserted = replacement.len();
+        for bookmark in &mut self.bookmarks {
+            if *bookmark < range.start.line {
+                // The bookmarked line is before the replacement.
+            } else if *bookmark >= range.start.line + removed {
+                if inserted >= removed {
+                    *bookmark += inserted - removed;
+                } else {
+                    *bookmark -= removed - inserted;
+                }
+            } else {
+                *bookmark = range.start.line;
+            }
+        }
+
         self.lines
             .splice(range.start.line..=range.end.line, replacement);
         if self.lines.is_empty() {
             self.lines.push(String::new());
         }
+        self.normalize_bookmarks();
 
         Ok(end_position_after_text(range.start, new_text))
     }

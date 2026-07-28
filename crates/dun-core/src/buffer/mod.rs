@@ -63,6 +63,29 @@ impl TextBuffer {
         &self.lines
     }
 
+    pub fn bookmarks(&self) -> &[usize] {
+        &self.bookmarks
+    }
+
+    pub fn set_bookmarks(&mut self, bookmarks: Vec<usize>) {
+        self.bookmarks = bookmarks;
+        self.normalize_bookmarks();
+    }
+
+    pub fn toggle_bookmark(&mut self, line: usize) -> bool {
+        let line = line.min(self.lines.len().saturating_sub(1));
+        match self.bookmarks.binary_search(&line) {
+            Ok(index) => {
+                self.bookmarks.remove(index);
+                false
+            }
+            Err(index) => {
+                self.bookmarks.insert(index, line);
+                true
+            }
+        }
+    }
+
     pub fn to_text(&self) -> String {
         self.lines.join(self.line_ending.as_str())
     }
@@ -98,6 +121,7 @@ impl TextBuffer {
             kind,
             lines,
             line_ending,
+            bookmarks: Vec::new(),
             cursor: Cursor::default(),
             selection: None,
             undo_stack: Vec::new(),
@@ -147,6 +171,15 @@ impl TextBuffer {
         self.lines.hash(&mut hasher);
         self.line_ending.hash(&mut hasher);
         hasher.finish()
+    }
+
+    fn normalize_bookmarks(&mut self) {
+        let last_line = self.lines.len().saturating_sub(1);
+        for bookmark in &mut self.bookmarks {
+            *bookmark = (*bookmark).min(last_line);
+        }
+        self.bookmarks.sort_unstable();
+        self.bookmarks.dedup();
     }
 
     fn bump_revision(&mut self) {

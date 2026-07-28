@@ -171,6 +171,7 @@ pub struct TextBuffer {
     pub(super) kind: BufferKind,
     pub(super) lines: Vec<String>,
     pub(super) line_ending: LineEnding,
+    pub(super) bookmarks: Vec<usize>,
     pub(super) cursor: Cursor,
     pub(super) selection: Option<Selection>,
     pub(super) undo_stack: Vec<EditTransaction>,
@@ -188,6 +189,7 @@ impl PartialEq for TextBuffer {
         self.kind == other.kind
             && self.lines == other.lines
             && self.line_ending == other.line_ending
+            && self.bookmarks == other.bookmarks
             && self.cursor == other.cursor
             && self.selection == other.selection
             && self.undo_stack == other.undo_stack

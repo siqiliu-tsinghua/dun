@@ -101,7 +101,7 @@ impl AppState {
                 )),
             );
         }
-        if buffer.bookmarks.contains(&position.line) {
+        if buffer.buffer.bookmarks().contains(&position.line) {
             parts.insert(
                 4,
                 bracket(ui_text::tr(

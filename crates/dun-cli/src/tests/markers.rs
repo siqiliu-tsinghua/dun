@@ -224,12 +224,12 @@ fn bookmark_toggle_adds_removes_sorts_deduplicates_and_stays_per_buffer() {
     let mut app = app_with_text("zero\none\ntwo\nthree");
     let first_buffer_id = app.focused_buffer_id().unwrap();
     let state = app.focused_buffer_mut().unwrap();
-    state.bookmarks = vec![3, 1, 1];
+    state.buffer.set_bookmarks(vec![3, 1, 1]);
     state.buffer.set_cursor(Position::new(2, 0)).unwrap();
 
     toggle_bookmark(&mut app);
 
-    assert_eq!(app.focused_buffer().unwrap().bookmarks, [1, 2, 3]);
+    assert_eq!(app.focused_buffer().unwrap().buffer.bookmarks(), [1, 2, 3]);
     assert_eq!(app.status_message.as_deref(), Some("Bookmarked line 3"));
     assert!(
         !app.focused_buffer().unwrap().buffer.is_dirty(),
@@ -237,7 +237,7 @@ fn bookmark_toggle_adds_removes_sorts_deduplicates_and_stays_per_buffer() {
     );
 
     toggle_bookmark(&mut app);
-    assert_eq!(app.focused_buffer().unwrap().bookmarks, [1, 3]);
+    assert_eq!(app.focused_buffer().unwrap().buffer.bookmarks(), [1, 3]);
     assert_eq!(
         app.status_message.as_deref(),
         Some("Removed bookmark at line 3")
@@ -248,9 +248,18 @@ fn bookmark_toggle_adds_removes_sorts_deduplicates_and_stays_per_buffer() {
     assert_ne!(first_buffer_id, second_buffer_id);
     toggle_bookmark(&mut app);
 
-    assert_eq!(app.buffer_state(second_buffer_id).unwrap().bookmarks, [0]);
     assert_eq!(
-        app.buffer_state(first_buffer_id).unwrap().bookmarks,
+        app.buffer_state(second_buffer_id)
+            .unwrap()
+            .buffer
+            .bookmarks(),
+        [0]
+    );
+    assert_eq!(
+        app.buffer_state(first_buffer_id)
+            .unwrap()
+            .buffer
+            .bookmarks(),
         [1, 3],
         "a second buffer must not inherit or mutate the first buffer's bookmarks"
     );
@@ -273,7 +282,10 @@ fn bookmark_toggle_reports_a_missing_focused_buffer() {
 #[test]
 fn bookmark_navigation_is_strict_circular_and_clamps_columns() {
     let mut app = app_with_text("zero\nabcdef\nmiddle\nx\nlast");
-    app.focused_buffer_mut().unwrap().bookmarks = vec![1, 3];
+    app.focused_buffer_mut()
+        .unwrap()
+        .buffer
+        .set_bookmarks(vec![1, 3]);
 
     app.focused_buffer_mut()
         .unwrap()
@@ -335,7 +347,10 @@ fn bookmark_navigation_is_strict_circular_and_clamps_columns() {
         "previous before the first bookmark wraps to the last"
     );
 
-    app.focused_buffer_mut().unwrap().bookmarks = vec![2];
+    app.focused_buffer_mut()
+        .unwrap()
+        .buffer
+        .set_bookmarks(vec![2]);
     app.focused_buffer_mut()
         .unwrap()
         .buffer
@@ -366,7 +381,10 @@ fn bookmark_navigation_reports_empty_and_ensures_the_target_is_visible() {
     app.handle_command(&EditorCommand::Edit(EditCommand::NextBookmark));
     assert_eq!(app.status_message.as_deref(), Some("Bookmark: none set"));
 
-    app.focused_buffer_mut().unwrap().bookmarks = vec![29];
+    app.focused_buffer_mut()
+        .unwrap()
+        .buffer
+        .set_bookmarks(vec![29]);
     app.sync_view_for_area(Rect::new(0, 0, 20, 6));
     app.handle_command(&EditorCommand::Edit(EditCommand::NextBookmark));
 
@@ -396,7 +414,7 @@ fn bookmark_reload_clamps_and_deduplicates_and_new_open_start_empty() {
 
     reload_app.handle_command(&EditorCommand::File(FileCommand::Reload));
 
-    assert_eq!(reload_app.focused_buffer().unwrap().bookmarks, [1]);
+    assert_eq!(reload_app.focused_buffer().unwrap().buffer.bookmarks(), [1]);
     assert_eq!(
         reload_app.focused_buffer().unwrap().buffer.to_text(),
         "short\nx"
@@ -404,7 +422,12 @@ fn bookmark_reload_clamps_and_deduplicates_and_new_open_start_empty() {
 
     reload_app.handle_command(&EditorCommand::File(FileCommand::New));
     assert!(
-        reload_app.focused_buffer().unwrap().bookmarks.is_empty(),
+        reload_app
+            .focused_buffer()
+            .unwrap()
+            .buffer
+            .bookmarks()
+            .is_empty(),
         "New starts with no bookmarks"
     );
 
@@ -413,7 +436,12 @@ fn bookmark_reload_clamps_and_deduplicates_and_new_open_start_empty() {
     toggle_bookmark(&mut reload_app);
     reload_app.open_file_path(open_path.clone()).unwrap();
     assert!(
-        reload_app.focused_buffer().unwrap().bookmarks.is_empty(),
+        reload_app
+            .focused_buffer()
+            .unwrap()
+            .buffer
+            .bookmarks()
+            .is_empty(),
         "Open starts with no bookmarks"
     );
 
@@ -425,30 +453,30 @@ fn bookmark_reload_clamps_and_deduplicates_and_new_open_start_empty() {
 fn delete_line_normalizes_bookmarks() {
     let mut app = app_with_text("a\nb\nc");
     let state = app.focused_buffer_mut().unwrap();
-    state.bookmarks = vec![0, 2];
+    state.buffer.set_bookmarks(vec![0, 2]);
     state.buffer.set_cursor(Position::new(0, 0)).unwrap();
 
     app.handle_command(&EditorCommand::Edit(EditCommand::DeleteLine));
 
     assert_eq!(app.focused_buffer().unwrap().buffer.to_text(), "b\nc");
-    assert_eq!(app.focused_buffer().unwrap().bookmarks, [0, 1]);
+    assert_eq!(app.focused_buffer().unwrap().buffer.bookmarks(), [0, 1]);
 }
 
 #[test]
 fn move_line_swaps_source_and_destination_bookmarks() {
     let mut app = app_with_text("a\nb\nc");
     let state = app.focused_buffer_mut().unwrap();
-    state.bookmarks = vec![0, 2];
+    state.buffer.set_bookmarks(vec![0, 2]);
     state.buffer.set_cursor(Position::new(1, 0)).unwrap();
 
     app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineUp));
 
     assert_eq!(app.focused_buffer().unwrap().buffer.to_text(), "b\na\nc");
-    assert_eq!(app.focused_buffer().unwrap().bookmarks, [1, 2]);
+    assert_eq!(app.focused_buffer().unwrap().buffer.bookmarks(), [1, 2]);
 
     app.handle_command(&EditorCommand::Edit(EditCommand::MoveLineDown));
     assert_eq!(app.focused_buffer().unwrap().buffer.to_text(), "a\nb\nc");
-    assert_eq!(app.focused_buffer().unwrap().bookmarks, [0, 2]);
+    assert_eq!(app.focused_buffer().unwrap().buffer.bookmarks(), [0, 2]);
 }
 
 #[test]
@@ -466,11 +494,20 @@ fn shared_buffer_views_retain_bookmarks_until_the_final_view_closes() {
     app.drop_buffer_if_unreferenced(redundant_buffer_id);
 
     toggle_bookmark(&mut app);
-    assert_eq!(app.buffer_state(shared_buffer_id).unwrap().bookmarks, [0]);
+    assert_eq!(
+        app.buffer_state(shared_buffer_id)
+            .unwrap()
+            .buffer
+            .bookmarks(),
+        [0]
+    );
 
     app.handle_command(&EditorCommand::Window(WindowCommand::Close));
     assert_eq!(
-        app.buffer_state(shared_buffer_id).unwrap().bookmarks,
+        app.buffer_state(shared_buffer_id)
+            .unwrap()
+            .buffer
+            .bookmarks(),
         [0],
         "closing one shared view must retain the shared BufferState"
     );
@@ -492,7 +529,7 @@ fn detail_status_places_mark_before_whitespace_and_wrap_only_on_its_line() {
     let state = app.focused_buffer_mut().unwrap();
     state.word_wrap = true;
     state.visible_whitespace = true;
-    state.bookmarks = vec![0];
+    state.buffer.set_bookmarks(vec![0]);
     let detail = app.focused_detail_status();
     let position = detail.find("1:1").expect("cursor position");
     let mark = detail.find("[Mark]").expect("[Mark] bracket");
@@ -520,9 +557,19 @@ fn detail_status_places_mark_before_whitespace_and_wrap_only_on_its_line() {
 fn bookmark_aliases_completion_and_ctrl_x_bindings_dispatch() {
     let mut command_app = AppState::new();
     submit_command_line(&mut command_app, "mark");
-    assert_eq!(command_app.focused_buffer().unwrap().bookmarks, [0]);
+    assert_eq!(
+        command_app.focused_buffer().unwrap().buffer.bookmarks(),
+        [0]
+    );
     submit_command_line(&mut command_app, "bookmark");
-    assert!(command_app.focused_buffer().unwrap().bookmarks.is_empty());
+    assert!(
+        command_app
+            .focused_buffer()
+            .unwrap()
+            .buffer
+            .bookmarks()
+            .is_empty()
+    );
     assert_eq!(
         command_line_completion("mar"),
         CommandCompletion::Unique("mark ".to_string())
@@ -531,9 +578,13 @@ fn bookmark_aliases_completion_and_ctrl_x_bindings_dispatch() {
 
     let mut key_app = app_with_text("zero\none\ntwo");
     send_ctrl_x_command(&mut key_app, 'k');
-    assert_eq!(key_app.focused_buffer().unwrap().bookmarks, [0]);
+    assert_eq!(key_app.focused_buffer().unwrap().buffer.bookmarks(), [0]);
 
-    key_app.focused_buffer_mut().unwrap().bookmarks = vec![0, 2];
+    key_app
+        .focused_buffer_mut()
+        .unwrap()
+        .buffer
+        .set_bookmarks(vec![0, 2]);
     send_ctrl_x_command(&mut key_app, 'n');
     assert_eq!(
         key_app.focused_buffer().unwrap().buffer.cursor_position(),

@@ -1,3 +1,4 @@
+mod bookmarks;
 mod cursor;
 mod edit;
 mod line_ops;

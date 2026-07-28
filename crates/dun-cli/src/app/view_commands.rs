@@ -10,17 +10,11 @@ impl AppState {
             return;
         };
 
-        buffer.normalize_bookmarks();
         let line = buffer.buffer.cursor_position().line;
-        let key = match buffer.bookmarks.binary_search(&line) {
-            Ok(index) => {
-                buffer.bookmarks.remove(index);
-                ui_text::STATUS_BOOKMARK_REMOVED
-            }
-            Err(index) => {
-                buffer.bookmarks.insert(index, line);
-                ui_text::STATUS_BOOKMARK_ADDED
-            }
+        let key = if buffer.buffer.toggle_bookmark(line) {
+            ui_text::STATUS_BOOKMARK_ADDED
+        } else {
+            ui_text::STATUS_BOOKMARK_REMOVED
         };
         self.set_status(ui_text::tr_fmt(
             &self.shell.catalog,
@@ -56,23 +50,24 @@ impl AppState {
             return;
         };
 
-        buffer.normalize_bookmarks();
         let cursor = buffer.buffer.cursor_position();
         let target_line = if forward {
             buffer
-                .bookmarks
+                .buffer
+                .bookmarks()
                 .iter()
                 .copied()
                 .find(|line| *line > cursor.line)
-                .or_else(|| buffer.bookmarks.first().copied())
+                .or_else(|| buffer.buffer.bookmarks().first().copied())
         } else {
             buffer
-                .bookmarks
+                .buffer
+                .bookmarks()
                 .iter()
                 .rev()
                 .copied()
                 .find(|line| *line < cursor.line)
-                .or_else(|| buffer.bookmarks.last().copied())
+                .or_else(|| buffer.buffer.bookmarks().last().copied())
         };
 
         let Some(target_line) = target_line else {

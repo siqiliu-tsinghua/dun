@@ -277,7 +277,20 @@ impl TextBuffer {
         );
         let before_cursor = self.cursor.position;
         let before_selection = self.selection;
-        self.replace_range_inner(range, &new_text)?;
+        // A swap is not "these two lines became those two lines" as far as a
+        // marker is concerned: a bookmark on either line follows its text to
+        // the other line. Hold the bookmarks aside so the generic line-shift
+        // remap in `replace_range_inner` does not collapse both onto the
+        // range start, then map them the same way the cursor and selection
+        // below are mapped.
+        let saved_bookmarks = std::mem::take(&mut self.bookmarks);
+        let replaced = self.replace_range_inner(range, &new_text);
+        self.bookmarks = saved_bookmarks;
+        replaced?;
+        for bookmark in &mut self.bookmarks {
+            *bookmark = swapped_adjacent_line(*bookmark, first_line);
+        }
+        self.normalize_bookmarks();
 
         let after_cursor = self.clamp_existing_position(Position::new(
             swapped_adjacent_line(before_cursor.line, first_line),

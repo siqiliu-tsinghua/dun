@@ -24,7 +24,7 @@ impl AppState {
                 .with_search(search_matches, active_search_match)
                 .with_wrap(buffer.word_wrap)
                 .with_visible_whitespace(buffer.visible_whitespace)
-                .with_bookmarks(&buffer.bookmarks)
+                .with_bookmarks(buffer.buffer.bookmarks())
                 .with_highlight_spans(
                     buffer
                         .highlight

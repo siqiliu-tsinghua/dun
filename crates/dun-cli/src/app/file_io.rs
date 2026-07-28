@@ -222,7 +222,7 @@ impl AppState {
                 buffer.first_column,
                 buffer.word_wrap,
                 buffer.visible_whitespace,
-                buffer.bookmarks.clone(),
+                buffer.buffer.bookmarks().to_vec(),
             )
         };
 
@@ -235,8 +235,7 @@ impl AppState {
         let mut reloaded = BufferState::from_file(buffer_id, path.clone(), loaded);
         reloaded.word_wrap = word_wrap;
         reloaded.visible_whitespace = visible_whitespace;
-        reloaded.bookmarks = bookmarks;
-        reloaded.normalize_bookmarks();
+        reloaded.buffer.set_bookmarks(bookmarks);
         let line = cursor
             .line
             .min(reloaded.buffer.line_count().saturating_sub(1));
