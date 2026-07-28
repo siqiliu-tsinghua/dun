@@ -8,7 +8,7 @@ older, narrower, or more conservative than your laptop's.
 interface in the lineage of Microsoft Edit and Turbo Vision, and a hard rule
 that it stays under 1 MiB.
 
-<!-- Gallery screenshot goes here once docs/images/ is curated (stage A5). -->
+![dun editing its own source in a split, with syntect highlighting](docs/images/readme-1-split-syntect.png)
 
 ```sh
 cargo build --release
@@ -70,6 +70,24 @@ command ids, so anything bindable is also runnable by name.
 Ten interface languages ship as external catalogs — `de`, `es`, `fr`, `it`,
 `ja`, `ko`, `pt`, `ru`, `zh-Hans`, `zh-Hant` — with English compiled in as the
 fallback. They cost the binary nothing.
+
+## A closer look
+
+**Filtering a log with a plugin.** The raw log on the left, the filter pattern
+in a scratch window `dun` owns and the plugin reads, and the matching lines in
+a window the plugin writes into. The `Log Filter` menu is contributed by the
+plugin over the protocol, mnemonics and all.
+
+![The log-filter plugin: raw log, filter pattern, and matching lines in three tiled windows](docs/images/readme-3-logfilter.png)
+
+**Ten interface languages, and four themes.** Menu mnemonics stay English
+letters whatever the language, so a translation cannot break a keybinding —
+`(U)` is still `(U)` under 撤销. Syntax highlighting here comes from the
+Pygments host.
+
+![The Edit menu in Simplified Chinese with the msedit theme](docs/images/readme-2-i18n-pygments.png)
+
+![Traditional Chinese with the dark theme, Lua host highlighting, and a search in progress](docs/images/readme-4-zhhant-lua.png)
 
 ## Plugins
 

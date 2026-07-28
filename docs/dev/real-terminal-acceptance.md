@@ -176,6 +176,38 @@ GUI wait was the whole launch chain in front of it (emulator start, the
 launcher's own settle sleeps, the catalog copy, dun start, host spawn); lua's
 extra interpreter spawn was only what tipped it over. A 5 s wait covers both.
 
+## Pass of 2026-07-28 — README screenshots
+
+Four frames shot in kitty with the user driving the keyboard, for the README
+(`docs/images/`). Design and outcome are recorded in TODO.md; two findings
+belong here because they are about the *terminal*, not about dun.
+
+**kitty on macOS eats `Alt` shortcuts by default, and says so.** Opening a menu
+with `Alt+E` needed two presses. Cause: `macos_option_as_alt` defaults to `no`,
+under which Option is the macOS accent-composition key — `Option+E` starts a
+dead key rather than arriving as `Alt+E`. kitty's own manual states the
+consequence: it "will break any Alt+Key keyboard shortcuts in your terminal
+programs". Not a dun defect and not fixable from dun; the remedy is
+`macos_option_as_alt yes` in `kitty.conf`, and it is now in the user guide's
+troubleshooting section alongside the Terminal.app and iTerm2 equivalents.
+This is also why every `Alt` binding ships with a `Ctrl+X` chord alias.
+
+**A modal prompt and syntax highlighting cannot be photographed together.**
+While a modal is open, `color.modal_scrim` dims the whole editor — chrome
+included, so even the window title loses its accent colour — and every syntax
+colour washes to grey. Intended behaviour, but it means a frame cannot
+demonstrate a dialog and a highlight host at once. Confirming the search with
+`Enter` instead of leaving the prompt open resolves it: the scrim lifts, the
+colours return, and the match highlight persists.
+
+**Capture method.** `screencapture -R` on accessibility-reported bounds is the
+wrong tool twice over: it captures whatever is on top of that screen region
+(the window behind gets missed entirely), and the accessibility API returns
+pre-`CSI 8 t` geometry — and will happily hand back kitty's modal "Quit kitty?"
+dialog as `window 1`. Use the CoreGraphics enumerator to find the window by
+title, then `screencapture -x -o -l<CGWindowID>`, which reads that window's own
+backing store: occlusion and stacking become irrelevant.
+
 ## Pass of 2026-07-27 — i18n sweep + gallery
 
 **Headless i18n sweep (220 grids, `acceptance/gallery/text/`).** 11 tags

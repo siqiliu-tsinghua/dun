@@ -71,18 +71,41 @@ GitHub release attaches macOS/Debian binaries (lean: no, see C5).
   `hosts/sample-logs/README.md` was therefore recomputed against the new set,
   not just the IP ones: the failregex now matches 505 lines / 70 distinct IPs
   and spares 26 allow-listed 4xx (was 499 / 89 / 23).
-- [ ] Curate gallery screenshots into `docs/images/`. **The 51 existing shots
-  are all of the acceptance fixture** — deterministic comparison content, so
-  the frames read "acceptance fixture", "item A3, B4", and carry a
-  `dun-gallery-XXXXXX.command` title bar. Excellent evidence, poor showcase.
-  Two are usable as they stand: `kitty-syntax-pygments.png` (real Rust code,
-  `[pygments]` visible in the status bar) and `kitty-ssh-debian.png` (the
-  `REMOTE HOST: Linux … [debvbox]` banner). A real hero image needs real
-  content, which `acceptance/launch.sh --file PATH` can produce with **no
-  keystrokes at all**; only a split layout and the log-filter surface need
-  keys and therefore a human. Shoot this at the end of stage B, when the
-  README text exists and can dictate the frames. Use `kitty`/`iterm` sources
-  (~180 KB) rather than Terminal.app (~872 KB, Retina).
+- [x] Shoot and curate four README screenshots (2026-07-28, user at the
+  keyboard). The 51 existing shots were all of the acceptance fixture —
+  deterministic comparison content, so the frames read "acceptance fixture"
+  and "item A3, B4" — excellent evidence, poor showcase. These four were shot
+  fresh against an **orthogonal design**: four themes are the floor (a theme
+  is global, so one per frame), and every other dimension rides along.
+
+  | Frame | Theme | Language | Highlight host | Also shows |
+  | --- | --- | --- | --- | --- |
+  | 1 | `dun` | en | syntect | split, both panes highlighted, clip indicators |
+  | 2 | `msedit` | zh-Hans | pygments | dropdown menu, mnemonics, shortcut column |
+  | 3 | `turbo` | en | — | plugin menu + author mnemonics, three-window filter workflow |
+  | 4 | `dark` | zh-Hant | lua | search-match and current-line highlight |
+
+  Constraints found while designing it, all verified rather than assumed:
+  plugin windows are **never** syntax-highlighted (`app/highlight.rs` returns
+  early unless the focused window is `WindowKind::Edit`), `.log` has no lexer
+  in any shipped host, and the language hint is the bare file extension — so
+  `sshd_config` (no extension) and `Cargo.toml`/`*.conf` (syntect returns no
+  spans) would all have photographed as plain text. Source files only, which
+  is why each host highlights its own source.
+
+  zh-Hant is machine-translated like eight other catalogs, so frame 4 was
+  composed for **minimal exposure**: the only translated text on screen is the
+  four menu-bar words, each matching Microsoft's official zh-hant in
+  `reference/msedit/i18n/edit.toml` character for character, plus the search
+  status line. 18 of 23 comparable dun terms match that reference exactly; the
+  five differences are defensible (dun's `復原` for Undo is Microsoft Office's
+  own term, against msedit's `還原`).
+
+  Curation: sips downscaling made every file *larger* (interpolation destroys
+  the crisp colour set — 476 KB became 680 KB at 1200px), so the Retina
+  originals are kept and re-encoded losslessly instead, with per-scanline
+  filter selection and maximum deflate: 1290 KB → 928 KB, verified
+  pixel-identical by hash rather than by trusting the size drop.
 - [x] Delete working-tree litter (`.DS_Store`) and check that every script in
   `acceptance/` is still referenced by a document.
 

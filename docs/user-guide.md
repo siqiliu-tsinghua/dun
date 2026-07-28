@@ -480,6 +480,21 @@ color support. Force it with `terminal.colors = 256`.
 **`Alt` shortcuts do nothing.** Some terminals and KVM switches never deliver
 `Alt`. Every `Alt` binding has a `Ctrl+X` equivalent; `F1` shows both.
 
+On **macOS this is the default in several terminals**, not an edge case: the
+Option key is reserved for typing accented characters, so `Option+E` starts a
+dead-key composition instead of arriving as `Alt+E`. kitty says so in its own
+manual — with `macos_option_as_alt no`, the default, it "will break any Alt+Key
+keyboard shortcuts in your terminal programs". Fix it in the terminal, not in
+`dun`:
+
+```
+# ~/.config/kitty/kitty.conf
+macos_option_as_alt yes
+```
+
+Terminal.app has the equivalent under Settings → Profiles → Keyboard ("Use
+Option as Meta key"), and iTerm2 under Profiles → Keys ("Left Option key: Esc+").
+
 **Paste from my laptop does nothing.** `Ctrl+X,Ctrl+V` needs
 `clipboard.osc52.allow_read = true` *and* a terminal willing to answer a
 clipboard read — many refuse by default. Your terminal's own paste (`Cmd+V`,
