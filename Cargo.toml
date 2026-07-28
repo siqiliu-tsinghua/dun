@@ -15,6 +15,11 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
+authors = ["Si-Qi Liu"]
+readme = "README.md"
+keywords = ["editor", "terminal", "tui", "ssh", "plugin"]
+categories = ["text-editors", "command-line-utilities"]
+# repository = "…"  # set when the public repository exists
 
 [workspace.dependencies]
 dun-config = { path = "crates/dun-config" }

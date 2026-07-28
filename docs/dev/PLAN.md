@@ -287,7 +287,10 @@ same protocol.
 - [x] Large-file performance baselines.
 - [x] Lightweight release binary size audit on macOS and Debian.
 - [x] Security audit suite for control-byte rendering.
-- [ ] Security audit suite for plugin policy after plugin APIs exist.
+- [x] Security audit suite for plugin policy after plugin APIs exist —
+  closed 2026-07-28. `crates/dun-plugin/tests/protocol.rs` is that suite;
+  AUDIT.md maps every plugin checklist item to the test that carries it,
+  and the trust gate was mutation-proven rather than assumed.
 
 ## Phase 11: v0.1 Release Hardening
 

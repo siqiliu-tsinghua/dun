@@ -392,24 +392,47 @@ Before adding a `rum` adapter:
 
 ## Audit Test Checklist
 
-Add tests for:
+### Plugin policy: closed 2026-07-28
 
-- plugin output attempting a forbidden command;
-- plugin output with oversized data;
-- plugin output with malformed structure;
-- log lines containing terminal escape sequences;
-- huge log records;
-- invalid UTF-8 handling strategy;
-- buffer text containing `ESC`, OSC, BEL, NUL, DEL, CR, and backspace;
-- buffer text containing the C1 single-byte CSI (`U+009B`), bidirectional
-  overrides (`U+202E` and the rest), zero-width format characters, and the tag
-  block — including the end-to-end check that every text field reaches the
-  sanitizer, asserted on the emitted bytes;
-- save behavior for lossy/fallback opened files;
-- large-file threshold behavior;
-- external SSH and low-capability terminal release matrix results;
-- plugin timeout;
-- plugin cancellation;
-- plugin crash or runtime failure;
-- editor state unchanged after rejected plugin output;
-- file save path only reachable through `dun` core code.
+The plugin half of this checklist is covered by a named suite,
+`crates/dun-plugin/tests/protocol.rs` (29 tests), which drives a real fixture
+host over the real transport rather than mocking the client. Each line below
+names the test that carries it, so a future reader can check the claim instead
+of trusting it:
+
+| Checklist item | Test |
+| --- | --- |
+| plugin output attempting a forbidden command | `highlight_without_overlay_write_grant_is_rejected`, plus `menu_`/`keybinding_`/`surface_write_`/`stream_read_`/`execute_from_ungranted_host_is_*` — one per v0 capability |
+| trust escalation | `host_over_claiming_trust_is_rejected_at_launch`, `bad_trust_handshake_reports_handshake_error` |
+| plugin output with oversized data | `span_flood_reports_policy_violation`, `oversized_frame_reports_frame_oversized`, `diagnostic_flood_reports_policy_violation`, `stderr_flood_does_not_break_protocol_response` |
+| plugin output with malformed structure | `malformed_json_response_reports_protocol_error`, `truncated_handshake_frame_reports_host_closed`, `bad_version_handshake_reports_unsupported_version`, `rejects_wrong_version_and_unknown_kind` |
+| plugin output out of range | `out_of_bounds_coordinate_reports_policy_violation`, `unknown_style_reports_policy_violation` |
+| plugin timeout, and the cancellation that follows it | `slow_host_times_out_promptly` — `CancelRequest` is sent on timeout and followed immediately by `kill()`, so the kill is the control and the frame is a courtesy to the host |
+| plugin crash or runtime failure | `crashing_host_reports_host_closed`, `missing_ack_reports_handshake_error` |
+| stale revision | `stale_revision_reports_stale_revision`, `wrong_request_id_reports_policy_violation` |
+| editor state unchanged after rejected plugin output | `highlight_failure_leaves_buffer_and_prior_highlight_untouched` (in `dun-cli`) |
+
+The suite was checked for vacuity the way this project requires: disabling the
+trust comparison in `client.rs` makes
+`host_over_claiming_trust_is_rejected_at_launch` fail, so the guard is
+load-bearing rather than an assertion that would pass against a broken
+implementation.
+
+### Remaining
+
+Nothing on this checklist is outstanding. The rest of it is carried by suites
+outside `dun-plugin`, named here for the same reason as the table above:
+
+| Checklist item | Where |
+| --- | --- |
+| buffer text containing `ESC`, OSC, BEL, NUL, DEL, CR, backspace, the C1 CSI (`U+009B`), bidirectional overrides, zero-width format characters, and the tag block | the sanitizer suite in `dun-core`, proven by exhaustion over every Unicode scalar value per profile, plus the end-to-end poisoning test asserting on the bytes the surface emitter writes (`poisoned_frame_emits_no_zero_width_formatting` and its siblings) |
+| log lines containing terminal escape sequences; huge log records | the same sanitizer path — log text is buffer text — plus `large_file_perf_long_line_display_cap` for the per-line display cap |
+| invalid UTF-8 handling strategy | `escaped_bytes_never_leave_control_bytes_in_fallback_text`, `escaped_bytes_preserve_valid_unicode_segments` |
+| save behavior for lossy/fallback opened files | `save_rejects_read_only_invalid_utf8_fallback`, `save_as_rejects_read_only_invalid_utf8_fallback`, `save_rejects_read_only_target_without_replacing_it`, `save_refuses_external_file_change` |
+| large-file threshold behavior | `file_over_editable_soft_limit_is_rejected_before_editing`, `file_at_editable_soft_limit_is_accepted` |
+| atomic save and temp-file reconciliation | `open_cleans_stale_atomic_save_temp_file` and the atomic-save family |
+| external SSH and low-capability terminal release matrix | [terminal-compatibility-checks.md](./terminal-compatibility-checks.md), recorded per run rather than as a unit test |
+
+Keep this section a map rather than a wish list: when a new invariant is added,
+add the row with the test that carries it, and mutate the implementation once
+to confirm the test can fail.

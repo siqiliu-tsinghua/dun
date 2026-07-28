@@ -157,6 +157,8 @@ suite runs on all four.
 
 **For contributors**
 
+- [CONTRIBUTING.md](CONTRIBUTING.md) — the gate, and the constraints that will
+  surprise you.
 - [AGENTS.md](AGENTS.md) — contribution rules and project invariants. Read this
   before changing behavior.
 - [CLAUDE.md](CLAUDE.md) — orientation and the live working plan.
@@ -173,6 +175,11 @@ engine. It does not aim to replace `vim`, `emacs`, or `less` in every workflow.
 The 1 MiB budget is the binding constraint behind most of these lines. Features
 are admitted or removed against measured bytes; the rationale for what was cut
 and why is recorded in [docs/dev/feature-triage.md](docs/dev/feature-triage.md).
+
+## Security
+
+Report vulnerabilities privately through GitHub's Security tab — see
+[SECURITY.md](SECURITY.md) for what is in scope and what is not.
 
 ## License
 
