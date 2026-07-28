@@ -357,7 +357,7 @@ Slices, each with a fixture host, protocol tests, and a Debian size
 measurement (all four slices and the three v0 data channels — `surface-write`,
 `stream-read`, `scratch-input` + execute — have landed and are measured; the
 stage closed 2026-07-23, with per-chunk detail in TODO.md and
-docs/release-size-audit.md):
+docs/dev/release-size-audit.md):
 
 - **A — mechanism spine.** Capability vocabulary as types; role as a named
   capability bundle; config declares `roles` → capabilities; handshake

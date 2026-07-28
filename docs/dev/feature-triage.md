@@ -4,7 +4,7 @@ Working document for the v0.1 slimming stage. It inventories every runtime
 feature as a separately-removable unit, assigns each a class with evidence,
 and replaces the lazy trim-on-failure order in
 [feature-budget.md](./feature-budget.md) once complete. The active plan and
-sequencing live in [CLAUDE.md](../CLAUDE.md).
+sequencing live in [CLAUDE.md](../../CLAUDE.md).
 
 ## Budget Math
 
@@ -103,7 +103,7 @@ Apply in order; first hit wins.
 | A | Core; removal breaks the product | Safety/correctness invariant, or required by the seven-step remote editing loop (README "Product Goal") with no A-level workaround. |
 | B | Optional; kept while budget allows | Everything not A/C/D; ranked by measured bytes per value; total B bytes are capped. |
 | C | Remove now | Serves neither the editing loop nor SSH constraints; includes showcase-era leftovers. |
-| D | Delegate to plugin | A plugin role can provide it once the protocol client exists; record the role need in [plugin-protocol.md](./plugin-protocol.md) at removal. |
+| D | Delegate to plugin | A plugin role can provide it once the protocol client exists; record the role need in [plugin-protocol.md](../plugin-protocol.md) at removal. |
 
 Measurement rules: sizes come from removal experiments built with the locked
 release profile; with `opt-level = "z"` and fat LTO deltas are non-additive,
@@ -230,6 +230,6 @@ Removing a unit is a full-trail diff. For each removal batch:
 7. README feature paragraphs and affected docs.
 8. `feature-budget.md` classification tables.
 9. For D-class removals: record the plugin role need in
-   [plugin-protocol.md](./plugin-protocol.md).
+   [plugin-protocol.md](../plugin-protocol.md).
 10. Gates: fmt, clippy, workspace tests, release smoke, both-platform size
     measurement recorded in [release-size-audit.md](./release-size-audit.md).

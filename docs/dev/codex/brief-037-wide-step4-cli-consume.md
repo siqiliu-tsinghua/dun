@@ -58,7 +58,7 @@ truth; `dun-cli` must consume it too.
 If threading the mode makes `buffer_state.rs` (already ~20k chars) materially
 larger, extracting its cohesive wrapped-view methods into a new
 `crates/dun-cli/src/app/buffer_wrap.rs` is acceptable and encouraged (see
-`docs/code-organization-guidelines.md`); keep the split mechanical.
+`docs/dev/code-organization-guidelines.md`); keep the split mechanical.
 
 ## Scope
 

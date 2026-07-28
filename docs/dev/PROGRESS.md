@@ -23,7 +23,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   local-only reference checkout.
 - Inspected Microsoft Edit commit `10cbfcc7330c894f2173611029df44ca5cb6fd77`
   for visual layout, menu/status/dialog organization, and state model.
-- Added `docs/msedit-reference.md` to record reference observations and Dun's
+- Added `docs/dev/msedit-reference.md` to record reference observations and Dun's
   own planned ratatui-oriented UI model.
 - Found the Rust Turbo Vision port: `turbo-vision` / `aovestdipaperino/turbo-vision-4-rust`.
 - Added a local-only checkout at `reference/turbo-vision-4-rust` and inspected
@@ -33,7 +33,7 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Decided Dun should keep a Microsoft Edit-inspired single-buffer opening
   screen, then grow through a lightweight tiling split tree inspired by
   `tmux`/`i3`/`awesome`.
-- Rewrote `docs/window-management.md` around tiled child windows, split
+- Rewrote `docs/dev/window-management.md` around tiled child windows, split
   commands, directional focus, resizing, collapse/expand, and tree repair.
 - Confirmed first-version product scope: build the Microsoft Edit-like editor
   foundation first; defer log/filter workflows until `rum` integration is ready.
@@ -45,12 +45,12 @@ This is an append-only progress log. Keep new entries dated and factual.
   vary.
 - Deferred mouse selection/paste and split dragging until the keyboard-first
   baseline works.
-- Added `docs/editor-baseline.md`.
+- Added `docs/dev/editor-baseline.md`.
 - Converted the root package into a Cargo workspace with five initial crates:
   `dun-core`, `dun-term`, `dun-ui`, `dun-config`, and `dun-cli`.
 - Added minimal compile-tested skeleton types for commands, workspace layout,
   terminal profiles, glyphs, themes, config limits, and the CLI entry point.
-- Added `docs/crate-map.md`.
+- Added `docs/dev/crate-map.md`.
 - Rewrote `PLAN.md` and `TODO.md` into crate-specific implementation phases
   and task lists.
 - Implemented the first pure `dun-core` tiling workspace model: split focused
@@ -187,7 +187,7 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Recorded future optional Microsoft Edit reference/differential tests in
   `TODO.md`, to be added only when Dun's own baseline behavior is mature enough
   for useful comparison.
-- Added `docs/terminal-compatibility-checks.md` with the current PTY regression
+- Added `docs/dev/terminal-compatibility-checks.md` with the current PTY regression
   gate, manual SSH terminal matrix, startup/edit/search/tiling checklist, and
   pass criteria for terminal restoration and fallback rendering.
 - Closed the Phase 8 manual terminal-check item for the current workspace by
@@ -290,7 +290,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   covers startup open, sparse and missing `find_all`, scroll synchronization to
   end of file, visible-window UI frame construction, ratatui `TestBackend`
   drawing, and long-line display caps.
-- Added `docs/performance-baselines.md` with the run command, environment
+- Added `docs/dev/performance-baselines.md` with the run command, environment
   overrides for fixture sizes, covered paths, and the current local release
   sample. `cargo test -p dun-cli --release large_file_perf -- --ignored
   --nocapture` passes with an 8 MiB fixture.
@@ -605,7 +605,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   on Debian x86_64. A size-oriented release profile using `opt-level=z`, fat
   LTO, one codegen unit, stripped symbols, and `panic=abort` measured 859,544
   bytes on macOS and 1,034,840 bytes on Debian. Results and exact commands are
-  recorded in `docs/release-size-audit.md`.
+  recorded in `docs/dev/release-size-audit.md`.
 - Recorded the footprint conclusion from the size audit: the small Rust
   editor core is roughly 0.8-1.0 MiB in the audited size-oriented builds,
   while `rum` is currently treated as an approximately 6 MiB runtime. Therefore
@@ -635,12 +635,12 @@ This is an append-only progress log. Keep new entries dated and factual.
 - Audited the current unsafe boundary and recorded the project policy:
   `dun`'s own crates remain zero-real-unsafe and use `#![forbid(unsafe_code)]`
   at crate/test-support entry points. Added
-  `docs/code-organization-guidelines.md`, adapted from the neighboring `rum`
+  `docs/dev/code-organization-guidelines.md`, adapted from the neighboring `rum`
   project's file-slimming rules, with file-size thresholds, assess-on-touch
   split policy, safe Rust requirements, current oversized-file hotspots, and
   preferred future module boundaries for `dun-cli`, `dun-ui`, `dun-core`,
   `dun-config`, and `dun-term`.
-- Added `docs/file-splitting-plan.md`, a staged migration plan for the current
+- Added `docs/dev/file-splitting-plan.md`, a staged migration plan for the current
   oversized files. The plan starts with `dun-cli` test extraction, then moves
   pure model/helper code before app-state method groups and process I/O
   boundaries, followed by `dun-ui`, `dun-config`, `dun-core::buffer`,
@@ -859,11 +859,11 @@ This is an append-only progress log. Keep new entries dated and factual.
   advertises `reloadfile`, focused file status has regression coverage for
   external disk changes, Outline and Search Results panes handle `Home`/`End`
   for first/last entry selection, `--dump-config` groups defaults into readable
-  sections, and `docs/release-smoke-checklist.md` defines the bounded automated
+  sections, and `docs/dev/release-smoke-checklist.md` defines the bounded automated
   release smoke gate.
 - Established the v0.1 release-size governance rule: `target/release/dun` must
   be no larger than 1 MiB on both audited macOS and Debian builds. Added a
-  checked-in size-budget release profile and `docs/feature-budget.md`, which
+  checked-in size-budget release profile and `docs/dev/feature-budget.md`, which
   classifies implemented runtime features as required or optional and gives a
   concrete trim order for optional features when the size gate fails.
 - Rebuilt the checked-in release profile on macOS and the Debian VM. The
@@ -898,7 +898,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   documented Debian VM access with tracked `vm-test/vm-run`/`vm-sync` helper
   scripts, cleaned two stale checkouts off the VM after verifying their
   uncommitted diffs had already landed, and created the feature triage
-  inventory (docs/feature-triage.md) with A/B/C/D decision rules over 48
+  inventory (docs/dev/feature-triage.md) with A/B/C/D decision rules over 48
   separately-removable units.
 - Measured the plugin-client size spike (branch `spike/plugin-client-size`,
   `c7f042c`): a working framed-stdio + hand-rolled JSON protocol client with
@@ -1088,7 +1088,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   formatters cannot drift. macOS budget build 645,588 (+8 bytes — the strings
   were already in the binary). Debian measurement still owed (VM off).
   `ui_text/status.rs` lands at ~37k, over the 35k threshold; an explicit
-  temporary exception is recorded in docs/code-organization-guidelines.md and
+  temporary exception is recorded in docs/dev/code-organization-guidelines.md and
   expires when slice 4b-2 splits it by domain.
 - Landed i18n slice 4b-2 via Codex brief-024 (2026-07-13): the text a catalog
   could not reach because it was stored or type-erased before anyone holding a

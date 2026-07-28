@@ -216,7 +216,7 @@ viewport left/right.
 File dialog list clicks enter directories, open selected files from Open, and
 update the Save As path input without immediately saving.
 The external SSH and low-capability terminal release matrix is documented in
-[docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md);
+[docs/dev/terminal-compatibility-checks.md](./docs/dev/terminal-compatibility-checks.md);
 the local PTY harness covers common terminal profiles, small VT100-style
 fallback, terminal escape payloads, invalid-byte fallback files, and
 event-level coverage for the in-house VT parser's common modified keys.
@@ -248,7 +248,7 @@ The current baseline decisions are:
 - The final v0.1 release executable must be no larger than 1 MiB on both
   audited macOS and Debian builds; the budget build is
   `scripts/release-build.sh` (build-std contract). See
-  [docs/feature-budget.md](./docs/feature-budget.md).
+  [docs/dev/feature-budget.md](./docs/dev/feature-budget.md).
 - The plugin system is protocol-first. The `dun` protocol client is required
   core infrastructure, while `rum` is a future optional pure-sandbox host.
 
@@ -337,7 +337,7 @@ Invariants:
 - file operations are always performed by `dun` core code;
 - plugin output is intent, not authority.
 
-See [AUDIT.md](./AUDIT.md) and
+See [AUDIT.md](./docs/dev/AUDIT.md) and
 [docs/plugin-protocol.md](./docs/plugin-protocol.md) for the security model
 and protocol boundary.
 
@@ -376,45 +376,45 @@ and what a translation must satisfy.
 ## Development Documents
 
 - [AGENTS.md](./AGENTS.md): instructions for coding agents and contributors.
-- [PLAN.md](./PLAN.md): architecture and staged delivery plan.
+- [PLAN.md](./docs/dev/PLAN.md): architecture and staged delivery plan.
 - [TODO.md](./TODO.md): active and near-term task list.
-- [PROGRESS.md](./PROGRESS.md): append-only progress log.
-- [AUDIT.md](./AUDIT.md): security boundary and audit checklist.
-- [docs/msedit-reference.md](./docs/msedit-reference.md): local notes from
+- [PROGRESS.md](./docs/dev/PROGRESS.md): append-only progress log.
+- [AUDIT.md](./docs/dev/AUDIT.md): security boundary and audit checklist.
+- [docs/dev/msedit-reference.md](./docs/dev/msedit-reference.md): local notes from
   studying Microsoft Edit as a visual and interaction reference.
-- [docs/window-management.md](./docs/window-management.md): lightweight
+- [docs/dev/window-management.md](./docs/dev/window-management.md): lightweight
   tiling-window workspace model inspired by `tmux`/`i3`/`awesome`.
-- [docs/editor-baseline.md](./docs/editor-baseline.md): first-version product
+- [docs/dev/editor-baseline.md](./docs/dev/editor-baseline.md): first-version product
   decisions around encoding, large files, theme, keybindings, mouse, and log
   deferral.
-- [docs/terminal-compatibility-checks.md](./docs/terminal-compatibility-checks.md):
+- [docs/dev/terminal-compatibility-checks.md](./docs/dev/terminal-compatibility-checks.md):
   PTY smoke coverage and manual SSH terminal compatibility checklist.
-- [docs/performance-baselines.md](./docs/performance-baselines.md): ignored
+- [docs/dev/performance-baselines.md](./docs/dev/performance-baselines.md): ignored
   large-file performance baseline tests and current local sample output.
-- [docs/release-size-audit.md](./docs/release-size-audit.md): lightweight
+- [docs/dev/release-size-audit.md](./docs/dev/release-size-audit.md): lightweight
   release binary size baseline for macOS and Debian builds.
-- [docs/debian-vm.md](./docs/debian-vm.md): Debian measurement VM connection
+- [docs/dev/debian-vm.md](./docs/dev/debian-vm.md): Debian measurement VM connection
   details and working conventions.
-- [docs/feature-budget.md](./docs/feature-budget.md): hard v0.1 runtime size
+- [docs/dev/feature-budget.md](./docs/dev/feature-budget.md): hard v0.1 runtime size
   gate, required feature set, and optional feature trim order.
-- [docs/feature-triage.md](./docs/feature-triage.md): working inventory and
+- [docs/dev/feature-triage.md](./docs/dev/feature-triage.md): working inventory and
   A/B/C/D classification for the v0.1 slimming stage.
 - [docs/i18n.md](./docs/i18n.md): UI text translation design and translator
   guide.
 - [docs/plugin-protocol.md](./docs/plugin-protocol.md): host-neutral plugin
   protocol, trust classes, role policy, and completion criteria.
-- [docs/runtime-resource-audit.md](./docs/runtime-resource-audit.md):
+- [docs/dev/runtime-resource-audit.md](./docs/dev/runtime-resource-audit.md):
   lightweight startup and RSS baselines for macOS and Debian builds.
-- [docs/release-smoke-checklist.md](./docs/release-smoke-checklist.md):
+- [docs/dev/release-smoke-checklist.md](./docs/dev/release-smoke-checklist.md):
   bounded automated and release-signoff checks for release candidates.
-- [docs/dependency-audit.md](./docs/dependency-audit.md): dependency shape,
+- [docs/dev/dependency-audit.md](./docs/dev/dependency-audit.md): dependency shape,
   feature policy, and repeat checklist for keeping the default build small.
-- [docs/code-organization-guidelines.md](./docs/code-organization-guidelines.md):
+- [docs/dev/code-organization-guidelines.md](./docs/dev/code-organization-guidelines.md):
   safe Rust policy, file-size thresholds, module split rules, and directory
   organization guidance.
-- [docs/file-splitting-plan.md](./docs/file-splitting-plan.md): staged,
+- [docs/dev/file-splitting-plan.md](./docs/dev/file-splitting-plan.md): staged,
   test-gated plan for splitting the current oversized Rust source files.
 - [docs/configuration.md](./docs/configuration.md): current Rust-owned config
   file loader and supported keys.
-- [docs/crate-map.md](./docs/crate-map.md): current Rust workspace crate
+- [docs/dev/crate-map.md](./docs/dev/crate-map.md): current Rust workspace crate
   boundaries and dependency rules.

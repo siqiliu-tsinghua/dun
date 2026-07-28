@@ -76,7 +76,7 @@ computes *positions and sizes* assuming one column per glyph.
 
 ## Context pointers
 
-- Read `AGENTS.md` (invariants) and skim `docs/solaris-vm.md` (the motivating
+- Read `AGENTS.md` (invariants) and skim `docs/dev/solaris-vm.md` (the motivating
   quirk: Solaris tmux renders box-drawing and `◆` as 2 columns).
 - Key files: `dun-ui/src/surface.rs`, `.../render/surface_draw.rs`,
   `.../render/surface_window.rs`, `.../text.rs`, and the `display_width`

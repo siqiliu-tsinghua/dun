@@ -10,7 +10,7 @@ box-drawing block U+2500–257F, geometric shapes like U+25C6 `◆`, etc.): the
 Western/default reading (Ambiguous = 1 column, what `dun` does today) or the
 East-Asian reading (Ambiguous = 2 columns, what Solaris tmux and CJK-configured
 terminals use). When a host terminal treats these glyphs as double-width,
-`dun`'s box-drawing UI currently overflows and clips (see `docs/solaris-vm.md`).
+`dun`'s box-drawing UI currently overflows and clips (see `docs/dev/solaris-vm.md`).
 
 This brief adds a **width mode carried on `TerminalProfile`** and routes every
 character-display-width computation through **one pair of central functions**
@@ -28,7 +28,7 @@ a terminal that renders those glyphs double-width.
 ## Context pointers
 
 - Read `AGENTS.md` (invariants) and this file fully before touching anything.
-  Also skim `docs/solaris-vm.md` for the motivating quirk.
+  Also skim `docs/dev/solaris-vm.md` for the motivating quirk.
 - Crate dependency direction: `dun-term` is the lowest layer; `dun-config`,
   `dun-ui`, `dun-cli` all depend on it. So the width mode enum and the two
   central width functions live in **`dun-term`**, and everyone calls them.

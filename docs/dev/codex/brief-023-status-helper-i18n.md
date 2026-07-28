@@ -90,7 +90,7 @@ a zh-CN translation. With an empty catalog every message is
 
 ## Split `ui_text.rs` before you grow it
 
-`ui_text.rs` is 33,411 bytes. `docs/code-organization-guidelines.md` puts
+`ui_text.rs` is 33,411 bytes. `docs/dev/code-organization-guidelines.md` puts
 20k–35k in the split-plan range ("any change touching the file should state
 the split boundary or start the split"), and this brief adds keys. So:
 start the split, as part of this change:

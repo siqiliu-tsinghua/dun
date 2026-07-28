@@ -20,7 +20,7 @@ an operations-oriented log inspection tool with a future pure-plugin layer.
 8. Keybindings are configurable because terminals and remote sessions vary.
 9. The final v0.1 release executable must be at most 1 MiB on both audited
    macOS and Debian builds. The feature budget and trim order in
-   [docs/feature-budget.md](./docs/feature-budget.md) govern feature
+   [docs/dev/feature-budget.md](./feature-budget.md) govern feature
    admission and removal.
 
 ## Workspace Shape
@@ -35,7 +35,7 @@ dun-config  typed configuration and keymap model
 dun-cli     process entry point
 ```
 
-See [docs/crate-map.md](./docs/crate-map.md) for crate boundaries.
+See [docs/dev/crate-map.md](./crate-map.md) for crate boundaries.
 
 ## Phase 0: Baseline
 
@@ -290,7 +290,7 @@ budget before broadening scope.
 
 Phase 11 is closed. New runtime work starts only through Phase 9's required
 plugin protocol client or through explicit release blockers under
-[docs/feature-budget.md](./docs/feature-budget.md).
+[docs/dev/feature-budget.md](./feature-budget.md).
 
 ## Phase 12: Renderer Replacement (ratatui → Surface)
 

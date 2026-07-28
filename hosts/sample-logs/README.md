@@ -7,8 +7,12 @@ workspace, the CI gates, or the size budget.
 
 **All data is synthetic.** Every IP address, hostname, username, and request
 is an illustrative value produced by `generate.py`; none corresponds to a real
-host, person, or event. These are the logs a *target* accumulates — used here
-to study and defend against scanning, never as an attack tool. Regenerate with
+host, person, or event. Addresses are drawn from the RFC 5737 documentation
+ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), which are
+reserved for exactly this purpose and belong to nobody, so nothing here
+attributes scanning to a real network. These are the logs a *target*
+accumulates — used here to study and defend against scanning, never as an
+attack tool. Regenerate with
 `generate.py`, or scale up with `generate.py --scale 30` (≈ a busy month). A
 fixed seed keeps the committed files stable.
 
@@ -77,8 +81,8 @@ the real failregex this dataset was built to reproduce:
 failregex = ^.*\b<HOST>(?::\d+)?\s+-\s+"[A-Z]+\s+/(?!(?:$|mcp(?:[/? ]|$)|oauth[/? ]|\.well-known[/? ]|favicon\.ico(?:[? ]|$)))\S+\s+HTTP/\d(?:\.\d+)?"\s+(?:401|403|404)\b
 ```
 
-On the committed set that failregex matches **499 lines / 89 distinct IPs** (the
-scanners) and **spares 23 allow-listed 4xx** (favicon 404, unauthenticated
+On the committed set that failregex matches **505 lines / 70 distinct IPs** (the
+scanners) and **spares 26 allow-listed 4xx** (favicon 404, unauthenticated
 `/mcp`, failed `/oauth/token`) — the lines a naive 4xx rule would wrongly ban.
 Verify with the exact regex (`<HOST>` → an IP group):
 

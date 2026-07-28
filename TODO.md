@@ -1,12 +1,196 @@
 # TODO
 
 This file tracks active and near-term work. Completed decisions and finished
-items belong in [PROGRESS.md](./PROGRESS.md).
+items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
+
+## Current Stage: v0.1 Wrap-Up and Public Release
+
+Roadmap agreed 2026-07-27; execution starts 2026-07-28. The runtime is done
+for v0.1 — no active code stage, four-platform matrix 845/0, binding Debian
+760,112 bytes with 288,464 to spare. What is missing is everything *around*
+the code: docs that describe a project which no longer exists in places, no
+user-facing documentation of any kind, and none of the release artifacts.
+
+**No runtime code changes in this stage.** That means no size measurement and
+no VM work until C6. Stages run serially: B depends on A's paths, C's README
+links depend on B.
+
+User decisions frozen 2026-07-27: publish as a **public GitHub repository**
+(no crates.io packaging work here); process docs are **kept** and move under
+`docs/dev/`; 3–4 curated gallery screenshots enter the repo; LICENSE is MIT,
+`Copyright (c) 2026 Si-Qi Liu`. One sub-decision is deferred to C: whether the
+GitHub release attaches macOS/Debian binaries (lean: no, see C5).
+
+### A. Cleanup and relocation
+
+- [x] Split the doc tree: `docs/` becomes user-facing, `docs/dev/` holds
+  process, measurement, and method. Moved the fourteen planned documents plus
+  five the first pass had misfiled as user-facing — `crate-map`,
+  `editor-baseline`, `release-smoke-checklist`,
+  `terminal-compatibility-checks`, and `window-management` are all read only
+  by someone working *on* `dun`. Nineteen documents in total; `docs/` now
+  holds `configuration.md`, `i18n.md`, and `plugin-protocol.md`, the three a
+  user or plugin author needs.
+- [x] Move `PLAN.md`, `PROGRESS.md`, and `AUDIT.md` into `docs/dev/`. The
+  repository root keeps `README.md`, `AGENTS.md`, `CLAUDE.md`, and `TODO.md`.
+- [x] Fix every cross-link the move breaks and add `scripts/check-links.py` so
+  the check is repeatable. The checker walks tracked Markdown, resolves inline
+  links, reference definitions, and bare repository-path mentions, and exits
+  non-zero on a broken local target. Source-tree mentions (`crates/`, `i18n/`)
+  are checked only under `--strict`: the append-only log and the codex briefs
+  name the tree as it stood when they were written, so a mention of a
+  since-split module is a historical fact rather than a broken reference.
+  Twenty-four files were rewritten; the target count held at 362 across the
+  move, which is what proves no link was dropped rather than silently
+  repointed.
+- [ ] Fix the three live documents the checker caught pointing at source files
+  that no longer exist: `docs/i18n.md` (`crates/dun-cli/src/ui_text.rs`, now a
+  directory), `docs/dev/code-organization-guidelines.md` and
+  `docs/dev/file-splitting-plan.md` (`buffer.rs`, `workspace.rs`, `theme.rs`,
+  `lib.rs` — all since split). Run `scripts/check-links.py --strict` to see
+  them.
+- [x] Run the pre-publication scan a public repository requires. Clean on the
+  categories that mattered: no absolute local paths, no email addresses, no
+  key material or passwords in any tracked file, and `vm-test/` keys are
+  untracked as expected. The `fft` username appears only as the `fft@localhost`
+  example in the VM manuals — a throwaway local VM account. The sample logs
+  are genuinely synthetic: `hosts/sample-logs/generate.py` is deterministic
+  and its header says so, `probe-vm` is invented, and no test asserts on their
+  contents.
+- [x] Move the synthetic attacker sources off **real, routable, attributable**
+  /24 prefixes (user decision 2026-07-28). `ATTACKER_NETS` now draws from the
+  RFC 5737 documentation ranges, each source getting a disjoint 14-address
+  block so "which source is most persistent" and "isolate one source's whole
+  session" keep working, and the region labels (`CN-Telecom`, `Tor-exit`, …)
+  became behavior labels (`botnet-1`, `anon-relay`, …). Regenerating shifted
+  the whole corpus, not just the addresses: `randint` uses rejection sampling,
+  so narrowing the range changed how much of the random stream each draw
+  consumes (`ssh-bruteforce.log` 2293 → 2182 lines). Every figure quoted in
+  `hosts/sample-logs/README.md` was therefore recomputed against the new set,
+  not just the IP ones: the failregex now matches 505 lines / 70 distinct IPs
+  and spares 26 allow-listed 4xx (was 499 / 89 / 23).
+- [ ] Curate gallery screenshots into `docs/images/`. **The 51 existing shots
+  are all of the acceptance fixture** — deterministic comparison content, so
+  the frames read "acceptance fixture", "item A3, B4", and carry a
+  `dun-gallery-XXXXXX.command` title bar. Excellent evidence, poor showcase.
+  Two are usable as they stand: `kitty-syntax-pygments.png` (real Rust code,
+  `[pygments]` visible in the status bar) and `kitty-ssh-debian.png` (the
+  `REMOTE HOST: Linux … [debvbox]` banner). A real hero image needs real
+  content, which `acceptance/launch.sh --file PATH` can produce with **no
+  keystrokes at all**; only a split layout and the log-filter surface need
+  keys and therefore a human. Shoot this at the end of stage B, when the
+  README text exists and can dictate the frames. Use `kitty`/`iterm` sources
+  (~180 KB) rather than Terminal.app (~872 KB, Retina).
+- [x] Delete working-tree litter (`.DS_Store`) and check that every script in
+  `acceptance/` is still referenced by a document.
+
+### B. Documentation
+
+- [ ] Rewrite `README.md` to describe what `dun` is today, not what it was
+  planned to be. `README.md:5,7,14` still say "planned terminal text editor",
+  "intended UI is a `ratatui`-based TUI", and "minimal runnable `ratatui`
+  shell"; `README.md:294` still lists `dun-ui` as "`ratatui` views". ratatui
+  was retired at `858e876` (2026-07-11). Insert the curated screenshots and
+  split the flat document index into "User documentation" and "Development
+  documentation".
+- [ ] Write `docs/user-guide.md` — it does not exist today. Cover: install
+  and build (including that `scripts/release-build.sh` needs
+  `RUSTC_BOOTSTRAP` plus rust-src, and that a plain `cargo build --release`
+  is *not* the budget build); first run; the interface tour (menus, status
+  bar, tiled windows); the seven-step editing loop from README's Product
+  Goal; find/replace; bookmarks and visible whitespace (`Ctrl+X` family); the
+  command prompt and command ids; shell escape and Run Command; clipboard
+  (internal, plus OSC 52 read/write with their opt-ins and terminal limits);
+  file-safety behavior (atomic save, external-change refusal, non-UTF-8
+  read-only); switching UI language; troubleshooting (color and ASCII
+  fallback, ambiguous width, tmux).
+- [ ] Write `docs/plugin-authoring.md` — the author-facing counterpart that is
+  missing. `docs/plugin-protocol.md` is the specification (transport, trust
+  classes, capability model, build order) and stays as such;
+  `hosts/README.md` only configures the shipped hosts. Cover: manifest
+  fields, handshake and message sequence, choosing capabilities and roles,
+  author-declared `mnemonic`/`top_mnemonic`, the reserved `Ctrl+T` leader,
+  install is unpacking a folder and uninstall is deleting one, plugin
+  settings live with the plugin and not in dun's config, timeout/crash/stale-
+  revision semantics, self-checking with `hosts/check-host.py`, and starting
+  from the four reference hosts in `hosts/`.
+- [ ] Write `docs/dev/testing-guide.md` so someone else can stand the harness
+  up from zero. The VM manuals document connection and working conventions
+  but assume the VM already exists, so today the test setup is reproducible
+  only on this machine. Cover:
+  - a map of the test layers: workspace unit/integration tests, PTY smoke,
+    the tmux real-terminal grid suites (`tmux_grid`, `terminal_grid`,
+    `tmux_logfilter`), the four-platform VM matrix, and the
+    screenshot/acceptance pass — what each one can and cannot catch;
+  - VM setup from scratch: VirtualBox, NAT networking with host port
+    forwards (`2222` Debian, `2233` FreeBSD, `2244` Solaris), guest install,
+    the SSH keypair in `vm-test/`, passwordless sudo, and the per-OS
+    toolchain (rust + rust-src + tmux + rsync, and the Solaris `/opt`
+    rust-src recipe);
+  - the `vm-test/vm-run` / `vm-sync` wrappers, the `-t NAME` selector and
+    `DUN_VM_TARGET`, `--worktree` for dirty-tree iteration, and the
+    repo-local `known_hosts`;
+  - tmux/PTY prerequisites, how to run a single grid test, and the known
+    per-platform quirks (Solaris ambiguous-width, FreeBSD `/usr/bin/edit`);
+  - the `acceptance/` scripts: which emulators they expect, how the local and
+    over-SSH passes differ, and how the screenshot gallery is produced —
+    written as manual steps, since the 2026-07-27 pass was driven through a
+    tool an outside contributor does not have.
+- [ ] Document `acceptance/sweep-logfilter.sh` — the only script in
+  `acceptance/` that no document mentions, and the only tool that captures the
+  log-filter plugin's full layout (injected menu, two plugin-owned windows,
+  and a `dun` split at 100x30) headlessly in a detached tmux with no GUI
+  terminal involved. It belongs in both `docs/dev/real-terminal-acceptance.md`
+  and the new testing guide; deleting it as unreferenced would have thrown
+  away the harness's only foreign-window layout capture.
+- [ ] Fold a keybinding reference into the user guide, stating that
+  `--dump-config` and the in-app Help (generated from the active keymap) are
+  authoritative, so the prose cannot drift.
+- [ ] Decide the language of `docs/dev/real-terminal-tui-testing.md`: it is
+  written in Chinese while the rest of the corpus is English. For a public
+  repository, either translate it or state the exception deliberately.
+- [ ] Demote `docs/dev/PLAN.md` to a historical architecture plan and point current
+  status at CLAUDE.md. `docs/dev/PLAN.md:228` still reads "Status: planned next
+  required runtime stage" with all ten Phase 9 boxes unchecked although the
+  stage closed 2026-07-13; `docs/dev/PLAN.md:33` still says "ratatui-facing rendering
+  shell"; and five completed stages (i18n, plugin capability model, F12/F13
+  restoration, OSC 52 read, real-terminal acceptance) have no Phase entries
+  at all. Maintaining two live plans is the actual defect.
+- [ ] Clear the remaining stale statements: `AGENTS.md:147` (ratatui) and
+  `TODO.md`'s "Adopt native-speaker corrections" item, which docs/i18n.md
+  already settles as a provenance statement rather than outstanding work —
+  there is no native-speaker reviewer, so it must stop reading as a task.
+
+### C. Release artifacts
+
+- [ ] Add `LICENSE`: MIT, `Copyright (c) 2026 Si-Qi Liu`. `Cargo.toml:17`
+  has declared `license = "MIT"` all along with no such file in the tree.
+- [ ] Write `CHANGELOG.md` for v0.1.0 by distilling *user-visible* changes
+  out of docs/dev/PROGRESS.md's 1,360 lines of development record.
+- [ ] Complete the `Cargo.toml` package metadata: `description`,
+  `repository`, `authors`, `keywords`, `categories`, `readme`.
+- [ ] Decide `docs/dev/PLAN.md:275` — "Security audit suite for plugin policy after
+  plugin APIs exist" is still unchecked, and the plugin APIs now exist.
+  Thirteen trust/policy tests live in `dun-config/src/tests/plugins.rs` and
+  `dun-cli/src/tests/plugins/`, but there is no named audit suite the way
+  control-byte rendering has one. Either build the suite or record why the
+  existing coverage closes it. Do not tag v0.1 with an open security box.
+- [ ] Decide whether the GitHub release attaches macOS/Debian binaries.
+  Current lean: no. `scripts/release-build.sh` depends on `RUSTC_BOOTSTRAP`
+  and rust-src, so an outsider cannot reproduce the bytes; publishing
+  binaries without a reproducible recipe is a liability. Ship source-build
+  instructions instead.
+- [ ] Confirm with the user whether the public repository should carry the
+  conventional `CONTRIBUTING.md` (a short pointer to AGENTS.md) and
+  `SECURITY.md` (how to report a vulnerability).
+- [ ] Release sign-off: run the release smoke checklist, the dual-platform
+  size gate, and the four-platform functional matrix, then tag `v0.1.0`.
+  This is the only step that needs the VMs — ask the user to start all three.
 
 ## Completed Stage: Feature Triage and Slimming (2026-07-10)
 
-Outcome in [docs/feature-triage.md](./docs/feature-triage.md) and
-[docs/release-size-audit.md](./docs/release-size-audit.md): C/D batches 1-3
+Outcome in [docs/dev/feature-triage.md](./docs/dev/feature-triage.md) and
+[docs/dev/release-size-audit.md](./docs/dev/release-size-audit.md): C/D batches 1-3
 removed the advanced Command Output family, Outline, bookmarks, and
 visible-whitespace markers (-48 KiB Debian); the decisive lever was the
 build-std release contract (`scripts/release-build.sh`, user decision
@@ -18,7 +202,7 @@ remaining B-class features are KEPT; no lazy trim order remains.
 - [x] Classify inventory units and execute C/D removals (batches 1-3).
 - [x] Measure removals and the toolchain lever on the Debian VM.
 - [x] Adopt the build-std budget build contract (user decision 2026-07-10).
-- [x] Rewrite docs/feature-budget.md from the completed triage.
+- [x] Rewrite docs/dev/feature-budget.md from the completed triage.
 
 ## Completed Stage: In-House Terminal I/O (2026-07-23)
 
@@ -44,7 +228,7 @@ cost (~76 KiB Debian, spike branch `spike/plugin-client-size`) fit the
 post-build-std margin with room to spare.
 
 The protocol client is a required runtime feature under
-[docs/feature-budget.md](./docs/feature-budget.md). The budget gate is the
+[docs/dev/feature-budget.md](./docs/dev/feature-budget.md). The budget gate is the
 `scripts/release-build.sh` binary on both audited platforms.
 External plugin hosts and future runtime packages are separate artifacts and do
 not count toward the default `dun` executable size.
@@ -197,7 +381,7 @@ client but never checked off.
 ### Release Gates for This Stage
 
 All gates closed 2026-07-13 at `fd31719`; the Debian run doubled as the
-post-client re-audit (docs/release-size-audit.md "Post-client re-audit").
+post-client re-audit (docs/dev/release-size-audit.md "Post-client re-audit").
 
 - [x] `cargo fmt --all -- --check` (clean, 2026-07-13).
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` (clean,
@@ -310,7 +494,7 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   verified the move was byte-faithful by comparing the pre/post key tables as
   sorted sets (265 keys, English defaults identical), and the release binary is
   unchanged to the byte. The size exception in
-  docs/code-organization-guidelines.md is retired.
+  docs/dev/code-organization-guidelines.md is retired.
 - [x] Extend `i18n/` to more languages — done 2026-07-13, ten shipped:
   `zh-Hans`, `zh-Hant`, `fr`, `de`, `it`, `es`, `pt`, `ru`, `ja`, `ko`
   (briefs 027–029). Bare language tags except Chinese, which needs a script
@@ -331,7 +515,7 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   platforms at `fd31719`: macOS +12,344 (625,060); Debian span including
   briefs 012-021 lands at 670,080, margin 378,496. Debian debt for slices
   4a-4c settled 2026-07-15 at `744c843` (≡ `1d03433`): 715,136 bytes,
-  +28,672 over `89cd9e4`, margin 333,440 (docs/release-size-audit.md
+  +28,672 over `89cd9e4`, margin 333,440 (docs/dev/release-size-audit.md
   2026-07-15). Translations stayed free.
 
 ## Completed Stage: Distinctive Plugins (Capability Model First; closed 2026-07-23)
@@ -485,7 +669,7 @@ deltas non-additive).
     `status.plugin.window-limit` translations were free. Debian smoke: ELF PIE
     stripped, `ldd` unchanged, `--version`/`--dump-config` clean, `strings`
     panic-trigger 0. macOS gate: `tmux_grid`/`msedit_diff`/release
-    `pty_smoke` pass, `strings` 0. Recorded in docs/release-size-audit.md
+    `pty_smoke` pass, `strings` 0. Recorded in docs/dev/release-size-audit.md
     (2026-07-18). **The C (menu) stage is complete; no Debian measurement debt.**
 - [x] **D — keybinding.** Code landed 2026-07-18 (Claude-authored), three commits;
   one binding Debian measurement + smoke owed (see below).
@@ -517,7 +701,7 @@ deltas non-additive).
     measured **739,712 bytes** (margin 308,864), +4,096 over `bbc3fa7`. Debian
     smoke: ELF PIE stripped, `ldd` unchanged, `--version`/`--dump-config` clean,
     `strings` panic-trigger 0. macOS gate: `tmux_grid`/`msedit_diff`/release
-    `pty_smoke` pass, `strings` 0. Recorded in docs/release-size-audit.md
+    `pty_smoke` pass, `strings` 0. Recorded in docs/dev/release-size-audit.md
     (2026-07-18). **The D (keybinding) stage is complete; no measurement debt.**
     With A–D done, the capability mechanism + open APIs are all built.
 - [x] Wire trust as the grant gate + the config↔handshake trust cross-check —
@@ -733,12 +917,12 @@ keymap proposal.
     Codex stop-loss on the gutter-render assumption → Option C. 817 tests;
     macOS 690,292. Strict-circular nav, Move Line remap, and separator-over-
     marker all mutation-proven by Claude.
-- [x] Dual-platform size measurement + docs/release-size-audit.md entries;
+- [x] Dual-platform size measurement + docs/dev/release-size-audit.md entries;
   release smoke. Debian binding 756,016 (+16,384 over `877b7ad`, margin
   292,560); macOS 690,292; smoke clean (ELF PIE, ldd unchanged,
   DUN_TEST_PANIC=0). Four-platform functional matrix 817/0 (macOS, Debian,
   FreeBSD, Solaris).
-- [x] Full-trail docs: README feature paragraphs, docs/feature-triage.md
+- [x] Full-trail docs: README feature paragraphs, docs/dev/feature-triage.md
   restoration record, feature-budget classification for the restored units.
 
 ## Completed Stage: v0.1 Release Hardening
@@ -918,8 +1102,8 @@ inspection stay outside this section.
 ## Terminal Test Extensions
 
 The tmux-backed real-terminal baseline is complete; see
-[PROGRESS.md](./PROGRESS.md) and
-[docs/real-terminal-tui-testing.md](./docs/real-terminal-tui-testing.md). Keep
+[PROGRESS.md](./docs/dev/PROGRESS.md) and
+[docs/dev/real-terminal-tui-testing.md](./docs/dev/real-terminal-tui-testing.md). Keep
 this section focused on post-baseline extensions only.
 
 - [ ] Add normalized-grid assertions for selection attributes and richer

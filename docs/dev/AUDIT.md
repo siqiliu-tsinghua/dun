@@ -124,7 +124,7 @@ Forbidden pattern:
 The plugin system is protocol-first. `dun` speaks the Dun Plugin Protocol over
 framed stdio to an external host process, and validates all role outputs before
 applying them. The protocol is documented in
-[docs/plugin-protocol.md](./docs/plugin-protocol.md).
+[docs/plugin-protocol.md](../plugin-protocol.md).
 
 The protocol client is required core infrastructure. The `rum` runtime is not:
 future `rum` integration must be an optional host that speaks the same protocol.
@@ -365,7 +365,7 @@ Current implementation:
   backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and final
   ratatui `TestBackend` rendering.
 - The external SSH and low-capability terminal release matrix is documented in
-  `docs/terminal-compatibility-checks.md`; release candidates must record real
+  `docs/dev/terminal-compatibility-checks.md`; release candidates must record real
   external host results separately from local PTY automation.
 - Local PTY automation now covers a broader terminal matrix, small
   VT100/C-locale startup, terminal escape payload files, and invalid-byte

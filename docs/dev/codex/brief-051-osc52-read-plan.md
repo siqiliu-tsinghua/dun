@@ -43,11 +43,11 @@ OSC 52 read only.
   sanitizer in `editing.rs` — paste rides the display sanitizer like all
   buffer text).
 - **The bounded input surface** is documented in
-  `docs/terminal-compatibility-checks.md:24-25` (CSI/SS3 keys, UTF-8, SGR
+  `docs/dev/terminal-compatibility-checks.md:24-25` (CSI/SS3 keys, UTF-8, SGR
   mouse, bracketed paste, CPR + DA1). The OSC 52 read response is NOT in it —
   adding it extends the documented surface.
 - The PTY harness answers the startup CPR/DA1 probe
-  (`docs/terminal-compatibility-checks.md:81`) — the model for a harness that
+  (`docs/dev/terminal-compatibility-checks.md:81`) — the model for a harness that
   answers an OSC 52 read query.
 
 ## Claude's decisions (bake these into the plan — not open questions)

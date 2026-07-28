@@ -79,7 +79,7 @@ the plan must set the mode on the `TerminalProfile`/`UiShell` value, not a globa
 
 ## Context pointers
 
-- Read `AGENTS.md`, `docs/solaris-vm.md`, and the stage-A briefs 032–037.
+- Read `AGENTS.md`, `docs/dev/solaris-vm.md`, and the stage-A briefs 032–037.
 - Detection touches `dun-cli` startup; the mode lives on `dun-term`'s
   `TerminalProfile`; config override is in `dun-config`.
 - 1 MiB dual-platform budget is real; the probe should add no dependency and

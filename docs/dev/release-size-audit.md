@@ -223,7 +223,7 @@ run-command timeout, dirty-check caching) measured 826,768 bytes on macOS
 
 ## 2026-07-10 Build Contract: build-std (Spike A)
 
-Following the msedit size study (docs/msedit-reference.md), three build-std
+Following the msedit size study (docs/dev/msedit-reference.md), three build-std
 variants were measured on the Debian VM at `1578aff` (RUSTC_BOOTSTRAP=1 on
 the stable 1.85 toolchain, rust-src from the Debian package):
 
@@ -583,7 +583,7 @@ macOS gate: `tmux_grid` (5), `msedit_diff` (1), release `test-panic-hook`
 Cross-platform functional runs this session (full `cargo test --workspace`,
 reference sizes not budget gates): **macOS 693/0, FreeBSD 693/0, Solaris 689/4**
 (the 4 Solaris failures are all `tmux_grid`, root-caused to the platform's
-ambiguous-width `wcwidth` policy, not a `dun` defect — see docs/solaris-vm.md).
+ambiguous-width `wcwidth` policy, not a `dun` defect — see docs/dev/solaris-vm.md).
 VM scratch removed after recording. Margin on the binding platform is 304,768
 bytes.
 
@@ -697,7 +697,7 @@ are all the root-caused ambiguous-width tmux quirk: the four tmux_grid tests
 plus, new this run, two tmux_logfilter tests (execute and stream) whose
 assertions read body content across several tiled plugin windows, which the
 double-width box glyphs truncate — the menu and scratch-title tests are
-width-insensitive and pass. Not a dun defect (see docs/solaris-vm.md). No
+width-insensitive and pass. Not a dun defect (see docs/dev/solaris-vm.md). No
 measurement debt.
 
 ## 2026-07-22 ambiguous-width render layer (c0e13e3)
@@ -813,7 +813,7 @@ FreeBSD 758/0, Solaris 756/2 — the two remaining Solaris failures are the
 known crossterm+mio input-path timeouts, unchanged by design until the step-4
 input cutover (they are the track's acceptance criterion). The macOS
 `/dev/tty` POLLNVAL limitation is documented in
-docs/terminal-compatibility-checks.md (empirically verified; crossterm's
+docs/dev/terminal-compatibility-checks.md (empirically verified; crossterm's
 default backend could not service that path either). FreeBSD VM gained
 `rsync` (pkg) for `vm-sync --worktree`. No measurement debt: measured through
 `919a98f`.

@@ -5,7 +5,7 @@ no translation work, no test changes.** The i18n extraction is finished
 (slices 1–4b); this brief pays off the size debt it left behind.
 
 `crates/dun-cli/src/ui_text/status.rs` is **42,355 bytes / 265 keys**, over the
-`35k` "architecture debt" line in `docs/code-organization-guidelines.md`. It
+`35k` "architecture debt" line in `docs/dev/code-organization-guidelines.md`. It
 currently runs on an explicit temporary exception recorded there, which says the
 exception expires by splitting the file by domain once the status text stops
 growing. It has stopped growing. Split it.
@@ -30,7 +30,7 @@ invisible to everyone who reads it.
 
 ## Context pointers
 
-- Read `AGENTS.md` and `docs/code-organization-guidelines.md` (File Size Policy,
+- Read `AGENTS.md` and `docs/dev/code-organization-guidelines.md` (File Size Policy,
   and the "Explicit temporary exception" section naming this file).
 - `crates/dun-cli/src/ui_text/mod.rs` — the machinery. It already does
   `pub(crate) use chrome::*; pub(crate) use status::*;` (glob re-export is what

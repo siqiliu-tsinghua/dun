@@ -28,27 +28,53 @@ MONTH_START = dt.datetime(2026, 6, 1, tzinfo=dt.timezone.utc)
 MONTH_DAYS = 30
 HOST = "probe-vm"
 
-# Synthetic attacker source pools: (network /24 prefix, ASN/region label used
-# only in this comment and the README, relative frequency weight). Prolific
-# botnet-style sources recur; long-tail sources appear once or twice.
+# Addresses come from the RFC 5737 documentation ranges, which exist for
+# exactly this use: reserved for documentation and examples, not globally
+# routable, and belonging to nobody. Real prefixes would read as more
+# authentic, but a public repository that labels real networks as attackers is
+# not a trade worth making, and none of the filtering exercises depend on it.
+DOC_NETS = ("192.0.2", "198.51.100", "203.0.113")
+
+
+def source_block(index):
+    """A disjoint 14-address block, round-robin across the three doc /24s.
+
+    Sources must not overlap: "which source is most persistent" and "isolate
+    one source's whole session" are the exercises these datasets exist for,
+    and they stop meaning anything if two sources can emit the same address.
+    Blocks start at .30 so they stay clear of LEGIT_MCP_IPS below.
+    """
+    lo = 30 + (index // len(DOC_NETS)) * 20
+    return DOC_NETS[index % len(DOC_NETS)], lo, lo + 13
+
+
+# Synthetic attacker sources: (address block, behavior label used only here,
+# relative frequency weight). Prolific botnet-style sources recur; long-tail
+# sources appear once or twice. Labels describe the traffic pattern rather
+# than any real operator or region.
 ATTACKER_NETS = [
-    ("61.177.173", "CN-Telecom", 9),
-    ("218.92.0", "CN-Unicom", 8),
-    ("222.186.30", "CN-South", 7),
-    ("193.32.162", "RU-hosting", 6),
-    ("45.134.22", "EU-VPS", 6),
-    ("141.98.10", "LT-hosting", 5),
-    ("92.63.197", "RU-scan", 5),
-    ("185.220.101", "Tor-exit", 4),
-    ("89.248.165", "NL-scan", 5),
-    ("212.70.149", "BG-hosting", 4),
-    ("103.145.13", "APAC-VPS", 3),
-    ("5.188.206", "RU-hosting", 4),
-    ("167.99.15", "US-cloud", 3),
-    ("179.43.175", "PA-vpn", 2),
-    ("80.94.92", "SC-scan", 3),
-    ("34.116.200", "US-cloud", 2),
-    ("94.102.51", "NL-scan", 3),
+    (source_block(i), label, weight)
+    for i, (label, weight) in enumerate(
+        [
+            ("botnet-1", 9),
+            ("botnet-2", 8),
+            ("botnet-3", 7),
+            ("hosting-1", 6),
+            ("hosting-2", 6),
+            ("hosting-3", 5),
+            ("scanner-1", 5),
+            ("anon-relay", 4),
+            ("scanner-2", 5),
+            ("hosting-4", 4),
+            ("hosting-5", 3),
+            ("hosting-6", 4),
+            ("cloud-1", 3),
+            ("vpn-1", 2),
+            ("scanner-3", 3),
+            ("cloud-2", 2),
+            ("scanner-4", 3),
+        ]
+    )
 ]
 
 # Usernames tried, most-probed first.
@@ -105,8 +131,9 @@ LEGIT_MCP_IPS = ["10.20.0.14", "10.20.0.15", "198.51.100.23"]  # RFC5737 doc IP
 LEGIT_UA = "mcp-client/0.4 (+https://example.internal)"
 
 
-def ip_from(prefix, rng):
-    return f"{prefix}.{rng.randint(1, 254)}"
+def ip_from(block, rng):
+    prefix, lo, hi = block
+    return f"{prefix}.{rng.randint(lo, hi)}"
 
 
 def weighted_hour(rng):
@@ -135,8 +162,8 @@ def gen_ssh_bruteforce(rng, sessions):
     nets = [n for n in ATTACKER_NETS]
     weights = [n[2] for n in nets]
     for _ in range(sessions):
-        prefix, _label, _w = rng.choices(nets, weights=weights, k=1)[0]
-        ip = ip_from(prefix, rng)
+        block, _label, _w = rng.choices(nets, weights=weights, k=1)[0]
+        ip = ip_from(block, rng)
         attempts = rng.randint(3, 18)
         pid = rng.randint(1000, 65000)
         times = session_times(rng, attempts + 1)
@@ -217,16 +244,16 @@ def gen_mcp_probes(rng, sessions):
     # Ordinary browsers: the bare root and a missing favicon (a 404 that must
     # not be banned because /favicon.ico is allow-listed).
     for _ in range(max(3, sessions // 8)):
-        prefix, _label, _w = rng.choices(nets, weights=weights, k=1)[0]
-        ip = ip_from(prefix, rng)
+        block, _label, _w = rng.choices(nets, weights=weights, k=1)[0]
+        ip = ip_from(block, rng)
         t = session_times(rng, 1)[0]
         emit(t, ip, "GET", "/", rng.choice([200, 200, 302]), "Mozilla/5.0 (compatible)")
         emit(t + dt.timedelta(seconds=1), ip, "GET", "/favicon.ico", 404, "Mozilla/5.0 (compatible)")
 
     # Scanner / sniffer sessions: non-allow-listed paths, 401/403/404.
     for _ in range(sessions):
-        prefix, _label, _w = rng.choices(nets, weights=weights, k=1)[0]
-        ip = ip_from(prefix, rng)
+        block, _label, _w = rng.choices(nets, weights=weights, k=1)[0]
+        ip = ip_from(block, rng)
         ua = rng.choice(SCANNER_UAS)
         probes = rng.randint(2, 9)
         times = session_times(rng, probes)

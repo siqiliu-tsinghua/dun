@@ -9,7 +9,7 @@ implementation briefs and gates each. (Plan-first workflow — see CLAUDE.md.)
 1. The Distinctive Plugins stage closed 2026-07-23; the restoration review
    (TODO.md "Deferred", first item) is the next mainline stage. The review
    decision is made: **restore F12 (bookmarks) + F13 (visible whitespace)**,
-   the strongest candidates in docs/feature-triage.md "Restoration Path".
+   the strongest candidates in docs/dev/feature-triage.md "Restoration Path".
    F46 (advanced Command Output) stays removed — the LogFilter-plugin overlap
    rationale still holds — and F20 (Outline) still returns as a
    `DocumentStructure` plugin role, not a core revert.
@@ -21,7 +21,7 @@ implementation briefs and gates each. (Plan-first workflow — see CLAUDE.md.)
    simulation against HEAD conflicts in 10 of the commit's 26 files (TODO.md,
    `app/buffer_state.rs`, `app/frame.rs`, `app/status_view.rs`,
    `keys/keymap.rs`, `frame/highlight.rs`, `frame/menu.rs`, `frame/text.rs`,
-   `dun-ui/src/text.rs`, docs/feature-triage.md), and even the hunks that
+   `dun-ui/src/text.rs`, docs/dev/feature-triage.md), and even the hunks that
    apply cleanly would reintroduce pre-i18n hardcoded English and
    pre-refactor idioms. Since the removal, the codebase went through: the
    full UI i18n conversion (every user-visible string is a key + ten
@@ -74,7 +74,7 @@ implementation briefs and gates each. (Plan-first workflow — see CLAUDE.md.)
 
 - **The spec:** `git show 53fe7f8` (the full 26-file removal diff) and the
   pre-removal tree via `git show 53fe7f8^:<path>`. Inventory rows:
-  docs/feature-triage.md:125-126.
+  docs/dev/feature-triage.md:125-126.
 - **Today's landscape** (all changed after the removal — verify each with
   `path:line`, do not trust this summary): i18n key tables in
   `crates/dun-cli/src/ui_text/` + `crates/dun-ui/src/frame/menu.rs` menu

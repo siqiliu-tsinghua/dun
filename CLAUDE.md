@@ -39,7 +39,7 @@ platforms). Panic hooks and messages verified working under it. Plain
 `cargo build --release` stays a dev build only.
 
 Runtime-code commits must pass fmt, clippy, tests, the release smoke
-checklist ([docs/release-smoke-checklist.md](./docs/release-smoke-checklist.md)),
+checklist ([docs/dev/release-smoke-checklist.md](./docs/dev/release-smoke-checklist.md)),
 and the size gate below.
 
 ## Hard Size Budget (the binding constraint)
@@ -68,7 +68,7 @@ x86_64 AND Debian x86_64.
   interest clearing + crossterm's never-reregistered `SourceFd`) is fixed by
   construction — first fully green four-platform matrix (780/0 on macOS/
   Debian/FreeBSD/Solaris). **No Debian measurement debt:** measured through
-  HEAD. (See docs/release-size-audit.md 2026-07-23 entries.)
+  HEAD. (See docs/dev/release-size-audit.md 2026-07-23 entries.)
 
 **Debian measurement debt: settled 2026-07-15.** The 19-commit debt span
 (`89cd9e4..1d03433`) is paid off: HEAD (`744c843`, byte-identical binary to
@@ -76,7 +76,7 @@ x86_64 AND Debian x86_64.
 i18n slice-4 mechanism tail; the ten translations stayed free. The ~700 KiB
 projection held. Smoke passed (ELF PIE stripped, `ldd` = libgcc/libm/libc/
 ld-linux unchanged, `--version`, `--dump-config`). The plugin stage now
-starts on a measured baseline (docs/release-size-audit.md 2026-07-15).
+starts on a measured baseline (docs/dev/release-size-audit.md 2026-07-15).
 
 Note the ten shipped translations cost the binary **nothing**: they are
 external resource files, not code. Decisive measurements happen on the
@@ -160,13 +160,13 @@ through the tracked `vm-test/` wrappers with a target selector (`-t NAME` /
 `DUN_VM_TARGET`; default `debian`):
 
 - **`debian` (port 2222, `debvbox`)** — the **binding** size/measurement
-  platform ([docs/debian-vm.md](./docs/debian-vm.md)); with macOS it is the
+  platform ([docs/dev/debian-vm.md](./docs/dev/debian-vm.md)); with macOS it is the
   1 MiB size budget.
 - **`freebsd` (port 2233, FreeBSD 15.1)** — a **portability / functional** test
-  env ([docs/freebsd-vm.md](./docs/freebsd-vm.md)), NOT a size-budget platform
+  env ([docs/dev/freebsd-vm.md](./docs/dev/freebsd-vm.md)), NOT a size-budget platform
   (LLVM/lld + `pkg` rust ≠ the 1.85 budget baseline; size is a reference only).
 - **`solaris` (port 2244, Oracle Solaris 11.4)** — a **portability / functional**
-  env ([docs/solaris-vm.md](./docs/solaris-vm.md)), NOT a size-budget platform
+  env ([docs/dev/solaris-vm.md](./docs/dev/solaris-vm.md)), NOT a size-budget platform
   (native Solaris `ld`, multilib, `pkg` rust 1.87 with `rust-src` linked from
   `/opt`). Known quirk (root-caused, not a `dun` defect): Solaris tmux renders
   Unicode ambiguous-width glyphs (box-drawing, `◆`) double-width, so `tmux_grid`
@@ -180,7 +180,7 @@ gitignored `vm-test/known_hosts`. **When a change needs VM testing, ask the
 user to start every relevant VM (Debian, FreeBSD, Solaris today), then run
 against each with its target** — do not assume any VM is up. Binding size
 measurement (Debian) uses the repeat checklist in
-[docs/release-size-audit.md](./docs/release-size-audit.md) (clean git archive,
+[docs/dev/release-size-audit.md](./docs/dev/release-size-audit.md) (clean git archive,
 locked release build, `stat`/`file`/`ldd`, `--version`/`--dump-config` smoke).
 Use dated scratch dirs and delete them after recording results.
 
@@ -197,7 +197,7 @@ Sequencing (stages 1–2 completed 2026-07-10):
    JSON; implementation reference on branch `spike/plugin-client-size`.
 2. ~~Feature triage + trim~~ — done: C/D batches 1-3 (-48 KiB) plus the
    decisive build-std contract (spike A; all remaining B features KEPT).
-   Outcome in [docs/feature-triage.md](./docs/feature-triage.md).
+   Outcome in [docs/dev/feature-triage.md](./docs/dev/feature-triage.md).
 3. ~~Land the real plugin protocol client~~ — DONE, stage closed
    2026-07-13: all release gates passed at `fd31719`; Debian re-audit
    recorded (670,080 bytes, margin 378,496).
@@ -248,7 +248,7 @@ Sequencing (stages 1–2 completed 2026-07-10):
    emulators x 3 VMs over live SSH) and 232 headless 80x24 text grids
    (11 languages x 20 dialog/editor states, plus the log-filter surface).
    Tooling is in `acceptance/` and documented in
-   docs/real-terminal-acceptance.md.
+   docs/dev/real-terminal-acceptance.md.
 
    **The screenshots were not the product — the defects they exposed were.**
    Five were found by looking at output, none by reading code: the two
@@ -268,12 +268,55 @@ Sequencing (stages 1–2 completed 2026-07-10):
    not in dun's config — install is unpacking a folder, uninstall is
    deleting one.
 
-Next stage: none active — pick from the queue with the user. Remaining:
-F20 Outline as a plugin `DocumentStructure` role; rum evaluation stays
-externally blocked on rum-ext's resource/type base; plugin dropdown entries
-still have no mnemonic when a host declares none (deliberate — see
-docs/plugin-protocol.md "Menu mnemonics"). Optional follow-up: live
-real-terminal OSC 52 read acceptance (user-driven).
+9. **ACTIVE — v0.1 wrap-up and public release** (roadmap agreed 2026-07-27,
+   execution starts 2026-07-28; task list in TODO.md "Current Stage"). The
+   runtime is done: no active code stage, four-platform 845/0, binding Debian
+   760,112 with 288,464 to spare. What is missing is everything around the
+   code. **No runtime code changes in this stage** — therefore no size
+   measurement and no VM work until the final sign-off.
+
+   User decisions frozen 2026-07-27: publish as a **public GitHub
+   repository** (no crates.io packaging work); process docs are **kept** and
+   move under `docs/dev/`; 3–4 curated gallery screenshots enter the repo;
+   LICENSE is MIT, `Copyright (c) 2026 Si-Qi Liu`. Deferred to stage C:
+   whether the GitHub release attaches macOS/Debian binaries (lean: no — the
+   build-std contract is not byte-reproducible for an outsider, and shipping
+   binaries without a reproducible build recipe is a liability).
+
+   Three serial stages:
+
+   - **A — cleanup and relocation.** Today `docs/` mixes 4 user-facing pages
+     with 18 process/measurement ones. Split `docs/` (user) from `docs/dev/`
+     (process, measurement, method, VM manuals, the 58 codex briefs); move
+     PLAN/PROGRESS/AUDIT there too so the root keeps only README, AGENTS,
+     CLAUDE, TODO. Fix every cross-link behind a link checker — the briefs
+     reference paths too. Then the **pre-publication scan** that a public repo
+     requires: real IPs, hostnames, absolute local paths, emails, credentials
+     (`hosts/sample-logs/` — `ssh-bruteforce.log`, `access.log`,
+     `mcp-probes.log` — are the first suspects). Curate 3–4 gallery
+     screenshots into `docs/images/`.
+   - **B — documentation.** The corpus is written for dun's *builders*, not
+     its users or its outside contributors. README still calls dun "planned"
+     and "ratatui-based" (retired at `858e876`, README:5,7,14,294); there is
+     no user guide at all; no plugin-**author** guide
+     (docs/plugin-protocol.md is the spec, hosts/README.md only configures the
+     shipped hosts); and no onboarding for the test tooling — the VM manuals
+     document connection and conventions but assume the VM already exists, so
+     nobody outside this machine can reproduce the harness. Write those four,
+     fix README to describe what dun is today, demote docs/dev/PLAN.md to a historical
+     plan (CLAUDE.md is the live one), close the stale TODO/AGENTS items.
+   - **C — release artifacts.** LICENSE, CHANGELOG (user-visible changes
+     distilled from PROGRESS's 1,360 lines), Cargo metadata, a decision on
+     docs/dev/PLAN.md's still-unchecked plugin-policy security-audit item (do not ship
+     v0.1 with an open security box), then the sign-off: release smoke +
+     dual-platform size gate + four-platform matrix + tag `v0.1.0`. **The VMs
+     are needed only here.**
+
+Queue after the wrap-up stage: F20 Outline as a plugin `DocumentStructure`
+role; rum evaluation stays externally blocked on rum-ext's resource/type
+base; plugin dropdown entries still have no mnemonic when a host declares
+none (deliberate — see docs/plugin-protocol.md "Menu mnemonics"). Optional
+follow-up: live real-terminal OSC 52 read acceptance (user-driven).
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,
@@ -286,7 +329,7 @@ defect is gone by construction and all four platforms run green (780/0 —
 first time in the project's history). Lockfile 42 → 26; binding binary
 −24,656 net. The bounded input surface (xterm-family keys, SGR mouse,
 bracketed paste, CPR/DA1, SIGWINCH; kitty/modifyOtherKeys/X10/rxvt excluded)
-is documented in docs/terminal-compatibility-checks.md.
+is documented in docs/dev/terminal-compatibility-checks.md.
 
 Renderer replacement is DONE: ratatui was fully retired at `858e876`
 (2026-07-11) — dropped from every crate, the workspace table, and the

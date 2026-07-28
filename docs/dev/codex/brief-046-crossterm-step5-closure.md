@@ -21,21 +21,21 @@ removes the now-unused dependency and closes the documentation trail.
    - `AUDIT.md` — the terminal-safety wording that names crossterm (the
      restore/panic-hook invariants are now the sys shim's; keep the
      invariants, fix the attribution).
-   - `docs/dependency-audit.md` — the dependency table: crossterm family and
+   - `docs/dev/dependency-audit.md` — the dependency table: crossterm family and
      mio out; rustix + signal-hook in with their feature sets and why; note
      unicode-width unchanged; record the new lockfile package count.
-   - `docs/terminal-compatibility-checks.md` — remove/replace any remaining
+   - `docs/dev/terminal-compatibility-checks.md` — remove/replace any remaining
      claim that input parsing is crossterm's or that the PTY harness "does
      not answer the probe" (it does since brief 040); the supported input
      surface is the bounded matrix (xterm-family keys, SGR mouse, bracketed
      paste, CPR/DA1, SIGWINCH resize; kitty/modifyOtherKeys/X10/rxvt
      explicitly out of scope).
-   - `docs/crate-map.md` — dun-cli's terminal module now owns lifecycle +
+   - `docs/dev/crate-map.md` — dun-cli's terminal module now owns lifecycle +
      sys shim + VT core (output/event/parser) + event reader; no external
      terminal backend.
-   - `docs/file-splitting-plan.md` — only if it names the old event-loop/
+   - `docs/dev/file-splitting-plan.md` — only if it names the old event-loop/
      crossterm layout in a way the split made stale.
-   - `docs/runtime-resource-audit.md` — only the dependency-related
+   - `docs/dev/runtime-resource-audit.md` — only the dependency-related
      wording; do NOT re-run resource measurements (Claude handles
      measurement at the gate).
    - `PLAN.md` / `TODO.md` / `PROGRESS.md` — mark the crossterm-replacement
@@ -54,7 +54,7 @@ removes the now-unused dependency and closes the documentation trail.
   `PROGRESS.md`; `docs/{dependency-audit,terminal-compatibility-checks,crate-map,file-splitting-plan,runtime-resource-audit}.md`.
 - Files/areas you MUST NOT touch: ANY `.rs` file (if removal breaks a build,
   STOP and report — it means step 4 left a reference), `docs/dev/codex/**`,
-  `docs/release-size-audit.md` (Claude records measurements), CLAUDE.md,
+  `docs/dev/release-size-audit.md` (Claude records measurements), CLAUDE.md,
   AGENTS.md, `.git`, `i18n/**`, `hosts/**`, `vm-test/**`, `reference/**`.
 
 If a change needs a file outside Scope, STOP and report.

@@ -151,10 +151,10 @@ Preserve the more specific existing paste error for read-only / missing-buffer
 ### Docs (behavior change → same-change doc updates, per AGENTS.md)
 20. `README.md` (paste feature paragraph), `docs/configuration.md`
     (`clipboard.osc52.allow_read` + the read behavior + the terminal-owns-the-
-    gate note), `docs/terminal-compatibility-checks.md` (add OSC 52 read to the
+    gate note), `docs/dev/terminal-compatibility-checks.md` (add OSC 52 read to the
     bounded-input surface as "parsed when enabled, best-effort at the
     terminal/multiplexer boundary"; note `Alt+]` is byte-identical when a read
-    is not pending), `docs/editor-baseline.md` if it enumerates clipboard
+    is not pending), `docs/dev/editor-baseline.md` if it enumerates clipboard
     behavior, and `AUDIT.md` (the read path rides the display sanitizer; no new
     scrubber; base64/UTF-8 validation under a cap).
 

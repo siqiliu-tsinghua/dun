@@ -73,7 +73,7 @@ harness or the grid parser (step 2).
     mouse-off variant it already supports
   - detector unit tests (colocated)
   - `AUDIT.md` (record the bounded terminal-response invariant) and
-    `docs/terminal-compatibility-checks.md` (startup probe behavior) — required
+    `docs/dev/terminal-compatibility-checks.md` (startup probe behavior) — required
     by AGENTS.md for a behavior change
 - Files/areas you MUST NOT touch:
   - `crates/dun-cli/tests/**` and `crates/dun-cli/tests/support/**` — the
@@ -106,7 +106,7 @@ slows), STOP and report — that's a real regression.
   the detected base's ambiguous_width survives a config reload.
 - Prove load-bearing: mutation that swaps col 2/3, or finishes on CPR before
   DA1, must fail the relevant test.
-- `AUDIT.md` + `docs/terminal-compatibility-checks.md` updated.
+- `AUDIT.md` + `docs/dev/terminal-compatibility-checks.md` updated.
 
 ## dun pitfalls (read twice)
 

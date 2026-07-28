@@ -53,8 +53,8 @@ moves.
    Wire modules in `app/mod.rs`; adapt mouse, search/replace, helper-pane,
    status, and frame call sites. Remove or narrow the duplicate raw-width
    helpers in `files/text.rs`.
-6. **Docs**: update `AUDIT.md`, `docs/crate-map.md`, and
-   `docs/code-organization-guidelines.md` for the seam boundary and the
+6. **Docs**: update `AUDIT.md`, `docs/dev/crate-map.md`, and
+   `docs/dev/code-organization-guidelines.md` for the seam boundary and the
    completed splits — factual, minimal paragraphs.
 
 ## Scope
@@ -63,8 +63,8 @@ moves.
   `crates/dun-core/src/display.rs`, `crates/dun-ui/src/**` (including the
   new `display_map.rs` and `tests/`), `crates/dun-cli/src/app/**`
   (including the two new modules), `crates/dun-cli/src/files/text.rs`,
-  colocated `dun-core`/`dun-term` tests, `AUDIT.md`, `docs/crate-map.md`,
-  `docs/code-organization-guidelines.md`.
+  colocated `dun-core`/`dun-term` tests, `AUDIT.md`, `docs/dev/crate-map.md`,
+  `docs/dev/code-organization-guidelines.md`.
 - Files/areas you MUST NOT touch: `crates/dun-core/src/command.rs`,
   `crates/dun-config/**`, `i18n/**`, `hosts/**`, help/menu/status text of
   any kind, any `Cargo.toml`/`Cargo.lock`, `AGENTS.md`, `CLAUDE.md`,

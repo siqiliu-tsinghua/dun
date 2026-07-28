@@ -52,7 +52,7 @@ byte-identical output; golden frames must not change.
 6. **`crates/dun-cli/tests/pty_smoke.rs`** (~line 390) — the mouse-mode
    assertions expect exactly `1000/1002/1006` enable and reverse-order disable;
    `1003`/`1015` must be asserted ABSENT.
-7. **`docs/terminal-compatibility-checks.md`** — update the mouse claim to:
+7. **`docs/dev/terminal-compatibility-checks.md`** — update the mouse claim to:
    SGR mouse (`1006`) with `1000`/`1002` reporting under xterm-family/tmux/
    screen; keyboard remains primary. One tight paragraph, same section as the
    current mouse text.
@@ -61,7 +61,7 @@ byte-identical output; golden frames must not change.
 
 - Files you MAY modify: the seven items above (new `vt/` files; the four
   existing `terminal/` files; `tests/pty_smoke.rs` mouse assertions only;
-  `docs/terminal-compatibility-checks.md` mouse paragraph only) + colocated
+  `docs/dev/terminal-compatibility-checks.md` mouse paragraph only) + colocated
   unit tests for `vt/output.rs`.
 - Files/areas you MUST NOT touch: raw-mode/input/event-loop code
   (`event_loop.rs`, `input.rs`, `main.rs`), any `Cargo.toml`/`Cargo.lock`,

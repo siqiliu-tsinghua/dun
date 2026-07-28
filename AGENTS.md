@@ -21,18 +21,24 @@ artifacts. A minimal build must not require the `rum` runtime.
 
 ## Document Responsibilities
 
+The repository root keeps only the four documents a reader needs first;
+everything written for people working *on* `dun` lives under `docs/dev/`, and
+`docs/` itself is reserved for users and plugin authors.
+
 - `README.md`: user-facing overview, goals, status, and high-level architecture.
 - `AGENTS.md`: contribution rules and project invariants for automated agents
   and human maintainers.
-- `PLAN.md`: staged design plan and architectural sequencing.
 - `TODO.md`: active task list; keep it focused on near-term work.
-- `PROGRESS.md`: append-only history of completed work and decisions.
-- `AUDIT.md`: security model, threat notes, invariants, and audit checklist.
+- `CLAUDE.md`: session orientation and the live working plan.
 - `docs/plugin-protocol.md`: host-neutral plugin protocol, trust classes,
   role-policy boundary, transport, and completion criteria.
 - `docs/i18n.md`: UI text translation design — compiled English defaults,
   external per-language resource files, mnemonic and sanitizer invariants.
-- `docs/code-organization-guidelines.md`: safe Rust, file-size, module
+- `docs/dev/PLAN.md`: staged design plan and architectural sequencing.
+- `docs/dev/PROGRESS.md`: append-only history of completed work and decisions.
+- `docs/dev/AUDIT.md`: security model, threat notes, invariants, and audit
+  checklist.
+- `docs/dev/code-organization-guidelines.md`: safe Rust, file-size, module
   splitting, and directory organization rules.
 
 When changing behavior or architecture, update the relevant document in the
@@ -58,8 +64,8 @@ same change.
   `[profile.release]` plus the 2026-07-10 build-std contract) is the budget
   build; plain `cargo build --release` is a dev build, not a budget claim.
   If the gate fails, do not add runtime features; follow
-  [docs/feature-budget.md](./docs/feature-budget.md) and
-  [docs/feature-triage.md](./docs/feature-triage.md).
+  [docs/dev/feature-budget.md](./docs/dev/feature-budget.md) and
+  [docs/dev/feature-triage.md](./docs/dev/feature-triage.md).
 - Keep terminal rendering behind profile/theme/glyph abstractions.
 - Keep log processing streaming-friendly; avoid whole-file assumptions for
   large logs.
@@ -70,7 +76,7 @@ same change.
   tests that only mutation caught: a panic-restore test that `TerminalGuard::drop`
   satisfied without the hook, and a sanitizer test that asked the implementation
   to mark its own homework. Whenever you add or change a test that guards a
-  correctness or safety invariant — anything under [AUDIT.md](./AUDIT.md), plus
+  correctness or safety invariant — anything under [AUDIT.md](./docs/dev/AUDIT.md), plus
   terminal restore, atomic save, dirty confirmation, and display sanitization —
   break the code it covers on purpose, confirm the test fails and names the
   fault, then restore. State that you did this. Two failure shapes to watch:
@@ -90,7 +96,7 @@ same change.
   Unicode behavior in particular have repeatedly turned out otherwise than
   assumed.
 - Do not introduce native dynamic plugin loading in the initial line.
-- Follow [docs/code-organization-guidelines.md](./docs/code-organization-guidelines.md).
+- Follow [docs/dev/code-organization-guidelines.md](./docs/dev/code-organization-guidelines.md).
   Implementation files should stay under about `10k` characters when
   practical. Files over `20k` need a split assessment when touched, and files
   over `35k` are architecture debt unless an explicit exception is recorded.
@@ -141,7 +147,7 @@ checks to the rest of the UI.
 ## Current Build Stage
 
 The repository is a Rust workspace. Keep crate boundaries aligned with
-[docs/crate-map.md](./docs/crate-map.md). The first implementation line should
+[docs/dev/crate-map.md](./docs/dev/crate-map.md). The first implementation line should
 establish:
 
 - core editor types independent of `ratatui`;

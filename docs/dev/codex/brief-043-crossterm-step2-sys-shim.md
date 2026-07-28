@@ -81,7 +81,7 @@ stays on crossterm — steps 3–5 are separate.
    regenerates (mio remains via crossterm).
 7. **Docs (same-change rule)** — `AUDIT.md`: update the bounded
    terminal-response invariant entry to name the in-house poll path instead
-   of mio; `docs/terminal-compatibility-checks.md`: document the tty
+   of mio; `docs/dev/terminal-compatibility-checks.md`: document the tty
    acquisition policy + the macOS `/dev/tty` POLLNVAL limitation (clear
    startup error, stdin-tty required on macOS when redirected).
 
@@ -90,7 +90,7 @@ stays on crossterm — steps 3–5 are separate.
 - Files you MAY modify: the two new `sys/` files;
   `terminal/{mod,lifecycle,ambiguous_width,event_loop}.rs`; `main.rs`;
   `Cargo.toml` + `crates/dun-cli/Cargo.toml` + `Cargo.lock` (exactly the
-  mio-remove/rustix-add); `AUDIT.md` + `docs/terminal-compatibility-checks.md`
+  mio-remove/rustix-add); `AUDIT.md` + `docs/dev/terminal-compatibility-checks.md`
   (the two entries above); colocated unit tests (including
   `terminal/lifecycle.rs` tests — see Deliverable).
 - Files/areas you MUST NOT touch: `terminal/vt/**` (step 1 is done),
