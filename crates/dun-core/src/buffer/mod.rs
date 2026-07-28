@@ -10,8 +10,8 @@ mod selection;
 mod undo;
 
 pub use model::{
-    BufferError, BufferId, BufferKind, Cursor, EditMergeKind, EditTransaction, LineEnding,
-    Position, SearchMatch, SearchOptions, Selection, TextBuffer, TextEdit, TextRange,
+    BufferError, BufferId, BufferKind, Cursor, EditMergeKind, EditTransaction, FoldRange, FoldSet,
+    LineEnding, Position, SearchMatch, SearchOptions, Selection, TextBuffer, TextEdit, TextRange,
 };
 
 impl Default for TextBuffer {
@@ -86,6 +86,32 @@ impl TextBuffer {
         }
     }
 
+    pub fn folds(&self) -> &FoldSet {
+        &self.folds
+    }
+
+    pub fn set_folds(&mut self, folds: FoldSet) {
+        self.folds = folds;
+        self.normalize_folds();
+    }
+
+    pub fn insert_fold(&mut self, range: FoldRange) {
+        self.folds.ranges.push(range);
+        self.normalize_folds();
+    }
+
+    pub fn remove_fold_at(&mut self, line: usize) -> bool {
+        let previous_len = self.folds.ranges.len();
+        self.folds
+            .ranges
+            .retain(|range| line < range.start_line || line >= range.end_line_exclusive);
+        self.folds.ranges.len() != previous_len
+    }
+
+    pub fn clear_folds(&mut self) {
+        self.folds = FoldSet::empty();
+    }
+
     pub fn to_text(&self) -> String {
         self.lines.join(self.line_ending.as_str())
     }
@@ -122,6 +148,7 @@ impl TextBuffer {
             lines,
             line_ending,
             bookmarks: Vec::new(),
+            folds: FoldSet::empty(),
             cursor: Cursor::default(),
             selection: None,
             undo_stack: Vec::new(),
@@ -180,6 +207,36 @@ impl TextBuffer {
         }
         self.bookmarks.sort_unstable();
         self.bookmarks.dedup();
+    }
+
+    fn normalize_folds(&mut self) {
+        let line_count = self.lines.len();
+        self.folds
+            .ranges
+            .sort_unstable_by_key(|range| (range.start_line, range.end_line_exclusive));
+
+        let mut write_index = 0usize;
+        for read_index in 0..self.folds.ranges.len() {
+            let mut range = self.folds.ranges[read_index];
+            range.start_line = range.start_line.min(line_count);
+            range.end_line_exclusive = range.end_line_exclusive.min(line_count);
+            if range.end_line_exclusive.saturating_sub(range.start_line) < 2 {
+                continue;
+            }
+
+            if write_index > 0
+                && range.start_line < self.folds.ranges[write_index - 1].end_line_exclusive
+            {
+                self.folds.ranges[write_index - 1].end_line_exclusive = self.folds.ranges
+                    [write_index - 1]
+                    .end_line_exclusive
+                    .max(range.end_line_exclusive);
+            } else {
+                self.folds.ranges[write_index] = range;
+                write_index += 1;
+            }
+        }
+        self.folds.ranges.truncate(write_index);
     }
 
     fn bump_revision(&mut self) {

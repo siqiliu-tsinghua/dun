@@ -7,8 +7,8 @@ pub mod file_text;
 pub mod workspace;
 
 pub use buffer::{
-    BufferError, BufferId, BufferKind, Cursor, EditTransaction, LineEnding, Position, SearchMatch,
-    SearchOptions, Selection, TextBuffer, TextEdit, TextRange,
+    BufferError, BufferId, BufferKind, Cursor, EditTransaction, FoldRange, FoldSet, LineEnding,
+    Position, SearchMatch, SearchOptions, Selection, TextBuffer, TextEdit, TextRange,
 };
 pub use command::{
     AppCommand, EditCommand, EditorCommand, FileCommand, PluginActionKind, WindowCommand,

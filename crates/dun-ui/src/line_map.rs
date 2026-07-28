@@ -1,44 +1,6 @@
-use dun_core::{Position, TextBuffer};
+use dun_core::{FoldRange, FoldSet, Position, TextBuffer};
 
 use crate::EditorTextDisplay;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FoldRange {
-    pub start_line: usize,
-    pub end_line_exclusive: usize,
-}
-
-impl FoldRange {
-    pub const fn new(start_line: usize, end_line_exclusive: usize) -> Self {
-        Self {
-            start_line,
-            end_line_exclusive,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct FoldSet {
-    ranges: Vec<FoldRange>,
-}
-
-impl FoldSet {
-    pub const fn empty() -> Self {
-        Self { ranges: Vec::new() }
-    }
-
-    pub fn new(ranges: Vec<FoldRange>) -> Option<Self> {
-        let valid = ranges.iter().enumerate().all(|(index, range)| {
-            range.start_line < range.end_line_exclusive
-                && (index == 0 || ranges[index - 1].end_line_exclusive <= range.start_line)
-        });
-        valid.then_some(Self { ranges })
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.ranges.is_empty()
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VisibleLine {
@@ -63,7 +25,7 @@ impl<'a> EditorLineDisplay<'a> {
         }
 
         self.folds
-            .ranges
+            .ranges()
             .iter()
             .filter_map(|range| self.clipped_range(*range))
             .fold(self.line_count, |count, range| {
@@ -87,7 +49,7 @@ impl<'a> EditorLineDisplay<'a> {
         let mut hidden_before = 0usize;
         for range in self
             .folds
-            .ranges
+            .ranges()
             .iter()
             .filter_map(|range| self.clipped_range(*range))
         {
@@ -120,7 +82,7 @@ impl<'a> EditorLineDisplay<'a> {
         let mut visible_row = 0usize;
         for range in self
             .folds
-            .ranges
+            .ranges()
             .iter()
             .filter_map(|range| self.clipped_range(*range))
         {

@@ -166,12 +166,55 @@ impl Default for SearchOptions {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FoldRange {
+    pub start_line: usize,
+    pub end_line_exclusive: usize,
+}
+
+impl FoldRange {
+    pub const fn new(start_line: usize, end_line_exclusive: usize) -> Self {
+        Self {
+            start_line,
+            end_line_exclusive,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FoldSet {
+    pub(super) ranges: Vec<FoldRange>,
+}
+
+impl FoldSet {
+    pub const fn empty() -> Self {
+        Self { ranges: Vec::new() }
+    }
+
+    pub fn new(ranges: Vec<FoldRange>) -> Option<Self> {
+        let valid = ranges.iter().enumerate().all(|(index, range)| {
+            range.end_line_exclusive.saturating_sub(range.start_line) >= 2
+                && (index == 0 || ranges[index - 1].end_line_exclusive <= range.start_line)
+        });
+        valid.then_some(Self { ranges })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ranges.is_empty()
+    }
+
+    pub fn ranges(&self) -> &[FoldRange] {
+        &self.ranges
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct TextBuffer {
     pub(super) kind: BufferKind,
     pub(super) lines: Vec<String>,
     pub(super) line_ending: LineEnding,
     pub(super) bookmarks: Vec<usize>,
+    pub(super) folds: FoldSet,
     pub(super) cursor: Cursor,
     pub(super) selection: Option<Selection>,
     pub(super) undo_stack: Vec<EditTransaction>,
@@ -190,6 +233,7 @@ impl PartialEq for TextBuffer {
             && self.lines == other.lines
             && self.line_ending == other.line_ending
             && self.bookmarks == other.bookmarks
+            && self.folds == other.folds
             && self.cursor == other.cursor
             && self.selection == other.selection
             && self.undo_stack == other.undo_stack

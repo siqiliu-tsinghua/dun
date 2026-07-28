@@ -262,6 +262,27 @@ impl TextBuffer {
                 *bookmark = range.start.line;
             }
         }
+        self.folds.ranges.retain_mut(|fold| {
+            if fold.end_line_exclusive <= range.start.line {
+                true
+            } else if fold.start_line >= range.start.line + removed {
+                if inserted >= removed {
+                    let shift = inserted - removed;
+                    fold.start_line += shift;
+                    fold.end_line_exclusive += shift;
+                } else {
+                    let shift = removed - inserted;
+                    fold.start_line -= shift;
+                    fold.end_line_exclusive -= shift;
+                }
+                true
+            } else {
+                // Rewritten lines no longer mean what the folded text meant,
+                // so retaining a range that touches them is worse than
+                // dropping it.
+                false
+            }
+        });
 
         self.lines
             .splice(range.start.line..=range.end.line, replacement);
@@ -269,6 +290,7 @@ impl TextBuffer {
             self.lines.push(String::new());
         }
         self.normalize_bookmarks();
+        self.normalize_folds();
 
         Ok(end_position_after_text(range.start, new_text))
     }

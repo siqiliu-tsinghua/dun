@@ -284,6 +284,8 @@ impl TextBuffer {
         // range start, then map them the same way the cursor and selection
         // below are mapped.
         let saved_bookmarks = std::mem::take(&mut self.bookmarks);
+        // Folds deliberately remain in place for the generic remap: any fold
+        // touching either swapped line has lost its meaning and is dropped.
         let replaced = self.replace_range_inner(range, &new_text);
         self.bookmarks = saved_bookmarks;
         replaced?;

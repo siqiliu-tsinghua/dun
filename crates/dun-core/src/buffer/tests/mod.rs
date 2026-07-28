@@ -1,6 +1,7 @@
 mod bookmarks;
 mod cursor;
 mod edit;
+mod folds;
 mod line_ops;
 mod model;
 mod search;
