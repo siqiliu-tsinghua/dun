@@ -129,7 +129,7 @@ overridden with `color.<role>` entries.
 Rust `1.85` or newer. No system dependencies.
 
 ```sh
-git clone <repository-url> dun
+git clone https://github.com/siqiliu-tsinghua/dun.git
 cd dun
 cargo build --release
 ```

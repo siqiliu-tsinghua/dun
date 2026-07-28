@@ -19,7 +19,7 @@ authors = ["Si-Qi Liu"]
 readme = "README.md"
 keywords = ["editor", "terminal", "tui", "ssh", "plugin"]
 categories = ["text-editors", "command-line-utilities"]
-# repository = "…"  # set when the public repository exists
+repository = "https://github.com/siqiliu-tsinghua/dun"
 
 [workspace.dependencies]
 dun-config = { path = "crates/dun-config" }
