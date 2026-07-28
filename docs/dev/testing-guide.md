@@ -258,7 +258,7 @@ image.
 
 ## Known per-platform quirks
 
-- **Do not enable VBoxService on the Solaris guest.** Its time sync *causes*
+- **Do not install the VirtualBox Guest Additions on the Solaris guest.** Its time sync *causes*
   clock drift there rather than correcting it: the same 90-second CPU load
   moves the clock by eleven seconds with VBoxService running and by less than
   0.15 s without it, and the drift reproduces on re-enabling. Solaris runs

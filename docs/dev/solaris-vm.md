@@ -119,11 +119,22 @@ platform).
 - There is no `/usr/bin/edit` on Solaris, so the Microsoft Edit tests skip
   cleanly (they gate on `microsoft_edit_on_path`).
 
-## Do not run VBoxService on this guest
+## Do not install the Guest Additions on this guest
 
 **The VirtualBox Guest Additions time sync is the cause of clock drift on this
-VM, not the cure.** Keep `svc:/application/virtualbox/vboxservice:default`
-**disabled** and let `ntpd` discipline the clock.
+VM, not the cure.** The package was removed on 2026-07-28
+(`pkgrm SUNWvboxguest`, which unloads both kernel modules without a reboot) and
+`ntpd` disciplines the clock. Do not reinstall it: nothing here uses shared
+folders, pointer integration, or host time sync, and its two modules are not
+signed by a certificate Solaris trusts, so each boot logged
+
+```
+WARNING: Signature verification of module /usr/kernel/drv/amd64/vboxms failed
+WARNING: Signature verification of module /usr/kernel/drv/amd64/vboxguest failed
+```
+
+which is noise — the modules loaded anyway — but noise that outlived its
+purpose once the service was disabled.
 
 Measured 2026-07-28, four trials of the same 90-second four-way CPU load, with
 the guest-versus-host offset sampled every 30 seconds afterwards:
@@ -173,6 +184,17 @@ This VM has `ntpd` configured against `pool.ntp.org` in `/etc/inet/ntp.conf`;
 the Solaris installer never asked, which is why it ran without any time
 discipline until 2026-07-28. Debian and FreeBSD were configured with NTP at
 install time and show no drift under the same load.
+
+**One thing remains unexplained, which is why `ntpd` stays on.** The offset
+that started this investigation was 41 seconds after 11 h 20 m of uptime, a
+rate of 0.10 %. The neither-daemon trial free-runs at 0.02 %, five times
+slower, which over that uptime would give about 8 seconds rather than 41. So
+the original offset is explained neither by load — that trial rules it out —
+nor by the free-running rate measured since. `tod_faulted` differed between the
+two observations (1 then, 5 now) and its meaning could not be resolved on this
+guest: the kernel CTF has no such type and Solaris ships no matching header. A
+longer free-run measurement would settle the rate question; nobody has needed
+the answer badly enough to tie up the VM for an hour.
 
 ## Working Conventions
 
