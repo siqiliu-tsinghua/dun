@@ -53,6 +53,29 @@ gitignored `vm-test/known_hosts` (accept-new) because every target shares
 destination can be overridden with `DUN_VM_TARGET` / `DUN_VM_PORT` /
 `DUN_VM_DEST`.
 
+## Idle CPU versus clock accuracy
+
+VirtualBox's "Default" paravirtualization interface resolves to `KVM` for a
+Linux guest (`Logs/VBox.log`, `GIM: Using provider`). That gives the guest a
+usable TSC — the interface reports the TSC frequency, so the kernel does not
+have to calibrate it — but on this host an **idle** Debian guest with it
+enabled burned close to a full core, against 3–15% for the FreeBSD and Solaris
+guests, which get `None`.
+
+If that matters to you, set the interface to **None**:
+
+```sh
+VBoxManage modifyvm "Debian 13.5" --paravirt-provider none
+```
+
+Idle host CPU for this guest dropped from 67–90% to 7–10%. The cost is the
+clock: without the interface the kernel's TSC calibration fails at boot
+(`tsc: Marking TSC unstable due to could not calculate TSC khz`) and it falls
+back to `acpi_pm`, which is far slower to read. `ntpd` keeps the time correct
+regardless, and nothing this VM is used for — release builds and the test
+suite — depends on cheap timestamp reads, so the trade is worth taking. The
+size measurements do not involve the clock at all.
+
 ## Working Conventions
 
 - Build from a clean `git archive` copy, not from a live checkout, so the
