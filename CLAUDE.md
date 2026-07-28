@@ -51,8 +51,8 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **706,748 bytes** (2026-07-28, `9d2ca10`, v0.1.0 sign-off).
-- Debian: **768,304 bytes** at `9d2ca10` — **binding platform**, margin
+- macOS: **706,748 bytes** (2026-07-28, tag `v0.1.0`).
+- Debian: **768,304 bytes** at tag `v0.1.0` — **binding platform**, margin
   280,272 bytes (2026-07-28, v0.1.0 sign-off, clean git archive).
   **No measurement debt.** The +4,096 over the previously recorded 764,208
   is not from the v0.1 wrap-up stage: `63088ff`, the tip before it began,

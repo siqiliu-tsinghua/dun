@@ -4,8 +4,15 @@
 
 | platform | commit | bytes | budget | margin |
 | --- | --- | --- | --- | --- |
-| macOS x86_64 | `9d2ca10` | 706,748 | 1,048,576 | 341,828 |
-| Debian x86_64 | `9d2ca10` | 768,304 | 1,048,576 | 280,272 |
+| macOS x86_64 | tag `v0.1.0` | 706,748 | 1,048,576 | 341,828 |
+| Debian x86_64 | tag `v0.1.0` | 768,304 | 1,048,576 | 280,272 |
+
+Measured at the tagged commit itself. The record names the tag rather than a
+SHA on purpose: a commit that writes down its own measurement cannot know its
+own hash, and chasing that tail produces one more unmeasured commit each time.
+Reproduce with `git checkout v0.1.0` and the repeat checklist below; the
+numbers held identical across `9d2ca10` and the documentation commits after
+it.
 
 Smoke on Debian: ELF 64-bit LSB pie, stripped; `ldd` unchanged at
 libgcc/libm/libc/ld-linux; `--version` prints `dun 0.1.0` and exits 0;
