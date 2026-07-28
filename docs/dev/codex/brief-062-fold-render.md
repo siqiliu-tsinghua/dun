@@ -72,9 +72,16 @@ right rather than reworking the plumbing.
 
 Files you MAY modify:
 
-- `crates/dun-cli/src/app/buffer_state.rs` — delete the `folds` field.
-- `crates/dun-cli/src/app/frame.rs`, `view_state.rs`, `buffer_viewport.rs` —
-  the sites that read `buffer.folds`; read `buffer.buffer.folds()` instead.
+- `crates/dun-cli/src/app/buffer_state.rs` — delete the `folds` field
+  (`buffer_state.rs:26`, initialised at `:44` and `:62`, read at `:101`).
+- Every remaining reader of that field, from a complete `grep -rn '\.folds\b'`
+  rather than from recollection — read `buffer.buffer.folds()` instead:
+  - `crates/dun-cli/src/app/frame.rs:24`
+  - `crates/dun-cli/src/app/view_state.rs:86`
+  - `crates/dun-cli/src/app/buffer_viewport.rs:666`, `:684`
+  - `crates/dun-cli/src/app/mouse.rs:223`, `:244`
+  - `crates/dun-cli/src/app/file_io.rs:235`
+  - `crates/dun-cli/src/help/status.rs:36`
 - `crates/dun-ui/src/frame/text.rs`, `gutter.rs`, `highlight.rs` — the
   placeholder row and its layers.
 - `crates/dun-ui/src/render/surface_window.rs` — only if layer ordering needs
