@@ -1,5 +1,34 @@
 # Release Size Audit
 
+## 2026-07-29 — folding complete
+
+| platform | commit | bytes | budget | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | `dbbed50` | 719,100 | 1,048,576 | 329,476 |
+| Debian x86_64 | `dbbed50` | 784,688 | 1,048,576 | 263,888 |
+
+Per-step attribution on the binding platform, measured commit by commit rather
+than as one lump:
+
+| Step | Commit | Bytes | Delta |
+| --- | --- | --- | --- |
+| 1 — line-level seam | `058447f` | 776,496 | +8,192 |
+| 2 — fold state and edit remap | `d7e91fb` | 780,592 | +4,096 |
+| 3 — placeholder rendering | `0c4e921` | 780,592 | **+0** |
+| 4 — commands and ten catalogs | `60bc2fa` | 784,688 | +4,096 |
+
+16,384 bytes for the whole feature, against the 32–64 KiB the plan in brief 058
+estimated. Step 3 is the interesting row: the entire placeholder — profile
+glyph, hidden-line count, sanitised excerpt, gutter aggregation and four layer
+rules — cost nothing, because it added branches to render paths that already
+existed rather than new ones. The same shape as the bookmark remap in
+`1d078cb`, which was also free.
+
+Reference measurements, **not** budget platforms — plain `cargo build --release`
+with no build-std, on rust 1.96 and 1.87 rather than the 1.85 baseline, so they
+are not comparable to the two rows above: FreeBSD 1,026,240, Solaris 1,284,032.
+Their purpose is proving the tree builds and passes there, not size.
+
 ## 2026-07-28 — folding step 1 (line-level seam)
 
 | platform | commit | bytes | vs v0.1.0 | margin |
