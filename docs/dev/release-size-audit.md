@@ -2,6 +2,12 @@
 
 ## 2026-07-29 — folding complete
 
+Four-platform functional matrix at `dbbed50`: **906 passed / 0 failed** on
+macOS, Debian, FreeBSD and Solaris, including the tmux-backed grid suites, so
+the placeholder row, gutter aggregation and layer rules render identically on
+all four.
+
+
 | platform | commit | bytes | budget | margin |
 | --- | --- | --- | --- | --- |
 | macOS x86_64 | `dbbed50` | 719,100 | 1,048,576 | 329,476 |
