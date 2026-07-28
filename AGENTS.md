@@ -144,17 +144,23 @@ part of the product:
 Use a `TerminalProfile`-style abstraction before exposing terminal capability
 checks to the rest of the UI.
 
-## Current Build Stage
+## Crate Boundaries
 
-The repository is a Rust workspace. Keep crate boundaries aligned with
-[docs/dev/crate-map.md](./docs/dev/crate-map.md). The first implementation line should
-establish:
+The repository is a Rust workspace of six crates. Keep the boundaries aligned
+with [docs/dev/crate-map.md](./docs/dev/crate-map.md); the direction of
+dependency is the invariant, not the file layout:
 
-- core editor types independent of `ratatui`;
-- a command model;
-- terminal profile detection;
-- minimal TUI shell;
-- tests for core buffer and command behavior.
+- `dun-core` owns editor state and the typed command model, and knows nothing
+  about terminals, rendering, or configuration;
+- `dun-term` owns capability profiles, glyph fallback, and themes;
+- `dun-config` owns the typed config, keymap, and command-id parsing;
+- `dun-ui` owns the backend-neutral frame model and renders it onto the
+  in-house `Surface` grid — there is no third-party TUI framework in the tree;
+- `dun-plugin` owns the protocol client and its validators;
+- `dun-cli` owns process lifecycle, terminal I/O, the event loop, and command
+  application.
 
-Do not start with plugin runtime integration. Start with seams that allow a
-future runtime adapter.
+Rendering and terminal I/O are both in-house: `ratatui` was retired at
+`858e876` and `crossterm` at `877b7ad`. Do not reintroduce a framework
+dependency to solve a rendering or input problem without a size measurement and
+an explicit decision.

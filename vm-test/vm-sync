@@ -13,7 +13,7 @@
 # A leading `-t NAME` / `--target NAME` (or DUN_VM_TARGET) picks the VM;
 # default is debian. Known targets: debian (2222), freebsd (2233).
 # Prints the remote directory on success. Clean up remote directories after
-# recording results (docs/debian-vm.md, docs/freebsd-vm.md).
+# recording results (docs/dev/debian-vm.md, docs/dev/freebsd-vm.md).
 set -euo pipefail
 
 if [ "${1:-}" = "-t" ] || [ "${1:-}" = "--target" ]; then

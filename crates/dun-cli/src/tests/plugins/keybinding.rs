@@ -1,7 +1,7 @@
 //! Keybinding contribution: the reserved leader and chord claims.
 //!
 //! Split out of `tests/plugins.rs` when it passed the 45k test-file debt
-//! threshold in docs/code-organization-guidelines.md. Tests moved verbatim;
+//! threshold in docs/dev/code-organization-guidelines.md. Tests moved verbatim;
 //! shared helpers stay in the parent module.
 
 use super::*;

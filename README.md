@@ -1,420 +1,161 @@
 # dun
 
-`dun` is a planned terminal text editor for remote operations work: SSH into a
-Linux or macOS host, inspect and edit text files, and keep working even on
-conservative terminal setups.
+A terminal text editor for remote operations work. SSH into a host, read and
+edit files, capture command output, and keep working on terminals that are
+older, narrower, or more conservative than your laptop's.
 
-The intended UI is a `ratatui`-based TUI with a restrained, keyboard-first
-style inspired by classic editor interfaces such as `msedit`.
+`dun` is a single binary with no runtime to install beside it, a keyboard-first
+interface in the lineage of Microsoft Edit and Turbo Vision, and a hard rule
+that it stays under 1 MiB.
 
-## Status
+<!-- Gallery screenshot goes here once docs/images/ is curated (stage A5). -->
 
-This repository now has a Rust workspace baseline with the first pure editor
-core, terminal profile/theme layer, typed configuration/keymap layer,
-backend-neutral UI model, and a minimal runnable `ratatui` shell.
-The top menu is grouped into Microsoft Edit-style File/Edit/View/Help menus,
-with dropdown entries backed by the same typed command model as keybindings.
-When the active keymap does not consume them, `Alt+F`, `Alt+E`, `Alt+V`, and
-`Alt+H` open those menus; arrow keys move through an open menu, `Enter`
-executes the selected item, and `Esc` closes it. Long dropdowns scroll on
-short terminals so the selected entry remains visible, with overflow
-indicators and matching mouse hit testing.
-The default `dun` theme takes its name literally: *dun* is the dull greyish-
-brown of a horse's coat, so the palette is pale sand text and a buckskin accent
-on deep shadow. (xterm-256 has no dark brown at all -- the color cube steps each
-channel 0 -> 95 with nothing between -- so the warmth is carried by the ink
-rather than the ground.) It is built as a landscape: the menu bar at the top of
-the screen is sky with cloud-white labels, the status bar at the bottom is the
-buckskin earth, and an unfocused window recedes into cool haze while the focused
-one stands in sunlight -- so the warm/cool split carries the focus state rather
-than merely decorating.
-
-The other selectable builtins are `msedit` (a Microsoft Edit-style blue
-chrome with green active labels, gray dropdown/modal panels, a compact bracket
-status bar, and a muted current-line highlight), `dark` (a neutral dark scheme
-with a cool cyan accent), and `turbo` (the classic Borland Turbo Vision
-deep-blue look, pinned to fixed 256-color indices so it does not inherit the
-terminal's own ANSI palette). Select one with `theme = <name>` in the config,
-and override individual palette colors on top of it with `color.<role>` entries
-(see [docs/configuration.md](docs/configuration.md)).
-
-Each theme also carries 16-color and monochrome variants. Those are not
-selected by name — they are reached by capability fallback, either detected or
-forced with `terminal.colors = 16 | mono` (or `NO_COLOR`). The monochrome
-variant emits no color at all, only bold/underline/reverse.
-It can open valid UTF-8 file paths supplied on the command line and save the
-focused buffer back to that path through a same-directory temp file and atomic
-rename. Stale atomic-save temp files are cleaned up, while newer recovery
-candidates are preserved and reported. Invalid UTF-8 files open as read-only
-escaped fallback buffers instead of being decoded lossy. Opened buffers track a
-file-text encoding state: UTF-8 files are editable and save-safe, while
-non-UTF-8 byte streams are shown as escaped bytes, marked read-only, and
-blocked from Save/Save As.
-Editable file loading enforces the configured soft limit before reading large
-files into memory; the default editable limit is 16 MiB. If a file changes,
-disappears, or is replaced while being read, Open rejects the unstable snapshot
-and asks the user to retry.
-Opened file buffers retain a verified metadata snapshot. Normal Save refuses
-to overwrite when the path has changed or disappeared on disk; Reload refreshes
-the focused file buffer from disk when the user explicitly chooses to discard
-the in-memory state.
-Ignored release-mode performance baselines cover large-file open/search/scroll
-and visible-window rendering.
-Open, Save, and Save As failures include the relevant path and normalized
-diagnostics for common cases such as missing files, directories, missing parent
-directories, permission denial, and read-only destinations.
-Open and Save As now use larger modal file dialogs with a path input, directory
-match list, Up/Down and PageUp/PageDown selection, directory navigation, Tab
-path completion, a parent-directory entry, hidden-file filtering with `Ctrl+H`
-toggle, Home/End/Left/Right/Delete path editing, empty/no-match diagnostics,
-visible list overflow indicators, and mouse-wheel list scrolling when mouse
-support is enabled. File-dialog modal keys have their own typed config
-bindings. Open/Save As errors remain inside the dialog for correction,
-successful dialogs remember the last directory for the session, and Save As
-asks for a second Enter before overwriting an existing file.
-Lightweight modal prompts remain available for Find, Replace, and Go To Line
-entry, with Left/Right/Home/End/Delete/Backspace editing at UTF-8 character
-boundaries. Find previews matches while typing, supports next/previous
-navigation and selected match highlighting, accepts `/i`, `/w`, and `/iw`
-prefixes for ignore-case and whole-word search, and the focused status area
-reports the active match count. Interactive Replace uses the same search
-prefixes, previews the query, then uses a confirmation modal for replace, skip,
-replace-all, or cancel. The command prompt still offers direct
-`replace QUERY TEXT` and `replace all QUERY TEXT`, and Go To Line moves the
-cursor by 1-based line number.
-The editor surface includes a line-number gutter plus focused buffer name,
-dirty/read-only markers, and status fields for position, total lines,
-selection, active search count, visible scroll range, horizontal scroll offset,
-line ending, file-text encoding, terminal profile, and focused window index.
-It also includes a lightweight buffer switcher for open tiled buffers, line
-commands for copy/delete/move/indent/outdent/trim, and a display-layer
-word-wrap toggle. Per-line bookmarks (`Ctrl+X,K` toggle, `Ctrl+X,N`/`Ctrl+X,L`
-next/previous) show a `*` gutter marker and a `[Mark]` status field, and
-visible-whitespace markers (`Ctrl+X,.`) render spaces, tabs, and line ends as
-display-only glyphs; both are per-buffer view state that never change the
-file. In word-wrap mode, scrolling, cursor visibility, selection
-highlights, search-match highlights, gutters, and scrollbars operate on
-wrapped visual rows instead of only whole logical lines.
-Keyboard selection supports `Shift+Arrow` and `Shift+Home/End` when those
-strokes are not consumed by the configured keymap, and `Ctrl+L` selects the
-current line, giving Cut/Copy a pure keyboard path without requiring mouse
-support. PageUp/PageDown — and `Ctrl+F`/`Ctrl+B` for keyboards without those
-keys — move by the visible pane height, using wrapped visual rows when
-word-wrap is active, and `Ctrl+Home/End` jump to document start/end. `Ctrl+W`
-opens Find. `Ctrl+Left/Right`
-move by UTF-8-safe word boundaries, `Ctrl+Backspace/Delete` delete by word, and
-`Ctrl+Shift+Left/Right` extends selection by word when the terminal delivers
-those modifiers. `Shift+PageUp` and `Shift+PageDown` extend selection by the
-visible pane height.
-Undo groups continuous ordinary character typing and continuous same-direction
-Backspace/Delete runs into transactions, while cursor movement, selection
-changes, replace, newline, paste-like bulk insertion, undo, and redo keep clear
-transaction boundaries. Undo and redo commands report visible status for
-successful actions and empty stacks.
-On narrow panes, the gutter is dropped before it consumes the editable body,
-pane titles/status fields are clipped by terminal display width, and long lines
-scroll horizontally to keep the focused cursor visible. `edit.scroll_left` and
-`edit.scroll_right` provide explicit viewport movement, and long buffers show a
-lightweight right-border scrollbar thumb. Horizontally clipped lines show
-small edge indicators at the body boundary.
-Buffer text, pane titles, and status fields are sanitized before rendering so
-file content and file names cannot emit terminal control sequences. That
-includes the Unicode bidirectional formatting characters, which are not control
-characters and so slip past a naive filter: a right-to-left override makes
-rendered text read in an order the bytes do not have, which in an editor is the
-Trojan Source attack (CVE-2021-42574) -- a reviewer trusting their eyes sees
-code that is not the code that will run -- and in the Open dialog disguises a
-file name. They are shown as `<U+202E>` and the like instead, as are the zero-width format
-characters -- a zero-width space inside an identifier makes `ad<U+200B>min` read
-as `admin`, and the Unicode tag block encodes arbitrary ASCII in characters that
-draw nothing at all. `vim` does the same, and the cost is the same: a ZWJ emoji
-sequence renders as its parts (`family <family emoji parts><U+200D>...`). For an
-editor whose job is to show you the bytes, that is the correct answer rather
-than a regression. Combining marks are left alone: they modify a base glyph the
-reader can see, so they are ordinary text, not a disguise.
-The host-neutral plugin protocol client is wired into the editor: hosts
-configured through `plugin.<id>.*` keys are launched as child processes on a
-worker thread (never blocking the event loop), and a `syntax-highlight` role
-host returns style spans that are validated, revision-guarded, and rendered
-through the theme's syntax palette; host failures surface as bounded status
-messages without touching editor state. Reference host implementations in
-Rust (syntect), Python (Pygments), and dependency-free Lua live in
-[hosts/](./hosts/) with a language-agnostic conformance checker.
-
-The configured highlight host launches lazily on its first job. In the command
-prompt, `plugin` reports its state, `plugin unload` stops it and suppresses
-relaunches to free memory, and `plugin load` re-enables lazy launch on the next
-edit.
-
-By default, `F1` opens a read-only Help window with the active configured key
-reference, and `F2` opens a read-only Status History window with recent status
-and error messages. `F5` reloads the active configuration without restarting
-the editor, `F6` opens Config Diagnostics with source, terminal, clipboard,
-limit, keymap, and important-unbound-command summaries. The command prompt can
-jump directly to diagnostics sections such as `config keymap` or
-`diagnostics limits`. `reloadfile` explicitly reloads the focused file buffer
-from disk after any dirty-buffer confirmation. After a Find, `results` opens
-a read-only match list and `results N` jumps back to that match. In Search
-Results, `n`/`p` move between listed entries, `Home`/`End` jump to the first
-or last entry, and `Enter` jumps back to the selected source location. The
-built-in Outline pane was removed in the 2026-07 slimming stage; document
-structure listing is planned to return as a plugin role.
-`Ctrl+P` opens a command prompt for actions such as `help`, `config`,
-`reload-config`, `theme`, `open`, `save`, `quit`, and full command ids such as
-`window.split_horizontal`; Tab completes built-in command families, cycles
-ambiguous candidates, shows ambiguous completion candidates in the prompt
-overlay, and completes path arguments for commands such as `open` and
-`save-as`.
-`Ctrl+X,S` performs a Turbo Pascal-style shell escape: `dun` suspends the TUI,
-restores the normal terminal, runs the user's shell, then resumes and redraws
-after the shell exits. `Ctrl+X,O` opens a Run Command prompt for one-shot
-non-interactive commands; stdout and stderr are captured with bounded memory
-and a configurable timeout (`limits.run_command_timeout_ms`, default 30s)
-after which the process is killed,
-decoded through the same safe display path as files, and shown in a read-only
-Command Output window with per-stream byte counts and truncation status. The
-Run Command prompt keeps its own bounded history, separate from the editor
-command prompt. The advanced Command Output command family (in-pane search,
-section/body jumps, stdout/stderr-only derived panes, and dedicated
-copy/save/clear commands) was removed in the 2026-07 slimming stage; the pane
-remains a normal read-only buffer, so ordinary selection, copy, and Find work
-inside it.
-Tiling defaults use `Ctrl+X,H`/`Ctrl+X,V` to split, `Ctrl+X,Arrow` to move
-focus, and `Ctrl+X,Shift+Arrow` to resize. `Alt+Arrow` and
-`Alt+Shift+Arrow` remain compatibility aliases for terminals that deliver
-Option/Meta keys, but the primary path does not depend on macOS Command, Fn,
-or Option-key terminal settings.
-The command prompt keeps a bounded in-memory history navigated with Up/Down.
-Dirty buffers are protected by a status-line confirmation before quit, new,
-open, or close would discard changes.
-Cut, Copy, and Paste are implemented with a process-local internal clipboard:
-they operate on the active selection and still use the normal buffer edit path
-so read-only buffers reject mutation. External copy is available only through
-the explicit `edit.copy_external` command and opt-in `clipboard.osc52.enabled`
-configuration; it emits a bounded OSC 52 clipboard sequence and always keeps
-the same text in the internal clipboard as fallback.
-External paste is a separate `edit.paste_external` command (default
-`Ctrl+X,Ctrl+V`) and requires its own `clipboard.osc52.allow_read` opt-in;
-enabling OSC 52 writes does not authorize reads. It waits at most 500 ms for a
-bounded terminal response, pastes valid nonempty text through the normal edit
-path, treats a valid empty response as an empty terminal clipboard, and falls
-back once to the internal clipboard when the response is missing or malformed.
-Terminal bracketed paste is enabled during the TUI session and restored on
-exit. Paste text is treated as untrusted input: editor paste goes through the
-normal buffer insertion path, prompt and file-dialog paste is kept single-line
-and never auto-submits, and confirmation prompts ignore paste. Right-click
-paste only waits for the terminal to deliver bracketed paste data; `dun` does
-not call external clipboard commands.
-Mouse support is optional and disabled by default; when enabled in config,
-left-clicks can focus tiled windows, place the cursor in an editor body, drag
-text selections including edge scrolling, drag split borders, open top-menu
-dropdowns, and click
-submenu commands. Mouse wheel events scroll editor panes and file dialog lists,
-right-border scrollbar clicks or drags scroll long editor buffers, and
-terminals that deliver horizontal wheel events can scroll the focused editor
-viewport left/right.
-File dialog list clicks enter directories, open selected files from Open, and
-update the Save As path input without immediately saving.
-The external SSH and low-capability terminal release matrix is documented in
-[docs/dev/terminal-compatibility-checks.md](./docs/dev/terminal-compatibility-checks.md);
-the local PTY harness covers common terminal profiles, small VT100-style
-fallback, terminal escape payloads, invalid-byte fallback files, and
-event-level coverage for the in-house VT parser's common modified keys.
-External host results still need to be recorded before a tagged release.
-Lightweight Microsoft Edit reference tests check the local `edit --help`
-contract when available and statically scan `reference/msedit` source for menu,
-status bar, color, and terminal setup reference markers.
-
-## CLI Usage
-
-```text
-dun [OPTIONS] [--] [PATH]
+```sh
+cargo build --release
+./target/release/dun notes.txt
 ```
 
-Supported options are `--help`/`-h`, `--version`/`-V`, `--config PATH`,
-`--dump-config`, and `--no-config`. `dun` exits with `0` for
-success/help/version/default-config output, `1` for runtime or file I/O
-errors, and `2` for command-line usage errors.
+New here? Start with the **[User Guide](docs/user-guide.md)**.
 
-The current baseline decisions are:
+## Why another editor
 
-- Rust `1.85` is the target toolchain.
-- Linux and macOS terminals are the primary platforms.
-- SSH and server-side troubleshooting are primary use cases.
-- UTF-8 and 256 colors are the default rendering target.
-- 16-color, low-capability, and ASCII-only fallback modes are required.
-- The first usable version is a Microsoft Edit-like text editor, not the full
-  log/plugin product.
-- The final v0.1 release executable must be no larger than 1 MiB on both
-  audited macOS and Debian builds; the budget build is
-  `scripts/release-build.sh` (build-std contract). See
-  [docs/dev/feature-budget.md](./docs/dev/feature-budget.md).
-- The plugin system is protocol-first. The `dun` protocol client is required
-  core infrastructure, while `rum` is a future optional pure-sandbox host.
+Editing over SSH is its own problem. The terminal on the other end may not
+speak 256 colors, may render box drawing at the wrong width, may swallow
+`Alt`, and may be reached through a KVM that mangles modifiers. The file you
+are editing may be a log full of escape sequences, or not be UTF-8 at all. A
+half-written save may be the outage.
 
-## Product Goal
+`dun` treats those as the primary case rather than the degraded one:
 
-The first product line should make the common remote editing loop fast:
+- **It fits in the places you have to work.** The release binary is 760 KB on
+  Debian x86-64 and 707 KB on macOS, against a hard 1 MiB budget that every
+  change is measured against. Copy one file to the host and you are done.
+- **It degrades on purpose.** Each theme carries 256-color, 16-color, and
+  monochrome variants, reached by capability detection or forced by config.
+  Box drawing falls back to ASCII. Ambiguous-width glyphs are probed at
+  startup, so a `tmux` that draws `◆` double-wide does not shift the layout.
+  Every `Alt` binding has a `Ctrl+X` chord that always arrives.
+- **It will not corrupt your file.** Saves go through a same-directory
+  temporary file and an atomic rename. A file that changed on disk since it
+  was opened is not silently overwritten. A file that is not valid UTF-8 opens
+  read-only and escaped rather than being decoded lossily.
+- **It will not let a file reprogram your terminal.** Buffer text, file names,
+  and status fields are sanitized before rendering — including the Unicode
+  bidirectional overrides behind Trojan Source (CVE-2021-42574) and the
+  zero-width and tag characters that hide text inside identifiers. They render
+  as `<U+202E>` rather than acting.
 
-1. Open a text file or start an untitled buffer.
-2. Navigate and edit safely over SSH.
-3. Search and replace.
-4. Split the workspace when comparing files.
-5. Switch between open buffers and reload changed files deliberately.
-6. Temporarily drop to a shell or capture one-shot command output.
-7. Save with predictable host-owned file I/O.
+## What it does
 
-The long-term plugin story is still aimed at operational filters: operators
-should be able to write concise rule-style filters for custom logs. The
-protocol can be tested with trusted external fixture hosts first; the strong
-third-party safety claim waits for a pure-sandbox host such as future `rum`.
+A tiling workspace, not tabs: split with `Ctrl+X,H` / `Ctrl+X,V`, move focus
+with `Ctrl+X,←→↑↓`, and compare two files or two parts of one file side by
+side. Buffers are shared, so the same file can be open in several windows.
 
-## Non-Goals
+Ordinary editing with the expected shape — undo grouped into sensible
+transactions, word-wise movement and deletion, selection by keyboard,
+line operations, bookmarks, visible whitespace, word wrap that scrolls and
+selects by visual row.
 
-For the initial line, `dun` is not:
+Find and replace with `/i`, `/c`, `/w` flags, live match preview, an
+interactive replace, a `replace all` that lands in one undo transaction, and a
+read-only Search Results list you can jump from.
 
-- a GUI editor;
-- a full IDE;
-- a native dynamic-library plugin host;
-- a shell automation environment;
-- an embedded terminal emulator;
-- a replacement for `less`, `vim`, or `emacs` in every workflow.
-- a log-analysis engine in the first usable version.
+`Ctrl+X,S` suspends to a shell, Turbo Pascal style. `Ctrl+X,O` runs one command
+and captures stdout and stderr into a read-only pane with a byte cap and a
+timeout — useful for pulling a log into the editor without leaving it.
 
-## Architecture Sketch
+`Ctrl+P` opens a command prompt with Tab completion over every one of the 91
+command ids, so anything bindable is also runnable by name.
 
-The current codebase is a Cargo workspace with these boundaries:
+Ten interface languages ship as external catalogs — `de`, `es`, `fr`, `it`,
+`ja`, `ko`, `pt`, `ru`, `zh-Hans`, `zh-Hant` — with English compiled in as the
+fallback. They cost the binary nothing.
 
-- `dun-core`: buffers, cursors, selections, undo/redo, edits, search, and
-  tiled workspace state.
-- `dun-term`: terminal capability detection, color profile, glyph profile, and
-  theme selection.
-- `dun-config`: typed configuration defaults, key sequences, command ids, and
-  validation.
-- `dun-ui`: `ratatui` views, menus, status lines, layout, sanitization, cursor
-  placement, and lightweight tiled-window rendering.
-- `dun-cli`: terminal lifecycle, Unix sys shim, platform-neutral VT I/O,
-  SIGWINCH-aware event reading, key input routing, and command application.
+## Plugins
 
-Plugin protocol support is planned before `rum` integration:
+Plugins are **separate programs**, not shared libraries. `dun` launches a host
+and speaks a small JSON protocol over its stdin and stdout; the host never
+enters the editor's address space and reaches only what the protocol exposes. A
+plugin declares *roles*, and a role is a named bundle of capabilities: what it
+may read, what it may draw into, whether it may contribute a menu or own a
+window. The trust class in your config decides which roles may be granted at
+all, every result is validated before it is applied, and a host that hangs,
+crashes, or returns nonsense is dropped with a status message.
 
-- `dun-plugin-api` or an equivalent crate/module: host-neutral protocol
-  messages, roles, policies, input snapshots, output intents, and validation.
-- `dun-plugin-rum`: future pure `rum` host adapter, optional and separately
-  sized.
+Reference hosts live in [hosts/](hosts/): syntax highlighting via syntect
+(Rust), Pygments (Python), and a dependency-free Lua host, plus log-filter
+hosts in Python and Lua. Installing one is unpacking a folder; a plugin's own
+settings live with the plugin, not in `dun`'s config.
 
-The default editor line should stay small and pure Rust. Current size audit
-results put size-oriented `dun` binaries around 0.8-1.0 MiB on macOS/Debian,
-with empty-startup RSS in the low-megabyte range on the audited macOS and
-Debian hosts, while `rum` is currently treated as an approximately 6 MiB
-runtime dependency. That makes `rum` valuable but too large for the default
-editor executable. The required plugin protocol client must fit inside the
-1 MiB `dun` budget; if it causes a budget failure, optional editor features are
-trimmed before the protocol client. External hosts, including future
-`dun-rum-host`, are separate optional artifacts.
+- Writing one: [docs/plugin-authoring.md](docs/plugin-authoring.md)
+- The wire protocol: [docs/plugin-protocol.md](docs/plugin-protocol.md)
 
-## Plugin Boundary
+## Themes
 
-The safety boundary is intentionally host-owned.
+The default `dun` theme takes its name literally: *dun* is the dull greyish-
+brown of a horse's coat, so the palette is pale sand text and a buckskin accent
+on deep shadow. (xterm-256 has no dark brown at all — the color cube steps each
+channel 0 → 95 with nothing between — so the warmth is carried by the ink
+rather than the ground.) It is built as a landscape: the menu bar is sky with
+cloud-white labels, the status bar is the buckskin earth, and an unfocused
+window recedes into cool haze while the focused one stands in sunlight, so the
+warm/cool split carries focus rather than merely decorating.
 
-Plugins speak the Dun Plugin Protocol over framed stdio. They receive bounded
-input snapshots from `dun` and return structured data or command intents.
-`dun` validates those results against the plugin role and policy, then performs
-any actual editor action itself.
+Also built in: `msedit` (Microsoft Edit blue chrome), `dark` (neutral, cyan
+accent), and `turbo` (Borland Turbo Vision, pinned to fixed 256-color indices
+so it does not inherit the terminal's palette). Any individual color can be
+overridden with `color.<role>` entries.
 
-Protocol compatibility is not a sandbox. A future pure `rum` host can provide
-the strong untrusted-third-party safety claim because it should have no file,
-process, network, terminal, environment, or editor-state side effects. Python,
-shell, Rust, or other external hosts are useful for tests and local workflows,
-but they are user-trusted unless an OS sandbox is added outside `dun`.
+## Installing
 
-Invariants:
+Rust `1.85` or newer. No system dependencies.
 
-- untrusted plugins do not perform file I/O;
-- untrusted plugins do not perform process or network I/O;
-- untrusted plugins do not directly mutate editor state;
-- untrusted plugins do not directly write terminal output;
-- file operations are always performed by `dun` core code;
-- plugin output is intent, not authority.
+```sh
+git clone <repository-url> dun
+cd dun
+cargo build --release
+```
 
-See [AUDIT.md](./docs/dev/AUDIT.md) and
-[docs/plugin-protocol.md](./docs/plugin-protocol.md) for the security model
-and protocol boundary.
+`scripts/release-build.sh` produces the smaller binary the size budget is
+measured against, by rebuilding the standard library; it needs the `rust-src`
+component. The ordinary `cargo build --release` is what most people want.
 
-## Terminal Compatibility
+Supported platforms: Linux, macOS, FreeBSD, and Solaris on x86-64. The test
+suite runs on all four.
 
-Rendering must go through an explicit terminal profile:
+## Documentation
 
-- encoding: UTF-8 or ASCII;
-- colors: 256-color, 16-color, mono, and later truecolor if useful;
-- glyphs: Unicode or ASCII;
-- capabilities: conservative assumptions for low-end `TERM` values.
+**For users and plugin authors**
 
-The UI must not assume Nerd Fonts, truecolor, enabled mouse support, or Unicode
-line drawing. For 16-color profiles, the terminal output path rewrites
-palette SGR sequences into legacy 16-color SGR forms instead of emitting
-256-color-style `38;5;n` or `48;5;n` controls.
+- [docs/user-guide.md](docs/user-guide.md) — installing, editing, windows,
+  search, running commands, clipboard over SSH, terminal fallbacks, languages,
+  troubleshooting.
+- [docs/configuration.md](docs/configuration.md) — every configuration key.
+- [docs/plugin-authoring.md](docs/plugin-authoring.md) — writing a plugin host.
+- [docs/plugin-protocol.md](docs/plugin-protocol.md) — the protocol
+  specification: transport, trust classes, capability model.
+- [docs/i18n.md](docs/i18n.md) — how translation works, and how to contribute
+  or correct a catalog.
 
-## UI Languages
+**For contributors**
 
-The whole UI is translatable — menus, help, dialogs and status messages.
-English is compiled in and always works with no extra files; other languages
-load at runtime from `i18n/<tag>.conf` resource files next to the user's config
-file, selected by the locale environment (`LC_ALL`/`LC_MESSAGES`/`LANG`).
+- [AGENTS.md](AGENTS.md) — contribution rules and project invariants. Read this
+  before changing behavior.
+- [CLAUDE.md](CLAUDE.md) — orientation and the live working plan.
+- [docs/dev/](docs/dev/) — architecture, the size budget and its measurements,
+  the test harness and its VMs, terminal compatibility, and the development
+  record.
 
-Ten reference translations ship in [i18n/](./i18n/): Simplified and Traditional
-Chinese, French, German, Italian, Spanish, Portuguese, Russian, Japanese and
-Korean. They cost the binary nothing — they are files, not code.
+## Design boundaries
 
-Menu mnemonics and key names stay English in every language, so keyboard
-navigation never changes; anything a user has to type back (command ids, theme
-names, config tokens) stays English too. The nine non-Chinese files are
-machine-translated and not yet reviewed by native speakers; corrections are
-welcome. See [docs/i18n.md](./docs/i18n.md) for the design, the safety rules,
-and what a translation must satisfy.
+`dun` is not a GUI editor, an IDE, a native dynamic-library plugin host, a
+shell automation environment, an embedded terminal emulator, or a log-analysis
+engine. It does not aim to replace `vim`, `emacs`, or `less` in every workflow.
 
-## Development Documents
+The 1 MiB budget is the binding constraint behind most of these lines. Features
+are admitted or removed against measured bytes; the rationale for what was cut
+and why is recorded in [docs/dev/feature-triage.md](docs/dev/feature-triage.md).
 
-- [AGENTS.md](./AGENTS.md): instructions for coding agents and contributors.
-- [PLAN.md](./docs/dev/PLAN.md): architecture and staged delivery plan.
-- [TODO.md](./TODO.md): active and near-term task list.
-- [PROGRESS.md](./docs/dev/PROGRESS.md): append-only progress log.
-- [AUDIT.md](./docs/dev/AUDIT.md): security boundary and audit checklist.
-- [docs/dev/msedit-reference.md](./docs/dev/msedit-reference.md): local notes from
-  studying Microsoft Edit as a visual and interaction reference.
-- [docs/dev/window-management.md](./docs/dev/window-management.md): lightweight
-  tiling-window workspace model inspired by `tmux`/`i3`/`awesome`.
-- [docs/dev/editor-baseline.md](./docs/dev/editor-baseline.md): first-version product
-  decisions around encoding, large files, theme, keybindings, mouse, and log
-  deferral.
-- [docs/dev/terminal-compatibility-checks.md](./docs/dev/terminal-compatibility-checks.md):
-  PTY smoke coverage and manual SSH terminal compatibility checklist.
-- [docs/dev/performance-baselines.md](./docs/dev/performance-baselines.md): ignored
-  large-file performance baseline tests and current local sample output.
-- [docs/dev/release-size-audit.md](./docs/dev/release-size-audit.md): lightweight
-  release binary size baseline for macOS and Debian builds.
-- [docs/dev/debian-vm.md](./docs/dev/debian-vm.md): Debian measurement VM connection
-  details and working conventions.
-- [docs/dev/feature-budget.md](./docs/dev/feature-budget.md): hard v0.1 runtime size
-  gate, required feature set, and optional feature trim order.
-- [docs/dev/feature-triage.md](./docs/dev/feature-triage.md): working inventory and
-  A/B/C/D classification for the v0.1 slimming stage.
-- [docs/i18n.md](./docs/i18n.md): UI text translation design and translator
-  guide.
-- [docs/plugin-protocol.md](./docs/plugin-protocol.md): host-neutral plugin
-  protocol, trust classes, role policy, and completion criteria.
-- [docs/dev/runtime-resource-audit.md](./docs/dev/runtime-resource-audit.md):
-  lightweight startup and RSS baselines for macOS and Debian builds.
-- [docs/dev/release-smoke-checklist.md](./docs/dev/release-smoke-checklist.md):
-  bounded automated and release-signoff checks for release candidates.
-- [docs/dev/dependency-audit.md](./docs/dev/dependency-audit.md): dependency shape,
-  feature policy, and repeat checklist for keeping the default build small.
-- [docs/dev/code-organization-guidelines.md](./docs/dev/code-organization-guidelines.md):
-  safe Rust policy, file-size thresholds, module split rules, and directory
-  organization guidance.
-- [docs/dev/file-splitting-plan.md](./docs/dev/file-splitting-plan.md): staged,
-  test-gated plan for splitting the current oversized Rust source files.
-- [docs/configuration.md](./docs/configuration.md): current Rust-owned config
-  file loader and supported keys.
-- [docs/dev/crate-map.md](./docs/dev/crate-map.md): current Rust workspace crate
-  boundaries and dependency rules.
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Launch dun deterministically for the real-terminal acceptance checklist and
-# the gallery-screenshot pass (docs/real-terminal-acceptance.md).
+# the gallery-screenshot pass (docs/dev/real-terminal-acceptance.md).
 #
 # It writes a throwaway config to a scratch dir and points dun at it with
 # DUN_CONFIG, so your real ~/.config/dun is never touched. It opens the

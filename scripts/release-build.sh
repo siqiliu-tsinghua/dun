@@ -4,7 +4,7 @@
 # Rebuilds std with the workspace release profile and NO default std
 # features: panic-backtrace symbolization (gimli/addr2line/rustc_demangle)
 # drops out of the binary while panic hooks and panic messages keep working
-# (verified by experiment; see docs/release-size-audit.md 2026-07-10).
+# (verified by experiment; see docs/dev/release-size-audit.md 2026-07-10).
 #
 # RUSTC_BOOTSTRAP=1 unlocks -Z flags on the stable toolchain — the compiler
 # itself stays the pinned stable 1.85 (the pattern microsoft/edit's README

@@ -66,8 +66,9 @@ rejected rather than silently ignored.
 | `acceptance/gallery-open.sh EMU R C -- ARGS` | opens that in `kitty`, `iterm` or `terminal`. kitty takes a command directly; the other two only accept a **script file** via `open -a`, so the args are baked into a generated `.command` wrapper (which also `cd`s to the repo, since those two run a `.command` from the user's home). |
 | `acceptance/sweep-menus.sh` | headless: opens each top-level menu in each shipped language, saves the 80×24 grid. |
 | `acceptance/sweep-states.sh` | headless: opens every dialog and editor state (via `Alt+<mnemonic>` then the entry's bare mnemonic) in each language. Never sends Enter, so Save As / Run Command are shown but never executed. |
+| `acceptance/sweep-logfilter.sh` | headless: the log-filter plugin's full layout — its injected menu, both plugin-owned windows, and those windows beside a dun split — at 100×30, because two plugin windows plus a split do not fit in 80 columns. The only capture of a *foreign* window in the tiled layout. Chords come from `tmux_logfilter.rs`, which is their authority; `LOGFILTER_HOST=lua` selects the other host. |
 
-The two sweeps drive dun in a **detached tmux session** — no GUI terminal is
+The three sweeps drive dun in a **detached tmux session** — no GUI terminal is
 involved and nothing is injected into any on-screen application. This is the
 same mechanism the harness tests use (`crates/dun-cli/src/tests/tmux_*.rs`).
 Text grids beat screenshots for i18n review: they diff, they grep, and every

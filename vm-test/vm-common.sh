@@ -5,7 +5,7 @@
 # wrappers' `-t NAME` flag or the DUN_VM_TARGET env var (default: debian).
 # Each target is a VirtualBox guest on a localhost NAT port; they share one
 # keypair and account (fft@localhost) with passwordless sudo. See
-# docs/debian-vm.md and docs/freebsd-vm.md.
+# docs/dev/debian-vm.md and docs/dev/freebsd-vm.md.
 
 VM_TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$VM_TEST_DIR/.." && pwd)"
@@ -38,6 +38,6 @@ VM_SSH_OPTS=(-i "$VM_KEY" -p "$VM_PORT" -o ConnectTimeout=10 \
 if [ ! -f "$VM_KEY" ]; then
     echo "vm-test: SSH key not found at $VM_KEY" >&2
     echo "vm-test: the keypair is machine-local and never committed;" >&2
-    echo "vm-test: ask the project owner for it (docs/debian-vm.md)." >&2
+    echo "vm-test: ask the project owner for it (docs/dev/debian-vm.md)." >&2
     exit 1
 fi

@@ -1,5 +1,24 @@
 # 真终端 TUI 测试方案（tmux + normalized grid）
 
+> **This document is in Chinese**, unlike the rest of the corpus. It is the
+> original 2026-07 design note for the tmux-based real-terminal test method,
+> written in the language the design discussion happened in, and it is kept
+> verbatim rather than retrofitted because it records reasoning rather than
+> current instructions.
+>
+> **English readers: you probably want [testing-guide.md](./testing-guide.md)
+> instead.** That covers what the test layers are, what each one can and cannot
+> catch, and how to run them. This document goes deeper on one question — why
+> `tmux capture-pane` is the right observation mechanism for a TUI, and how a
+> captured pane is normalised into an assertable grid — and on the abandoned
+> alternatives. A translation is welcome as a contribution; nothing depends on
+> it.
+>
+> Note that the note predates two replacements it mentions in passing: the
+> renderer is no longer `ratatui` (retired at `858e876`) and terminal I/O is no
+> longer `crossterm` (`877b7ad`). The method is unaffected — it observes the
+> screen, not the code that paints it.
+
 面向：负责落地测试基础设施的 agent。
 
 目标：在**真实终端**中自动化验证一个基于 ratatui 的 TUI 编辑器（macOS，Terminal.app / iTerm2）的渲染结果——UI 位置、尺寸、配色、键盘交互——并与 `msedit`（不支持 PTY、启动即渲染）做 diff test。

@@ -3,7 +3,7 @@
 //! Everything here runs off the event loop: process launch, the framed-stdio
 //! client, and the per-role request/response serving. Split out of
 //! `plugins.rs` when that file passed the 35k architecture-debt threshold in
-//! docs/code-organization-guidelines.md. Behaviour-preserving: the code moved
+//! docs/dev/code-organization-guidelines.md. Behaviour-preserving: the code moved
 //! verbatim, only its `use` list is new.
 
 use std::path::Path;

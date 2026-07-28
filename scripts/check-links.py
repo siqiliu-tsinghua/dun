@@ -51,12 +51,36 @@ def tracked_markdown(root):
     return [line for line in out.stdout.splitlines() if line]
 
 
-def targets_in(text):
+# Documentation paths are cited from scripts and source comments too, and a
+# doc move breaks those exactly as silently as it breaks a Markdown link --
+# more so, since nothing renders them. Scan every tracked text file for bare
+# path mentions; only Markdown gets link parsing.
+TEXT_SUFFIXES = (".md", ".rs", ".sh", ".py", ".lua", ".toml", ".conf")
+
+
+def tracked_text(root):
+    out = subprocess.run(
+        ["git", "-C", root, "ls-files"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    files = []
+    for line in out.stdout.splitlines():
+        if not line:
+            continue
+        if line.endswith(TEXT_SUFFIXES) or "/" not in line and "." not in line:
+            files.append(line)
+    return files
+
+
+def targets_in(text, markdown=True):
     """Yield (target, kind) pairs worth resolving."""
-    for match in INLINE_LINK.finditer(text):
-        yield match.group(1), "link"
-    for match in REF_LINK.finditer(text):
-        yield match.group(1), "link"
+    if markdown:
+        for match in INLINE_LINK.finditer(text):
+            yield match.group(1), "link"
+        for match in REF_LINK.finditer(text):
+            yield match.group(1), "link"
     for match in BARE_PATH.finditer(text):
         yield match.group(1), "mention"
 
@@ -64,12 +88,17 @@ def targets_in(text):
 def check(root, quiet=False, strict=False):
     broken = []
     checked = 0
-    for rel in tracked_markdown(root):
+    files = tracked_text(root)
+    for rel in files:
         path = os.path.join(root, rel)
-        with open(path, encoding="utf-8") as handle:
-            text = handle.read()
+        try:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+        except (UnicodeDecodeError, IsADirectoryError):
+            continue
         base = os.path.dirname(rel)
-        for target, kind in targets_in(text):
+        markdown = rel.endswith(".md")
+        for target, kind in targets_in(text, markdown=markdown):
             if target.startswith(SKIP_PREFIXES):
                 continue
             if (
@@ -93,8 +122,8 @@ def check(root, quiet=False, strict=False):
         for rel, target, kind in broken:
             print(f"{rel}: broken {kind} -> {target}")
     print(
-        f"checked {checked} local targets in "
-        f"{len(tracked_markdown(root))} markdown files, {len(broken)} broken"
+        f"checked {checked} local targets in {len(files)} tracked text files "
+        f"({len(tracked_markdown(root))} markdown), {len(broken)} broken"
     )
     return 1 if broken else 0
 

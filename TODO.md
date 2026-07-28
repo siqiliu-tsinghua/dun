@@ -43,12 +43,14 @@ GitHub release attaches macOS/Debian binaries (lean: no, see C5).
   Twenty-four files were rewritten; the target count held at 362 across the
   move, which is what proves no link was dropped rather than silently
   repointed.
-- [ ] Fix the three live documents the checker caught pointing at source files
-  that no longer exist: `docs/i18n.md` (`crates/dun-cli/src/ui_text.rs`, now a
-  directory), `docs/dev/code-organization-guidelines.md` and
-  `docs/dev/file-splitting-plan.md` (`buffer.rs`, `workspace.rs`, `theme.rs`,
-  `lib.rs` — all since split). Run `scripts/check-links.py --strict` to see
-  them.
+- [x] Review what `scripts/check-links.py --strict` caught in live documents.
+  Only one was a defect: `docs/i18n.md` sent translators to
+  `crates/dun-cli/src/ui_text.rs`, which is a directory now — fixed. The
+  matches in `docs/dev/code-organization-guidelines.md` and
+  `docs/dev/file-splitting-plan.md` are *not* defects: they sit in
+  completed-stage tables where the pre-split filename is the subject of the
+  record ("`buffer.rs`, 74k chars, done, split into …"). That is why source
+  mentions stay behind `--strict`.
 - [x] Run the pre-publication scan a public repository requires. Clean on the
   categories that mattered: no absolute local paths, no email addresses, no
   key material or passwords in any tracked file, and `vm-test/` keys are
@@ -86,80 +88,55 @@ GitHub release attaches macOS/Debian binaries (lean: no, see C5).
 
 ### B. Documentation
 
-- [ ] Rewrite `README.md` to describe what `dun` is today, not what it was
-  planned to be. `README.md:5,7,14` still say "planned terminal text editor",
-  "intended UI is a `ratatui`-based TUI", and "minimal runnable `ratatui`
-  shell"; `README.md:294` still lists `dun-ui` as "`ratatui` views". ratatui
-  was retired at `858e876` (2026-07-11). Insert the curated screenshots and
-  split the flat document index into "User documentation" and "Development
-  documentation".
-- [ ] Write `docs/user-guide.md` — it does not exist today. Cover: install
-  and build (including that `scripts/release-build.sh` needs
-  `RUSTC_BOOTSTRAP` plus rust-src, and that a plain `cargo build --release`
-  is *not* the budget build); first run; the interface tour (menus, status
-  bar, tiled windows); the seven-step editing loop from README's Product
-  Goal; find/replace; bookmarks and visible whitespace (`Ctrl+X` family); the
-  command prompt and command ids; shell escape and Run Command; clipboard
-  (internal, plus OSC 52 read/write with their opt-ins and terminal limits);
-  file-safety behavior (atomic save, external-change refusal, non-UTF-8
-  read-only); switching UI language; troubleshooting (color and ASCII
-  fallback, ambiguous width, tmux).
-- [ ] Write `docs/plugin-authoring.md` — the author-facing counterpart that is
-  missing. `docs/plugin-protocol.md` is the specification (transport, trust
-  classes, capability model, build order) and stays as such;
-  `hosts/README.md` only configures the shipped hosts. Cover: manifest
-  fields, handshake and message sequence, choosing capabilities and roles,
-  author-declared `mnemonic`/`top_mnemonic`, the reserved `Ctrl+T` leader,
-  install is unpacking a folder and uninstall is deleting one, plugin
-  settings live with the plugin and not in dun's config, timeout/crash/stale-
-  revision semantics, self-checking with `hosts/check-host.py`, and starting
-  from the four reference hosts in `hosts/`.
-- [ ] Write `docs/dev/testing-guide.md` so someone else can stand the harness
-  up from zero. The VM manuals document connection and working conventions
-  but assume the VM already exists, so today the test setup is reproducible
-  only on this machine. Cover:
-  - a map of the test layers: workspace unit/integration tests, PTY smoke,
-    the tmux real-terminal grid suites (`tmux_grid`, `terminal_grid`,
-    `tmux_logfilter`), the four-platform VM matrix, and the
-    screenshot/acceptance pass — what each one can and cannot catch;
-  - VM setup from scratch: VirtualBox, NAT networking with host port
-    forwards (`2222` Debian, `2233` FreeBSD, `2244` Solaris), guest install,
-    the SSH keypair in `vm-test/`, passwordless sudo, and the per-OS
-    toolchain (rust + rust-src + tmux + rsync, and the Solaris `/opt`
-    rust-src recipe);
-  - the `vm-test/vm-run` / `vm-sync` wrappers, the `-t NAME` selector and
-    `DUN_VM_TARGET`, `--worktree` for dirty-tree iteration, and the
-    repo-local `known_hosts`;
-  - tmux/PTY prerequisites, how to run a single grid test, and the known
-    per-platform quirks (Solaris ambiguous-width, FreeBSD `/usr/bin/edit`);
-  - the `acceptance/` scripts: which emulators they expect, how the local and
-    over-SSH passes differ, and how the screenshot gallery is produced —
-    written as manual steps, since the 2026-07-27 pass was driven through a
-    tool an outside contributor does not have.
-- [ ] Document `acceptance/sweep-logfilter.sh` — the only script in
-  `acceptance/` that no document mentions, and the only tool that captures the
-  log-filter plugin's full layout (injected menu, two plugin-owned windows,
-  and a `dun` split at 100x30) headlessly in a detached tmux with no GUI
-  terminal involved. It belongs in both `docs/dev/real-terminal-acceptance.md`
-  and the new testing guide; deleting it as unreferenced would have thrown
-  away the harness's only foreign-window layout capture.
-- [ ] Fold a keybinding reference into the user guide, stating that
-  `--dump-config` and the in-app Help (generated from the active keymap) are
-  authoritative, so the prose cannot drift.
-- [ ] Decide the language of `docs/dev/real-terminal-tui-testing.md`: it is
-  written in Chinese while the rest of the corpus is English. For a public
-  repository, either translate it or state the exception deliberately.
-- [ ] Demote `docs/dev/PLAN.md` to a historical architecture plan and point current
-  status at CLAUDE.md. `docs/dev/PLAN.md:228` still reads "Status: planned next
-  required runtime stage" with all ten Phase 9 boxes unchecked although the
-  stage closed 2026-07-13; `docs/dev/PLAN.md:33` still says "ratatui-facing rendering
-  shell"; and five completed stages (i18n, plugin capability model, F12/F13
-  restoration, OSC 52 read, real-terminal acceptance) have no Phase entries
-  at all. Maintaining two live plans is the actual defect.
-- [ ] Clear the remaining stale statements: `AGENTS.md:147` (ratatui) and
-  `TODO.md`'s "Adopt native-speaker corrections" item, which docs/i18n.md
-  already settles as a provenance statement rather than outstanding work —
-  there is no native-speaker reviewer, so it must stop reading as a task.
+- [x] Rewrite `README.md` to describe what `dun` is today. The old Status
+  section was a 220-line accretion of implementation notes — sentences like
+  "the advanced Command Output family was removed in the 2026-07 slimming
+  stage" — which is a development log, not a front page. Replaced with what
+  `dun` is, why remote editing is its case, what it does, plugins, themes,
+  installing, and a document index split into user-facing and contributor
+  sections. Detail moved into the user guide rather than being deleted.
+- [x] Write `docs/user-guide.md`. Written against the running binary rather
+  than the old docs: `--help`, `--dump-config`, and the source of truth for
+  search flags and confirm-dialog keys were all read off the program.
+- [x] Write `docs/plugin-authoring.md`, the author-facing counterpart to the
+  protocol spec. Its minimal host is extracted and run through
+  `hosts/check-host.py` — which rejected three defects in the first draft
+  (missing `v` protocol version, missing `role` on the response, and span
+  fields written as `start`/`end` where the wire format is
+  `start_col`/`end_col`). The committed example passes.
+- [x] Write `docs/dev/testing-guide.md` so the harness can be rebuilt
+  elsewhere: the five test layers and what each is blind to, VM creation from
+  scratch (NAT port forwards 2222/2233/2244, dedicated SSH key, passwordless
+  sudo, per-OS toolchain), the `vm-test` wrappers, the size-measurement
+  contract, and the acceptance tooling. Package names were verified on the
+  three running guests, not recalled — Solaris IPS names are pathed
+  (`developer/rust/rustc`), and the `grep -E` failure in that check is itself
+  one of the documented quirks.
+- [x] Document `acceptance/sweep-logfilter.sh` in both
+  `docs/dev/real-terminal-acceptance.md` and the testing guide.
+- [x] Fold a keybinding reference into the user guide, stating that
+  `--dump-config` and the in-app Help are authoritative.
+- [x] Decide the language of `docs/dev/real-terminal-tui-testing.md`: kept in
+  Chinese with an English preface that says why, points English readers to the
+  testing guide for the same ground, and notes that the note predates both the
+  ratatui and crossterm replacements it mentions in passing. Translating a
+  333-line design note that records reasoning, and whose operational content
+  the new guide now covers in English, was not worth the cost.
+- [x] Demote `docs/dev/PLAN.md` to a historical architecture plan, with a
+  header saying so, why its Phase 9 boxes were never ticked, and where the
+  live plan is. Maintaining two live plans was the actual defect.
+- [x] Clear the remaining stale statements. `AGENTS.md`'s "Current Build
+  Stage" section needed more than its `ratatui` mention removed — the whole
+  section described the *first* implementation line ("do not start with plugin
+  runtime integration") years of work later; it is now a crate-boundary
+  section stating the dependency invariant. `CLAUDE.md` still said five
+  crates and omitted `dun-plugin`. The i18n item is closed as provenance.
+- [x] Fix the stale documentation paths the stage-A move left **outside**
+  Markdown — 11 files, in shell scripts and Rust `//!` comments, which the
+  link checker could not see because it only walked `*.md`. The checker now
+  scans every tracked text file for bare repository-path mentions and only
+  parses links in Markdown; that is what turned an invisible class of breakage
+  into a gate. `cargo check` confirms the comment edits compile.
 
 ### C. Release artifacts
 
@@ -504,12 +481,15 @@ Slice 1 (mechanism + menus) landed 2026-07-13; design of record is
   directory rather than naming files, so a contributed language is covered
   the moment it lands. Each shipped file states in its header that it is
   machine-translated and unreviewed by a native speaker.
-- [ ] Adopt native-speaker corrections as they arrive. The nine non-Chinese
-  files are machine-translated; the mechanism protects function (mnemonics,
-  key caps, command vocabulary stay English by construction) and the
-  validator protects structure, but wording quality is unreviewed. The one
-  place a wording error is destructive — Save/Discard/Cancel beside the
-  literal `(s)`/`(d)`/`(c)` keys — is guarded by a pairwise-distinct test.
+- [x] State the translation provenance rather than tracking a review that will
+  never happen. The nine non-Chinese catalogs are machine-translated and
+  unreviewed; there is no native-speaker reviewer, so this stopped being a task
+  and became a fact recorded in docs/i18n.md and the header of every shipped
+  catalog. What *is* mechanically enforced stays enforced: key completeness,
+  placeholder shape, English mnemonics and key caps by construction, and the
+  pairwise-distinct test guarding the one destructive case (Save/Discard/Cancel
+  beside the literal `(s)`/`(d)`/`(c)` keys). A wording correction from a
+  speaker of the language is welcome as a contribution, not awaited as a gate.
 - [x] Measure the size delta per batch; the mechanism must stay lean since
   hand-rolled parsing (no serde) remains the rule. Slice 1 measured both
   platforms at `fd31719`: macOS +12,344 (625,060); Debian span including

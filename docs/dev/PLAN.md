@@ -1,4 +1,19 @@
-# PLAN
+# PLAN (historical)
+
+> **This is a historical document.** It records how the project was sequenced
+> from 2026-07-04 onward, phase by phase, and it is kept because the reasoning
+> behind each phase is still worth reading. It is **not** the current plan and
+> is no longer updated — the live plan is the "Active Plan" section of
+> [CLAUDE.md](../../CLAUDE.md), and the current task list is
+> [TODO.md](../../TODO.md).
+>
+> Phases 0–13 below describe work that is complete. Unchecked boxes inside a
+> phase are historical too: Phase 9's boxes were never ticked although the
+> plugin protocol client shipped on 2026-07-13, and five later stages (i18n,
+> the plugin capability model, the F12/F13 restoration, OSC 52 clipboard read,
+> and real-terminal acceptance) have no phase here at all. Maintaining a second
+> live plan was the actual defect; this document was frozen instead of
+> back-filled.
 
 `dun` should first become a reliable Microsoft Edit-like terminal editor with a
 lightweight tiled workspace. After that foundation is stable, it can grow into
@@ -30,7 +45,7 @@ The workspace is intentionally small:
 ```text
 dun-core    terminal-independent editor state and commands
 dun-term    terminal profile, glyphs, and themes
-dun-ui      ratatui-facing rendering shell
+dun-ui      rendering shell (ratatui-facing then; in-house Surface since 858e876)
 dun-config  typed configuration and keymap model
 dun-cli     process entry point
 ```

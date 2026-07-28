@@ -1,7 +1,7 @@
 //! Resolving a host's `menu` contribution into a dun-ui menu item.
 //!
 //! Split out of `plugins.rs` when that file passed the 35k architecture-debt
-//! threshold in docs/code-organization-guidelines.md. Behaviour-preserving:
+//! threshold in docs/dev/code-organization-guidelines.md. Behaviour-preserving:
 //! the code moved verbatim, only its `use` list is new.
 
 use dun_core::EditorCommand;
