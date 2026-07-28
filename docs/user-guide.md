@@ -50,21 +50,21 @@ against. It needs the `rust-src` component and sets `RUSTC_BOOTSTRAP=1` to use
 an unstable flag on a stable toolchain. Use it if you care about the last
 200 KiB; otherwise ignore it.
 
-**On Solaris the binary comes out several hundred KB larger** than on the other
-three platforms. That is not extra code — the Solaris link editor keeps local
-function names in the dynamic symbol table so `pstack` and `dtrace` can name
-frames, and that table is most of the difference. If you would rather have the
-bytes than the named stack frames, link with `-z noldynsym`:
+**On Solaris, `scripts/release-build.sh` adds one link flag for you**
+(`-z noldynsym`). The Solaris link editor keeps local function names in the
+dynamic symbol table so `pstack` and `dtrace` can name frames, which costs
+about 343 KB in an otherwise stripped binary; dropping it brings Solaris in
+line with the other three platforms. If you want those names back, set
+`DUN_SOLARIS_KEEP_LDYNSYM=1`. A plain `cargo build --release` does not add the
+flag; pass it yourself if you want the smaller binary:
 
 ```sh
 RUSTFLAGS="-C link-arg=-znoldynsym" cargo build --release
 ```
 
-Measured on Solaris 11.4, that saves 252,008 bytes on a plain release build and
-342,880 on the `scripts/release-build.sh` build. Running `strip` afterwards
-saves nothing — the release profile already strips everything strippable, and
-what remains cannot be removed that way — and `-z strip-class=nonalloc` makes
-the binary *larger*, not smaller.
+That saves 252,008 bytes on a plain release build and 342,880 on the
+`scripts/release-build.sh` build. Running `strip` afterwards saves nothing, and
+`-z strip-class=nonalloc` makes the binary *larger* rather than smaller.
 
 ## First run
 

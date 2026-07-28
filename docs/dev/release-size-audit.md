@@ -31,23 +31,23 @@ existed rather than new ones. The same shape as the bookmark remap in
 `1d078cb`, which was also free.
 
 Reference platforms, measured the same way (build-std, locked) but **not** part
-of the budget: FreeBSD **698,344**, Solaris **1,087,760**.
+of the gate: FreeBSD **698,344**, Solaris **744,880**. All four platforms are
+under the 1 MiB line, Debian binding.
 
-FreeBSD lands between macOS and Debian. **Solaris is over the 1 MiB line by
-39,184 bytes, and that is expected and fine** — it has always been over, it has
-never been a budget platform, and no gate counts it. The budget contract names
-macOS and Debian only (`AGENTS.md`, `docs/dev/PLAN.md`). Solaris runs a
-different toolchain (rust 1.87 against the 1.85 baseline), the native Solaris
-linker, and a libc that shares little with the others; that a static-ish binary
-comes out 300 KB larger there is a property of the platform, not a regression
-in `dun`. The number is recorded here so nobody rediscovers it and mistakes it
-for one — an omission in earlier audits, which listed the reference platforms
-without their build-std figures at all.
+FreeBSD lands between macOS and Debian. Solaris needs one platform-specific
+link flag, adopted this day and applied automatically by
+`scripts/release-build.sh`; the rest of this section is why.
 
-Where the 300 KB actually goes, from `size -A` on both binaries — and it is
-**not** libc, which was the standing guess:
+**Unflagged, Solaris measures 1,087,760 — 39,184 over the 1 MiB line, and it
+always had.** Nothing about that was a `dun` regression, which is the part
+earlier audits left unsaid: they listed the reference platforms without their
+build-std figures at all, so the number existed nowhere and the reason for it
+existed nowhere either.
 
-| Section | Debian | Solaris |
+Where the 300 KB goes, from `size -A` on both binaries — and it is **not**
+libc, which was the standing guess:
+
+| Section | Debian | Solaris (unflagged) |
 | --- | --- | --- |
 | `.text` | 540,994 | 567,540 |
 | `.rodata` | 105,880 | 109,000 |
@@ -59,15 +59,13 @@ Code is only 5% larger, which is what a different compiler version and ABI
 should cost. The gap is the symbol tables: the Solaris linker keeps function
 names in the dynamic symbol table for `pstack` and friends, including the
 Solaris-only `.SUNW_ldynsym` and its two sort tables, where GNU `ld` discards
-nearly all of it. That is platform metadata, unrelated to how much code `dun`
-has, and no amount of writing smaller code would move it — a second reason it
-does not belong in the budget.
+nearly all of it. It is platform metadata, unrelated to how much code `dun`
+has — so no amount of writing smaller code would have moved it, and a link flag
+reaches it where source changes cannot.
 
-### Recovering it (measured 2026-07-29, not a recommendation)
+### The flag, and the two that do not work
 
-Since the overage is metadata, a link flag reaches it where source changes
-cannot. All four variants were built the same way (build-std, locked) at
-`dbbed50`:
+All four variants built the same way (build-std, locked) at `dbbed50`:
 
 | Build | Bytes | vs baseline |
 | --- | --- | --- |
@@ -120,12 +118,30 @@ and the raw PTY output contains **`[?1049l`** (so the panic hook alone handed
 the terminal back). That is the path worth worrying about after deleting a
 symbol table, and it is intact.
 
-The cost is what the section exists for: `pstack`, `dtrace` and friends lose
-local function names in stack traces from this binary. The project does not
-adopt the flag — Solaris is not a budget platform, and a debuggable default is
-worth more there than bytes nobody is counting. It is documented so that a
-downstream packager who *is* counting knows the lever exists, knows it is the
-only one that works, and does not waste an afternoon on `strip`.
+### Decision: adopt the flag, keep the gate at two platforms
+
+`scripts/release-build.sh` applies `-C link-arg=-znoldynsym` on SunOS, and
+`DUN_SOLARIS_KEEP_LDYNSYM=1` opts back out (needed under GNU `ld`, which does
+not know the option). Verified after the change: Solaris 744,880 through the
+script — byte-identical to the hand-run flag — while macOS 719,100 and Debian
+784,688 are unchanged, the latter two confirmed by a no-op rebuild, which is
+itself the proof their flags did not move.
+
+The cost is real and accepted: `pstack`, `dtrace` and `mdb` lose local function
+names in traces from a release binary. It is small here because the binary is
+already `strip = "symbols"`, this build never linked backtrace symbolization,
+and a Rust panic prints `file:line` — which is more useful than an unwound
+stack for the failures `dun` actually has. Against that, 343 KB is a third of
+the budget on a program whose whole premise is copying one file to a strange
+host.
+
+**The gate stays macOS + Debian.** All four platforms now sit under the line,
+but making all four *audited* would double the per-step measurement cost —
+every size-affecting commit would need two more VM builds — to add a gate that
+cannot fire first: Debian has the smallest margin, and Solaris `.text` tracks
+it within 5%. FreeBSD and Solaris are recorded, not enforced. FreeBSD cannot
+run this script at all today (no `bash` in the base system); its figure comes
+from the equivalent `cargo` invocation by hand.
 
 ## 2026-07-28 — folding step 1 (line-level seam)
 

@@ -10,6 +10,11 @@ The binding binary-size budget stays macOS + Debian (see
 only a reference point, not a gate — its toolchain (LLVM/lld, FreeBSD libc) and
 `pkg` Rust version differ from the budget baseline.
 
+`scripts/release-build.sh` does not run here: it is a `bash` script and the
+FreeBSD base system has no `bash`. For a build-std figure, run the equivalent
+`cargo` command by hand (the one inside the script). The last recorded figure
+is 698,344 bytes, the smallest of the four platforms.
+
 ## Connection
 
 - VirtualBox VM: FreeBSD 15.1-RELEASE amd64.

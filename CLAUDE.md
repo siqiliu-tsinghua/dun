@@ -61,15 +61,16 @@ x86_64 AND Debian x86_64.
   half the low end, and the render step was free because it added branches to
   paths that already existed. Reference platforms, same build-std
   contract but outside the budget: FreeBSD **698,344**, Solaris
-  **1,087,760**. Solaris is 39,184 over the 1 MiB line and always has been —
-  and the cause is **not code**: `.text` differs 5%, while `.dynstr` is
-  249,169 against Debian's 1,528, plus a Solaris-only `.SUNW_ldynsym` (71,712)
-  and two sort tables that the native linker keeps so `pstack` can name
-  frames. It is not a budget platform and no gate counts it; never trim code
-  in response to that number. One link flag recovers it if a downstream
-  packager needs it — `-C link-arg=-znoldynsym` gives 744,880 — while `strip`
-  moves zero bytes and `-z strip-class=nonalloc` makes it 377 KB *larger*
-  (measured 2026-07-29; mechanism in docs/dev/release-size-audit.md).
+  **744,880** — all four platforms are now under the line, Debian binding.
+  Solaris needs one platform-specific link flag to get there:
+  `scripts/release-build.sh` adds `-C link-arg=-znoldynsym` on SunOS (adopted
+  2026-07-29), dropping ~343 KB of `.SUNW_ldynsym` symbol-table metadata the
+  native linker keeps for `pstack`. Without it Solaris measures 1,087,760.
+  **The gate stays macOS + Debian** — two platforms is what keeps per-step
+  measurement affordable, and Solaris tracks Debian within 5% of `.text`, so it
+  would never bind first. `strip` recovers nothing there and
+  `-z strip-class=nonalloc` makes it 377 KB *larger*; mechanism in
+  docs/dev/release-size-audit.md.
 - Earlier: macOS 710,860 / Debian 776,496 at `058447f`. The +8,192 over
   v0.1.0 is attributed: `1d078cb` (bookmarks into `TextBuffer`, with the
   per-buffer `Vec<usize>` and the remap) measured **768,304, byte-identical**

@@ -26,15 +26,22 @@ tests, documents, `target/` intermediates, local reference checkouts, external
 plugin host executables, future optional runtime packages, or bundled example
 plugins that are not linked into `target/release/dun`.
 
-**Only those two platforms are audited.** FreeBSD and Solaris build the same
-way and are recorded as reference points, but neither is a gate. FreeBSD lands
-between macOS and Debian; **Solaris measures above 1 MiB and always has**, and
-that is expected rather than a failure — the excess is the native linker's
-symbol tables (`.dynstr` plus a Solaris-only `.SUNW_ldynsym`, kept so `pstack`
-can name frames), not `dun` code, whose `.text` differs by 5%. Never invoke the
-Budget Failure Rule below over a Solaris number, and never trim a feature in
-response to one. Figures, the section breakdown, and the single link flag that
-recovers it are in [release-size-audit.md](./release-size-audit.md).
+**Only those two platforms are audited**, and they are the gate: every
+size-affecting change is measured on both. FreeBSD and Solaris build the same
+way and their figures are recorded, but neither blocks a commit — keeping the
+gate at two is what makes it cheap enough to run per step. All four are
+comfortably under the line today, with Debian binding:
+
+| platform | bytes | margin | gate |
+| --- | --- | --- | --- |
+| FreeBSD x86_64 | 698,344 | 350,232 | recorded |
+| macOS x86_64 | 719,100 | 329,476 | **audited** |
+| Solaris x86_64 | 744,880 | 303,696 | recorded |
+| Debian x86_64 | 784,688 | 263,888 | **audited, binding** |
+
+Solaris needs one platform-specific link flag to get there, which
+`scripts/release-build.sh` applies automatically; see
+[solaris-vm.md](./solaris-vm.md) for what it drops and what that costs.
 
 The checked-in `[profile.release]` plus `scripts/release-build.sh` is the
 release-size recipe. Do not use a different profile or plain-cargo build to

@@ -151,12 +151,15 @@ sudo pkg install developer/rust/rustc developer/rust/cargo \
                  terminal/tmux network/rsync developer/versioning/git
 ```
 
-`rust-src` only matters where you intend to run `scripts/release-build.sh` —
-that is Debian and macOS, the two size-budget platforms. FreeBSD and Solaris
-are portability guests and run ordinary `cargo build`, so a missing `rust-src`
-there costs you nothing. On Solaris the component is not where `cargo` expects
-it and has to be linked from `/opt`; the recipe for the existing guest is in
-[solaris-vm.md](./solaris-vm.md).
+`rust-src` matters wherever you intend to run `scripts/release-build.sh`.
+Debian and macOS are the two audited platforms and need it; all four guests
+have it, because comparable figures for FreeBSD and Solaris are recorded too
+even though neither gates a commit. Ordinary `cargo build` and `cargo test`
+never need it. On Solaris the component is not where `cargo` expects it and has
+to be linked from `/opt`; the recipe for the existing guest is in
+[solaris-vm.md](./solaris-vm.md). On FreeBSD the script itself will not run —
+the base system has no `bash` — so invoke the equivalent `cargo` command
+directly if you want a build-std figure there.
 
 The guests these instructions were checked against carry `rustc` 1.85 on
 Debian, 1.96 on FreeBSD, and 1.87 on Solaris — the floor is 1.85 and newer is
