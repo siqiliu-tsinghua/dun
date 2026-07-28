@@ -103,9 +103,16 @@ GitHub release attaches macOS/Debian binaries (lean: no, see C5).
 
   Curation: sips downscaling made every file *larger* (interpolation destroys
   the crisp colour set — 476 KB became 680 KB at 1200px), so the Retina
-  originals are kept and re-encoded losslessly instead, with per-scanline
-  filter selection and maximum deflate: 1290 KB → 928 KB, verified
-  pixel-identical by hash rather than by trusting the size drop.
+  originals are kept. Re-encoding with per-scanline filter selection and
+  maximum deflate took 1290 KB → 924 KB losslessly, verified pixel-identical
+  by hash rather than by trusting the size drop. Quantizing to 256 colours
+  first (Wolfram `ColorQuantize`, no dithering) took it to 798 KB. That step
+  is lossy, so it was checked by eye at high zoom on both extremes — the
+  subtle `dun` palette and the high-contrast `turbo` frame — and is
+  indistinguishable; max per-channel error is 5–9 of 255. Note that
+  Wolfram's own PNG export was *worse* than the hand-written encoder
+  (413 KB against 335 KB on the same image) and that dithering doubled the
+  file, so the win came from combining its quantizer with our encoder.
 - [x] Delete working-tree litter (`.DS_Store`) and check that every script in
   `acceptance/` is still referenced by a document.
 
