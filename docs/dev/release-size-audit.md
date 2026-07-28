@@ -102,6 +102,24 @@ The flag is not specific to the budget build: on a plain
 a 252,008-byte saving. That is the form the user guide documents, since a plain
 build is what a Solaris user is likely to run.
 
+**Functionally verified, not just measured** (2026-07-29, Solaris guest):
+the full workspace suite links and runs clean with the flag (**906 passed / 0
+failed**), and so does the release panic path that the smoke checklist calls
+out — `cargo test --release --features test-panic-hook -p dun-cli --test
+pty_smoke`, 12/12.
+
+The shipped combination (build-std + release + the flag) had to be checked by
+hand, because `cargo test -Zbuild-std` cannot run at all: `libc` fails with
+`duplicate lang item in crate core`. That failure reproduces without the flag,
+so it is a pre-existing build-std/test-harness incompatibility, not something
+`-znoldynsym` causes — and it means the suite has never run under build-std on
+any platform; build-std only ever produces the binary. Driving that binary
+through `pty_smoke`'s own two criteria by hand: the process dies with
+**SIGABRT** (so `panic = "abort"` holds and `TerminalGuard::drop` never runs)
+and the raw PTY output contains **`[?1049l`** (so the panic hook alone handed
+the terminal back). That is the path worth worrying about after deleting a
+symbol table, and it is intact.
+
 The cost is what the section exists for: `pstack`, `dtrace` and friends lose
 local function names in stack traces from this binary. The project does not
 adopt the flag — Solaris is not a budget platform, and a debuggable default is
