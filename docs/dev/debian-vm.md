@@ -17,7 +17,7 @@ today), then run against each with its target.
 - VirtualBox VM name: `debvbox` (Debian 13 amd64, system `rustc`/`cargo`
   1.85 from Debian packages).
 - Reachable through a NAT port forward on the host: `localhost` port `2222`.
-- User: `fft` (same as the macOS host user).
+- User: `<user>` — the guest account you created.
 - SSH keypair: `vm-test/dun-vm-test` and `vm-test/dun-vm-test.pub` in this
   repository. The directory is gitignored; the private key is not in git
   history and must stay untracked.
@@ -49,7 +49,7 @@ Binding measurements must build from a `vm-test/vm-sync` clean-commit
 directory, never from `~/dun-worktree`. The wrappers keep a repo-local,
 gitignored `vm-test/known_hosts` (accept-new) because every target shares
 `localhost`. The raw connection, should the scripts be unavailable, is
-`ssh -i vm-test/dun-vm-test -p 2222 fft@localhost`; the target's port and
+`ssh -i vm-test/dun-vm-test -p 2222 <user>@localhost`; the target's port and
 destination can be overridden with `DUN_VM_TARGET` / `DUN_VM_PORT` /
 `DUN_VM_DEST`.
 

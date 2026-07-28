@@ -85,7 +85,7 @@ WindowState
   view: ViewState
 ```
 
-The core model must not depend on `ratatui`. Layout resolution should be pure
+The core model must not depend on the renderer. Layout resolution should be pure
 and testable.
 
 ## Rendering Model

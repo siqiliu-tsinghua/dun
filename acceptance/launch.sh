@@ -181,7 +181,7 @@ if [ -n "$syntax" ]; then
             fi
             host_cmd="$scratch/lua-wrapper"
             printf '#!/bin/sh\nexec %s %s\n' \
-                "$lua_bin" "$repo_root/hosts/lua/dun-lua-host.lua" > "$host_cmd"
+                "$lua_bin" "$repo_root/hosts/lua-highlight/dun-lua-highlight-host.lua" > "$host_cmd"
             chmod +x "$host_cmd"
             ;;
         *) echo "unknown --syntax engine: $syntax (syntect|pygments|lua)" >&2; exit 2 ;;

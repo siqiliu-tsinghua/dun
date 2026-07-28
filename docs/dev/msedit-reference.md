@@ -3,6 +3,15 @@
 This document records what `dun` is borrowing conceptually from Microsoft
 Edit, and what it is not borrowing.
 
+> **Written 2026-07-04, when `dun` was a plan.** Its observations of
+> `microsoft/edit` still hold, and so does the visual and interaction lineage.
+> Its forward-looking sentences do not: `dun` went on to retire `ratatui`
+> (`858e876`) and `crossterm` (`877b7ad`) and render through its own `Surface`
+> grid — ending up closer to msedit's own in-house approach than this note
+> anticipated. Sentences below that state what `dun` *will* do have been
+> corrected in place; the Open Questions are kept as they were asked, with
+> their answers noted.
+
 Reference repository:
 
 - URL: <https://github.com/microsoft/edit>
@@ -18,9 +27,11 @@ The reference is for interaction and visual study only. Do not copy source code
 into `dun`.
 
 `microsoft/edit` currently targets a newer Rust toolchain than `dun` and uses
-its own immediate-mode TUI/framebuffer stack. `dun` will use `ratatui`, target
-Rust `1.85`, and keep a different product focus: Linux/macOS SSH operations,
-log inspection, and a future pure `rum` plugin boundary.
+its own immediate-mode TUI/framebuffer stack. `dun` targets Rust `1.85` and
+keeps a different product focus: Linux/macOS SSH operations, log inspection,
+and a plugin boundary whose hosts are separate processes. It began on
+`ratatui` and later replaced it with an in-house `Surface` renderer, arriving
+at a stack much like the one described here.
 
 ## Reference Tests
 
@@ -302,8 +313,9 @@ EditorCommand
 
 ## Implementation Constraints
 
-- Use `ratatui` widgets and layout primitives.
-- Keep editor core independent of `ratatui`.
+- Keep the editor core independent of the renderer. (Originally "use `ratatui`
+  widgets and layout primitives"; rendering is in-house since `858e876`, and
+  the independence is what mattered.)
 - Keep file I/O outside rendering.
 - Keep command execution testable without a terminal.
 - Keep keybindings configurable.
@@ -316,10 +328,12 @@ EditorCommand
 
 - Whether future log/filter features deserve a dedicated `Filter` top-level
   menu or should stay under `View`/`Search`.
-- Whether first-version dialogs should be custom ratatui widgets or small
-  reusable state machines.
+- Whether first-version dialogs should be custom widgets or small reusable
+  state machines. *(Answered: state machines, drawn by `dun-ui` overlay
+  rendering.)*
 - Whether the first text buffer should use a simple `Vec<String>` model or move
-  directly to a rope/gap-buffer design.
+  directly to a rope/gap-buffer design. *(Answered: the simple model; the
+  large-file baselines in performance-baselines.md show it holds.)*
 - How much of status bar interactivity should exist before mouse support.
 
 ## Size Engineering Study (2026-07-10)
@@ -344,7 +358,7 @@ Where the ~506 KB release binary actually comes from (source:
    self-implement: a diffing framebuffer with a color-mix hash cache
    (`framebuffer.rs`), an immediate-mode TUI (`tui.rs`), a VT parser
    (`vt.rs`), and platform abstractions (`sys/`). No crossterm, no ratatui.
-   For dun this supports the planned ratatui-replacement spike; owning SGR
+   For dun this informed the ratatui replacement that later shipped; owning SGR
    emission would also let dun delete the 16-color SGR rewriter layer.
 3. **Profile details.** `opt-level = "s"` (they measured it well against
    size), fat LTO, `codegen-units = 1`, and notably `debug = "full"` +

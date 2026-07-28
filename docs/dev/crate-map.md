@@ -45,7 +45,7 @@ Responsibilities:
 
 Must not depend on:
 
-- `ratatui`;
+- any renderer, including the in-house `Surface`;
 - terminal backends;
 - config file parsing;
 - future `rum` adapter;
@@ -70,7 +70,8 @@ but terminal raw-mode setup belongs closer to `dun-cli`/`dun-ui`.
 
 ## `dun-ui`
 
-Owns ratatui-facing rendering and interaction shell.
+Owns the frame model, the in-house `Surface` renderer, and the interaction
+shell.
 
 Responsibilities:
 
@@ -90,7 +91,10 @@ Rules:
   measuring source text independently;
 - UI actions emit `EditorCommand` or dialog results.
 
-`ratatui` should be added here when the first UI loop is implemented.
+Rendering is in-house: the frame model is drawn onto a `Surface` cell grid and
+emitted by `surface_emit`. `ratatui` was retired at `858e876`; do not
+reintroduce a rendering framework without a size measurement and an explicit
+decision.
 
 ## `dun-config`
 

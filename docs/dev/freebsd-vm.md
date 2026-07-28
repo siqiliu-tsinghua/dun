@@ -14,7 +14,7 @@ only a reference point, not a gate — its toolchain (LLVM/lld, FreeBSD libc) an
 
 - VirtualBox VM: FreeBSD 15.1-RELEASE amd64.
 - Reachable through a NAT port forward on the host: `localhost` port `2233`.
-- User: `fft` (same as the macOS host user), with passwordless `sudo`.
+- User: `<user>` — the guest account you created, with passwordless `sudo`.
 - SSH keypair: the same `vm-test/dun-vm-test` used for the Debian VM (both are
   local, user-provisioned guests). The directory is gitignored; the private key
   is never committed.
@@ -37,7 +37,7 @@ vm-test/vm-sync -t freebsd
 
 `-t freebsd` can also be given as `DUN_VM_TARGET=freebsd`. The raw connection,
 should the scripts be unavailable, is
-`ssh -i vm-test/dun-vm-test -p 2233 fft@localhost` (add
+`ssh -i vm-test/dun-vm-test -p 2233 <user>@localhost` (add
 `-o StrictHostKeyChecking=accept-new` on first use).
 
 ## Toolchain (install with pkg)

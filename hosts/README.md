@@ -15,8 +15,8 @@ clean exit on `shutdown` or EOF.
 
 `python-logfilter/` and `lua-logfilter/` serve the `log-filter` role and are
 the first reference hosts that exercise the whole capability surface beyond
-highlighting. Their `hello-ack` contributes a menu subtree and a `Ctrl+L`
-keybinding leader, each action tagged with a kind (`scratch`/`execute`/
+highlighting. Their `hello-ack` contributes a menu subtree and chords under the
+reserved `Ctrl+T` plugin leader, each action tagged with a kind (`scratch`/`execute`/
 `surface`); the host owns an editable scratch window (the user types a filter
 substring), an `execute` submit adopts that text as the pattern, and each
 command-output stream chunk is filtered to the lines containing the pattern,
@@ -55,7 +55,7 @@ robust pattern is a one-line wrapper with absolute paths and pointing
 
 ```sh
 #!/bin/sh
-exec /usr/bin/lua5.4 /absolute/path/to/hosts/lua/dun-lua-host.lua
+exec /usr/bin/lua5.4 /absolute/path/to/hosts/lua-highlight/dun-lua-highlight-host.lua
 ```
 
 (Debian's `lua5.4` package installs `/usr/bin/lua5.4`; a plain `lua` name is

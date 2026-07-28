@@ -27,7 +27,7 @@ half-written save may be the outage.
 
 `dun` treats those as the primary case rather than the degraded one:
 
-- **It fits in the places you have to work.** The release binary is 760 KB on
+- **It fits in the places you have to work.** The release binary is 768 KB on
   Debian x86-64 and 707 KB on macOS, against a hard 1 MiB budget that every
   change is measured against. Copy one file to the host and you are done.
 - **It degrades on purpose.** Each theme carries 256-color, 16-color, and
@@ -80,14 +80,18 @@ plugin over the protocol, mnemonics and all.
 
 ![The log-filter plugin: raw log, filter pattern, and matching lines in three tiled windows](docs/images/readme-3-logfilter.png)
 
-**Ten interface languages, and four themes.** Menu mnemonics stay English
-letters whatever the language, so a translation cannot break a keybinding —
-`(U)` is still `(U)` under 撤销. Syntax highlighting here comes from the
-Pygments host.
+**Ten interface languages.** Menu mnemonics stay English letters whatever the
+language, so a translation cannot break a keybinding — `(U)` is still `(U)`
+under 撤销. Highlighting here is the Pygments host, on the `msedit` theme.
 
-![The Edit menu in Simplified Chinese with the msedit theme](docs/images/readme-2-i18n-pygments.png)
+![The Edit menu in Simplified Chinese, msedit theme, Python source highlighted by the Pygments host](docs/images/readme-2-i18n-pygments.png)
 
-![Traditional Chinese with the dark theme, Lua host highlighting, and a search in progress](docs/images/readme-4-zhhant-lua.png)
+**Four themes, and three highlight hosts.** The same editor in Traditional
+Chinese on the `dark` theme, with Lua source highlighted by the Lua host and a
+search in progress — search matches and the current line stay visible under the
+highlighting.
+
+![Traditional Chinese, dark theme, Lua source highlighted by the Lua host, with a search in progress](docs/images/readme-4-zhhant-lua.png)
 
 ## Plugins
 

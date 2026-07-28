@@ -6,13 +6,13 @@
 -- a hand-rolled JSON layer, and a small keyword/comment/string/number lexer
 -- for a few languages. Configure:
 --
---     plugin.lua-demo.command = /path/to/dun-lua-host.lua
---     plugin.lua-demo.trust = user-trusted-external
---     plugin.lua-demo.roles = syntax-highlight
+--     plugin.lua-highlight.command = /path/to/dun-lua-highlight-host.lua
+--     plugin.lua-highlight.trust = user-trusted-external
+--     plugin.lua-highlight.roles = syntax-highlight
 --
 -- Span columns are character offsets (UTF-8 aware via utf8.len).
 
-local HOST_ID = "lua-demo"
+local HOST_ID = "lua-highlight"
 local MAX_SPANS = 4000
 
 -- ---------------------------------------------------------------------------

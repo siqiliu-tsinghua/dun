@@ -10,8 +10,9 @@ and the active working plan. Keep all three in sync.
 Rust 1.85 workspace, six crates under `crates/`:
 
 - `dun-core`: buffers, undo/redo, search, tiled workspace state, and the
-  typed `EditorCommand` enum (`src/command.rs`, ~112 variants — the
-  mechanical enumeration of user-visible features).
+  typed `EditorCommand` enum (`src/command.rs` — 94 command variants across
+  `App`/`Edit`/`File`/`Window`, of which 91 have command ids; the mechanical
+  enumeration of user-visible features).
 - `dun-term`: terminal capability profiles, color/glyph fallback, themes.
 - `dun-config`: typed config, keymap, command-id parsing, validation.
 - `dun-ui`: backend-neutral frame model rendered onto the in-house `Surface`
@@ -19,8 +20,8 @@ Rust 1.85 workspace, six crates under `crates/`:
 - `dun-plugin`: the protocol client, its hand-rolled JSON, and the per-role
   output validators.
 - `dun-cli`: terminal lifecycle (in-house VT since `877b7ad`), event loop,
-  command application (the largest crate, ~18k LOC — most UX weight lives
-  here).
+  command application (the largest crate, ~31k lines including its tests —
+  most UX weight lives here).
 
 Docs are load-bearing in this repo: any behavior or architecture change must
 update the matching document in the same change (AGENTS.md lists document

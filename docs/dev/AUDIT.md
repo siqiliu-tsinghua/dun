@@ -287,8 +287,8 @@ Current implementation:
   sanitized output, source-byte/display-cell conversion, wrapping, highlights,
   scrolling, and mouse hits. It uses the terminal's ambiguous-width policy and
   profile-owned glyphs; callers do not measure raw body text independently.
-- `dun-ui` sanitizes pane titles and status fields before final ratatui
-  rendering, so file names, paths, and status/error messages do not bypass the
+- `dun-ui` sanitizes pane titles and status fields before they are drawn onto
+  the `Surface` grid, so file names, paths, and status/error messages do not bypass the
   display sanitizer.
 - `dun-ui` also sanitizes modal overlay titles, body lines, prompt input, and
   button text before rendering.
@@ -362,8 +362,8 @@ Current implementation:
   reader is disarmed. There is no platform clipboard command execution.
 - Tests cover OSC title/clipboard/hyperlink payloads, CSI/SGR/clear-screen,
   DCS, graphics escapes, bracketed paste markers, `ESC`, BEL, NUL, DEL, CR,
-  backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and final
-  ratatui `TestBackend` rendering.
+  backspace, tabs, all C0/C1 controls, ASCII fallback, truncation, and the
+  bytes the surface emitter finally writes.
 - The external SSH and low-capability terminal release matrix is documented in
   `docs/dev/terminal-compatibility-checks.md`; release candidates must record real
   external host results separately from local PTY automation.

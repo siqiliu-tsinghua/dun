@@ -39,7 +39,7 @@ The ignored `large_file_perf_*` tests cover:
 - `TextBuffer::find_all` for sparse matches and missing matches;
 - cursor movement to the end of a large buffer and scroll synchronization;
 - UI frame construction for a visible editor window;
-- ratatui drawing through `TestBackend`;
+- surface drawing through the in-house renderer;
 - long-line rendering with `limits.line_display_soft_limit_bytes` enforced.
 
 The tests assert functional invariants but do not enforce timing thresholds.
@@ -53,14 +53,14 @@ development workspace:
 
 ```text
 large_file_perf ui_frame_long_line_display_cap: 0 ms
-large_file_perf ratatui_draw_long_line_display_cap: 0 ms
+large_file_perf surface_draw_long_line_display_cap: 0 ms
 large_file_perf fixture: bytes=8388643 lines=121506 error_lines=473
 large_file_perf startup_open: 22 ms
 large_file_perf find_all_sparse_match: 7 ms
 large_file_perf find_all_missing_match: 12 ms
 large_file_perf sync_view_to_eof: 0 ms
 large_file_perf ui_frame_visible_window: 3 ms
-large_file_perf ratatui_draw_visible_window: 0 ms
+large_file_perf surface_draw_visible_window: 0 ms
 ```
 
 When comparing future results, rerun the same command on the same host after a

@@ -218,7 +218,7 @@ Prefer tests near the crate that owns the behavior:
 - pure buffer/workspace behavior belongs in `dun-core`;
 - terminal profile/theme behavior belongs in `dun-term`;
 - config parsing and keymap behavior belongs in `dun-config`;
-- renderer model and ratatui snapshot behavior belongs in `dun-ui`;
+- renderer model and surface snapshot behavior belongs in `dun-ui`;
 - process-level command routing, terminal lifecycle, file I/O, and PTY smoke
   behavior belongs in `dun-cli`.
 

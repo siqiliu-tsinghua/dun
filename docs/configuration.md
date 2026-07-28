@@ -1,7 +1,9 @@
 # Configuration
 
-`dun` currently supports a small Rust-owned configuration file format. This is
-a baseline loader, not the future `rum` configuration language.
+`dun` uses a small Rust-owned configuration file format: `key = value` lines,
+parsed into a typed model. (An earlier plan had a `rum` configuration language
+replacing it; embedding `rum` in the runtime is dead, and this format is what
+`dun` has.)
 
 The loader starts from `Config::default()` and applies `key = value` overrides.
 Blank lines and text after `#` are ignored.
@@ -341,5 +343,6 @@ key.window.resize_right = Ctrl+X,Shift+Right
 key.file_dialog.toggle_hidden = F8
 ```
 
-Future `rum` configuration should produce the same typed `Config` model rather
-than mutating editor state directly.
+Any future configuration source must produce the same typed `Config` model
+rather than mutating editor state directly — that boundary is the point, not
+the file format.

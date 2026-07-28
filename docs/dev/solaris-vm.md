@@ -15,7 +15,7 @@ budget baseline).
 
 - VirtualBox VM: Oracle Solaris 11.4 (SunOS 5.11), x86-64.
 - Reachable through a NAT port forward on the host: `localhost` port `2244`.
-- User: `fft`, with passwordless `sudo` (root).
+- User: `<user>` — the guest account you created, with passwordless `sudo`.
 - SSH keypair: the same `vm-test/dun-vm-test` used for the other VMs.
 - The VM is started manually by the project owner; ask before a test run.
 
