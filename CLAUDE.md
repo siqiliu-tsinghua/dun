@@ -239,7 +239,7 @@ Sequencing (stages 1–2 completed 2026-07-10):
    `EditorTextDisplay` seam + `Ctrl+X` keymap family). Binding Debian
    756,016 (+16,384 over `877b7ad`, margin 292,560); four-platform matrix
    817/0. One clean Codex stop-loss (stale gutter-render assumption →
-   Option C). F46 stays removed; F20 still returns as a plugin role.
+   Option C). F46 stays removed; F20 was cancelled outright on 2026-07-28.
 
 7. ~~OSC 52 clipboard read~~ — DONE, stage closed 2026-07-27 (`42774ec`):
    paste the host clipboard over SSH via the terminal (the read counterpart
@@ -326,11 +326,20 @@ Sequencing (stages 1–2 completed 2026-07-10):
      dual-platform size gate + four-platform matrix + tag `v0.1.0`. **The VMs
      are needed only here.**
 
-Queue after the wrap-up stage: F20 Outline as a plugin `DocumentStructure`
-role; rum evaluation stays externally blocked on rum-ext's resource/type
-base; plugin dropdown entries still have no mnemonic when a host declares
-none (deliberate — see docs/plugin-protocol.md "Menu mnemonics"). Optional
-follow-up: live real-terminal OSC 52 read acceptance (user-driven).
+Queue: **F20 Outline is cancelled** (user decision 2026-07-28) — the need is
+too small to carry, and a plugin-delivered navigation aid is absent exactly
+when it would matter, on a cold open of an unfamiliar file on a strange host.
+The `DocumentStructure` role need is withdrawn with it. rum evaluation stays
+externally blocked on rum-ext's resource/type base; plugin dropdown entries
+still have no mnemonic when a host declares none (deliberate — see
+docs/plugin-protocol.md "Menu mnemonics"). Optional follow-up: live
+real-terminal OSC 52 read acceptance (user-driven).
+
+**Candidate next stage: folding** (raised 2026-07-28). Unlike the outline it
+degrades gracefully — manual and indent-based folds need no type knowledge and
+no plugin, so they work on the cold open that motivates the feature. Cost is
+not the budget (margin 280,272) but a line-level display seam that does not
+exist yet; see the assessment recorded with the decision.
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,

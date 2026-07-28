@@ -463,10 +463,15 @@ request, validation, and application path end to end (stale revision handling
 and bounded style-span validation are easy to test); the capability
 infrastructure above is what the remaining bundles are built on.
 
-A `DocumentStructure` role is a recorded future need: the built-in Outline
-pane (Markdown/INI/TOML/Rust/shell section heuristics) was removed in the
-2026-07 slimming stage with the expectation that plugins provide section
-listings through a bounded snapshot in, label/line list out contract.
+A `DocumentStructure` role was a recorded future need after the built-in
+Outline pane (Markdown/INI/TOML/Rust/shell section heuristics) was removed in
+the 2026-07 slimming stage. **That need is withdrawn (2026-07-28.)** The
+reasoning that retired it applies to the replacement too: a navigation aid for
+an unfamiliar file is wanted precisely on a cold open of a strange host, which
+is when a plugin host is not installed. If document structure returns it should
+be as folds computed from indentation — no type knowledge, no plugin, present
+on first launch — with plugin-supplied ranges as an optional enrichment rather
+than the delivery mechanism.
 
 ## Output Validation
 

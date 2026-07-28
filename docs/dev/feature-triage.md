@@ -41,8 +41,12 @@ landed, if margin allows):
 - `ce68f20` — F46 advanced Command Output family. Value rationale for
   removal (showcase-era leftover; LogFilter plugin overlap) still holds;
   restore only with a concrete need.
-- `13d3ef7` — F20 Outline. Classified D: the recorded plan is to return as
-  a `DocumentStructure` plugin role, not as a core revert.
+- `13d3ef7` — F20 Outline. Classified D at the time, with the plan to return
+  as a `DocumentStructure` plugin role. **Cancelled 2026-07-28** (user
+  decision): the need is small, and the plugin delivery is absent on the cold
+  open of an unfamiliar file that motivates it. Folding is the candidate that
+  replaces the idea, because manual and indent-based folds need neither type
+  knowledge nor a plugin.
 - `53fe7f8` — F12 bookmarks + F13 visible whitespace. **RESTORED 2026-07-26**
   (see below).
 
@@ -66,7 +70,7 @@ the Surface renderer paints the separator over the last gutter cell, unlike
 the old ratatui renderer. Binding Debian +16,384 bytes over `877b7ad`
 (756,016; margin 292,560); four-platform functional matrix green (the removal
 had saved 12,288 — the restoration costs slightly more on the i18n + seam
-architecture). F46 stays removed; F20 still returns as a plugin role.
+architecture). F46 stays removed; F20 was cancelled outright on 2026-07-28.
 
 The client cost comes from the `spike/plugin-client-size` branch
 (`c7f042c`), measured on the Debian VM with the locked release profile; see
@@ -154,7 +158,7 @@ per-unit measurement was cancelled as unnecessary.
 | F17b | Interactive replace confirmation modal (replace/skip/all/cancel) | replace flow | req | B | | |
 | F18 | Go to line | `edit.go_to_line` | req | A | | |
 | F19 | Search Results pane: `results`, `results N`, row navigation | `app.search_results` | t4 | B | | |
-| F20 | Outline pane: section heuristics (Markdown/INI/TOML/Rust/shell), jumps | `app.outline` | t4 | D (structure role) | 12,288 | D, removed 2026-07-10 (batch 2); structure-listing role recorded in plugin-protocol.md |
+| F20 | Outline pane: section heuristics (Markdown/INI/TOML/Rust/shell), jumps | `app.outline` | t4 | D (structure role) | 12,288 | Removed 2026-07-10 (batch 2). The structure-listing role recorded for it was **cancelled 2026-07-28**; folding is the candidate replacement |
 
 ### Tiling windows
 
