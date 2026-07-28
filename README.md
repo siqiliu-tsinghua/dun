@@ -147,6 +147,14 @@ component. The ordinary `cargo build --release` is what most people want.
 Supported platforms: Linux, macOS, FreeBSD, and Solaris on x86-64. The test
 suite runs on all four.
 
+On Solaris, `scripts/release-build.sh` adds `-z noldynsym` for you. The native
+link editor keeps local function names in the dynamic symbol table so `pstack`
+and `dtrace` can name frames, which costs about 343 KB in an otherwise stripped
+binary; dropping it is what brings Solaris in line with the other three
+platforms. Set `DUN_SOLARIS_KEEP_LDYNSYM=1` to keep those names — also what you
+need if you link with GNU `ld`, which does not know the option. See the
+[user guide](docs/user-guide.md#installing) for the plain-`cargo` equivalent.
+
 ## Documentation
 
 **For users and plugin authors**
