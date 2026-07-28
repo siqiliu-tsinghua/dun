@@ -4,6 +4,34 @@ Notable user-visible changes. This project follows [semantic
 versioning](https://semver.org/); the development record behind each entry is
 in [docs/dev/PROGRESS.md](docs/dev/PROGRESS.md).
 
+## Unreleased
+
+### Added
+
+- **Folding.** `Ctrl+X,F` folds the selected lines or unfolds the fold at the
+  cursor; `Ctrl+X,A` unfolds everything in the buffer. Both are on the View
+  menu. A folded range draws one placeholder row showing the hidden line count
+  and an excerpt of the first line; the gutter keeps the fold's start line
+  number and aggregates bookmarks from the whole range. Folds are manual, do
+  not nest, survive editing (an edit that touches a fold drops it), and are
+  never written to disk. Go To Line, bookmark navigation and committed search
+  jumps expand a fold holding their target; the live Find preview deliberately
+  does not, so cancelling a search cannot lose fold state.
+
+### Fixed
+
+- **Bookmarks follow their text.** A bookmark marked a line *number*: inserting
+  five lines above a bookmark on line 10 left it on line 10 while the text it
+  marked moved to 15. Bookmarks now shift with every edit, including bulk
+  replace and undo.
+
+### Changed
+
+- `Ctrl+X,F` and `Ctrl+X,A` are now default bindings. A configuration that
+  binds either chord to something else will be rejected at startup with a
+  message naming both commands and how to unbind one
+  (`key.edit.unfold_all = none`).
+
 ## v0.1.0 — 2026-07-28
 
 First release. `dun` is a terminal text editor for remote operations work: a

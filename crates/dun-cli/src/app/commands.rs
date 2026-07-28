@@ -63,6 +63,10 @@ impl AppState {
             _ => {}
         }
 
+        if matches!(stroke.key, Key::Left | Key::Right | Key::Home | Key::End) {
+            self.expand_focused_fold_at_cursor();
+        }
+
         let Some(buffer) = self.focused_buffer_mut() else {
             return false;
         };

@@ -221,6 +221,16 @@ const VIEW_ENTRIES: &[EntrySpec] = &[
         EditorCommand::Edit(dun_core::EditCommand::ToggleVisibleWhitespace),
     ),
     entry(
+        "menu.view.toggle-fold",
+        "Toggle Fold (F)",
+        EditorCommand::Edit(dun_core::EditCommand::ToggleFold),
+    ),
+    entry(
+        "menu.view.unfold-all",
+        "Unfold All (A)",
+        EditorCommand::Edit(dun_core::EditCommand::UnfoldAll),
+    ),
+    entry(
         "menu.view.toggle-bookmark",
         "Toggle Bookmark (K)",
         EditorCommand::Edit(dun_core::EditCommand::ToggleBookmark),

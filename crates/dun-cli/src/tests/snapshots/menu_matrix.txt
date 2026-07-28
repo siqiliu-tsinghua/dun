@@ -36,6 +36,8 @@ View  Collapse (M)            window.collapse                   1    1  -       
 View  Expand (P)              window.expand                     1    1  -            -     -            "Pane is already expanded"
 View  Word Wrap (Z)           edit.toggle_word_wrap             1    1  -            -     -            "Word wrap on"
 View  Visible Whitespace (.)  edit.toggle_visible_whitespace    1    1  -            -     -            "Visible whitespace on"
+View  Toggle Fold (F)         edit.toggle_fold                  1    1  -            -     -            "Fold: select at least two lines"
+View  Unfold All (A)          edit.unfold_all                   1    1  -            -     -            "Unfold: nothing to unfold"
 View  Toggle Bookmark (K)     edit.toggle_bookmark              1    1  -            -     -            "Bookmarked line 1"
 View  Next Bookmark (N)       edit.next_bookmark                1    1  -            -     -            "Bookmark: none set"
 View  Previous Bookmark (L)   edit.previous_bookmark            1    1  -            -     -            "Bookmark: none set"

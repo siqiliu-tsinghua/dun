@@ -8,6 +8,7 @@ mod commands;
 mod editing;
 mod file_dialogs;
 mod file_io;
+mod folding;
 mod frame;
 mod helper_panes;
 mod highlight;

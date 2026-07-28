@@ -54,6 +54,20 @@ pub(crate) const STATUS_WHITESPACE_ON: TextKey = ("status.whitespace.on", "Visib
 pub(crate) const STATUS_WHITESPACE_OFF: TextKey =
     ("status.whitespace.off", "Visible whitespace off");
 pub(crate) const STATUS_DETAIL_WHITESPACE: TextKey = ("status.detail.whitespace", "Whitespace");
+pub(crate) const STATUS_FOLD_BUFFER_MISSING: TextKey = (
+    "status.fold.buffer-missing",
+    "Fold failed: focused buffer is missing",
+);
+pub(crate) const STATUS_FOLD_FOLDED: TextKey = ("status.fold.folded", "Folded {} lines");
+pub(crate) const STATUS_FOLD_UNFOLDED: TextKey = ("status.fold.unfolded", "Unfolded");
+pub(crate) const STATUS_FOLD_ALL_UNFOLDED: TextKey =
+    ("status.fold.all-unfolded", "Unfolded {} fold(s)");
+pub(crate) const STATUS_FOLD_NOTHING_TO_UNFOLD: TextKey =
+    ("status.fold.nothing-to-unfold", "Unfold: nothing to unfold");
+pub(crate) const STATUS_FOLD_SELECTION_TOO_SHORT: TextKey = (
+    "status.fold.selection-too-short",
+    "Fold: select at least two lines",
+);
 pub(crate) const STATUS_BOOKMARK_BUFFER_MISSING: TextKey = (
     "status.bookmark.buffer-missing",
     "Bookmark failed: focused buffer is missing",
@@ -196,6 +210,12 @@ pub(crate) const ALL: &[TextKey] = &[
     STATUS_WHITESPACE_ON,
     STATUS_WHITESPACE_OFF,
     STATUS_DETAIL_WHITESPACE,
+    STATUS_FOLD_BUFFER_MISSING,
+    STATUS_FOLD_FOLDED,
+    STATUS_FOLD_UNFOLDED,
+    STATUS_FOLD_ALL_UNFOLDED,
+    STATUS_FOLD_NOTHING_TO_UNFOLD,
+    STATUS_FOLD_SELECTION_TOO_SHORT,
     STATUS_BOOKMARK_BUFFER_MISSING,
     STATUS_BOOKMARK_ADDED,
     STATUS_BOOKMARK_REMOVED,

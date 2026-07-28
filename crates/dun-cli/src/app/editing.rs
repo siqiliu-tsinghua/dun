@@ -101,6 +101,14 @@ impl AppState {
                 self.toggle_visible_whitespace();
                 return;
             }
+            EditCommand::ToggleFold => {
+                self.toggle_fold();
+                return;
+            }
+            EditCommand::UnfoldAll => {
+                self.unfold_all();
+                return;
+            }
             EditCommand::ToggleBookmark => {
                 self.toggle_bookmark();
                 return;
@@ -156,6 +164,20 @@ impl AppState {
             _ => {}
         }
 
+        if matches!(
+            command,
+            EditCommand::MoveLeft
+                | EditCommand::MoveRight
+                | EditCommand::MoveWordLeft
+                | EditCommand::MoveWordRight
+                | EditCommand::MoveLineStart
+                | EditCommand::MoveLineEnd
+                | EditCommand::ExtendSelectionWordLeft
+                | EditCommand::ExtendSelectionWordRight
+        ) {
+            self.expand_focused_fold_at_cursor();
+        }
+
         let Some(buffer) = self.focused_buffer_mut() else {
             return;
         };
@@ -175,10 +197,10 @@ impl AppState {
                 buffer.buffer.move_right();
             }
             EditCommand::MoveUp => {
-                buffer.buffer.move_up();
+                buffer.move_page_up(1);
             }
             EditCommand::MoveDown => {
-                buffer.buffer.move_down();
+                buffer.move_page_down(1);
             }
             EditCommand::MoveWordLeft => {
                 buffer.buffer.move_word_left();
@@ -227,6 +249,8 @@ impl AppState {
             | EditCommand::TrimTrailingWhitespace
             | EditCommand::ToggleWordWrap
             | EditCommand::ToggleVisibleWhitespace
+            | EditCommand::ToggleFold
+            | EditCommand::UnfoldAll
             | EditCommand::ToggleBookmark
             | EditCommand::NextBookmark
             | EditCommand::PreviousBookmark

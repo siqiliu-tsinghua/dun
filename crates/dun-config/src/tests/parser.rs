@@ -183,12 +183,12 @@ fn config_parser_rejects_duplicate_resulting_keybindings() {
 
 #[test]
 fn config_parser_replaces_all_default_aliases_for_command() {
-    let config = parse_config("key.window.focus_left = Ctrl+X,A").unwrap();
+    let config = parse_config("key.window.focus_left = Ctrl+X,D").unwrap();
 
     assert_eq!(
         config
             .keybindings
-            .command_for_sequence(&KeySequence::from_str("Ctrl+X,A").unwrap()),
+            .command_for_sequence(&KeySequence::from_str("Ctrl+X,D").unwrap()),
         Some(&EditorCommand::Window(WindowCommand::FocusLeft))
     );
     assert_eq!(

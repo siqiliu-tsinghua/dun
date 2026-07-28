@@ -659,6 +659,14 @@ const HELP_SECTIONS: &[HelpSection] = &[
                 description: "Toggle visible whitespace",
             },
             HelpCommand {
+                command: EditorCommand::Edit(EditCommand::ToggleFold),
+                description: "Toggle fold",
+            },
+            HelpCommand {
+                command: EditorCommand::Edit(EditCommand::UnfoldAll),
+                description: "Unfold all",
+            },
+            HelpCommand {
                 command: EditorCommand::Edit(EditCommand::ToggleBookmark),
                 description: "Toggle bookmark on current line",
             },

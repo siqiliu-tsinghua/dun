@@ -74,6 +74,8 @@ impl Keymap {
                     "Ctrl+X,.",
                     EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace),
                 ),
+                KeyBinding::new("Ctrl+X,F", EditorCommand::Edit(EditCommand::ToggleFold)),
+                KeyBinding::new("Ctrl+X,A", EditorCommand::Edit(EditCommand::UnfoldAll)),
                 KeyBinding::new("Ctrl+X,K", EditorCommand::Edit(EditCommand::ToggleBookmark)),
                 KeyBinding::new("Ctrl+X,N", EditorCommand::Edit(EditCommand::NextBookmark)),
                 KeyBinding::new(

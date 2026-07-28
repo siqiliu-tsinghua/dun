@@ -33,6 +33,8 @@ pub const ALL_COMMAND_IDS: &[&str] = &[
     "edit.trim_trailing_whitespace",
     "edit.toggle_word_wrap",
     "edit.toggle_visible_whitespace",
+    "edit.toggle_fold",
+    "edit.unfold_all",
     "edit.toggle_bookmark",
     "edit.next_bookmark",
     "edit.previous_bookmark",
@@ -130,6 +132,8 @@ pub fn command_id(command: &EditorCommand) -> &'static str {
         EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace) => {
             "edit.toggle_visible_whitespace"
         }
+        EditorCommand::Edit(EditCommand::ToggleFold) => "edit.toggle_fold",
+        EditorCommand::Edit(EditCommand::UnfoldAll) => "edit.unfold_all",
         EditorCommand::Edit(EditCommand::ToggleBookmark) => "edit.toggle_bookmark",
         EditorCommand::Edit(EditCommand::NextBookmark) => "edit.next_bookmark",
         EditorCommand::Edit(EditCommand::PreviousBookmark) => "edit.previous_bookmark",
@@ -247,6 +251,8 @@ pub fn command_from_id(input: &str) -> Result<EditorCommand, CommandParseError> 
         "edit.toggle_visible_whitespace" => {
             Ok(EditorCommand::Edit(EditCommand::ToggleVisibleWhitespace))
         }
+        "edit.toggle_fold" => Ok(EditorCommand::Edit(EditCommand::ToggleFold)),
+        "edit.unfold_all" => Ok(EditorCommand::Edit(EditCommand::UnfoldAll)),
         "edit.toggle_bookmark" => Ok(EditorCommand::Edit(EditCommand::ToggleBookmark)),
         "edit.next_bookmark" => Ok(EditorCommand::Edit(EditCommand::NextBookmark)),
         "edit.previous_bookmark" => Ok(EditorCommand::Edit(EditCommand::PreviousBookmark)),

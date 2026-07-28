@@ -76,6 +76,7 @@ impl AppState {
             );
             return;
         };
+        buffer.buffer.remove_fold_at(target_line);
         let target_column = buffer.clamp_column_to_line(target_line, cursor.column);
         let _ = buffer
             .buffer

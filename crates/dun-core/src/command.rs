@@ -65,6 +65,8 @@ pub enum EditCommand {
     TrimTrailingWhitespace,
     ToggleWordWrap,
     ToggleVisibleWhitespace,
+    ToggleFold,
+    UnfoldAll,
     ToggleBookmark,
     NextBookmark,
     PreviousBookmark,

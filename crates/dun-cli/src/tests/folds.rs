@@ -25,6 +25,264 @@ fn snapshot_text_rows(snapshot: &str) -> Vec<&str> {
 }
 
 #[test]
+fn toggle_fold_folds_the_selected_lines_and_clears_the_selection() {
+    let mut app = app_with_text("above\nfirst\nsecond\nexcluded\nafter");
+    let buffer = &mut app.focused_buffer_mut().unwrap().buffer;
+    buffer
+        .select(Position::new(1, 2), Position::new(3, 0))
+        .unwrap();
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleFold));
+
+    let buffer = &app.focused_buffer().unwrap().buffer;
+    assert_eq!(buffer.folds().ranges(), [FoldRange::new(1, 3)]);
+    assert_eq!(buffer.cursor_position(), Position::new(1, 0));
+    assert_eq!(buffer.selection(), None);
+    assert!(!buffer.is_dirty());
+    assert_eq!(app.status_message.as_deref(), Some("Folded 2 lines"));
+
+    app.focused_buffer_mut()
+        .unwrap()
+        .buffer
+        .set_cursor(Position::new(0, 0))
+        .unwrap();
+    app.handle_command(&EditorCommand::Edit(EditCommand::MoveDown));
+    assert_eq!(
+        app.focused_buffer().unwrap().buffer.cursor_position(),
+        Position::new(1, 0)
+    );
+    app.handle_command(&EditorCommand::Edit(EditCommand::MoveDown));
+    assert_eq!(
+        app.focused_buffer().unwrap().buffer.cursor_position(),
+        Position::new(3, 0)
+    );
+}
+
+#[test]
+fn toggle_fold_without_a_selection_unfolds_at_the_cursor() {
+    let mut app = AppState::new();
+    install_folded_text(
+        &mut app,
+        "above\nfirst\nsecond\nafter",
+        FoldRange::new(1, 3),
+    );
+    let buffer = &mut app.focused_buffer_mut().unwrap().buffer;
+    buffer.set_cursor(Position::new(2, 3)).unwrap();
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::ToggleFold));
+
+    let buffer = &app.focused_buffer().unwrap().buffer;
+    assert!(buffer.folds().is_empty());
+    assert_eq!(buffer.cursor_position(), Position::new(2, 3));
+    assert!(!buffer.is_dirty());
+    assert_eq!(app.status_message.as_deref(), Some("Unfolded"));
+}
+
+#[test]
+fn toggle_fold_reports_when_fewer_than_two_lines_are_selected() {
+    let mut selected = app_with_text("first\nsecond");
+    selected
+        .focused_buffer_mut()
+        .unwrap()
+        .buffer
+        .select(Position::new(0, 0), Position::new(0, 3))
+        .unwrap();
+    let before = selected.focused_buffer().unwrap().buffer.clone();
+
+    selected.handle_command(&EditorCommand::Edit(EditCommand::ToggleFold));
+
+    assert_eq!(selected.focused_buffer().unwrap().buffer, before);
+    assert_eq!(
+        selected.status_message.as_deref(),
+        Some("Fold: select at least two lines")
+    );
+
+    let mut unselected = app_with_text("first\nsecond");
+    let before = unselected.focused_buffer().unwrap().buffer.clone();
+    unselected.handle_command(&EditorCommand::Edit(EditCommand::ToggleFold));
+    assert_eq!(unselected.focused_buffer().unwrap().buffer, before);
+    assert_eq!(
+        unselected.status_message.as_deref(),
+        Some("Fold: select at least two lines")
+    );
+}
+
+#[test]
+fn unfold_all_clears_every_fold_and_reports_the_count() {
+    let mut app = app_with_text("zero\none\ntwo\nthree\nfour\nfive");
+    app.focused_buffer_mut()
+        .unwrap()
+        .buffer
+        .set_folds(FoldSet::new(vec![FoldRange::new(0, 2), FoldRange::new(3, 6)]).unwrap());
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::UnfoldAll));
+
+    assert!(app.focused_buffer().unwrap().buffer.folds().is_empty());
+    assert_eq!(app.status_message.as_deref(), Some("Unfolded 2 fold(s)"));
+
+    app.handle_command(&EditorCommand::Edit(EditCommand::UnfoldAll));
+    assert_eq!(
+        app.status_message.as_deref(),
+        Some("Unfold: nothing to unfold")
+    );
+
+    let focused = app.focused_buffer_id().unwrap();
+    app.buffers.retain(|buffer| buffer.id != focused);
+    app.handle_command(&EditorCommand::Edit(EditCommand::UnfoldAll));
+    assert_eq!(
+        app.status_message.as_deref(),
+        Some("Fold failed: focused buffer is missing")
+    );
+}
+
+#[test]
+fn go_to_line_and_bookmark_jumps_expand_a_hidden_target() {
+    let mut go_to = AppState::new();
+    install_folded_text(
+        &mut go_to,
+        "above\nfirst\nsecond\nthird\nafter",
+        FoldRange::new(1, 4),
+    );
+    go_to.go_to_line("3");
+    assert!(go_to.focused_buffer().unwrap().buffer.folds().is_empty());
+    assert_eq!(
+        go_to.focused_buffer().unwrap().buffer.cursor_position(),
+        Position::new(2, 0)
+    );
+
+    let mut next = AppState::new();
+    install_folded_text(
+        &mut next,
+        "above\nfirst\nsecond\nthird\nafter",
+        FoldRange::new(1, 4),
+    );
+    next.focused_buffer_mut()
+        .unwrap()
+        .buffer
+        .set_bookmarks(vec![2]);
+    next.handle_command(&EditorCommand::Edit(EditCommand::NextBookmark));
+    assert!(next.focused_buffer().unwrap().buffer.folds().is_empty());
+    assert_eq!(
+        next.focused_buffer().unwrap().buffer.cursor_position(),
+        Position::new(2, 0)
+    );
+
+    let mut previous = AppState::new();
+    install_folded_text(
+        &mut previous,
+        "above\nfirst\nsecond\nthird\nafter",
+        FoldRange::new(1, 4),
+    );
+    let buffer = &mut previous.focused_buffer_mut().unwrap().buffer;
+    buffer.set_bookmarks(vec![2]);
+    buffer.set_cursor(Position::new(4, 0)).unwrap();
+    previous.handle_command(&EditorCommand::Edit(EditCommand::PreviousBookmark));
+    assert!(previous.focused_buffer().unwrap().buffer.folds().is_empty());
+    assert_eq!(
+        previous.focused_buffer().unwrap().buffer.cursor_position(),
+        Position::new(2, 0)
+    );
+
+    for command in [
+        EditCommand::MoveLeft,
+        EditCommand::MoveRight,
+        EditCommand::MoveWordLeft,
+        EditCommand::MoveWordRight,
+        EditCommand::MoveLineStart,
+        EditCommand::MoveLineEnd,
+        EditCommand::ExtendSelectionWordLeft,
+        EditCommand::ExtendSelectionWordRight,
+    ] {
+        let mut movement = AppState::new();
+        install_folded_text(
+            &mut movement,
+            "above\nfirst words\nsecond\nafter",
+            FoldRange::new(1, 3),
+        );
+        movement
+            .focused_buffer_mut()
+            .unwrap()
+            .buffer
+            .set_cursor(Position::new(1, 0))
+            .unwrap();
+        movement.handle_command(&EditorCommand::Edit(command));
+        assert!(movement.focused_buffer().unwrap().buffer.folds().is_empty());
+    }
+
+    for key in [Key::Left, Key::Right, Key::Home, Key::End] {
+        let mut movement = AppState::new();
+        install_folded_text(
+            &mut movement,
+            "above\nfirst words\nsecond\nafter",
+            FoldRange::new(1, 3),
+        );
+        movement
+            .focused_buffer_mut()
+            .unwrap()
+            .buffer
+            .set_cursor(Position::new(1, 0))
+            .unwrap();
+        movement.handle_selection_key_stroke(KeyStroke::new(key, KeyModifiers::SHIFT));
+        assert!(movement.focused_buffer().unwrap().buffer.folds().is_empty());
+    }
+}
+
+#[test]
+fn committed_search_jump_expands_but_preview_does_not() {
+    const TEXT: &str = "above\nneedle here\nhidden\nafter";
+    const FOLD: FoldRange = FoldRange::new(1, 3);
+
+    let mut submitted = AppState::new();
+    install_folded_text(&mut submitted, TEXT, FOLD);
+    submitted.handle_command(&EditorCommand::Edit(EditCommand::Find));
+    send_text(&mut submitted, "needle");
+    assert_eq!(
+        submitted.focused_buffer().unwrap().buffer.folds().ranges(),
+        [FOLD]
+    );
+    assert_eq!(
+        submitted.focused_buffer().unwrap().buffer.selection_range(),
+        Some(TextRange::new(Position::new(1, 0), Position::new(1, 6)))
+    );
+
+    handle_key_event(
+        &mut submitted,
+        TerminalKeyEvent::new(TerminalKeyCode::Enter, TerminalKeyModifiers::NONE),
+    );
+    assert!(
+        submitted
+            .focused_buffer()
+            .unwrap()
+            .buffer
+            .folds()
+            .is_empty()
+    );
+
+    for (command, cursor) in [
+        (EditCommand::FindNext, Position::new(0, 0)),
+        (EditCommand::FindPrevious, Position::new(3, 0)),
+    ] {
+        let mut repeated = AppState::new();
+        install_folded_text(&mut repeated, TEXT, FOLD);
+        repeated.last_find_query = Some("needle".to_string());
+        repeated
+            .focused_buffer_mut()
+            .unwrap()
+            .buffer
+            .set_cursor(cursor)
+            .unwrap();
+        repeated.handle_command(&EditorCommand::Edit(command));
+        assert!(repeated.focused_buffer().unwrap().buffer.folds().is_empty());
+    }
+
+    let mut replace = AppState::new();
+    install_folded_text(&mut replace, TEXT, FOLD);
+    replace.start_replace_confirmation(SearchSpec::parse("needle"), "replacement".to_string());
+    assert!(replace.replace_confirm.is_some());
+    assert!(replace.focused_buffer().unwrap().buffer.folds().is_empty());
+}
+
+#[test]
 fn folded_range_draws_one_row_at_any_width() {
     const FOLDED: &str = "fold excerpt that would wrap many times";
     const VISIBLE: &str = "abcdefghijklmnopqrstuvwx";

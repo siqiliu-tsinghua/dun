@@ -30,6 +30,7 @@ impl AppState {
             )
         });
         let selected = matches[selection.index].range;
+        buffer.buffer.remove_fold_at(selected.start.line);
         let _ = buffer.buffer.select(selected.start, selected.end);
         let match_count = matches.len();
         buffer.set_search(spec.clone(), matches, Some(selection.index));
@@ -155,6 +156,7 @@ impl AppState {
             choose_search_match(&matches, origin, direction)
         });
         let selected = matches[selection.index].range;
+        buffer.buffer.remove_fold_at(selected.start.line);
         let _ = buffer.buffer.select(selected.start, selected.end);
         let match_count = matches.len();
         buffer.set_search(confirm.spec.clone(), matches, Some(selection.index));
@@ -566,6 +568,7 @@ impl AppState {
         };
         let selection = choose_search_match(&matches, origin, direction);
         let selected = matches[selection.index].range;
+        buffer.buffer.remove_fold_at(selected.start.line);
         let _ = buffer.buffer.select(selected.start, selected.end);
         let match_count = matches.len();
         buffer.set_search(spec.clone(), matches, Some(selection.index));
@@ -945,6 +948,7 @@ impl AppState {
             .line(target_line)
             .map(|line| clamp_to_char_boundary(line, current_column))
             .unwrap_or(0);
+        buffer.buffer.remove_fold_at(target_line);
 
         match buffer
             .buffer
