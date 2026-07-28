@@ -75,9 +75,18 @@ Files you MAY modify:
   two adjustment helpers; forward to the buffer.
 - `crates/dun-cli/src/app/editing.rs`, `view_commands.rs`, `file_io.rs` — the
   call sites listed above.
+- `crates/dun-cli/src/app/frame.rs` — passes `&buffer.bookmarks` to the frame
+  model (`frame.rs:27`).
+- `crates/dun-cli/src/app/status_view.rs` — the `[Mark]` status field reads
+  `buffer.bookmarks` (`status_view.rs:104`).
 - `crates/dun-ui/src/frame/gutter.rs` and `crates/dun-ui/src/model.rs` — only
   if the gutter's bookmark source changes shape.
 - Tests: `crates/dun-core/src/buffer/tests/`, `crates/dun-cli/src/tests/markers.rs`.
+
+These four files name bookmark *commands and strings*, not the storage, and are
+deliberately **out** of scope — they need no change:
+`crates/dun-cli/src/app/command_line.rs`, `crates/dun-cli/src/help/content.rs`,
+`crates/dun-ui/src/frame/menu.rs`, `crates/dun-cli/src/ui_text/status/edit.rs`.
 
 Everything in `TEMPLATE.md`'s MUST NOT list still applies. Do not touch the
 command ids, keymap defaults, menu entries, help text, or any `i18n/` catalog —
