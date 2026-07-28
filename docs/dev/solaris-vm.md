@@ -135,6 +135,45 @@ platform).
   skip. FreeBSD and macOS pass all four.
 - There is no `/usr/bin/edit` on Solaris, so the Microsoft Edit tests skip
   cleanly (they gate on `microsoft_edit_on_path`).
+- **NOT A BUG — running `pty_smoke` leaves a core dump and an open FMA alert
+  here, and only here.** `coreadm` on this guest has `diagnostic core dumps:
+  enabled` and `core diagnostic alert: enabled`, so *any* core raises a
+  `COREDIAG-8000-1V` case that sits in `fmadm faulty` marked Major. The other
+  three platforms dump quietly, which is why the noise looks Solaris-specific.
+
+  The core is produced on purpose by our own harness.
+  `pty_smoke_restores_the_terminal_when_a_release_build_aborts` checks that a
+  release binary hands the terminal back when it aborts, so it needs the Rust
+  side to observe `SIGABRT`. `tests/support/pty.rs` gets it there by having the
+  `expect` wrapper kill *itself* with whatever signal the child died from:
+
+  ```tcl
+  if {[lindex $wait_result 4] eq "CHILDKILLED"} {
+      exec kill -s [lindex $wait_result 5] [pid]
+  }
+  ```
+
+  So `expect` takes a deliberate `SIGABRT` and dumps core, and `dun` dumps one
+  too from its own intentional abort. `pstack` on the `expect` core shows it
+  blocked in `__read` inside `Tcl_ExecObjCmd` — that is the `exec kill`
+  subprocess — with **no `abort()` or `raise()` frame**, which is how you tell
+  the signal came from outside rather than from a crash. Neither core indicates
+  a defect in `dun` or in `expect`.
+
+  To clean up: delete the core files (they land in the process's cwd, so under
+  the synced tree and the home directory, not `/var/share/cores` — global core
+  dumps are disabled), then clear the case. Note the command: a COREDIAG case
+  is an **alert**, not a fault, so `fmadm repaired` fails with "specified
+  resource is not known to be faulty". Use
+
+  ```text
+  sudo fmadm clear <uuid>
+  ```
+
+  The risk worth knowing about is not the noise itself but what it hides: if
+  these accumulate, a genuine `dun` core would be one more Major case among
+  several self-inflicted ones. Clear them after a `pty_smoke` run so the next
+  alert means something.
 
 ## Clock: enable NTP, do not install the Guest Additions
 

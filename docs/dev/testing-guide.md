@@ -107,6 +107,12 @@ host port to guest port 22. The wrappers know these ports:
 | `freebsd` | 2233 | FreeBSD 15.1 amd64 — portability only |
 | `solaris` | 2244 | Oracle Solaris 11.4 — portability only |
 
+Each guest has a manual with its own quirks — read the matching one before
+filing a bug against a platform-specific result. The one that most looks like a
+defect and is not: on Solaris, `pty_smoke` deliberately aborts a release binary,
+so it leaves core dumps and an open `COREDIAG` alert that no other platform
+raises ([solaris-vm.md](./solaris-vm.md)).
+
 In the VirtualBox UI this is Settings → Network → Advanced → Port Forwarding;
 on the command line:
 
