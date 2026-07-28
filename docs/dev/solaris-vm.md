@@ -128,13 +128,13 @@ VM, not the cure.** Keep `svc:/application/virtualbox/vboxservice:default`
 Measured 2026-07-28, four trials of the same 90-second four-way CPU load, with
 the guest-versus-host offset sampled every 30 seconds afterwards:
 
-| Sample | VBoxService only | Both daemons | **ntpd only** | VBoxService re-enabled |
-| --- | --- | --- | --- | --- |
-| baseline | +0.10 | +0.19 | +0.13 | +0.18 |
-| load ends | −3.97 | −3.97 | **+0.19** | −0.45 |
-| +60 s | −7.74 | −7.73 | **+0.21** | −4.23 |
-| +120 s | −11.45 | −11.43 | **+0.24** | −8.01 |
-| +180 s | −8.95 | −10.07 | **+0.26** | −4.98 |
+| Sample | VBoxService only | Both daemons | **ntpd only** | **Neither** | VBoxService again |
+| --- | --- | --- | --- | --- | --- |
+| baseline | +0.10 | +0.19 | +0.13 | +0.70 | +0.18 |
+| load ends | −3.97 | −3.97 | **+0.19** | **+0.74** | −0.45 |
+| +60 s | −7.74 | −7.73 | **+0.21** | **+0.75** | −4.23 |
+| +120 s | −11.45 | −11.43 | **+0.24** | **+0.74** | −8.01 |
+| +180 s | −8.95 | −10.07 | **+0.26** | **+0.76** | −4.98 |
 
 With VBoxService running the clock loses about eleven seconds and keeps losing
 for two minutes *after* the load stops, then recovers at roughly 1.9 s per
@@ -142,9 +142,18 @@ for two minutes *after* the load stops, then recovers at roughly 1.9 s per
 `ntpd` alongside VBoxService changes nothing, which is what isolates the cause;
 re-enabling VBoxService reproduces the drift.
 
-`ntpd` cannot be the explanation for the flat column: its maximum slew is
-500 ppm, about 0.01 s over three minutes, so it could not mask an eleven-second
-loss. The loss does not happen.
+The fourth column is the one that settles it. With **no time discipline at
+all** — the guest's original state — the same load moves the clock by 0.06 s
+across the whole trial. A bare Solaris guest does not lose time under load;
+the loss is manufactured by the thing installed to prevent it.
+
+That column was added after the fact, and its absence was a real gap: the first
+load test on this guest was run *after* VBoxService was installed, with no
+before-measurement to compare against, so the recovery it showed was credited
+to the treatment when it was the treatment correcting its own damage. The
+argument that `ntpd` could not be masking a loss in the third column — its
+maximum slew is 500 ppm, about 0.01 s over three minutes — was sound, but it
+was an argument. The fourth column is an observation.
 
 The likely mechanism is VBoxService's latency filter failing under load. It
 polls the host every 10 s and is supposed to discard a sample whose round trip
