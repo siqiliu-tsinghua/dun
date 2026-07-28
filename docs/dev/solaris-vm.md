@@ -119,6 +119,52 @@ platform).
 - There is no `/usr/bin/edit` on Solaris, so the Microsoft Edit tests skip
   cleanly (they gate on `microsoft_edit_on_path`).
 
+## Do not run VBoxService on this guest
+
+**The VirtualBox Guest Additions time sync is the cause of clock drift on this
+VM, not the cure.** Keep `svc:/application/virtualbox/vboxservice:default`
+**disabled** and let `ntpd` discipline the clock.
+
+Measured 2026-07-28, four trials of the same 90-second four-way CPU load, with
+the guest-versus-host offset sampled every 30 seconds afterwards:
+
+| Sample | VBoxService only | Both daemons | **ntpd only** | VBoxService re-enabled |
+| --- | --- | --- | --- | --- |
+| baseline | +0.10 | +0.19 | +0.13 | +0.18 |
+| load ends | −3.97 | −3.97 | **+0.19** | −0.45 |
+| +60 s | −7.74 | −7.73 | **+0.21** | −4.23 |
+| +120 s | −11.45 | −11.43 | **+0.24** | −8.01 |
+| +180 s | −8.95 | −10.07 | **+0.26** | −4.98 |
+
+With VBoxService running the clock loses about eleven seconds and keeps losing
+for two minutes *after* the load stops, then recovers at roughly 1.9 s per
+30 s. Without it the same load moves the clock by less than 0.15 s. Enabling
+`ntpd` alongside VBoxService changes nothing, which is what isolates the cause;
+re-enabling VBoxService reproduces the drift.
+
+`ntpd` cannot be the explanation for the flat column: its maximum slew is
+500 ppm, about 0.01 s over three minutes, so it could not mask an eleven-second
+loss. The loss does not happen.
+
+The likely mechanism is VBoxService's latency filter failing under load. It
+polls the host every 10 s and is supposed to discard a sample whose round trip
+exceeded `--timesync-max-latency` (250 ms), but a saturated guest makes those
+queries slow, and a latency-polluted sample is read as real drift. The shape of
+the curve — a steady slew in the wrong direction while the load lasts and
+beyond, then a steady slew back — is what a correction daemon acting on bad
+samples looks like, not what a guest losing timer interrupts looks like.
+
+An earlier note here recorded the opposite conclusion, that Guest Additions
+were the fix. That was wrong, and it was wrong because it was reasoned from the
+`Time of Day clock error: reason [Stalled]` warning rather than measured. The
+warning is real and appears on this guest, but it does not establish which
+component moves the clock.
+
+This VM has `ntpd` configured against `pool.ntp.org` in `/etc/inet/ntp.conf`;
+the Solaris installer never asked, which is why it ran without any time
+discipline until 2026-07-28. Debian and FreeBSD were configured with NTP at
+install time and show no drift under the same load.
+
 ## Working Conventions
 
 Same as the other VMs: build from a clean `vm-sync` archive, one working
