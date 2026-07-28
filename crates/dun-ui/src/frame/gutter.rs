@@ -27,11 +27,16 @@ impl UiShell {
                 break;
             }
 
-            let line_index = match item {
-                VisibleLine::Source { line } => line,
-                VisibleLine::Fold { range } => range.start_line,
+            let (line_index, bookmarked) = match item {
+                VisibleLine::Source { line } => (line, buffer.bookmarks.contains(&line)),
+                VisibleLine::Fold { range } => (
+                    range.start_line,
+                    buffer
+                        .bookmarks
+                        .iter()
+                        .any(|line| *line >= range.start_line && *line < range.end_line_exclusive),
+                ),
             };
-            let bookmarked = buffer.bookmarks.contains(&line_index);
             let visual_rows = match item {
                 VisibleLine::Source { .. } if buffer.wrap => {
                     let body_width = usize::from(geometry.body.width).max(1);

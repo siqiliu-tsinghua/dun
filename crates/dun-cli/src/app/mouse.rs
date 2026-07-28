@@ -69,6 +69,10 @@ impl AppState {
         self.pending_keys.clear();
         match hit.target {
             UiMouseTarget::Body(position) => {
+                let position = self
+                    .buffer_state(hit.buffer_id)
+                    .map(|buffer| fold_placeholder_position(&buffer.buffer, position))
+                    .unwrap_or(position);
                 if let Some(buffer) = self.buffer_state_mut(hit.buffer_id) {
                     let _ = buffer.buffer.set_cursor(position);
                 }
@@ -184,7 +188,10 @@ impl AppState {
             return false;
         }
         let position = match hit.target {
-            UiMouseTarget::Body(position) => position,
+            UiMouseTarget::Body(position) => self
+                .buffer_state(buffer_id)
+                .map(|buffer| fold_placeholder_position(&buffer.buffer, position))
+                .unwrap_or(position),
             UiMouseTarget::Chrome | UiMouseTarget::Gutter | UiMouseTarget::Scrollbar { .. } => {
                 let Some(position) = self.drag_scroll_selection_position(buffer_id, x, y) else {
                     return false;
@@ -219,8 +226,8 @@ impl AppState {
                     .is_some_and(|window| window.buffer_id == buffer_id)
             })?;
         let buffer = self.buffer_state(buffer_id)?;
-        let line_count =
-            EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds).visible_row_count();
+        let line_count = EditorLineDisplay::new(buffer.buffer.line_count(), buffer.buffer.folds())
+            .visible_row_count();
         let geometry =
             self.shell
                 .window_geometry(layout.rect.width, layout.rect.height, Some(line_count));
@@ -241,7 +248,8 @@ impl AppState {
             } else if workspace_y >= bottom {
                 buffer.scroll_view_lines(1, body_height, body_width, display);
             }
-            let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds);
+            let line_map =
+                EditorLineDisplay::new(buffer.buffer.line_count(), buffer.buffer.folds());
             let first_row = line_map
                 .placement_for_source_line(buffer.first_line)
                 .unwrap_or(0);
@@ -271,7 +279,10 @@ impl AppState {
             .first_column
             .saturating_add(x.min(body_width.saturating_sub(1)));
         let column = clamp_to_display_column(line, display_column, display);
-        Some(Position::new(target_line, column))
+        Some(fold_placeholder_position(
+            &buffer.buffer,
+            Position::new(target_line, column),
+        ))
     }
 
     pub(crate) fn handle_mouse_scroll(
@@ -394,4 +405,14 @@ impl AppState {
                 .min(self.workspace_area.height.saturating_sub(1)),
         ))
     }
+}
+
+fn fold_placeholder_position(buffer: &TextBuffer, position: Position) -> Position {
+    buffer
+        .folds()
+        .ranges()
+        .iter()
+        .find(|range| position.line >= range.start_line && position.line < range.end_line_exclusive)
+        .map(|range| Position::new(range.start_line, 0))
+        .unwrap_or(position)
 }

@@ -1,4 +1,4 @@
-use dun_core::SanitizedLine;
+use dun_core::{DisplayClass, DisplaySegment, FoldRange, SanitizedLine};
 
 use crate::{BufferView, EditorVisualRows, UiShell, ViewportTop, VisibleLine, WindowGeometry};
 
@@ -33,8 +33,8 @@ impl UiShell {
                     let start = display.display_column_to_source_byte(source, buffer.first_column);
                     lines.push(display.sanitize_line(&source[start..]));
                 }
-                VisibleLine::Fold { .. } => {
-                    lines.push(self.display_sanitizer.sanitize_line(""));
+                VisibleLine::Fold { range } => {
+                    lines.push(self.sanitize_fold_placeholder(buffer, range));
                 }
             }
         }
@@ -80,15 +80,38 @@ impl UiShell {
                         lines.push(display.sanitize_wrapped_segment(segment));
                     }
                 }
-                VisibleLine::Fold { .. } => {
+                VisibleLine::Fold { range } => {
                     if item_index != 0 || buffer.top.wrapped_row == 0 {
-                        lines.push(self.display_sanitizer.sanitize_line(""));
+                        lines.push(self.sanitize_fold_placeholder(buffer, range));
                     }
                 }
             }
         }
 
         lines
+    }
+
+    fn sanitize_fold_placeholder(
+        &self,
+        buffer: &BufferView<'_>,
+        range: FoldRange,
+    ) -> SanitizedLine {
+        let source = buffer.buffer.line(range.start_line).unwrap_or_default();
+        let mut excerpt = self
+            .editor_text_display(buffer.visible_whitespace)
+            .sanitize_line(source);
+        let mut prefix = String::with_capacity(24);
+        prefix.push(self.glyphs.indicators.fold);
+        prefix.push_str(" [");
+        push_decimal(
+            &mut prefix,
+            range.end_line_exclusive.saturating_sub(range.start_line),
+        );
+        prefix.push_str("] ");
+        excerpt
+            .segments
+            .insert(0, DisplaySegment::new(DisplayClass::Text, prefix));
+        excerpt
     }
 
     pub(crate) fn wrapped_visual_line_count(
@@ -158,5 +181,21 @@ impl UiShell {
             body_width,
         )
         .top_for_global_row(target_row)
+    }
+}
+
+fn push_decimal(output: &mut String, mut value: usize) {
+    let mut digits = [0u8; 20];
+    let mut start = digits.len();
+    loop {
+        start -= 1;
+        digits[start] = b'0' + (value % 10) as u8;
+        value /= 10;
+        if value == 0 {
+            break;
+        }
+    }
+    for digit in &digits[start..] {
+        output.push(char::from(*digit));
     }
 }

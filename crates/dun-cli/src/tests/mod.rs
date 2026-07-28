@@ -8,6 +8,7 @@ mod contracts;
 mod editing;
 mod file_dialog;
 mod file_io;
+mod folds;
 mod helper_panes;
 mod i18n;
 mod markers;

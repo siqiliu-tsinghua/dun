@@ -33,7 +33,7 @@ pub(crate) fn scroll_status(
     context: Option<BufferViewContext>,
     display: EditorTextDisplay,
 ) -> String {
-    let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds);
+    let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), buffer.buffer.folds());
     let total = line_map.visible_row_count().max(1);
     let context = context.unwrap_or(BufferViewContext {
         buffer_id: buffer.id,

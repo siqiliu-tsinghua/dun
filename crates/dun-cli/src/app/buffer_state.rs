@@ -1,5 +1,5 @@
 use crate::*;
-use dun_ui::{EditorLineDisplay, FoldSet};
+use dun_ui::EditorLineDisplay;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BufferViewContext {
@@ -23,7 +23,6 @@ pub(crate) struct BufferState {
     pub(crate) first_line: usize,
     pub(crate) first_visual_row: usize,
     pub(crate) first_column: usize,
-    pub(crate) folds: FoldSet,
     pub(crate) search: Option<BufferSearchState>,
     pub(crate) word_wrap: bool,
     pub(crate) visible_whitespace: bool,
@@ -41,7 +40,6 @@ impl BufferState {
             first_line: 0,
             first_visual_row: 0,
             first_column: 0,
-            folds: FoldSet::empty(),
             search: None,
             word_wrap: false,
             visible_whitespace: false,
@@ -59,7 +57,6 @@ impl BufferState {
             first_line: 0,
             first_visual_row: 0,
             first_column: 0,
-            folds: FoldSet::empty(),
             search: None,
             word_wrap: false,
             visible_whitespace: false,
@@ -98,7 +95,7 @@ impl BufferState {
             return;
         }
 
-        let line_map = EditorLineDisplay::new(self.buffer.line_count(), &self.folds);
+        let line_map = EditorLineDisplay::new(self.buffer.line_count(), self.buffer.folds());
         let cursor = self.buffer.cursor_position();
         let Some(first_row) = line_map.placement_for_source_line(self.first_line) else {
             return;

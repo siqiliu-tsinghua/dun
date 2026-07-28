@@ -663,7 +663,7 @@ impl BufferState {
     }
 
     fn line_display(&self) -> EditorLineDisplay<'_> {
-        EditorLineDisplay::new(self.buffer.line_count(), &self.folds)
+        EditorLineDisplay::new(self.buffer.line_count(), self.buffer.folds())
     }
 
     fn visual_rows(
@@ -681,7 +681,7 @@ impl BufferState {
 }
 
 pub(crate) fn editor_body_width(shell: &UiShell, buffer: &BufferState, rect: Rect) -> usize {
-    let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds);
+    let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), buffer.buffer.folds());
     let geometry =
         shell.window_geometry(rect.width, rect.height, Some(line_map.visible_row_count()));
     debug_assert_eq!(

@@ -83,7 +83,7 @@ impl AppState {
             .into_iter()
             .find(|layout| layout.id == window.id)?;
         let buffer = self.buffer_state(buffer_id)?;
-        let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), &buffer.folds);
+        let line_map = EditorLineDisplay::new(buffer.buffer.line_count(), buffer.buffer.folds());
         let geometry = self.shell.window_geometry(
             layout.rect.width,
             layout.rect.height,

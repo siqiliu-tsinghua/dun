@@ -232,7 +232,8 @@ impl AppState {
             .min(reloaded.buffer.line_count().saturating_sub(1));
         let column = reloaded.clamp_column_to_line(line, cursor.column);
         let _ = reloaded.buffer.set_cursor(Position::new(line, column));
-        let line_map = EditorLineDisplay::new(reloaded.buffer.line_count(), &reloaded.folds);
+        let line_map =
+            EditorLineDisplay::new(reloaded.buffer.line_count(), reloaded.buffer.folds());
         let top_row = line_map
             .placement_for_source_line(
                 viewport_top

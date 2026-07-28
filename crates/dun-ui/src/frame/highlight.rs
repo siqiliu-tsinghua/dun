@@ -1,4 +1,4 @@
-use dun_core::{Rect, TextRange};
+use dun_core::{FoldRange, Position, Rect, TextRange};
 
 use crate::{
     BufferView, EditorTextDisplay, UiHighlightLine, UiSearchMatchLine, UiSelectionLine, UiShell,
@@ -36,15 +36,28 @@ impl UiShell {
         };
 
         let mut lines = Vec::new();
-        for item in line_map.iter_from_visible_row(first_row).take(body_height) {
-            let VisibleLine::Source { line: line_index } = item else {
-                continue;
-            };
-            if line_index < range.start.line || line_index > range.end.line {
-                continue;
-            }
-            if let Some(line) = self.selection_line(buffer, line_index, range, body) {
-                lines.push(line);
+        for (visible_y, item) in line_map
+            .iter_from_visible_row(first_row)
+            .take(body_height)
+            .enumerate()
+        {
+            match item {
+                VisibleLine::Source { line: line_index } => {
+                    if line_index < range.start.line || line_index > range.end.line {
+                        continue;
+                    }
+                    if let Some(line) = self.selection_line(buffer, line_index, range, body) {
+                        lines.push(line);
+                    }
+                }
+                VisibleLine::Fold { range: fold } if range_intersects_fold(range, fold) => {
+                    lines.push(UiSelectionLine {
+                        y: body.y.saturating_add(visible_y as u16),
+                        start_x: body.x,
+                        end_x: body.x.saturating_add(body.width),
+                    });
+                }
+                VisibleLine::Fold { .. } => {}
             }
         }
 
@@ -242,6 +255,18 @@ impl UiShell {
                 VisibleLine::Fold { .. } => 1,
             };
             let VisibleLine::Source { line: line_index } = item else {
+                if let VisibleLine::Fold { range: fold } = item {
+                    if range_intersects_fold(range, fold)
+                        && visual_y >= 0
+                        && visual_y < body_height as isize
+                    {
+                        lines.push(UiSelectionLine {
+                            y: body.y.saturating_add(visual_y as u16),
+                            start_x: body.x,
+                            end_x: body.x.saturating_add(body.width),
+                        });
+                    }
+                }
                 visual_y = visual_y.saturating_add(visual_rows as isize);
                 continue;
             };
@@ -294,7 +319,28 @@ impl UiShell {
             return self.search_matches_for_wrapped_buffer(buffer, body);
         }
 
+        let line_map = buffer.line_display();
+        let Some(first_row) = line_map.placement_for_source_line(buffer.top.anchor_line) else {
+            return Vec::new();
+        };
         let mut lines = Vec::new();
+        for (visible_y, item) in line_map
+            .iter_from_visible_row(first_row)
+            .take(body_height)
+            .enumerate()
+        {
+            let VisibleLine::Fold { range } = item else {
+                continue;
+            };
+            if let Some(active) = fold_search_match(buffer, range) {
+                lines.push(UiSearchMatchLine {
+                    y: body.y.saturating_add(visible_y as u16),
+                    start_x: body.x,
+                    end_x: body.x.saturating_add(body.width),
+                    active,
+                });
+            }
+        }
         for (index, item) in buffer.search_matches.iter().enumerate() {
             let range = item.range;
             if range.is_empty() || range.start.line != range.end.line {
@@ -359,6 +405,7 @@ impl UiShell {
             return Vec::new();
         };
         let mut first_visible_row_by_line = Vec::new();
+        let mut lines = Vec::new();
         let mut visual_y = -(buffer.top.wrapped_row as isize);
         for item in line_map.iter_from_visible_row(first_row) {
             if visual_y >= body_height as isize {
@@ -371,6 +418,18 @@ impl UiShell {
                 VisibleLine::Fold { .. } => 1,
             };
             let VisibleLine::Source { line: line_index } = item else {
+                if let VisibleLine::Fold { range } = item {
+                    if visual_y >= 0 {
+                        if let Some(active) = fold_search_match(buffer, range) {
+                            lines.push(UiSearchMatchLine {
+                                y: body.y.saturating_add(visual_y as u16),
+                                start_x: body.x,
+                                end_x: body.x.saturating_add(body.width),
+                                active,
+                            });
+                        }
+                    }
+                }
                 visual_y = visual_y.saturating_add(visual_rows as isize);
                 continue;
             };
@@ -378,7 +437,6 @@ impl UiShell {
             visual_y = visual_y.saturating_add(visual_rows as isize);
         }
 
-        let mut lines = Vec::new();
         for (index, item) in buffer.search_matches.iter().enumerate() {
             let range = item.range;
             if range.is_empty() || range.start.line != range.end.line {
@@ -485,4 +543,23 @@ impl UiShell {
 
         spans
     }
+}
+
+fn range_intersects_fold(range: TextRange, fold: FoldRange) -> bool {
+    let fold_start = Position::new(fold.start_line, 0);
+    let fold_end = Position::new(fold.end_line_exclusive, 0);
+    range.start < fold_end && fold_start < range.end
+}
+
+fn fold_search_match(buffer: &BufferView<'_>, fold: FoldRange) -> Option<bool> {
+    let mut found = false;
+    let mut active = false;
+    for (index, item) in buffer.search_matches.iter().enumerate() {
+        if item.range.is_empty() || !range_intersects_fold(item.range, fold) {
+            continue;
+        }
+        found = true;
+        active |= buffer.active_search_match == Some(index);
+    }
+    found.then_some(active)
 }
