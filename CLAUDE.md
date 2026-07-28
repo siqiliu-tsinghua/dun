@@ -52,12 +52,12 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- macOS: **719,100 bytes** / Debian: **784,688 bytes** at `dbbed50`
+- macOS: **719,100 bytes** / Debian: **784,688 bytes** at `260d850`
   (2026-07-29, folding complete) — margin 263,888. **No measurement debt.**
   Folding cost 16,384 total on the binding platform, attributed per step:
-  seam +8,192 (`058447f`), fold state and edit remap +4,096 (`d7e91fb`),
-  **placeholder rendering +0** (`0c4e921`), commands and ten catalogs +4,096
-  (`60bc2fa`). Brief 058 estimated 32–64 KiB for the feature; it came in at
+  seam +8,192 (`058447f`), fold state and edit remap +4,096 (`4efc4c5`),
+  **placeholder rendering +0** (`c96fab0`), commands and ten catalogs +4,096
+  (`bb62b20`). Brief 058 estimated 32–64 KiB for the feature; it came in at
   half the low end, and the render step was free because it added branches to
   paths that already existed. Reference platforms, same build-std
   contract but outside the budget: FreeBSD **698,344**, Solaris
@@ -350,15 +350,15 @@ Sequencing (stages 1–2 completed 2026-07-10):
      dual-platform size gate + four-platform matrix + tag `v0.1.0`. **The VMs
      are needed only here.**
 
-10. ~~Folding~~ — **DONE, stage closed 2026-07-29** (`1d078cb`..`609a38e`).
+10. ~~Folding~~ — **DONE, stage closed 2026-07-29** (`1d078cb`..`7c97fd9`).
     Manual folds that need no type knowledge and no plugin, so they work on
     the cold open that motivates the feature. Plan brief 058 → implementation
     briefs 059–063, every step Claude-gated. Four steps plus a prerequisite
     fix: bookmark remap repaired first (`1d078cb`, byte-identical) because
     folding needed the same remapping; then the line-level display seam
-    (`058447f`), fold state and edit remap on `TextBuffer` (`d7e91fb`), the
-    placeholder row (`0c4e921`, **+0 bytes**), and the commands with their
-    full trail — keys, menu, help, status messages, ten catalogs (`60bc2fa`).
+    (`058447f`), fold state and edit remap on `TextBuffer` (`4efc4c5`), the
+    placeholder row (`c96fab0`, **+0 bytes**), and the commands with their
+    full trail — keys, menu, help, status messages, ten catalogs (`bb62b20`).
     `Ctrl+X,F` toggles, `Ctrl+X,A` unfolds all.
 
     Cost 16,384 bytes on the binding platform against brief 058's 32–64 KiB
@@ -373,8 +373,8 @@ Sequencing (stages 1–2 completed 2026-07-10):
 
     Tail work, same stage: the Solaris binary's 1,087,760 was root-caused to
     linker metadata rather than code, `-znoldynsym` adopted as the platform's
-    default link flag (`6bab7c9`), and `release-build.sh` converted to POSIX
-    `sh` so it runs on all four platforms (`609a38e`).
+    default link flag (`107557f`), and `release-build.sh` converted to POSIX
+    `sh` so it runs on all four platforms (`7c97fd9`).
 
 Queue: **F20 Outline is cancelled** (user decision 2026-07-28) — the need is
 too small to carry, and a plugin-delivered navigation aid is absent exactly
@@ -392,7 +392,7 @@ on the public repository; the user's own attention moves to `rum`/`rum-ext`.
 Current figures, all four verified through `scripts/release-build.sh` at the
 2026-07-29 tip: macOS **719,100**, Debian **784,688** (binding, margin
 263,888), FreeBSD **698,344**, Solaris **744,880**. The last runtime-code
-commit is `60bc2fa`; everything after it is docs and the build script.
+commit is `bb62b20`; everything after it is docs and the build script.
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,

@@ -9,7 +9,7 @@ hidden.
 
 This is the last step. After it, folding is a feature rather than machinery:
 steps 1–3 built the coordinate seam (`058447f`), the fold state and its edit
-remapping (`d7e91fb`), and the placeholder row (`0c4e921`).
+remapping (`4efc4c5`), and the placeholder row (`c96fab0`).
 
 One thing inverts here. The previous three steps kept warning that tests
 covered the fold path while production only ever ran the empty-fold path. From

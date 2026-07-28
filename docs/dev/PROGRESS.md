@@ -1385,7 +1385,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   historical sample-log IPs were deliberately not scrubbed from it.
 
 - Completed the Folding stage (2026-07-28 → 2026-07-29, plan brief 058 →
-  implementation briefs 059–063, `1d078cb`..`609a38e`). Chosen over F20
+  implementation briefs 059–063, `1d078cb`..`7c97fd9`). Chosen over F20
   Outline, which was cancelled the same week: an outline needs type knowledge
   and would therefore be absent exactly when it matters, on a cold open of an
   unfamiliar file on a strange host, whereas manual folds degrade gracefully.
@@ -1394,13 +1394,13 @@ This is an append-only progress log. Keep new entries dated and factual.
   Then four gated steps: the line-level display seam `EditorLineDisplay`, a
   sibling of the within-line `EditorTextDisplay` (`058447f`, +8,192);
   `FoldSet`/`FoldRange` owned by `TextBuffer` and remapped inside
-  `replace_range_inner`, the one primitive every mutation reaches (`d7e91fb`,
+  `replace_range_inner`, the one primitive every mutation reaches (`4efc4c5`,
   +4,096); the placeholder row, whose untrusted excerpt is sanitised
   separately from its trusted prefix so the prefix cannot depend on file
-  content (`0c4e921`, **+0 bytes** — it added branches to paths that already
+  content (`c96fab0`, **+0 bytes** — it added branches to paths that already
   existed); and the commands with their full trail — `Ctrl+X,F` toggle,
   `Ctrl+X,A` unfold all, View menu, help, status messages, ten catalogs
-  (`60bc2fa`, +4,096). Total 16,384 against brief 058's 32–64 KiB estimate;
+  (`bb62b20`, +4,096). Total 16,384 against brief 058's 32–64 KiB estimate;
   four-platform matrix 906/0. One failure mode recurred three times and is
   worth naming: **tests covered the path that does not execute** — step 1's
   identity mapping was untested while its fold path was, step 2's
@@ -1413,7 +1413,7 @@ This is an append-only progress log. Keep new entries dated and factual.
   layer.
 
 - Root-caused and fixed the Solaris binary's size, then made the budget script
-  portable (2026-07-29, `1a6a74a`, `6bab7c9`, `609a38e`). The Solaris
+  portable (2026-07-29, `4d17fcd`, `107557f`, `7c97fd9`). The Solaris
   reference build had measured over 1 MiB since the first build on that guest
   and no document said why, so the number invited the wrong conclusion. It is
   not code: `.text` differs from Debian by 5%, while `.dynstr` is 249,169

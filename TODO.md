@@ -18,7 +18,7 @@ State at this point:
 | Four-platform matrix | **906 / 0** (macOS, Debian, FreeBSD, Solaris) |
 | Binding size | Debian **784,688**, margin 263,888 |
 | Other platforms | macOS 719,100, FreeBSD 698,344, Solaris 744,880 |
-| Last runtime-code commit | `60bc2fa` (folding step 4) |
+| Last runtime-code commit | `bb62b20` (folding step 4) |
 | Measurement debt | none |
 
 Nothing is blocked on this repository. What is queued is blocked elsewhere or
@@ -39,15 +39,15 @@ without TODO entries, which is the gap this section closes.
   `EditorTextDisplay` (`058447f`, +8,192).
 - [x] Step 2: `FoldSet`/`FoldRange` on `TextBuffer`, remapped in
   `replace_range_inner` — the one primitive every mutation reaches
-  (`d7e91fb`, +4,096).
+  (`4efc4c5`, +4,096).
 - [x] Step 3: the placeholder row, and collapsing the duplicate fold set my
-  own step split had created (`0c4e921`, **+0**).
+  own step split had created (`c96fab0`, **+0**).
 - [x] Step 4: `edit.toggle_fold` / `edit.unfold_all` with the full trail —
-  keys, View menu, help, status messages, ten catalogs (`60bc2fa`, +4,096).
+  keys, View menu, help, status messages, ten catalogs (`bb62b20`, +4,096).
 - [x] Four-platform functional matrix: 906/0.
 - [x] Tail: root-cause the Solaris binary's 1,087,760 (linker metadata, not
-  code), adopt `-znoldynsym` as the platform default (`6bab7c9`), convert
-  `release-build.sh` to POSIX `sh` so it runs on all four (`609a38e`).
+  code), adopt `-znoldynsym` as the platform default (`107557f`), convert
+  `release-build.sh` to POSIX `sh` so it runs on all four (`7c97fd9`).
 
 Total cost 16,384 bytes against brief 058's 32–64 KiB estimate. The recurring
 failure mode, named three times before it stopped: **tests covered the path

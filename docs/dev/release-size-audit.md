@@ -2,7 +2,7 @@
 
 ## 2026-07-29 — folding complete
 
-Four-platform functional matrix at `dbbed50`: **906 passed / 0 failed** on
+Four-platform functional matrix at `260d850`: **906 passed / 0 failed** on
 macOS, Debian, FreeBSD and Solaris, including the tmux-backed grid suites, so
 the placeholder row, gutter aggregation and layer rules render identically on
 all four.
@@ -10,8 +10,8 @@ all four.
 
 | platform | commit | bytes | budget | margin |
 | --- | --- | --- | --- | --- |
-| macOS x86_64 | `dbbed50` | 719,100 | 1,048,576 | 329,476 |
-| Debian x86_64 | `dbbed50` | 784,688 | 1,048,576 | 263,888 |
+| macOS x86_64 | `260d850` | 719,100 | 1,048,576 | 329,476 |
+| Debian x86_64 | `260d850` | 784,688 | 1,048,576 | 263,888 |
 
 Per-step attribution on the binding platform, measured commit by commit rather
 than as one lump:
@@ -19,9 +19,9 @@ than as one lump:
 | Step | Commit | Bytes | Delta |
 | --- | --- | --- | --- |
 | 1 — line-level seam | `058447f` | 776,496 | +8,192 |
-| 2 — fold state and edit remap | `d7e91fb` | 780,592 | +4,096 |
-| 3 — placeholder rendering | `0c4e921` | 780,592 | **+0** |
-| 4 — commands and ten catalogs | `60bc2fa` | 784,688 | +4,096 |
+| 2 — fold state and edit remap | `4efc4c5` | 780,592 | +4,096 |
+| 3 — placeholder rendering | `c96fab0` | 780,592 | **+0** |
+| 4 — commands and ten catalogs | `bb62b20` | 784,688 | +4,096 |
 
 16,384 bytes for the whole feature, against the 32–64 KiB the plan in brief 058
 estimated. Step 3 is the interesting row: the entire placeholder — profile
@@ -65,7 +65,7 @@ reaches it where source changes cannot.
 
 ### The flag, and the two that do not work
 
-All four variants built the same way (build-std, locked) at `dbbed50`:
+All four variants built the same way (build-std, locked) at `260d850`:
 
 | Build | Bytes | vs baseline |
 | --- | --- | --- |
