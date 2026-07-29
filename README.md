@@ -27,8 +27,8 @@ half-written save may be the outage.
 
 `dun` treats those as the primary case rather than the degraded one:
 
-- **It fits in the places you have to work.** The release binary is 789 KB on
-  Debian x86-64 and 723 KB on macOS — and 703 KB on FreeBSD, 750 KB on
+- **It fits in the places you have to work.** The release binary is 770 KiB on
+  Debian x86-64 and 706 KiB on macOS — and 686 KiB on FreeBSD, 732 KiB on
   Solaris — against a hard 1 MiB budget that every change is measured against.
   Copy one file to the host and you are done.
 - **It degrades on purpose.** Each theme carries 256-color, 16-color, and
@@ -181,7 +181,7 @@ suite runs on all four.
 
 On Solaris, `scripts/release-build.sh` adds `-z noldynsym` for you. The native
 link editor keeps local function names in the dynamic symbol table so `pstack`
-and `dtrace` can name frames, which costs about 343 KB in an otherwise stripped
+and `dtrace` can name frames, which costs about 335 KiB in an otherwise stripped
 binary; dropping it is what brings Solaris in line with the other three
 platforms. Set `DUN_SOLARIS_KEEP_LDYNSYM=1` to keep those names — also what you
 need if you link with GNU `ld`, which does not know the option. See the

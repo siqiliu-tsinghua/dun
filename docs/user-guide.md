@@ -222,7 +222,7 @@ two for you; run either directly if you would rather choose by hand.
 **On Solaris, `scripts/release-build.sh` adds one link flag for you**
 (`-z noldynsym`). The Solaris link editor keeps local function names in the
 dynamic symbol table so `pstack` and `dtrace` can name frames, which costs
-about 343 KB in an otherwise stripped binary; dropping it brings Solaris in
+about 335 KiB in an otherwise stripped binary; dropping it brings Solaris in
 line with the other three platforms. If you want those names back, set
 `DUN_SOLARIS_KEEP_LDYNSYM=1`. A plain `cargo build --release` does not add the
 flag; pass it yourself if you want the smaller binary:
