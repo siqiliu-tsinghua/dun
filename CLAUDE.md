@@ -428,12 +428,12 @@ real-terminal OSC 52 read acceptance (user-driven).
     `theme = dark`, and one tmux session asserts `F9` opens Help *and* `F6`
     says `theme: dark` — replace-instead-of-overlay cannot pass both.
 
-    **Gates passed 2026-07-29**, all four platforms, measured from the synced
-    worktree (uncommitted — re-measure from a clean archive at commit time):
-    Debian **788,784** binding, margin 259,792, **+4,096** — one page for both
-    runtime changes together, because the catalogs and the configuration share
-    the one path derivation. macOS 723,276, FreeBSD 702,640, Solaris 749,936.
-    Matrix **919/0**. Release smoke on macOS + Debian.
+    **Stage closed 2026-07-29 at `11f56a6`.** Gates on all four platforms from
+    a clean `git archive`: Debian **788,784** binding, margin 259,792,
+    **+4,096** — one page for both runtime changes together, because the
+    catalogs and the configuration share the one path derivation. macOS
+    723,276, FreeBSD 702,896, Solaris 750,064. Matrix **919/0** at the commit
+    on all four. Release smoke on macOS + Debian. No measurement debt.
 
     Deployment acceptance ran on all three VMs in the three steps the owner
     specified: `$HOME` install/uninstall, `$PREFIX` install/uninstall (plus

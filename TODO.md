@@ -9,15 +9,15 @@ items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
 **unreleased** — CHANGELOG's `Unreleased` section is the list of what a v0.2
 would contain.
 
-State now (working tree, install stage measured 2026-07-29), against the last
-committed tip (`7c97fd9`):
+State at `11f56a6` (install stage, measured 2026-07-29), against the tip
+before it (`7c97fd9`):
 
 | | now | at `7c97fd9` |
 | --- | --- | --- |
 | Four-platform matrix | **919 / 0** | 906 / 0 |
 | Binding size (Debian) | **788,784**, margin 259,792 | 784,688 |
-| macOS / FreeBSD / Solaris | 723,276 / 702,640 / 749,936 | 719,100 / 698,344 / 744,880 |
-| Measurement debt | the tree is dirty: re-measure at commit | none |
+| macOS / FreeBSD / Solaris | 723,276 / 702,896 / 750,064 | 719,100 / 698,344 / 744,880 |
+| Measurement debt | none (`11f56a6`, clean archive) | none |
 
 Nothing is blocked on this repository. What is queued is blocked elsewhere or
 cancelled: rum evaluation waits on rum-ext's resource/type base, F20 Outline
@@ -63,11 +63,10 @@ step early. Scripts are done; the runtime change needs its measurement.
   parse-error falling through, `share/i18n` instead of `share/dun/i18n`,
   `shared_i18n_dir()` returning `None`, user file replacing instead of
   overlaying the base, and a broken installed config becoming fatal.
-- [x] **Size gate passed** (2026-07-29, all four platforms, from the synced
-  worktree — re-measure from a clean archive when this commits): Debian
-  **788,784** binding, margin 259,792 (+4,096, one page for both runtime
-  changes together); macOS 723,276, FreeBSD 702,640, Solaris 749,936.
-  Recorded in docs/dev/release-size-audit.md.
+- [x] **Size gate passed** at `11f56a6`, clean `git archive`, all four
+  platforms: Debian **788,784** binding, margin 259,792 (+4,096, one page for
+  both runtime changes together); macOS 723,276, FreeBSD 702,896,
+  Solaris 750,064. Recorded in docs/dev/release-size-audit.md.
 - [x] Four-platform functional matrix: **919 / 0**.
 - [x] Release smoke on macOS and Debian: `--version`, `--dump-config`, ELF PIE
   with unchanged `ldd`, `pty_smoke` 12/12 under the release panic hook, zero
@@ -81,8 +80,9 @@ step early. Scripts are done; the runtime change needs its measurement.
   Traditional Chinese menu bars, including from a system prefix with an empty
   `HOME`. Two defects found and fixed — an untrue line in the uninstall plan,
   and Solaris packages named `i86pc` instead of `amd64`.
-- [ ] Commit, then re-measure Debian from a clean `git archive` to close the
-  provenance gap.
+- [x] Committed (`11f56a6`) and re-measured from a clean archive on all four
+  platforms; matrix re-run at the commit, **919 / 0** everywhere. No
+  measurement debt.
 
 ## Completed Stage: Folding (2026-07-28 → 2026-07-29)
 

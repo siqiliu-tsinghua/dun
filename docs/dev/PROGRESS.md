@@ -1614,3 +1614,14 @@ This is an append-only progress log. Keep new entries dated and factual.
   answers with the platform name there, not the instruction set, so a 64-bit
   package looked like something else. `isainfo -k` gives `amd64` and is now
   used on SunOS only.
+
+  Re-measured at the commit (`11f56a6`, clean `git archive`, 2026-07-29):
+  Debian **788,784** binding, macOS 723,276, FreeBSD 702,896, Solaris 750,064,
+  matrix **919/0** on all four. macOS and Debian came out byte-identical to
+  the earlier dirty-tree measurement even though a runtime string changed in
+  between — the `--dump-config` header, rewritten so it stops telling people
+  to copy every default into their own file. Those two platforms are
+  page-quantised and had slack; FreeBSD, which is not, shows the string's
+  256 bytes. Worth remembering the next time a "free" change is inferred from
+  one platform: it was free on three of four, and the fourth is the one that
+  tells you what it actually cost.
