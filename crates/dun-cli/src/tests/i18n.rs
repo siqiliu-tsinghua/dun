@@ -1,13 +1,16 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use dun_plugin::json::{self, Json};
 use dun_plugin::{GrantedCapabilities, PluginMenu, Role, TrustClass};
 
 use super::support::*;
 use crate::config_loading::ConfigSource;
-use crate::i18n_loading::{catalog_from_dir, i18n_dir_for_source};
+use crate::i18n_loading::{
+    catalog_from_dir, i18n_dir_for_source, i18n_search_dirs, i18n_search_text, load_from_dirs,
+    shared_i18n_dir_for_exe,
+};
 use crate::plugins::PluginHost;
 
 fn temp_i18n_dir(name: &str) -> PathBuf {
@@ -229,6 +232,104 @@ fn oversized_file_is_rejected_before_parsing() {
     assert!(loaded.diagnostic.expect("reports the cap").contains("cap"));
 
     fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn shared_dir_is_a_sibling_of_the_installed_bin_directory() {
+    // Hardcoded prefixes rather than paths built the way the implementation
+    // builds them: this is the whole contract of a relocatable install, and
+    // an oracle that reused the same joins could not fail.
+    for (exe, want) in [
+        ("/opt/dun/bin/dun", Some("/opt/dun/share/dun/i18n")),
+        ("/usr/bin/dun", Some("/usr/share/dun/i18n")),
+        ("/usr/local/bin/dun", Some("/usr/local/share/dun/i18n")),
+        (
+            "/home/u/.local/bin/dun",
+            Some("/home/u/.local/share/dun/i18n"),
+        ),
+        // Nothing above the binary: no prefix to derive, and no panic.
+        ("/dun", None),
+    ] {
+        assert_eq!(
+            shared_i18n_dir_for_exe(Path::new(exe)),
+            want.map(PathBuf::from),
+            "executable {exe}"
+        );
+    }
+}
+
+#[test]
+fn shared_dir_answers_only_when_the_config_directory_does_not() {
+    let user = temp_i18n_dir("i18n-search-user");
+    let shared = temp_i18n_dir("i18n-search-shared");
+    fs::write(shared.join("ja.conf"), "menu.file = 共有\n").unwrap();
+    let dirs = vec![user.clone(), shared.clone()];
+
+    // Nothing beside the config file: the installation's copy is used. This
+    // is the case a first run on a fresh machine actually hits.
+    let loaded = load_from_dirs(&dirs, "ja_JP.UTF-8");
+    assert_eq!(loaded.catalog.get("menu.file"), Some("共有"));
+    assert!(loaded.diagnostic.is_none());
+
+    // The user's own file wins over the shared one, whatever it says.
+    fs::write(user.join("ja.conf"), "menu.file = 自前\n").unwrap();
+    let loaded = load_from_dirs(&dirs, "ja_JP.UTF-8");
+    assert_eq!(loaded.catalog.get("menu.file"), Some("自前"));
+
+    // A locale neither directory has stays English, without a diagnostic.
+    let loaded = load_from_dirs(&dirs, "sv_SE.UTF-8");
+    assert!(loaded.catalog.is_empty());
+    assert!(loaded.diagnostic.is_none());
+
+    fs::remove_dir_all(&user).unwrap();
+    fs::remove_dir_all(&shared).unwrap();
+}
+
+#[test]
+fn a_broken_user_catalog_is_not_papered_over_by_the_shared_one() {
+    let user = temp_i18n_dir("i18n-search-broken-user");
+    let shared = temp_i18n_dir("i18n-search-broken-shared");
+    // The user's file smuggles a bidi override; the shared file is fine.
+    fs::write(user.join("ja.conf"), "menu.file = a\u{202e}b\n").unwrap();
+    fs::write(shared.join("ja.conf"), "menu.file = 共有\n").unwrap();
+
+    let loaded = load_from_dirs(&[user.clone(), shared.clone()], "ja_JP.UTF-8");
+    assert!(loaded.catalog.is_empty(), "broken file must not half-load");
+    let diagnostic = loaded.diagnostic.expect("reports the broken file");
+    assert!(
+        diagnostic.contains("i18n-search-broken-user"),
+        "{diagnostic}"
+    );
+    assert!(diagnostic.contains("ja.conf"), "{diagnostic}");
+
+    fs::remove_dir_all(&user).unwrap();
+    fs::remove_dir_all(&shared).unwrap();
+}
+
+#[test]
+fn search_path_is_config_directory_then_installation_and_is_empty_when_disabled() {
+    let config = PathBuf::from("/home/u/.config/dun/config");
+    let dirs = i18n_search_dirs(&ConfigSource::DefaultFile(config));
+    assert_eq!(
+        dirs.first(),
+        Some(&PathBuf::from("/home/u/.config/dun/i18n"))
+    );
+    assert_eq!(
+        dirs.len(),
+        2,
+        "the installation directory follows the config one: {dirs:?}"
+    );
+    assert!(
+        dirs[1].ends_with("share/dun/i18n"),
+        "second entry is the installation's: {dirs:?}"
+    );
+
+    // --no-config means built-in everything, and that includes the language.
+    assert!(i18n_search_dirs(&ConfigSource::Disabled).is_empty());
+    assert_eq!(
+        i18n_search_text(&ConfigSource::Disabled),
+        "disabled (--no-config)"
+    );
 }
 
 #[test]

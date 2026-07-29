@@ -17,6 +17,8 @@ impl AppState {
         let loaded_config = LoadedConfig {
             config,
             source: ConfigSource::Disabled,
+            base: None,
+            base_diagnostic: None,
         };
         let detected_profile = detect_terminal_profile();
         let mut shell = UiShell::from_config(&loaded_config.config, detected_profile);
@@ -32,12 +34,21 @@ impl AppState {
         let mut shell = UiShell::from_config(&loaded_config.config, detected_profile);
         let loaded_catalog = load_ui_catalog(&loaded_config.source, shell.profile.encoding);
         shell.catalog = loaded_catalog.catalog;
+        // Two things can be wrong at startup; neither hides the other.
+        let diagnostic = match (
+            loaded_config.base_diagnostic.clone(),
+            loaded_catalog.diagnostic,
+        ) {
+            (Some(config), Some(catalog)) => Some(format!("{config}; {catalog}")),
+            (Some(only), None) | (None, Some(only)) => Some(only),
+            (None, None) => None,
+        };
         Self::finish_loaded_config(
             config_request,
             loaded_config,
             detected_profile,
             shell,
-            loaded_catalog.diagnostic,
+            diagnostic,
         )
     }
 
@@ -74,6 +85,7 @@ impl AppState {
             buffers: vec![BufferState::new(BufferId(1), TextBuffer::new_untitled())],
             config_request,
             config_source: loaded_config.source,
+            installed_config: loaded_config.base,
             detected_profile,
             shell,
             limits,

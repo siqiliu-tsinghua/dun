@@ -1441,3 +1441,176 @@ This is an append-only progress log. Keep new entries dated and factual.
   719,100, Debian 784,688 (dash), FreeBSD 698,344, Solaris 744,880 (ksh93).
   The gate stays macOS + Debian — auditing four would double per-step
   measurement cost to add a gate that cannot fire first.
+
+- Installation stopped one step short of a usable editor, and a user walking
+  the published flow found it (2026-07-29). `cargo build --release` produces an
+  executable and nothing else, so a first run had no configuration file to edit
+  and no `i18n/` directory; because catalogs are looked up *next to the active
+  config file*, that second omission is invisible — the interface is English
+  however `LC_ALL`/`LANG` is set, with nothing on screen to say why. The fix is
+  `scripts/install.sh`: it installs the binary, writes the config template from
+  `dun --dump-config`, copies the ten catalogs to `~/.config/dun/i18n/`, and
+  then reports which catalog the current locale actually selects — the one
+  question a by-hand copy leaves open. Deliberately not runtime code: the
+  catalogs are external files by design (they cost the binary nothing), so a
+  `--init` flag inside `dun` could not have installed them and would have spent
+  budget to do less. POSIX `sh` like `release-build.sh`, no `local` (Solaris
+  `/bin/sh` is ksh93), copies through a temporary name in the destination
+  directory so an interrupted run cannot leave a half-written catalog where the
+  loader reads one, and overwrites nothing without `--force`. Verified end to
+  end rather than by inspection: a scratch `HOME` with `LANG=zh_CN.UTF-8`, then
+  the installed binary under `tmux`, rendering `文件 (F) 编辑 (E) 视图 (V)
+  帮助 (H)` from the installed catalog; plus `--dry-run` matching the real run,
+  idempotent re-run, `DUN_CONFIG` discovery, `--lang` subsets, the four error
+  paths, and a `ksh93` pass for Solaris.
+
+  `scripts/uninstall.sh` followed the same day, because an install script
+  without one leaves the user worse off than before: they now have files in
+  three places and no list of them. It removes what `install.sh` installed and
+  refuses to widen — catalogs are matched against the ones this repository
+  ships, so a `zh-CN.conf` the user wrote is reported and kept; the config file
+  is the user's the moment it is edited, so deleting it needs `--purge`; and
+  the binary goes only when `--version` answers `dun `, because
+  `~/.local/bin/dun` is a guess about identity and someone else's program could
+  hold that path. Both directories are removed only when counting says nothing
+  is left in them, and the count is taken before any removal, so `--dry-run`
+  answers the same question the real run does — verified by diffing the two
+  reports, which match line for line apart from the verb.
+
+- The install experience, round two: interactive scripts, a system layout, and
+  the one runtime change that made the system layout mean anything
+  (2026-07-29). The first round put `install.sh` and `uninstall.sh` in place;
+  walking the flow again surfaced four more gaps, and one of them was not a
+  script problem at all. `--prefix /opt/dun` can copy catalogs into
+  `/opt/dun/share/dun/i18n` all it likes — the loader only ever looked beside
+  the *active config file*, so every user on that machine still started in
+  English until they made a personal copy, which is the same defect the first
+  round fixed, one level up. So catalog lookup grew a second directory,
+  `<bin>/../share/dun/i18n`, derived from `std::env::current_exe()`: nothing
+  compiled in, no environment variable, and the four layouts that matter fall
+  out of one rule (`/opt/dun/bin`, `/usr/bin`, `/usr/local/bin`,
+  `~/.local/bin`). Ordering is by directory rather than by candidate — your
+  `zh.conf` beats a system `zh-Hans.conf` — because "what is yours wins as a
+  set" is the rule that can be stated in one sentence, and a broken file in
+  your directory is still reported rather than replaced by the shared copy,
+  which keeps a shared installation from masking a file you installed. `F6`
+  Paths now prints the search path, so "why is my interface English" is
+  answerable on screen.
+
+  Six tests: four unit (hardcoded prefixes rather than the implementation's
+  own joins; fallback used, user wins, broken-not-masked; empty under
+  `--no-config`) and a tmux pair that copies the real binary into a scratch
+  prefix with an empty `HOME` — one asserting `文件` from
+  `<prefix>/share/dun/i18n`, one asserting the same binary without that
+  directory stays English, which is the control that makes the first mean
+  something. All proved load-bearing by mutation: reversed search order,
+  read-error falling through, parse-error falling through, `share/i18n`
+  instead of `share/dun/i18n`, and `shared_i18n_dir()` returning `None` —
+  each caught by the test that should catch it, then reversed by hand.
+
+  The scripts: `build.sh` asks two questions (budget vs plain build, syntect
+  host or not) and defaults the first by whether `rust-src` is actually
+  installed rather than by preference. `install.sh` asks where to install,
+  installs and *enables* the syntect host (the only highlighting host needing
+  nothing on the target machine — Python and Lua hosts need interpreters a
+  server may lack), and offers to append the `PATH` line to the rc file the
+  user's `$SHELL` suggests. `--package` writes a tarball whose layout is an
+  install tree, so the same `install.sh` runs on both sides of an `scp`;
+  `tar cf - | gzip` on the way in and a documented `gzip -dc | tar xf -` on
+  the way out, because Solaris `tar` has no `-z`. Under `sudo` the per-user
+  config step is skipped with an explanation rather than written into root's
+  home. Interactivity is `[ -t 0 ]` and nothing else, verified by driving both
+  scripts through a real PTY; `--yes` is the CI path.
+
+  Verified by running it, not by reading it: per-user and `--prefix` installs,
+  the package round trip into a simulated target host, `ksh93` for Solaris,
+  and the installed result under tmux — a Korean menu bar from
+  `<prefix>/share/dun/i18n` with an empty `HOME`, and syntect colouring a Rust
+  file through the config stanza the script wrote. Uninstall was checked for
+  the same layouts, including that a shared prefix keeps its `bin/` and
+  `share/` while `/opt/dun` is removed entirely.
+
+  Round three, from a review of round two, and the round that made the
+  system layout honest (2026-07-29). Four findings, in the order they matter:
+
+  **Configuration had no second layer.** Catalogs had just gained one, but
+  `load_config` still picked exactly one file, so `--prefix /usr/local` could
+  install a configuration nobody would ever read: the moment a user wrote
+  `~/.config/dun/config` to change a colour, every machine-wide setting was
+  gone. It is now `<bin>/../share/dun/config` first and the user's file
+  overlaid on it key by key — `parse_config_overlay` already existed in
+  `dun-config`, used by exactly one test, so the layering cost a call rather
+  than a design. Two asymmetries are deliberate and tested: an invalid
+  *installed* file reports and steps aside (it belongs to whoever installed
+  dun; one mistake there must not stop every user of the machine from
+  editing), while an invalid *user* file is still a startup error (they can
+  fix it, and silently ignoring what they wrote is worse). `ConfigSource` now
+  means "the user layer", and the reload status message names the installed
+  file rather than claiming "built-in defaults" — untrue is untrue even in a
+  status line.
+
+  **The scripts acted while still asking.** They interviewed and mutated in
+  the same pass, so Ctrl-C halfway left a half-installed machine. All three
+  now decide everything, print the plan, and ask once; nothing is written
+  before that answer. This shook out a nice property: `--dry-run` is the plan
+  printer with the confirmation removed, so the preview cannot drift from the
+  run. Verified by driving the interview through a real PTY and answering `n`
+  at the end — the scratch `HOME` came back with not one directory created.
+
+  **The default prefix is `$HOME/.local`.** Per-user and system installs are
+  now the same shape (`<prefix>/bin`, `<prefix>/share/dun`), which means the
+  catalog and configuration search paths have one story instead of two, and
+  `~/.config/dun/config` is left to be what it should be: the user's
+  overrides, written as a commented stub rather than a copy of every default,
+  because a copy would bury the two lines they actually change.
+
+  **The syntect host is installed and enabled by default**, since it is the
+  one highlighting host needing nothing on the target machine. Its three
+  config lines go into the installed layer, not the user's.
+
+  13 tests added across the two rounds and 7 mutations run, every one caught
+  by the test that should catch it: reversed catalog search order, read-error
+  and parse-error falling through to the shared copy, `share/i18n` instead of
+  `share/dun/i18n`, `shared_i18n_dir()` returning `None`, the user file
+  replacing rather than overlaying the base, and a broken installed config
+  becoming fatal. The end-to-end pair is the one worth keeping: a scratch
+  prefix whose installed config binds `F9` and sets `theme = turbo`, a user
+  file that sets only `theme = dark`, and one tmux session where `F9` opens
+  Help *and* `F6` reports `theme: dark`. Replace-instead-of-overlay cannot
+  satisfy both halves at once.
+
+  macOS budget binary 723,276 (+4,176 over `7c97fd9`) for both runtime
+  parts; the binding Debian measurement and the four-platform matrix are
+  owed.
+
+  Gates and deployment acceptance, 2026-07-29. Four platforms measured from
+  the synced worktree: Debian **788,784** (binding, margin 259,792, **+4,096**
+  — one page for both runtime changes together, since the catalog search path
+  and the configuration base layer share a single `current_exe`-relative
+  derivation), macOS 723,276, FreeBSD 702,640, Solaris 749,936; matrix
+  **919/0**; release smoke on macOS and Debian including `pty_smoke` 12/12
+  under the release panic hook. The measurement is from a dirty tree and says
+  so — the clean-archive re-measure is owed at commit time.
+
+  The deployment pass ran the three steps the owner specified, on all three
+  VMs: install and uninstall in `$HOME`, the same into a chosen `$PREFIX`
+  (plus `sudo --prefix /opt/dun` on Debian, which put root-owned files in the
+  prefix and wrote *nothing* into `/root`), and the second scenario end to end
+  — `--package` on the build host, `cp` into a fresh `duntest` user's home,
+  `chown`, `su - duntest`, unpack, install, run, uninstall, and a home
+  directory with nothing of dun's left in it. Every install was checked by
+  running the editor and reading the menu bar rather than by listing files:
+  German and French on Debian, Russian, Italian and Korean on FreeBSD,
+  Portuguese, Spanish and Traditional Chinese on Solaris, and Japanese from a
+  `--prefix` install with an empty `HOME`, which is the case the whole runtime
+  change exists for.
+
+  Two defects surfaced, both only because the scripts were run rather than
+  read. The uninstall **plan** announced "remove 0, then the directory" for a
+  catalog directory that no longer existed — the act phase guarded correctly,
+  so nothing was harmed, but a plan that is not true is the one thing this
+  restructure was supposed to buy. Fixed by reporting `(not there)` in both
+  phases. And Solaris tarballs were named `dun-0.1.0-sunos-i86pc`: `uname -m`
+  answers with the platform name there, not the instruction set, so a 64-bit
+  package looked like something else. `isainfo -k` gives `amd64` and is now
+  used on SunOS only.

@@ -6,6 +6,8 @@ pub(crate) struct AppState {
     pub(crate) buffers: Vec<BufferState>,
     pub(crate) config_request: ConfigLoadRequest,
     pub(crate) config_source: ConfigSource,
+    /// The installed configuration the user layer was applied on top of.
+    pub(crate) installed_config: Option<PathBuf>,
     pub(crate) detected_profile: TerminalProfile,
     pub(crate) shell: UiShell,
     pub(crate) limits: Limits,

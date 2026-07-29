@@ -385,14 +385,69 @@ still have no mnemonic when a host declares none (deliberate — see
 docs/plugin-protocol.md "Menu mnemonics"). Optional follow-up: live
 real-terminal OSC 52 read acceptance (user-driven).
 
-**No active code stage as of 2026-07-29.** `main` carries v0.1.0 plus the
-folding stage, which is unreleased — CHANGELOG's `Unreleased` section is the
-list. The likely next session is not a code stage at all but PR/issue triage
-on the public repository; the user's own attention moves to `rum`/`rum-ext`.
-Current figures, all four verified through `scripts/release-build.sh` at the
-2026-07-29 tip: macOS **719,100**, Debian **784,688** (binding, margin
-263,888), FreeBSD **698,344**, Solaris **744,880**. The last runtime-code
-commit is `bb62b20`; everything after it is docs and the build script.
+11. **Install experience — ACTIVE, opened 2026-07-29** by a user walking the
+    published install flow. `main` carries v0.1.0 plus folding plus this,
+    all unreleased; CHANGELOG's `Unreleased` is the list.
+
+    The finding: building `dun` gives you an executable and nothing else, so a
+    first run has no config file and — because catalogs loaded from `i18n/`
+    *next to the active config file* — an English UI whatever `LANG` says.
+    Round one answered it with `scripts/install.sh` + `scripts/uninstall.sh`
+    and no runtime change (the catalogs are deliberately external, so a
+    `--init` flag inside the binary could not have installed them). Round two
+    added `scripts/build.sh`, interactive prompts on a TTY (`--yes` is the CI
+    path), `--prefix` for `/usr/local` and `/opt/dun`, the syntect host
+    installed *and enabled* by default, a `PATH` rc-file offer, and
+    `--package` (a tarball whose layout is an install tree, so the same
+    `install.sh` runs on both sides of an `scp`).
+
+    Round three restructured all three scripts to **decide → show the plan →
+    confirm once → act**, so an interrupted interview leaves nothing behind
+    (`--dry-run` is now the same plan printer minus the confirmation), and
+    moved the default prefix to `$HOME/.local` so the per-user and system
+    layouts are one shape: `<prefix>/bin`, `<prefix>/share/dun/{config,i18n}`,
+    and `~/.config/dun/config` for the user's own overrides.
+
+    **Two runtime changes**, both load-bearing for that layout:
+
+    - catalogs also load from `<bin>/../share/dun/i18n`
+      (`current_exe`-relative). Without it `--prefix` is theatre — a system
+      install cannot translate for a user with no config file. Ordering is by
+      directory, not by candidate; a broken file in your directory is still
+      reported rather than masked; `--no-config` disables both.
+    - **configuration is two layers**: `<bin>/../share/dun/config` then the
+      user's file overlaid key by key (`parse_config_overlay`, which already
+      existed). Without it the same defect applies to settings: one personal
+      line would discard every machine-wide one. An invalid *installed* file
+      reports and steps aside; an invalid *user* file is still fatal.
+      `ConfigSource` now means the user layer, and `LoadedConfig::base`
+      carries the installed one; `F6` prints both.
+
+    13 tests, 7 mutations, all caught. The end-to-end pair is the one to keep:
+    installed config binds `F9` + `theme = turbo`, user file sets only
+    `theme = dark`, and one tmux session asserts `F9` opens Help *and* `F6`
+    says `theme: dark` — replace-instead-of-overlay cannot pass both.
+
+    **Gates passed 2026-07-29**, all four platforms, measured from the synced
+    worktree (uncommitted — re-measure from a clean archive at commit time):
+    Debian **788,784** binding, margin 259,792, **+4,096** — one page for both
+    runtime changes together, because the catalogs and the configuration share
+    the one path derivation. macOS 723,276, FreeBSD 702,640, Solaris 749,936.
+    Matrix **919/0**. Release smoke on macOS + Debian.
+
+    Deployment acceptance ran on all three VMs in the three steps the owner
+    specified: `$HOME` install/uninstall, `$PREFIX` install/uninstall (plus
+    `sudo --prefix /opt/dun`), and the tarball carried to a fresh `duntest`
+    user via `cp`/`chown`/`su -`. Every install was verified by *running* the
+    editor and reading the menu bar, not by listing files. Two defects found
+    that way, both fixed: the uninstall plan announced removing a catalog
+    directory that did not exist, and Solaris packages were named `i86pc`
+    (`uname -m`'s platform name) instead of `amd64` (`isainfo -k`).
+
+Previously (still true): the last *folding-era* runtime-code commit is
+`bb62b20`. Figures at `7c97fd9`, all four verified through
+`scripts/release-build.sh`: macOS **719,100**, Debian **784,688** (binding,
+margin 263,888), FreeBSD **698,344**, Solaris **744,880**.
 
 Inserted track — **crossterm replacement: COMPLETE 2026-07-23**
 (`cf1a5b6`..`877b7ad`, plan brief 041, implementation briefs 042–046,

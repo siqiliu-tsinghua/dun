@@ -66,6 +66,15 @@ same change.
   If the gate fails, do not add runtime features; follow
   [docs/dev/feature-budget.md](./docs/dev/feature-budget.md) and
   [docs/dev/feature-triage.md](./docs/dev/feature-triage.md).
+- Keep the repository's shell scripts POSIX `sh`: they run on all four
+  supported platforms, where `bash` may be absent (FreeBSD base) and
+  `/bin/sh` may be ksh93 without `local` (Solaris). No GNU-only flags, and
+  no `tar -z`.
+- Configuration and translation catalogs load in two layers: the installed
+  one derived from the running binary (`<bin>/../share/dun`) and the user's
+  own over it, key by key. A broken *installed* file reports and steps
+  aside; a broken *user* file is a startup error. Keep that asymmetry — one
+  machine-wide mistake must not stop every user of that machine.
 - Keep terminal rendering behind profile/theme/glyph abstractions.
 - Keep log processing streaming-friendly; avoid whole-file assumptions for
   large logs.

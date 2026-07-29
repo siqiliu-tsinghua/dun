@@ -315,3 +315,149 @@ fn configured_shift_arrow_binding_wins_before_selection_fallback() {
         None
     );
 }
+
+/// The installed layer (`<bin>/../share/dun/config`) is a base the user's
+/// file is applied *on top of*, not an alternative to it. A system-wide
+/// install would otherwise be all-or-nothing: any personal setting would
+/// throw away every machine-wide one.
+#[test]
+fn installed_config_is_a_base_layer_the_user_file_overlays() {
+    let installed = temp_file_path("installed-base-config");
+    let user = temp_file_path("user-over-base-config");
+    std::fs::write(
+        &installed,
+        "theme = turbo\nkey.app.help = F9\nmouse.enabled = false\n",
+    )
+    .unwrap();
+    // The user changes the theme and nothing else.
+    std::fs::write(&user, "theme = dark\n").unwrap();
+
+    let request = ConfigLoadRequest::explicit(user.clone());
+    let loaded = load_config_from(&request, Some(installed.clone())).unwrap();
+
+    assert_eq!(loaded.config.theme, ThemeName::Dark, "user file wins");
+    assert!(
+        !loaded.config.mouse.enabled,
+        "an installed setting the user did not mention must survive"
+    );
+    assert_eq!(
+        loaded
+            .config
+            .keybindings
+            .command_for_sequence(&KeySequence::from_str("F9").unwrap()),
+        Some(&EditorCommand::App(AppCommand::Help)),
+        "an installed keybinding the user did not mention must survive"
+    );
+    assert_eq!(loaded.base, Some(installed.clone()));
+    assert!(loaded.base_diagnostic.is_none());
+
+    let _ = std::fs::remove_file(&installed);
+    let _ = std::fs::remove_file(&user);
+}
+
+/// With no user file at all, the installed layer is still what is running,
+/// and saying "built-in defaults" would be untrue.
+#[test]
+fn installed_config_applies_without_a_user_file_and_is_named_as_the_source() {
+    let installed = temp_file_path("installed-only-config");
+    std::fs::write(&installed, "theme = turbo\n").unwrap();
+
+    let request = ConfigLoadRequest::new(None, false);
+    let loaded = load_config_from(&request, Some(installed.clone())).unwrap();
+
+    // The user layer is whatever discovery finds on this machine, so only
+    // the base assertions are safe here.
+    assert_eq!(loaded.base, Some(installed.clone()));
+    if matches!(loaded.source, ConfigSource::BuiltInDefaults) {
+        assert_eq!(loaded.config.theme, ThemeName::Turbo);
+        assert_eq!(
+            loaded.status_source(),
+            ConfigSource::DefaultFile(installed.clone())
+        );
+    }
+
+    let _ = std::fs::remove_file(&installed);
+}
+
+/// A machine-wide file is not the user's to fix. A broken one reports and
+/// steps aside; it must never be the reason somebody cannot start dun.
+#[test]
+fn a_broken_installed_config_reports_and_does_not_stop_startup() {
+    let installed = temp_file_path("broken-installed-config");
+    let user = temp_file_path("user-over-broken-config");
+    std::fs::write(&installed, "theme = no-such-theme\n").unwrap();
+    std::fs::write(&user, "mouse.enabled = false\n").unwrap();
+
+    let request = ConfigLoadRequest::explicit(user.clone());
+    let loaded = load_config_from(&request, Some(installed.clone())).unwrap();
+
+    assert!(loaded.base.is_none(), "a rejected base is not applied");
+    let diagnostic = loaded.base_diagnostic.expect("reports the broken file");
+    assert!(
+        diagnostic.contains("broken-installed-config"),
+        "{diagnostic}"
+    );
+    assert!(
+        !loaded.config.mouse.enabled,
+        "the user's own file still applies"
+    );
+    assert_eq!(
+        loaded.config.theme,
+        Config::default().theme,
+        "and the rest falls back to built-in defaults"
+    );
+
+    let _ = std::fs::remove_file(&installed);
+    let _ = std::fs::remove_file(&user);
+}
+
+/// The user's own file is a different matter: they can fix it, and quietly
+/// ignoring what they wrote would be worse than refusing to start.
+#[test]
+fn a_broken_user_config_is_still_a_startup_error() {
+    let installed = temp_file_path("good-installed-config");
+    let user = temp_file_path("broken-user-config");
+    std::fs::write(&installed, "theme = turbo\n").unwrap();
+    std::fs::write(&user, "theme = no-such-theme\n").unwrap();
+
+    let request = ConfigLoadRequest::explicit(user.clone());
+    let error = load_config_from(&request, Some(installed.clone())).unwrap_err();
+    assert!(error.to_string().contains("broken-user-config"), "{error}");
+
+    let _ = std::fs::remove_file(&installed);
+    let _ = std::fs::remove_file(&user);
+}
+
+#[test]
+fn no_config_disables_the_installed_layer_too() {
+    let installed = temp_file_path("ignored-installed-config");
+    std::fs::write(&installed, "theme = turbo\n").unwrap();
+
+    let request = ConfigLoadRequest::new(None, true);
+    let loaded = load_config_from(&request, Some(installed.clone())).unwrap();
+
+    assert_eq!(loaded.config.theme, Config::default().theme);
+    assert!(loaded.base.is_none());
+    assert_eq!(loaded.source, ConfigSource::Disabled);
+
+    let _ = std::fs::remove_file(&installed);
+}
+
+/// The installed layer and its catalogs are two names in one directory, so
+/// they can never drift apart. Hardcoded prefixes, not the joins the
+/// implementation uses.
+#[test]
+fn installed_share_directory_is_a_sibling_of_bin() {
+    for (exe, want) in [
+        ("/opt/dun/bin/dun", Some("/opt/dun/share/dun")),
+        ("/usr/bin/dun", Some("/usr/share/dun")),
+        ("/home/u/.local/bin/dun", Some("/home/u/.local/share/dun")),
+        ("/dun", None),
+    ] {
+        assert_eq!(
+            installed_share_dir_for_exe(std::path::Path::new(exe)),
+            want.map(std::path::PathBuf::from),
+            "executable {exe}"
+        );
+    }
+}

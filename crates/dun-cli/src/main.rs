@@ -67,12 +67,15 @@ use command_output::{
     COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES, CapturedCommandStream, CommandRunResult,
     command_output_buffer, command_output_text,
 };
+pub(crate) use config_loading::installed_config_path_text;
 #[cfg(test)]
 pub(crate) use config_loading::load_startup_config;
 pub(crate) use config_loading::{
     ConfigLoadRequest, ConfigSource, DUN_CONFIG_ENV, LoadedConfig, default_config_path,
     env_config_path, load_config,
 };
+#[cfg(test)]
+pub(crate) use config_loading::{installed_share_dir_for_exe, load_config_from};
 use dialogs::{
     BufferSwitcherEntry, BufferSwitcherState, ConfirmState, CopyTextError, FileDialogContext,
     FileDialogEntry, FileDialogKind, FileDialogListing, FileDialogMessage, FileDialogState,
@@ -111,7 +114,7 @@ use help::text::{
     ConfigDiagnosticsSection, line_with_exact_text, numbered_list_index_for_line,
     numbered_list_rows, parse_config_diagnostics_section, search_results_text,
 };
-pub(crate) use i18n_loading::{load_ui_catalog, locale_value};
+pub(crate) use i18n_loading::{i18n_search_text, load_ui_catalog, locale_value};
 pub(crate) use plugin_windows::PluginWindows;
 use plugins::{HighlightJob, HighlightOutcome, HostEvent, PluginHosts, language_hint};
 #[cfg(test)]

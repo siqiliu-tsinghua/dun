@@ -7,8 +7,10 @@ pub fn default_config_text() -> String {
     let config = Config::default();
     let mut out = String::from(
         "\
-# Dun default configuration
-# Copy to ~/.config/dun/config and edit as needed.
+# Dun default configuration: every key at its built-in value.
+# scripts/install.sh writes this as the installed layer, <prefix>/share/dun/config.
+# Your own settings go in ~/.config/dun/config, which wins key by key --
+# write only the lines you change, not a copy of this file.
 
 ",
     );

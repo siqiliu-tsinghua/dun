@@ -3,29 +3,86 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
 
-## Current Stage: none
+## Baseline
 
-`dun` is between stages as of 2026-07-29. `main` carries v0.1.0 plus the
-folding stage, which is **unreleased** — CHANGELOG's `Unreleased` section is
-the list of what a v0.2 would contain. The project owner's attention moves to
-`rum`/`rum-ext`; the likely next session here is PR/issue triage on the public
-repository rather than a code stage.
+`main` carries v0.1.0 plus the folding stage and the install work below, all
+**unreleased** — CHANGELOG's `Unreleased` section is the list of what a v0.2
+would contain.
 
-State at this point:
+State now (working tree, install stage measured 2026-07-29), against the last
+committed tip (`7c97fd9`):
 
-| | |
-| --- | --- |
-| Four-platform matrix | **906 / 0** (macOS, Debian, FreeBSD, Solaris) |
-| Binding size | Debian **784,688**, margin 263,888 |
-| Other platforms | macOS 719,100, FreeBSD 698,344, Solaris 744,880 |
-| Last runtime-code commit | `bb62b20` (folding step 4) |
-| Measurement debt | none |
+| | now | at `7c97fd9` |
+| --- | --- | --- |
+| Four-platform matrix | **919 / 0** | 906 / 0 |
+| Binding size (Debian) | **788,784**, margin 259,792 | 784,688 |
+| macOS / FreeBSD / Solaris | 723,276 / 702,640 / 749,936 | 719,100 / 698,344 / 744,880 |
+| Measurement debt | the tree is dirty: re-measure at commit | none |
 
 Nothing is blocked on this repository. What is queued is blocked elsewhere or
 cancelled: rum evaluation waits on rum-ext's resource/type base, F20 Outline
 was cancelled outright 2026-07-28, and the plugin memory watchdog is an open
 design question with no owner. Optional and user-driven: live real-terminal
 OSC 52 read acceptance.
+
+## Current Stage: install experience (2026-07-29)
+
+Opened by a user walking the published install flow and finding it ends one
+step early. Scripts are done; the runtime change needs its measurement.
+
+- [x] `scripts/install.sh` — installs the binary, writes the config template
+  from `--dump-config`, copies the catalogs where the loader looks, reports
+  which catalog the locale selects.
+- [x] `scripts/uninstall.sh` — removes what `install.sh` installed and only
+  that; keeps a user-written catalog, keeps the config unless `--purge`,
+  refuses to delete a binary that does not identify itself as `dun`.
+- [x] `scripts/build.sh` — two questions (budget vs plain build, syntect host
+  or not), interactive only on a TTY.
+- [x] Second-round install work: interactive layout question, `--prefix` for
+  `/usr/local` and `/opt/dun`, syntect installed and enabled by default,
+  `PATH` rc-file offer, `--package` tarball for build-here-deploy-there, and
+  package-layout discovery so the same script runs on both sides of an `scp`.
+- [x] Third round, from the same review: **plan → one confirmation → act** in
+  all three scripts (an interrupted interview now leaves nothing behind), and
+  the default prefix is `$HOME/.local`, so the per-user and system layouts are
+  the same shape.
+- [x] **Runtime, part 1:** catalogs also load from `<bin>/../share/dun/i18n`
+  (`current_exe`-relative, nothing compiled in), which is what makes a system
+  install translate for users who have no config file. Config-directory
+  catalogs still win; a broken file there is still reported rather than
+  masked; `--no-config` still disables both. `F6` Paths lists the search path.
+- [x] **Runtime, part 2:** configuration is two layers —
+  `<bin>/../share/dun/config` then the user's file overlaid key by key
+  (`parse_config_overlay`, which already existed). An invalid installed file
+  reports and steps aside instead of locking every user out; an invalid user
+  file is still a startup error. `F6` Source names the base layer, and the
+  reload status message names the installed file rather than claiming
+  "built-in defaults".
+- [x] Tests: 13 new (9 unit + 3 tmux end-to-end + the layering pair), seven
+  mutations run and all caught — reversed search order, read-error and
+  parse-error falling through, `share/i18n` instead of `share/dun/i18n`,
+  `shared_i18n_dir()` returning `None`, user file replacing instead of
+  overlaying the base, and a broken installed config becoming fatal.
+- [x] **Size gate passed** (2026-07-29, all four platforms, from the synced
+  worktree — re-measure from a clean archive when this commits): Debian
+  **788,784** binding, margin 259,792 (+4,096, one page for both runtime
+  changes together); macOS 723,276, FreeBSD 702,640, Solaris 749,936.
+  Recorded in docs/dev/release-size-audit.md.
+- [x] Four-platform functional matrix: **919 / 0**.
+- [x] Release smoke on macOS and Debian: `--version`, `--dump-config`, ELF PIE
+  with unchanged `ldd`, `pty_smoke` 12/12 under the release panic hook, zero
+  `DUN_TEST_PANIC` strings in the shipped binary.
+- [x] Deployment acceptance on all three VMs, in the three steps the owner
+  specified: (1) build + install + uninstall in `$HOME`, (2) install +
+  uninstall into a chosen `$PREFIX` (plus `sudo --prefix /opt/dun` on Debian),
+  (3) package → `cp` → `chown` → `su - duntest` → unpack → install →
+  uninstall. Each install verified by *running* the editor: German, French,
+  Russian, Italian, Korean, Portuguese, Spanish, Japanese, Simplified and
+  Traditional Chinese menu bars, including from a system prefix with an empty
+  `HOME`. Two defects found and fixed — an untrue line in the uninstall plan,
+  and Solaris packages named `i86pc` instead of `amd64`.
+- [ ] Commit, then re-measure Debian from a clean `git archive` to close the
+  provenance gap.
 
 ## Completed Stage: Folding (2026-07-28 → 2026-07-29)
 

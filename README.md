@@ -11,8 +11,8 @@ that it stays under 1 MiB.
 ![dun editing its own source in a split, with syntect highlighting](docs/images/readme-1-split-syntect.png)
 
 ```sh
-cargo build --release
-./target/release/dun notes.txt
+scripts/build.sh && scripts/install.sh
+dun notes.txt
 ```
 
 New here? Start with the **[User Guide](docs/user-guide.md)**.
@@ -27,8 +27,8 @@ half-written save may be the outage.
 
 `dun` treats those as the primary case rather than the degraded one:
 
-- **It fits in the places you have to work.** The release binary is 785 KB on
-  Debian x86-64 and 719 KB on macOS — and 698 KB on FreeBSD, 745 KB on
+- **It fits in the places you have to work.** The release binary is 789 KB on
+  Debian x86-64 and 723 KB on macOS — and 703 KB on FreeBSD, 750 KB on
   Solaris — against a hard 1 MiB budget that every change is measured against.
   Copy one file to the host and you are done.
 - **It degrades on purpose.** Each theme carries 256-color, 16-color, and
@@ -137,12 +137,44 @@ Rust `1.85` or newer. No system dependencies.
 ```sh
 git clone https://github.com/siqiliu-tsinghua/dun.git
 cd dun
-cargo build --release
+scripts/build.sh      # which build, and the highlighting plugin? then builds
+scripts/install.sh    # where to, plugin, PATH? then installs
 ```
+
+Both ask their questions, show the whole plan, and confirm once before touching
+anything; `Ctrl-C` before that leaves the machine as it was. `--yes` takes the
+defaults and `--dry-run` prints the plan and stops, so the same two lines work
+unattended. A build alone leaves you with no configuration and an English
+interface whatever your locale says — `install.sh` is what puts the
+configuration, the catalogs and the syntax-highlighting plugin where `dun`
+looks for them, and it reports which catalog your locale selects.
+
+Everything the installation owns lives under one prefix, `$HOME/.local` by
+default:
+
+```text
+<prefix>/bin/dun, <prefix>/bin/dun-syntect-host
+<prefix>/share/dun/config, <prefix>/share/dun/i18n/*.conf
+~/.config/dun/config     yours, applied over the installed one key by key
+```
+
+- `dun` finds its configuration and catalogs through its own location
+  (`<bin>/../share/dun`), so `--prefix /usr/local` or `--prefix /opt/dun`
+  serves every user on a machine — including one who has never run `dun` and
+  has no configuration file — while each of them keeps personal settings in
+  `~/.config/dun/config`, which wins key by key;
+- `--package dun-dist.tar.gz` builds a tarball — binary, plugin, catalogs,
+  scripts — to carry to a machine that cannot build, where the same
+  `install.sh` installs it;
+- `scripts/uninstall.sh` takes exactly that back out, keeping your own
+  configuration unless you pass `--purge`.
+
+The [user guide](docs/user-guide.md#installing) has the by-hand equivalent and
+the `sudo` details.
 
 `scripts/release-build.sh` produces the smaller binary the size budget is
 measured against, by rebuilding the standard library; it needs the `rust-src`
-component. The ordinary `cargo build --release` is what most people want.
+component. `scripts/build.sh` chooses it when that component is present.
 
 Supported platforms: Linux, macOS, FreeBSD, and Solaris on x86-64. The test
 suite runs on all four.

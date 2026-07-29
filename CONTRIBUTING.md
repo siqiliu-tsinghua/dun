@@ -36,6 +36,14 @@ measurable bytes needs to justify them against
 batch" is the rule — with `opt-level = "z"` and fat LTO, size deltas are not
 additive.
 
+**The shell scripts are POSIX `sh`.** `scripts/build.sh`, `install.sh`,
+`uninstall.sh` and `release-build.sh` run on all four supported platforms, so
+no `bash` (FreeBSD's base system has none), no `local` (Solaris `/bin/sh` is
+ksh93), no GNU-only flags, and no `tar -z` (Solaris `tar` has neither). The
+install scripts also hold one behavioural rule: decide everything, print the
+plan, confirm once, and only then write — an interrupted run must leave the
+machine as it was.
+
 **Safe Rust only.** Every crate root and test entry point carries
 `#![forbid(unsafe_code)]`. Adding `unsafe` requires an explicit design
 decision, not a pull request that happens to contain it.

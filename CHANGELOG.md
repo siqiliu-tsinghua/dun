@@ -8,6 +8,56 @@ in [docs/dev/PROGRESS.md](docs/dev/PROGRESS.md).
 
 ### Added
 
+- **An installed configuration, and your own on top of it.** Configuration is
+  now two layers: `<bin>/../share/dun/config` — derived from the running
+  binary, so `/opt/dun/bin/dun` reads `/opt/dun/share/dun/config` — and then
+  your `~/.config/dun/config` applied over it key by key. What you set wins;
+  what you leave alone keeps the installed value. A shared machine can now have
+  a theme, a plugin and a keymap for everyone while each user changes only what
+  they care about. `--no-config` disables both. An invalid *installed* file is
+  reported in the status line and stepped over rather than being fatal: it
+  belongs to whoever installed `dun`, and one mistake there must not stop every
+  user of the machine from editing. Your own file is still a startup error when
+  it is invalid.
+- **Catalogs are also found in the installation directory.** `dun` looked for
+  translations only in an `i18n/` directory beside the active configuration
+  file, which a system-wide install has no way to fill: every user started in
+  English until they made their own copy. There is now a second location,
+  `<bin>/../share/dun/i18n`, alongside the installed configuration — so an
+  administrator can translate the interface for everyone, and a relocated
+  binary keeps its catalogs. Your own directory still wins, a broken file there
+  is still reported rather than replaced by the shared copy, and `--no-config`
+  still disables both. `F6` lists the search path under **Paths** and the
+  configuration base layer under **Source**.
+- **`scripts/build.sh`.** Asks which build you want (size-optimised
+  `-Zbuild-std` or ordinary `cargo build --release`, defaulting to whichever
+  your toolchain supports) and whether to build the syntect syntax-highlighting
+  host with it, then builds. Interactive only when stdin is a terminal;
+  `--yes`, `--budget`, `--plain`, `--syntect`, `--no-syntect` for scripts.
+- **`scripts/install.sh`.** Building `dun` produced one executable and nothing
+  else, so a first run had no configuration file and no catalogs — an English
+  interface no matter what the locale said. The script installs the binary and
+  the syntect plugin into `<prefix>/bin`, writes `<prefix>/share/dun/config`
+  from `dun --dump-config` with the plugin enabled in it, copies the catalogs
+  to `<prefix>/share/dun/i18n`, leaves a commented `~/.config/dun/config` for
+  your own settings, and reports which catalog the current locale selects. The
+  prefix is `$HOME/.local` unless you say otherwise; it asks where to install
+  (`~/.local`, `/usr/local`, `/opt/dun`, or somewhere else), whether to enable
+  the plugin, and whether to add the binary's directory to `PATH` in your
+  shell's rc file. Every question is asked before anything is written: the plan
+  is shown in full and confirmed once, so an interrupted interview leaves the
+  machine untouched. `--package FILE` writes a tarball — binary, plugin,
+  catalogs, scripts — for installing on a machine that cannot build, where the
+  same script installs from the unpacked tree. Nothing is overwritten without
+  `--force`, and `--dry-run` prints the plan and stops.
+- **`scripts/uninstall.sh`.** Takes back out what `install.sh` put in, and
+  nothing else: the binary — only if it identifies itself as `dun` — the plugin
+  host beside it, the installed configuration, and the catalogs this tree
+  ships. A catalog you added is reported and kept, your own
+  `~/.config/dun/config` survives unless you pass `--purge`, and directories go
+  only when they end up empty (a prefix made for `dun` alone with them, a
+  shared `/usr/local` never). Same shape as the installer: plan, one
+  confirmation, then removal.
 - **Folding.** `Ctrl+X,F` folds the selected lines or unfolds the fold at the
   cursor; `Ctrl+X,A` unfolds everything in the buffer. Both are on the View
   menu. A folded range draws one placeholder row showing the hidden line count

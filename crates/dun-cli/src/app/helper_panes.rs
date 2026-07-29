@@ -450,6 +450,11 @@ impl AppState {
         out.push('\n');
         out.push_str(&format!("  {DUN_CONFIG_ENV}: {}\n", env_config_path_text()));
         out.push_str(&format!("  default path: {}\n", default_config_path_text()));
+        out.push_str(&format!("  installed: {}\n", installed_config_path_text()));
+        out.push_str(&format!(
+            "  i18n: {}\n",
+            i18n_search_text(&self.config_source)
+        ));
         out.push_str("  defaults: dun --dump-config\n");
 
         out.push('\n');
@@ -458,6 +463,13 @@ impl AppState {
         out.push_str(&format!(
             "  active: {}\n",
             self.config_source.diagnostics_text()
+        ));
+        out.push_str(&format!(
+            "  base layer: {}\n",
+            match &self.installed_config {
+                Some(path) => path.display().to_string(),
+                None => "none".to_string(),
+            }
         ));
         out.push_str(&format!(
             "  request: {}\n",

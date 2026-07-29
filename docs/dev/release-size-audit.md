@@ -1,5 +1,34 @@
 # Release Size Audit
 
+## 2026-07-29 — install experience (two runtime changes)
+
+Measured from the synced working tree, not a clean `git archive`: this work is
+uncommitted at the time of measurement. Re-measure from the tag when it lands;
+the tree measured here is byte-for-byte what would be committed.
+
+Four-platform functional matrix: **919 passed / 0 failed** on macOS, Debian,
+FreeBSD and Solaris (906 before, plus 13 new tests for the two runtime
+changes).
+
+| platform | bytes | previous (`7c97fd9`) | delta | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | 723,276 | 719,100 | +4,176 | 325,300 |
+| **Debian x86_64** | **788,784** | 784,688 | **+4,096** | **259,792** |
+| FreeBSD x86_64 | 702,640 | 698,344 | +4,296 | 345,936 |
+| Solaris x86_64 | 749,936 | 744,880 | +5,056 | 298,640 |
+
+One page on the binding platform for both runtime changes together: the
+`current_exe`-relative installation directory (`<bin>/../share/dun`), the
+catalog search path built on it, the two-layer configuration load through
+`parse_config_overlay`, and two new Config Diagnostics lines. The catalogs and
+the configuration share one path derivation, which is most of why the pair fits
+where either alone would have cost the same page.
+
+Release smoke on macOS and Debian: `--version`, `--dump-config`, ELF PIE
+stripped with `ldd` unchanged (libgcc/libm/libc/ld-linux), `pty_smoke` 12/12
+under `--release --features test-panic-hook`, and zero `DUN_TEST_PANIC`
+strings in the shipped binary.
+
 ## 2026-07-29 — folding complete
 
 Four-platform functional matrix at `260d850`: **906 passed / 0 failed** on

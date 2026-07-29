@@ -32,23 +32,192 @@ This guide covers using `dun`. Two companion documents go deeper:
 There are no system dependencies to install first.
 
 ```sh
-git clone <repository-url> dun
+git clone https://github.com/siqiliu-tsinghua/dun.git dun
 cd dun
-cargo build --release
-./target/release/dun --version
+scripts/build.sh      # which build, and the highlighting plugin? then builds
+scripts/install.sh    # where to, plugin, PATH? then installs
 ```
 
-Copy `target/release/dun` anywhere on your `PATH`. To put it on a server, copy
-the single file — it needs nothing else, though a binary built on your machine
-runs only on hosts of the same OS and architecture.
+Both ask only when they are talking to a terminal, and both decide everything
+before doing anything: the questions come first, then the full plan, then one
+confirmation. `--yes` takes every default and `--dry-run` prints the plan and
+stops, so the same two lines work in a script or a Dockerfile.
+
+### Building
+
+`scripts/build.sh` asks which build you want and whether to build the syntax
+highlighting plugin with it:
+
+```text
+Size-optimised build (rebuilds std, smallest binary)? [Y/n]
+Also build the syntect syntax-highlighting plugin (a few minutes)? [Y/n]
+```
+
+The first question is `scripts/release-build.sh` against `cargo build
+--release`. The size-optimised build rebuilds the standard library
+(`-Zbuild-std`) and produces the binary the project's 1 MiB budget is measured
+against; it needs the `rust-src` component, and when that is missing the
+question is not asked and the ordinary build is used. `--budget` and `--plain`
+answer it from the command line.
+
+The second builds `hosts/rust-syntect`, the syntax highlighting plugin host.
+It is the one highlighting host that needs nothing on the machine it runs on —
+the Python and Lua hosts need those interpreters, which a fresh server may not
+have — so it is the one worth carrying. `--syntect` and `--no-syntect` answer
+it. A syntect failure (no network for its crates, usually) is reported
+separately and does not affect the editor build.
+
+### Installing
+
+`scripts/install.sh` is the second half, and the half a plain `cargo build`
+leaves out. Building produces one executable and nothing else, which leaves a
+first run with no configuration file to edit and — the part nobody guesses — no
+catalogs, so the interface stays English however your locale is set.
+
+It asks its questions first, then shows the whole plan and asks once more.
+Nothing is written until you answer that last question, so `Ctrl-C` at any
+point during the interview leaves the machine exactly as it was.
+
+```text
+Where should dun be installed?
+  1) /home/you/.local — just for you, no root needed (default)
+  2) /usr/local — everyone on this machine, needs root
+  3) /opt/dun   — everyone on this machine, self-contained, needs root
+  4) somewhere else
+Choice [1]
+Install the syntect highlighting plugin and enable it? [Y/n]
+/home/you/.local/bin is not on your PATH. Add it to /home/you/.zshrc? [Y/n]
+
+dun install plan
+  prefix    /home/you/.local
+  binary    /home/you/.local/bin/dun (from target/release/dun)
+  plugin    /home/you/.local/bin/dun-syntect-host (from hosts/rust-syntect/…)
+  config    /home/you/.local/share/dun/config (write from dun --dump-config)
+            with plugin.syntect.* enabling the plugin
+  personal  /home/you/.config/dun/config (write an empty template for your own settings)
+  catalogs  /home/you/.local/share/dun/i18n (install 10)
+  language  LANG=de_DE.UTF-8 selects /home/you/.local/share/dun/i18n/de.conf
+  path      append to /home/you/.zshrc: export PATH="$HOME/.local/bin:$PATH"
+
+Proceed? [Y/n]
+```
+
+`--dry-run` prints exactly that plan and stops.
+
+**Where things go, and why there are two configuration files.** Everything the
+*installation* owns lives under one prefix — `$HOME/.local` by default,
+`--prefix /usr/local` or `--prefix /opt/dun` for a machine-wide one:
+
+```text
+<prefix>/bin/dun                  the editor
+<prefix>/bin/dun-syntect-host     the highlighting plugin
+<prefix>/share/dun/config         the installed configuration
+<prefix>/share/dun/i18n/*.conf    the translation catalogs
+~/.config/dun/config              yours
+```
+
+`dun` finds the last two through its own location (`<bin>/../share/dun`), so
+the prefix can be anywhere and a moved binary takes its files with it. Your
+`~/.config/dun/config` is then applied **on top of** the installed one, key by
+key: what you set wins, what you leave alone keeps the installed value. That is
+the arrangement a shared machine needs — an administrator sets a theme, a
+plugin and a keymap in `/usr/local/share/dun/config`, and you change the theme
+in your own file without losing the rest. The script writes that personal file
+as a commented stub, because a copy of every default would bury the two lines
+you actually change.
+
+Installing the plugin also enables it: the three `plugin.syntect.*` lines go
+into the installed configuration, with the absolute path of the host. If that
+file already exists it is not rewritten — you are asked whether to append those
+three lines, and told what they are if you decline.
+
+The `PATH` question only appears when the binary's directory is not already on
+it. Answering yes appends one `export PATH=…` line to your shell's rc file
+(`~/.zshrc`, `~/.bashrc`, `~/.kshrc` or `~/.profile`, whichever your `$SHELL`
+suggests) under a comment saying where it came from; answering no prints the
+line for you to add yourself. `--path-setup` and `--no-path-setup` answer it
+without asking.
+
+A system prefix needs root: `sudo scripts/install.sh --prefix /usr/local`.
+Under `sudo` the script installs the machine-wide parts only and says so — your
+personal file would otherwise be written into root's home directory, which is
+nobody's configuration. Run it once more as yourself with `--no-binary
+--no-i18n` to get that file.
+
+Nothing already there is overwritten — run it again after a rebuild and the
+configuration files are reported as `kept`. `--bin-dir`, `--config-dir`,
+`--lang`, `--no-binary`, `--no-config`, `--no-i18n` and `--force` narrow it
+down; `scripts/install.sh --help` lists them all.
+
+By hand, into the same layout:
+
+```sh
+mkdir -p ~/.local/bin ~/.local/share/dun/i18n
+cp target/release/dun ~/.local/bin/
+cp i18n/*.conf ~/.local/share/dun/i18n/
+dun --dump-config > ~/.local/share/dun/config
+```
+
+### Installing on another machine
+
+Building on the server is often not an option — no toolchain, no network, or
+simply not yours to install on. `--package` writes everything the other
+machine needs into one tarball: the binary, the plugin host, the catalogs, and
+these two scripts.
+
+```sh
+scripts/install.sh --package dun-dist.tar.gz     # on the machine that built
+scp dun-dist.tar.gz server:
+ssh server
+gzip -dc dun-dist.tar.gz | tar xf -              # `tar xzf` on GNU/BSD tar
+dun-0.1.0-linux-x86_64/scripts/install.sh        # same script, same questions
+```
+
+The unpacked directory is a working install tree: `bin/`, `share/dun/i18n/`,
+`scripts/`, and an `INSTALL.txt`. `install.sh` recognises it and installs from
+it exactly as it installs from the repository, into `~/.local` or into a
+`--prefix`. The extraction line avoids `tar xzf` on purpose — Solaris `tar` has
+no `-z`.
+
+The binary is not portable across platforms: package on a machine of the same
+operating system and architecture as the target, which the tarball's name
+records (`dun-0.1.0-linux-x86_64`). Nothing else has to match — `dun` links
+against the system C library and its usual companions and nothing else.
+
+### Uninstalling
+
+`scripts/uninstall.sh` removes what `scripts/install.sh` installed, and only
+that: the binary, the `dun-syntect-host` plugin beside it, the installed
+configuration, and the catalogs this tree ships. **Your** `~/.config/dun/config`
+survives — it stops being ours the moment you edit it — until you ask for it
+with `--purge`. A catalog you wrote yourself is reported and left alone, and
+the binary is removed only if it identifies itself as `dun`, so a different
+program that happens to be called `dun` in the same directory is safe from it
+(`--force` overrides).
+
+Like the installer, it shows the whole plan and asks once before removing
+anything; `--dry-run` prints that plan and stops.
+
+```sh
+scripts/uninstall.sh                          # personal config kept
+scripts/uninstall.sh --purge                  # that too, and ~/.config/dun
+sudo scripts/uninstall.sh --prefix /usr/local # a system install
+```
+
+Directories go only when they end up empty. A prefix made for `dun` alone
+(`/opt/dun`) is removed with its `bin/` and `share/`; a shared prefix keeps
+both, because an empty `/usr/local/bin` is still the system's directory and
+other tools expect it to exist.
+
+Other plugin hosts are outside its reach: they live wherever you unpacked them.
 
 **On the two builds.** `cargo build --release` is the ordinary build and is what
 you want. The repository also has `scripts/release-build.sh`, which produces a
 significantly smaller binary by rebuilding the standard library
 (`-Zbuild-std`); that is the build the project's 1 MiB size budget is measured
 against. It needs the `rust-src` component and sets `RUSTC_BOOTSTRAP=1` to use
-an unstable flag on a stable toolchain. Use it if you care about the last
-200 KiB; otherwise ignore it.
+an unstable flag on a stable toolchain. `scripts/build.sh` picks between the
+two for you; run either directly if you would rather choose by hand.
 
 **On Solaris, `scripts/release-build.sh` adds one link flag for you**
 (`-z noldynsym`). The Solaris link editor keeps local function names in the
@@ -82,13 +251,21 @@ you would expect.
 Quit with `Ctrl+Q`. If a buffer has unsaved changes, a dialog asks first, and
 answers to single letters: **s** save, **d** discard, **c** cancel.
 
-`dun` starts with built-in defaults. To customise it, write
-`~/.config/dun/config`; `dun --dump-config > ~/.config/dun/config` gives you
-every default as a commented starting point. The load order is `--no-config`
-(disables everything), then `--config PATH`, then `$DUN_CONFIG`, then
-`$XDG_CONFIG_HOME/dun/config`, then `$HOME/.config/dun/config`. A missing
-default file is fine; an explicitly named one that is missing or invalid is an
-error.
+**Your settings go in `~/.config/dun/config`**, which `scripts/install.sh`
+creates as a commented stub. It is a layer on top, not the whole story: `dun`
+reads the installed configuration first (`<bin>/../share/dun/config`, written
+by the same script) and then applies your file over it key by key. What you set
+wins; what you leave alone keeps the installed value, and failing that the
+built-in default. `dun --dump-config` prints every key with its built-in value
+if you want a starting point, and `F6` shows which files are in force.
+
+The user layer is the first that applies of `--config PATH`, `$DUN_CONFIG`,
+`$XDG_CONFIG_HOME/dun/config`, `$HOME/.config/dun/config`. `--no-config`
+disables both layers. A missing default file is fine; an explicitly named one
+that is missing or invalid is an error, while an invalid *installed* file is
+reported and stepped over — it belongs to whoever installed `dun`, and one
+mistake there must not stop everyone on the machine from editing.
+[configuration.md](./configuration.md) has the exact rules.
 
 ## The screen
 
@@ -422,15 +599,28 @@ The language comes from the environment, in the order `LC_ALL`, `LC_MESSAGES`,
 LC_ALL=ja_JP.UTF-8 dun
 ```
 
-Catalogs are looked up in an `i18n/` directory **next to the active config
-file**, so `~/.config/dun/config` pairs with `~/.config/dun/i18n/ja.conf`. Copy
-the repository's `i18n/` directory there. You do not need a config file for
-this — with no config, `dun` still looks in `~/.config/dun/i18n/`. `--no-config`
-is the exception: it disables catalog loading with everything else, so that run
-is English.
+Catalogs are looked up in two places, in this order:
 
-If the interface stays English, that lookup is almost always why: the catalogs
-are not beside the config file `F6` reports as active.
+1. an `i18n/` directory **next to your config file**, so `~/.config/dun/config`
+   pairs with `~/.config/dun/i18n/ja.conf`;
+2. **`<bin>/../share/dun/i18n`**, the installation's own copies — so
+   `/opt/dun/bin/dun` reads `/opt/dun/share/dun/i18n`, `/usr/bin/dun` reads
+   `/usr/share/dun/i18n`, and the default `~/.local/bin/dun` reads
+   `~/.local/share/dun/i18n`.
+
+The second is what `scripts/install.sh` fills, and it serves every user on the
+machine, including those who have no configuration file at all. The first is
+yours and always wins: drop one file there — `cp i18n/ja.conf
+~/.config/dun/i18n/` — and edit it, and the installed copy is out of the way
+for you and unchanged for everybody else. The order is by directory, not by
+tag: your `zh.conf` wins over an installed `zh-Hans.conf`, even though the
+installed one is the more specific name. `--no-config` disables catalog
+loading with everything else, so that run is English.
+
+If the interface stays English, that lookup is almost always why. Press `F6`:
+the **Paths** section lists both directories it searched, and
+`scripts/install.sh` prints which file your locale asks for, so the two can be
+compared without guessing.
 
 Nine of the ten catalogs are machine-translated and have not been reviewed by a
 native speaker; the project says so rather than implying review is pending.
@@ -541,6 +731,20 @@ The status message says which.
 **The file is too large to open.** Raise
 `limits.editable_file_soft_limit_bytes`. The limit exists so a stray multi-gigabyte
 log does not take the host down with the editor.
+
+**The interface is English although `LANG` is not.** The catalogs are not
+where `dun` looks. `F6` → **Paths** lists both directories it searched; the
+usual cause is a binary copied by hand with no `share/dun/i18n` beside it and
+no `~/.config/dun/i18n` either. `scripts/install.sh` puts them in place and
+prints which file your locale selects; by hand it is
+`cp i18n/*.conf ~/.config/dun/i18n/`. `--no-config` is English by definition.
+
+**A setting is in force that I never set** — or one I set is being ignored.
+There are two configuration files: the installed one and yours, applied over
+it. `F6` → **Source** names both. Yours wins key by key, so a setting you did
+not write comes from the installed layer; a setting of yours that seems
+ignored is usually in a file `dun` is not reading, which the same screen tells
+you.
 
 **A plugin does nothing.** `F6` shows what was loaded and any error, the
 status-bar chip (`plugins.status_bar = true`) shows per-host state, and

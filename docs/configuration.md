@@ -10,22 +10,48 @@ Blank lines and text after `#` are ignored.
 
 ## Loading
 
-Configuration is loaded in this order:
+Configuration comes in **two layers**, and the second is applied on top of the
+first key by key:
 
-1. `--no-config` disables configuration loading.
-2. `--config PATH` or `--config=PATH` loads the explicit path.
-3. `DUN_CONFIG` loads the path named by the environment variable.
-4. `$XDG_CONFIG_HOME/dun/config` is loaded if present.
-5. `$HOME/.config/dun/config` is loaded if present.
-6. If no config file is found, defaults are used.
+1. **the installed configuration** — `<bin>/../share/dun/config`, derived from
+   the running binary, so `/opt/dun/bin/dun` reads `/opt/dun/share/dun/config`
+   and `~/.local/bin/dun` reads `~/.local/share/dun/config`. This is what
+   `scripts/install.sh` writes. Absent on a machine where nobody installed
+   one, which is the normal case for a binary copied by hand;
+2. **your configuration**, the first of these that applies:
+   - `--config PATH` or `--config=PATH`, an explicit path;
+   - `DUN_CONFIG`, the path named by the environment variable;
+   - `$XDG_CONFIG_HOME/dun/config`, if present;
+   - `$HOME/.config/dun/config`, if present.
 
-Explicit or environment-provided config paths must be readable and valid. A
-missing default config file is ignored.
+Every key your file sets wins. Every key it leaves alone keeps the installed
+value, and failing that the built-in default. So a machine-wide install can
+set a theme, a plugin and a keymap for everyone, and you can change the theme
+without losing the rest.
+
+`--no-config` disables both layers: it means built-in everything, including
+the English interface.
+
+Explicit or environment-provided config paths must be readable and valid; a
+mistake there stops startup with a message, because it is your file and you
+can fix it. A missing default config file is ignored. The **installed** layer
+is treated more gently: if it exists but is invalid, the editor reports it in
+the status line and carries on with your file over built-in defaults, because
+one machine-wide mistake must not stop every user of that machine from
+editing.
+
+`F6` (Config Diagnostics) prints both: **Paths** names where the installed
+file would be, and **Source** names the base layer actually in force.
 
 `dun --dump-config` prints the built-in default configuration grouped into
 appearance, terminal fallback, mouse, clipboard, file/display limits,
 commented plugin-host examples, global command bindings, and Open/Save As
-modal bindings, so it can be used as a starting point for a user config file.
+modal bindings. It is what `scripts/install.sh` writes as the **installed**
+layer, and it is the reference for what a key's built-in value is. It is a
+poor starting point for *your* file: a copy of every default is a copy you
+now maintain, and it hides the two lines you actually changed. Write only
+those lines — everything else keeps following the installed value, and the
+built-in default under that.
 
 ## Format
 
@@ -305,7 +331,9 @@ Menu text can be translated through external resource files; see
 key: the language comes from the locale environment (first nonempty of
 `LC_ALL`, `LC_MESSAGES`, `LANG`), and translations load from an `i18n/`
 directory next to the active config file — `~/.config/dun/i18n/zh-CN.conf`
-under default discovery. The repository ships reference translations in its
+under default discovery — and failing that from `<bin>/../share/dun/i18n`,
+the installation's own copies, which is where `scripts/install.sh` puts them.
+Your directory wins. The repository ships reference translations in its
 top-level `i18n/` directory.
 
 English is compiled in and needs no files. Missing translation files are
@@ -318,30 +346,43 @@ every language and translation files cannot change or break it.
 
 ## Example
 
+Two files, one machine. The installed layer is what `scripts/install.sh`
+writes — every key at its built-in value, plus whatever the installation
+wants for everyone:
+
+```text
+# <prefix>/share/dun/config  (excerpt)
+theme = dun
+mouse.enabled = true
+
+# Syntax highlighting, installed by scripts/install.sh
+plugin.syntect.command = /usr/local/bin/dun-syntect-host
+plugin.syntect.trust = user-trusted-external
+plugin.syntect.roles = syntax-highlight
+```
+
+Yours is only the differences. The plugin and every key you do not mention
+keep working:
+
 ```text
 # ~/.config/dun/config
 theme = dark
 terminal.colors = 16
 mouse.enabled = false
-clipboard.osc52.enabled = false
-clipboard.osc52.allow_read = false
-clipboard.osc52.max_bytes = 16 KiB
+clipboard.osc52.allow_read = true
 limits.editable_file_soft_limit_bytes = 8 MiB
 
-key.app.quit = Ctrl+Q
-key.app.reload_config = F5
-key.app.config_diagnostics = F6
 key.edit.find = Ctrl+W
-key.edit.copy_external = Ctrl+X,Ctrl+C
 key.edit.paste_external = Ctrl+X,Ctrl+V
-key.edit.scroll_left = Ctrl+X,[
-key.edit.scroll_right = Ctrl+X,]
 key.window.split_horizontal = Ctrl+X,H
-key.window.split_vertical = Ctrl+X,V
-key.window.focus_left = Ctrl+X,Left
 key.window.resize_right = Ctrl+X,Shift+Right
 key.file_dialog.toggle_hidden = F8
 ```
+
+Both files use the same format and the same keys; the only difference is
+which one wins. With no installed layer — a binary copied by hand, with no
+`share/dun` beside it — your file is simply applied to the built-in
+defaults, exactly as it was before there were two layers.
 
 Any future configuration source must produce the same typed `Config` model
 rather than mutating editor state directly — that boundary is the point, not

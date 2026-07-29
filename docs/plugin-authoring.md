@@ -300,9 +300,16 @@ plugin.<id>.timeout_ms = 2000
 plugin.<id>.max_frame_bytes = 256 KiB
 ```
 
+Either configuration layer can carry those lines: the installed one
+(`<prefix>/share/dun/config`, which is where `scripts/install.sh` puts the
+syntect host's entry when it installs it) enables a plugin for everyone on the
+machine, and a user's own `~/.config/dun/config` overrides or adds entries for
+themselves. `plugin.<id>.*` keys merge per key like everything else, so a user
+can point an installed plugin id at their own build without restating the rest.
+
 The trust class is the grant gate. `user-trusted-external` means "an external
 program that speaks the protocol and still has whatever authority the OS gives
-it" — the user's config entry is the consent, and it is required for anything
+it" — the config entry is the consent, and it is required for anything
 UI-invasive. `pure-sandbox` is reserved for a runtime that provably cannot touch
 files, processes, network, or terminal; nothing ships in that class yet.
 `unsupported-unsafe` is rejected.

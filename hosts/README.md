@@ -46,6 +46,14 @@ plugin.syntect.roles = syntax-highlight
 Build the syntect host with `cargo build --release` inside `hosts/rust-syntect/`
 and point `command` at `target/release/dun-syntect-host`.
 
+For that one host the whole thing is automated: `scripts/build.sh` builds it
+alongside the editor and `scripts/install.sh` installs it next to the `dun`
+binary and writes those three lines into the configuration it generates, with
+the absolute path filled in. It is the default because it is the only
+highlighting host that needs nothing on the target machine — the two below need
+a Python or Lua interpreter, which a server may not have. The other hosts are
+configured by hand as above.
+
 For the script hosts, note that `dun` launches the command directly (no shell,
 no arguments) with a **cleared environment**. A `#!/usr/bin/env python3`
 shebang usually still resolves via the OS default path, but interpreters

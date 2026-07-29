@@ -214,7 +214,9 @@ impl AppState {
     pub(crate) fn reload_config(&mut self) {
         match load_config(&self.config_request) {
             Ok(loaded_config) => {
-                let status = loaded_config.source.status_text(&self.shell.catalog);
+                let status = loaded_config
+                    .status_source()
+                    .status_text(&self.shell.catalog);
                 let i18n_diagnostic = self.apply_loaded_config(loaded_config);
                 self.set_status(match i18n_diagnostic {
                     Some(diagnostic) => format!("{status}; {diagnostic}"),
@@ -240,15 +242,21 @@ impl AppState {
         self.shell = UiShell::from_config(&loaded_config.config, self.detected_profile);
         let loaded_catalog = load_ui_catalog(&loaded_config.source, self.shell.profile.encoding);
         self.shell.catalog = loaded_catalog.catalog;
+        let base_diagnostic = loaded_config.base_diagnostic.clone();
         self.limits = loaded_config.config.limits;
         self.file_dialog_keys = loaded_config.config.file_dialog_keys.clone();
         self.clipboard = loaded_config.config.clipboard;
         self.mouse_enabled = loaded_config.config.mouse.enabled;
         self.plugin_status = loaded_config.config.plugin_status;
         self.config_source = loaded_config.source;
+        self.installed_config = loaded_config.base;
         self.refresh_help_buffer();
         self.refresh_config_diagnostics_buffer();
-        loaded_catalog.diagnostic
+        match (base_diagnostic, loaded_catalog.diagnostic) {
+            (Some(config), Some(catalog)) => Some(format!("{config}; {catalog}")),
+            (Some(only), None) | (None, Some(only)) => Some(only),
+            (None, None) => None,
+        }
     }
 
     pub(crate) fn handle_file_command(&mut self, command: &FileCommand) {
