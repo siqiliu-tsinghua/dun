@@ -1,5 +1,31 @@
 # Release Size Audit
 
+## 2026-07-30 — config quote-aware comment scanning
+
+Measured at `f5891a0` from a clean `git archive`, on the two gate platforms
+only; this is a parser-internal change with no platform-specific code, so the
+FreeBSD and Solaris figures were not re-measured and their `11f56a6` values
+stand.
+
+| platform | bytes | previous (`11f56a6`) | delta | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | 723,284 | 723,276 | +8 | 325,292 |
+| **Debian x86_64** | **788,784** | 788,784 | **0** | **259,792** |
+
+**Byte-identical on the binding platform.** `strip_comment` and
+`unquote_value` were replaced by a single `scan_config_value` that does the
+same amount of work in one pass instead of two, and it stays allocation-free —
+the value is still a borrowed `&str` slice, which is why the quote handling
+cost nothing. macOS moved 8 bytes, below its own quantisation noise.
+
+Debian release smoke at this commit: ELF 64-bit LSB pie executable, `ldd` =
+linux-vdso / libgcc_s / libm / libc / ld-linux (unchanged), `--version` prints
+`dun 0.1.0`, `--dump-config` prints the default header.
+
+Workspace suite at this commit: **923 passed / 0 failed / 0 ignored** on macOS
+with tmux 3.7b present, so the PTY suite ran rather than skipping (919 before,
+plus 4 table-driven parser tests).
+
 ## 2026-07-29 — install experience (two runtime changes)
 
 Measured at `11f56a6` from a clean `git archive`. The same tree measured from

@@ -52,6 +52,13 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
+- **Current: macOS 723,284 / Debian 788,784 at `f5891a0`** (2026-07-30, config
+  quote-aware comments) — margin **259,792**, binding platform **byte-identical**
+  to `11f56a6`. **No measurement debt.** The parser change replaced two passes
+  (`strip_comment` then `unquote_value`) with one allocation-free
+  `scan_config_value` returning a borrowed slice, so quote handling cost nothing.
+  Gate platforms only; FreeBSD/Solaris not re-measured (parser-internal change,
+  no platform-specific code), their `11f56a6` figures stand.
 - macOS: **719,100 bytes** / Debian: **784,688 bytes** at `260d850`
   (2026-07-29, folding complete) — margin 263,888. **No measurement debt.**
   Folding cost 16,384 total on the binding platform, attributed per step:
