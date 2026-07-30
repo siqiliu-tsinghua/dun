@@ -1,5 +1,30 @@
 # Release Size Audit
 
+## 2026-07-30 — strict JSON protocol semantics
+
+Measured at `8a3dddf` from a clean `git archive`.
+
+| platform | bytes | previous (`f5891a0`) | delta | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | 723,284 | 723,284 | 0 | 325,292 |
+| **Debian x86_64** | **788,784** | 788,784 | **0** | **259,792** |
+
+**Byte-identical on both gate platforms**, and byte-identical to `11f56a6` on
+Debian — the whole external-review response (both parser fixes together) cost
+the binding platform nothing. The strict number scanner replaced a `matches!`
+loop plus `f64::from_str` with an explicit grammar walk that still ends in
+`f64::from_str`; the duplicate-key check is a comparison over a `Vec` that was
+already there; `MAX_OBJECT_MEMBERS` is a `const`. Nothing allocated, nothing
+monomorphised, so under `opt-level = "z"` and fat LTO there was nothing to pay
+for. This is the case the plan predicted: the `HashSet` alternative was the one
+that would have cost pages, which is why it was rejected.
+
+Four-platform functional matrix at `8a3dddf`: **933 passed / 0 failed** on
+macOS, Debian, FreeBSD and Solaris (923 at `f5891a0`, plus 10 tests for the
+strict semantics). Three `#[ignore]`d performance baselines are excluded, as
+always. Debian release smoke: ELF 64-bit LSB pie executable, `ldd` unchanged,
+`--version` prints `dun 0.1.0`.
+
 ## 2026-07-30 — config quote-aware comment scanning
 
 Measured at `f5891a0` from a clean `git archive`, on the two gate platforms

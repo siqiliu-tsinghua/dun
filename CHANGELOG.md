@@ -70,6 +70,21 @@ in [docs/dev/PROGRESS.md](docs/dev/PROGRESS.md).
 
 ### Fixed
 
+- **A `#` inside a quoted configuration value no longer corrupts it.** Comments
+  were stripped from the whole line before quotes were honoured, so
+  `plugin.syntect.command = "/opt/dun#tools/host"` became `"/opt/dun` — cut at
+  the `#`, with the unbalanced opening quote still attached to what `dun` then
+  tried to execute. An unterminated quote raised no error at all. A line is now
+  split at its first `=` and a value beginning with `"` or `'` runs to its
+  match, with `#` literal inside it; an unterminated quote is a startup error
+  naming the line. Two consequences worth knowing: `#` is now usable as a
+  keybinding (`key.edit.find = "Alt+#"` — it was rejected as "missing key"
+  before), and `scripts/install.sh` quotes the host path it writes, so
+  installing under a prefix containing `#` produces a configuration `dun` can
+  read back. A value containing `#` must be quoted; there is deliberately no
+  escape syntax, so a value with `#` *and* both quote characters cannot be
+  represented.
+
 - **Bookmarks follow their text.** A bookmark marked a line *number*: inserting
   five lines above a bookmark on line 10 left it on line 10 while the text it
   marked moved to 15. Bookmarks now shift with every edit, including bulk
@@ -77,6 +92,19 @@ in [docs/dev/PROGRESS.md](docs/dev/PROGRESS.md).
 
 ### Changed
 
+- **The plugin protocol's JSON is now strict.** Numbers must follow RFC 8259 —
+  `01`, `1.`, `-.5` and `00.5` were accepted before and are now rejected, while
+  `-0`, `1e+2` and `1E5` remain valid. Object keys must be unique: duplicates
+  were previously accepted with the *first* value winning, which is the
+  opposite of what `serde_json`, JavaScript and Python do, so `dun` and a host
+  could read the same bytes differently. Each object may now carry at most 64
+  members — the protocol's largest real object is a seven-member envelope, and
+  the cap is what makes duplicate detection affordable without allocating. An
+  integer field outside 0 to 2^53-1 is now reported as malformed rather than
+  *missing*, which is what it looked like before. `hosts/check-host.py` applies
+  the same duplicate-key rule, so a host that passes the checker parses in
+  `dun`. Every shipped host was checked against the stricter rules and none
+  needed changing.
 - `Ctrl+X,F` and `Ctrl+X,A` are now default bindings. A configuration that
   binds either chord to something else will be rejected at startup with a
   message naming both commands and how to unbind one
