@@ -3,21 +3,54 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
 
+## Active — process cleanup (G2 next)
+
+The external review of 2026-07-30 is answered on its two parser items
+(`f5891a0`, `8a3dddf`). What is open is the track that came out of verifying
+it, plus the review's CI half. Plan: `docs/dev/codex/brief-067-process-cleanup-plan.md`.
+
+- [x] **G1** — bound the capture read so `run-command` cannot hang the editor
+      (`4b362e7`).
+- [ ] **G2** — kill the command's process group, so a backgrounding command
+      returns promptly instead of costing the full timeout and leaving orphans.
+      Needs rustix's `process` feature; adds a `background_processes_killed`
+      status and its ten catalogs. **Guard against ever signalling the
+      editor's own process group, and test the guard** — if `process_group(0)`
+      no-ops on a platform, a group kill takes down dun and everything it is
+      running. Decide there whether `elapsed` moves after the reader joins.
+- [ ] **G3** — plugin host process-group cleanup (`HostClient::kill` currently
+      kills only the direct child). Lower urgency: all five shipped hosts are
+      single-process, so this is a third-party-host risk.
+- [ ] **G4** — make editor-exit worker cleanup deterministic; production
+      workers discard their `JoinHandle` at `plugins.rs:167-183`.
+- [ ] **Public CI and a formal Release** — the review's other P0. No `.github/`
+      yet. Plan and `gh` capability notes are in CLAUDE.md stage 12. Keep
+      arm64 report-only; the 1 MiB budget is defined on x86_64.
+
+Known and deliberately not fixed: process groups are not process-tree
+containment — a command that calls `setsid` escapes, and no primitive portable
+across the four platforms would change that.
+
 ## Baseline
 
-`main` carries v0.1.0 plus the folding stage and the install work below, all
-**unreleased** — CHANGELOG's `Unreleased` section is the list of what a v0.2
-would contain.
+`main` carries v0.1.0 plus the folding stage, the install work, and the
+external-review response, all **unreleased** — CHANGELOG's `Unreleased`
+section is the list of what a v0.2 would contain.
 
-State at `11f56a6` (install stage, measured 2026-07-29), against the tip
-before it (`7c97fd9`):
+State at `4b362e7` (G1, measured 2026-07-30), against the install stage
+(`11f56a6`):
 
-| | now | at `7c97fd9` |
+| | now | at `11f56a6` |
 | --- | --- | --- |
-| Four-platform matrix | **919 / 0** | 906 / 0 |
-| Binding size (Debian) | **788,784**, margin 259,792 | 784,688 |
-| macOS / FreeBSD / Solaris | 723,276 / 702,896 / 750,064 | 719,100 / 698,344 / 744,880 |
-| Measurement debt | none (`11f56a6`, clean archive) | none |
+| Four-platform matrix | **935 / 0** | 919 / 0 |
+| Binding size (Debian) | **788,784**, margin 259,792 | 788,784 |
+| macOS | 727,380 | 723,276 |
+| FreeBSD / Solaris | 702,896 / 750,064 (not re-measured) | 702,896 / 750,064 |
+| Measurement debt | none (`4b362e7`, clean archive) | none |
+
+Three consecutive changes measured **byte-identical on the binding platform**.
+FreeBSD and Solaris were not re-measured for the parser and deadline work
+(no platform-specific code); they did run the functional matrix.
 
 Nothing is blocked on this repository. What is queued is blocked elsewhere or
 cancelled: rum evaluation waits on rum-ext's resource/type base, F20 Outline

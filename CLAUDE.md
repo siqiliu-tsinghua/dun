@@ -462,6 +462,61 @@ real-terminal OSC 52 read acceptance (user-driven).
     directory that did not exist, and Solaris packages were named `i86pc`
     (`uname -m`'s platform name) instead of `amd64` (`isainfo -k`).
 
+12. **External review response, and the process-cleanup track it uncovered —
+    ACTIVE, opened 2026-07-30.** A reviewer's docx (`~/Downloads/`, not in the
+    repo) audited the public repo. Unusually good: **all nine of its code-level
+    claims verified true**. Its three headline items were public CI/Release,
+    plugin fault isolation, and protocol stability.
+
+    **Done — the two parser P0s**, plan-first via briefs 064 → 065/066:
+    - config comment scanning is quote-aware (`f5891a0`). Three live instances,
+      not the one reported: a quoted `#` path kept its unbalanced leading quote
+      and became an exec path; `#` was unbindable as a key; `install.sh` wrote
+      the host path unquoted.
+    - the plugin protocol's JSON is strict (`8a3dddf`): RFC 8259 numbers,
+      unique object keys, `MAX_OBJECT_MEMBERS = 64`, `field_u64` reports
+      out-of-range as `BadField` not `MissingField`. **I overrode brief 064's
+      open complexity question**: an unbounded duplicate scan is O(n²) and a
+      256 KiB frame admits ~43,000 members, so the cap — not a `HashSet`, which
+      was the option that would have cost pages — is what makes it affordable.
+
+    **In progress — the process-cleanup track.** While verifying the review I
+    found a defect it missed and that was worse than anything in it:
+    `run_command_capture` could hang the editor **forever**. Plan brief 067 →
+    four steps, G1 done:
+    - **G1 `4b362e7` DONE** — reads are deadline-bounded, the capture always
+      returns. Zero bytes on Debian; `rustix::event::poll` was already linked.
+    - **G2 next** — kill the command's process group. Needs rustix's `process`
+      feature (`kill_process_group`), a `background_processes_killed` status
+      and its ten catalogs. **Hard requirement for its brief, not a risk note:
+      never signal the editor's own process group.** If `process_group(0)`
+      silently no-ops on a platform, the pgid is dun's own and a group kill
+      SIGKILLs the editor and everything it is running. Guard it and test the
+      guard. Also decide there whether `elapsed` should be sampled after the
+      reader joins — G1 left it before, so a background command reports the
+      shell's 12 ms rather than the wait the user actually experienced.
+    - **G3/G4 after** — plugin host group cleanup and editor-exit worker
+      ownership. Lower urgency: all five shipped hosts are single-process, so
+      this is a third-party-host risk, not a live one.
+
+    Constraints already established, do not re-derive: `pre_exec` is `unsafe`
+    and therefore unavailable, `CommandExt::process_group(0)` is safe and on
+    1.85; rustix is already a direct dep but its `process` feature is off; the
+    portable "no descendant survived" oracle is a filesystem sentinel
+    (ready → wait → survived), which works on all four platforms and cannot
+    prove anything about a process that escapes with `setsid`.
+
+    **Not started — the review's CI/Release half.** A workflow plan exists (see
+    the session of 2026-07-30) but no `.github/` yet. `gh` 2.96.0 is installed
+    and authenticated; its fine-grained PAT has Actions:read and Contents:write
+    (so `gh release create` works) but **not** Issues:write or Administration —
+    neither gap blocks CI, because workflow jobs use `GITHUB_TOKEN` and branch
+    protection is a one-time browser click. Note `macos-13` is retired;
+    `macos-15-intel` is the last x86_64 macOS runner and expires August 2027.
+    arm64 is free for public repos (`ubuntu-24.04-arm`), but it must stay
+    report-only — it is a different ISA and the 1 MiB budget is defined on
+    x86_64.
+
 Previously (still true): the last *folding-era* runtime-code commit is
 `bb62b20`. Figures at `7c97fd9`, all four verified through
 `scripts/release-build.sh`: macOS **719,100**, Debian **784,688** (binding,
