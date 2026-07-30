@@ -23,8 +23,8 @@ pub fn parse_config_overlay(mut config: Config, input: &str) -> Result<Config, C
 
     for (index, raw_line) in input.lines().enumerate() {
         let line_number = index + 1;
-        let line = strip_comment(raw_line).trim();
-        if line.is_empty() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
             continue;
         }
 
@@ -34,11 +34,18 @@ pub fn parse_config_overlay(mut config: Config, input: &str) -> Result<Config, C
                 "expected `key = value` entry",
             ));
         };
+        if raw_key.contains('#') {
+            return Err(ConfigParseError::line(
+                line_number,
+                "expected `key = value` entry",
+            ));
+        }
+        let value = scan_config_value(raw_value, line_number)?;
         apply_config_entry(
             &mut config,
             &mut plugin_entries,
             raw_key.trim(),
-            raw_value.trim(),
+            value,
             line_number,
         )?;
     }
@@ -88,24 +95,50 @@ impl fmt::Display for ConfigParseError {
 
 impl std::error::Error for ConfigParseError {}
 
-fn strip_comment(line: &str) -> &str {
-    line.split_once('#')
-        .map(|(before_comment, _)| before_comment)
-        .unwrap_or(line)
+fn scan_config_value(input: &str, line_number: usize) -> Result<&str, ConfigParseError> {
+    let trimmed = input.trim();
+    let mut chars = trimmed.chars();
+    let Some(first) = chars.next() else {
+        return Ok(trimmed);
+    };
+    if chars.next().is_none() {
+        return Ok(trimmed);
+    }
+
+    if first == '"' || first == '\'' {
+        let quoted = &trimmed[first.len_utf8()..];
+        let Some(closing_quote) = quoted.find(first) else {
+            return Err(ConfigParseError::line(
+                line_number,
+                "unterminated quoted config value",
+            ));
+        };
+        let trailing = quoted[closing_quote + first.len_utf8()..].trim_start();
+        if !trailing.is_empty() && !trailing.starts_with('#') {
+            return Err(ConfigParseError::line(
+                line_number,
+                "unexpected text after quoted config value",
+            ));
+        }
+        return Ok(&quoted[..closing_quote]);
+    }
+
+    Ok(trimmed
+        .split_once('#')
+        .map_or(trimmed, |(before_comment, _)| before_comment)
+        .trim_end())
 }
 
 fn apply_config_entry(
     config: &mut Config,
     plugin_entries: &mut Vec<PluginEntryDraft>,
     raw_key: &str,
-    raw_value: &str,
+    value: &str,
     line_number: usize,
 ) -> Result<(), ConfigParseError> {
     if raw_key.is_empty() {
         return Err(ConfigParseError::line(line_number, "empty config key"));
     }
-
-    let value = unquote_value(raw_value);
 
     if let Some(plugin_key) = raw_key.strip_prefix("plugin.") {
         apply_plugin_entry(plugin_entries, plugin_key, value, line_number)?;
@@ -446,20 +479,6 @@ fn normalize_config_key(input: &str) -> String {
             _ => ch.to_ascii_lowercase(),
         })
         .collect()
-}
-
-fn unquote_value(input: &str) -> &str {
-    let trimmed = input.trim();
-    if trimmed.len() >= 2 {
-        let bytes = trimmed.as_bytes();
-        if (bytes[0] == b'"' && bytes[trimmed.len() - 1] == b'"')
-            || (bytes[0] == b'\'' && bytes[trimmed.len() - 1] == b'\'')
-        {
-            return &trimmed[1..trimmed.len() - 1];
-        }
-    }
-
-    trimmed
 }
 
 fn parse_theme_name(input: &str) -> Option<ThemeName> {

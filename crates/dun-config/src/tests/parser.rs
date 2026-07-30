@@ -344,3 +344,146 @@ fn parses_run_command_timeout_and_rejects_zero() {
         parse_config("limits.run_command_timeout_ms = soon").expect_err("rejects non-numeric");
     assert!(error.message.contains("milliseconds"));
 }
+
+#[test]
+fn config_parser_scans_comments_with_quote_context() {
+    let cases = [
+        (
+            "quoted hash",
+            r#"plugin.sample.command = "/opt/dun#tools/host""#,
+            "/opt/dun#tools/host",
+        ),
+        (
+            "unquoted hash",
+            "plugin.sample.command = /opt/dun#tools/host",
+            "/opt/dun",
+        ),
+        (
+            "trailing comment after quoted value",
+            r#"plugin.sample.command = "/opt/dun/tools/host" # installed host"#,
+            "/opt/dun/tools/host",
+        ),
+        (
+            "apostrophe in unquoted value",
+            "plugin.sample.command = /opt/it's/host",
+            "/opt/it's/host",
+        ),
+        (
+            "equals and hash in quoted value",
+            r#"plugin.sample.command = "/opt/dun=tools#host""#,
+            "/opt/dun=tools#host",
+        ),
+    ];
+
+    for (name, command_entry, expected_command) in cases {
+        let input = format!(
+            "{command_entry}\n\
+             plugin.sample.trust = user-trusted-external\n\
+             plugin.sample.roles = syntax-highlight\n"
+        );
+        let config = parse_config(&input).unwrap_or_else(|error| panic!("{name}: {error}"));
+
+        assert_eq!(config.plugins.len(), 1, "{name}");
+        assert_eq!(
+            config.plugins[0].command,
+            std::path::PathBuf::from(expected_command),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn config_parser_preserves_literal_quote_and_hash_keybindings() {
+    let cases = [
+        (
+            "quoted hash keybinding",
+            r#"key.edit.find = "Alt+#""#,
+            KeyStroke::new(Key::Char('#'), KeyModifiers::ALT),
+        ),
+        (
+            "unquoted control keybinding",
+            "key.edit.find = Alt+z",
+            KeyStroke::new(Key::Char('z'), KeyModifiers::ALT),
+        ),
+        (
+            "single double quote",
+            "key.edit.find = \"",
+            KeyStroke::plain(Key::Char('"')),
+        ),
+        (
+            "single apostrophe",
+            "key.edit.find = '",
+            KeyStroke::plain(Key::Char('\'')),
+        ),
+    ];
+
+    for (name, input, expected_stroke) in cases {
+        let config = parse_config(input).unwrap_or_else(|error| panic!("{name}: {error}"));
+        let expected_sequence = KeySequence::single(expected_stroke);
+
+        assert_eq!(
+            config
+                .keybindings
+                .sequence_for_command(&EditorCommand::Edit(EditCommand::Find)),
+            Some(&expected_sequence),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn config_parser_rejects_malformed_quoted_values() {
+    let cases = [
+        (
+            "unterminated double quote",
+            "\nplugin.sample.command = \"/opt/dun#tools/host",
+            2,
+            "unterminated quoted config value",
+        ),
+        (
+            "unterminated apostrophe",
+            "plugin.sample.command = '/opt/dun#tools/host",
+            1,
+            "unterminated quoted config value",
+        ),
+        (
+            "garbage after closing quote",
+            "theme = \"dark\" trailing",
+            1,
+            "unexpected text after quoted config value",
+        ),
+        (
+            "comment before delimiter",
+            "theme # hidden = dark",
+            1,
+            "expected `key = value` entry",
+        ),
+    ];
+
+    for (name, input, expected_line, expected_message) in cases {
+        let error = match parse_config(input) {
+            Ok(_) => panic!("{name}: expected a parse error"),
+            Err(error) => error,
+        };
+
+        assert_eq!(error.line, Some(expected_line), "{name}");
+        assert_eq!(error.message, expected_message, "{name}");
+    }
+}
+
+#[test]
+fn config_parser_ignores_full_line_comments() {
+    let cases = [
+        ("column zero", "# theme = turbo\ntheme = dark"),
+        (
+            "indented",
+            " \t# theme = turbo # entirely ignored\n theme = dark",
+        ),
+    ];
+
+    for (name, input) in cases {
+        let config = parse_config(input).unwrap_or_else(|error| panic!("{name}: {error}"));
+
+        assert_eq!(config.theme, ThemeName::Dark, "{name}");
+    }
+}

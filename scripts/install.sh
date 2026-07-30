@@ -755,8 +755,22 @@ fi
 # path is absolute because dun launches the command directly, with no shell
 # and a cleared environment (docs/plugin-protocol.md).
 syntect_stanza() {
+    # The marker preserves any path-ending newline through command substitution;
+    # remove it and the one newline printed by abs_path before validating.
+    syntect_command=$(
+        abs_path "$syntect_dest"
+        printf x
+    )
+    syntect_command=${syntect_command%x}
+    syntect_command=${syntect_command%?}
+    case "$syntect_command" in
+        *'"'*) die "cannot write plugin config: resolved command path contains a double quote" ;;
+        *'
+'*) die "cannot write plugin config: resolved command path contains a newline" ;;
+    esac
+
     printf '\n# Syntax highlighting, installed by scripts/install.sh\n'
-    printf 'plugin.syntect.command = %s\n' "$(abs_path "$syntect_dest")"
+    printf 'plugin.syntect.command = "%s"\n' "$syntect_command"
     printf 'plugin.syntect.trust = user-trusted-external\n'
     printf 'plugin.syntect.roles = syntax-highlight\n'
 }

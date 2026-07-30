@@ -6,7 +6,17 @@ replacing it; embedding `rum` in the runtime is dead, and this format is what
 `dun` has.)
 
 The loader starts from `Config::default()` and applies `key = value` overrides.
-Blank lines and text after `#` are ignored.
+Blank lines and lines whose first non-whitespace character is `#` are ignored.
+Each other line is split at its first `=`; keys cannot contain `#`. Surrounding
+value whitespace is ignored. In an unquoted value, `#` starts a comment. A
+value beginning with `"` or `'` runs through the matching closing quote, with
+`#` treated literally inside it; only whitespace and an optional `#` comment
+may follow the closing quote. A value that is just one `"` or `'` character is
+literal rather than an opening quote.
+
+A value containing `#` must be quoted. There is deliberately no escape syntax
+in v0.2, so a value containing `#` and both quote characters cannot be
+represented.
 
 ## Loading
 
