@@ -70,6 +70,18 @@ in [docs/dev/PROGRESS.md](docs/dev/PROGRESS.md).
 
 ### Fixed
 
+- **`Ctrl+X,O` can no longer hang the editor.** Running a command that left
+  anything in the background — `make &`, starting a daemon, any pipeline whose
+  tail outlived the shell — froze `dun` for as long as that process lived, with
+  no way out. The capture waited for end-of-file on the command's output, which
+  needs *every* copy of the pipe closed, and a background process inherits one.
+  The 30 s timeout did not help: the shell itself had already exited normally,
+  so as far as `dun` was concerned nothing had timed out. Output is now read
+  under a deadline and the capture always returns, reporting the output as
+  truncated if something was still holding it open. A command that leaves a
+  background process still costs the full timeout for now, and what it leaves
+  behind is not yet cleaned up.
+
 - **A `#` inside a quoted configuration value no longer corrupts it.** Comments
   were stripped from the whole line before quotes were honoured, so
   `plugin.syntect.command = "/opt/dun#tools/host"` became `"/opt/dun` — cut at

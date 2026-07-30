@@ -1,5 +1,30 @@
 # Release Size Audit
 
+## 2026-07-30 — command-capture read deadline (G1)
+
+Measured at `4b362e7` from a clean `git archive`.
+
+| platform | bytes | previous (`8a3dddf`) | delta | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | 727,380 | 723,284 | +4,096 | 321,196 |
+| **Debian x86_64** | **788,784** | 788,784 | **0** | **259,792** |
+
+One page on macOS, **nothing on the binding platform** — the third consecutive
+change to measure byte-identical there. `rustix::event::poll` was already linked
+for the event reader (`terminal/sys/unix.rs:188`), so the deadline-aware read
+added branches to a path whose machinery was already paid for. This is why the
+step was sequenced first: it needed no dependency and no feature.
+
+Four-platform functional matrix at `4b362e7`: **935 passed / 0 failed** on
+macOS, Debian, FreeBSD and Solaris (933 at `8a3dddf`, plus the two deadline
+tests). The `poll` path behaves the same on all four, which was the open
+portability question for this step. Debian release smoke: ELF 64-bit LSB pie
+executable, five `ldd` entries unchanged, `--version` prints `dun 0.1.0`.
+
+Still to come in this track: G2 kills the command's process group (needs
+rustix's `process` feature — the first dependency change of the series, and the
+first likely to cost pages), then G3/G4 for plugin hosts.
+
 ## 2026-07-30 — strict JSON protocol semantics
 
 Measured at `8a3dddf` from a clean `git archive`.

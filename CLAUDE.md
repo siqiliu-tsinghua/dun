@@ -52,9 +52,15 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- **Current: macOS 723,284 / Debian 788,784 at `8a3dddf`** (2026-07-30,
-  external-review response complete) — margin **259,792**, four-platform matrix
-  **933/0**. **No measurement debt.** Both parser fixes together are
+- **Current: macOS 727,380 / Debian 788,784 at `4b362e7`** (2026-07-30, command
+  capture deadline, G1 of the process-cleanup track) — margin **259,792**,
+  four-platform matrix **935/0**. **No measurement debt.** +4,096 on macOS, **0
+  on the binding platform**: `rustix::event::poll` was already linked for the
+  event reader, so the deadline-aware read only added branches. G2 (kill the
+  command's process group) needs rustix's `process` feature and is the first
+  step of this track likely to cost pages.
+- macOS 723,284 / Debian 788,784 at `8a3dddf` (2026-07-30,
+  external-review parser response) — four-platform matrix **933/0**. Both parser fixes together are
   **byte-identical to `11f56a6`** on the binding platform: the config change
   replaced two passes (`strip_comment` then `unquote_value`) with one
   allocation-free `scan_config_value` returning a borrowed slice, and the JSON
