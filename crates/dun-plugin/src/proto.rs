@@ -198,10 +198,8 @@ fn field_str<'a>(value: &'a Json, key: &'static str) -> Result<&'a str, Protocol
 }
 
 fn field_u64(value: &Json, key: &'static str) -> Result<u64, ProtocolError> {
-    value
-        .get(key)
-        .and_then(Json::as_u64)
-        .ok_or(ProtocolError::MissingField(key))
+    let value = value.get(key).ok_or(ProtocolError::MissingField(key))?;
+    value.as_u64().ok_or(ProtocolError::BadField(key))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -266,5 +264,42 @@ mod tests {
             ),
             Err(ProtocolError::BadField("kind"))
         ));
+    }
+
+    #[test]
+    fn request_id_errors_distinguish_absent_from_malformed() {
+        let cases: &[(&[u8], ProtocolError)] = &[
+            (
+                br#"{"v":0,"kind":"request","plugin_id":"x","payload":null}"#,
+                ProtocolError::MissingField("request_id"),
+            ),
+            (
+                br#"{"v":0,"kind":"request","request_id":"1","plugin_id":"x","payload":null}"#,
+                ProtocolError::BadField("request_id"),
+            ),
+            (
+                br#"{"v":0,"kind":"request","request_id":1.5,"plugin_id":"x","payload":null}"#,
+                ProtocolError::BadField("request_id"),
+            ),
+            (
+                br#"{"v":0,"kind":"request","request_id":-1,"plugin_id":"x","payload":null}"#,
+                ProtocolError::BadField("request_id"),
+            ),
+            (
+                br#"{"v":0,"kind":"request","request_id":9007199254740993,"plugin_id":"x","payload":null}"#,
+                ProtocolError::BadField("request_id"),
+            ),
+            (
+                br#"{"v":0,"kind":"request","request_id":18446744073709551615,"plugin_id":"x","payload":null}"#,
+                ProtocolError::BadField("request_id"),
+            ),
+        ];
+
+        for &(bytes, expected) in cases {
+            assert_eq!(
+                Envelope::from_json_bytes(bytes).expect_err("request id is rejected"),
+                expected
+            );
+        }
     }
 }

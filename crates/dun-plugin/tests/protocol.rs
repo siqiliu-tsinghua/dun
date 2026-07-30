@@ -199,6 +199,32 @@ fn malformed_json_response_reports_protocol_error() {
 }
 
 #[test]
+fn non_rfc_number_response_reports_protocol_error() {
+    let error = request_error("non-rfc-number-test", policy(Duration::from_secs(5)));
+    assert!(
+        matches!(
+            error,
+            PluginError::Protocol(ProtocolError::Json(json_error))
+                if json_error.message == "invalid number"
+        ),
+        "expected an invalid-number protocol error, got {error:?}"
+    );
+}
+
+#[test]
+fn duplicate_key_response_reports_protocol_error() {
+    let error = request_error("duplicate-key-test", policy(Duration::from_secs(5)));
+    assert!(
+        matches!(
+            error,
+            PluginError::Protocol(ProtocolError::Json(json_error))
+                if json_error.message == "duplicate object key"
+        ),
+        "expected a duplicate-key protocol error, got {error:?}"
+    );
+}
+
+#[test]
 fn highlight_without_overlay_write_grant_is_rejected() {
     // A host launched with no roles holds no capabilities, so the overlay
     // path refuses before it is ever contacted.

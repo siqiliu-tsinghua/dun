@@ -25,6 +25,15 @@ def frame(message):
     return struct.pack("<I", len(payload)) + payload
 
 
+def reject_duplicate_keys(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate object key")
+        value[key] = item
+    return value
+
+
 def read_frame(stream):
     header = stream.read(4)
     if len(header) < 4:
@@ -36,8 +45,10 @@ def read_frame(stream):
     if len(payload) < length:
         raise SystemExit("FAIL: host truncated a frame")
     try:
-        return json.loads(payload.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        return json.loads(
+            payload.decode("utf-8"), object_pairs_hook=reject_duplicate_keys
+        )
+    except (UnicodeDecodeError, ValueError) as error:
         raise SystemExit(f"FAIL: host frame is not UTF-8 JSON: {error}")
 
 

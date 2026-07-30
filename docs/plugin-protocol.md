@@ -56,6 +56,12 @@ Rules:
 - stderr is human-readable diagnostics only and is never parsed as protocol;
 - a malformed frame terminates the host session;
 - payload size is capped before allocation;
+- numbers must use the RFC 8259 grammar: no leading zeros, bare `1.`, or
+  missing integer part such as `-.5`;
+- object keys must be unique, and each object may contain at most 64 members;
+- integer fields must be in the inclusive range 0 to 2^53 - 1
+  (9,007,199,254,740,991); a present value outside that range is malformed,
+  not missing;
 - request and response messages carry `request_id`;
 - buffer-sensitive messages carry a `revision`;
 - stale responses are discarded when the target revision no longer matches.

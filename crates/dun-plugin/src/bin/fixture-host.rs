@@ -193,6 +193,20 @@ fn handle_request(message: &Json, request_id: u64, output: &mut impl Write) -> i
         write_frame(output, b"{ not valid json")?;
         return Ok(());
     }
+    if language == "non-rfc-number-test" {
+        write_frame(
+            output,
+            br#"{"v":0,"kind":"response","request_id":1,"plugin_id":"fixture","role":"syntax-highlight","revision":41,"payload":{"spans":[],"padding":01}}"#,
+        )?;
+        return Ok(());
+    }
+    if language == "duplicate-key-test" {
+        write_frame(
+            output,
+            br#"{"v":0,"kind":"response","request_id":1,"plugin_id":"fixture","role":"syntax-highlight","revision":41,"payload":{"spans":[],"spans":[]}}"#,
+        )?;
+        return Ok(());
+    }
 
     if language == "diag-flood-test" {
         for _ in 0..DIAGNOSTIC_FLOOD_COUNT {

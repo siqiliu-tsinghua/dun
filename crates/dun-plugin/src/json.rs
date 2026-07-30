@@ -2,12 +2,13 @@
 //!
 //! Hand-rolled so the protocol client carries no external serialization
 //! dependency. Frame size is capped before this parser runs; nesting depth
-//! is capped here. The number scanner accepts a small superset of JSON
-//! number syntax and rejects non-finite results.
+//! and object member counts are capped here. Numbers follow RFC 8259 and
+//! non-finite results are rejected.
 
 use std::fmt::{self, Write as _};
 
 pub const MAX_DEPTH: usize = 32;
+pub const MAX_OBJECT_MEMBERS: usize = 64;
 
 const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 
@@ -187,12 +188,43 @@ impl Parser<'_> {
 
     fn number(&mut self) -> Result<Json, JsonError> {
         let start = self.pos;
-        while matches!(
-            self.peek(),
-            Some(b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E')
-        ) {
+
+        if self.peek() == Some(b'-') {
             self.pos += 1;
         }
+
+        match self.peek() {
+            Some(b'0') => {
+                self.pos += 1;
+                if matches!(self.peek(), Some(b'0'..=b'9')) {
+                    return Err(self.error("invalid number"));
+                }
+            }
+            Some(b'1'..=b'9') => self.digits(),
+            _ => return Err(self.error("invalid number")),
+        }
+
+        if self.peek() == Some(b'.') {
+            self.pos += 1;
+            let fraction_start = self.pos;
+            self.digits();
+            if self.pos == fraction_start {
+                return Err(self.error("invalid number"));
+            }
+        }
+
+        if matches!(self.peek(), Some(b'e' | b'E')) {
+            self.pos += 1;
+            if matches!(self.peek(), Some(b'+' | b'-')) {
+                self.pos += 1;
+            }
+            let exponent_start = self.pos;
+            self.digits();
+            if self.pos == exponent_start {
+                return Err(self.error("invalid number"));
+            }
+        }
+
         let text = std::str::from_utf8(&self.bytes[start..self.pos])
             .map_err(|_| self.error("invalid number"))?;
         let number: f64 = text.parse().map_err(|_| self.error("invalid number"))?;
@@ -200,6 +232,12 @@ impl Parser<'_> {
             return Err(self.error("non-finite number"));
         }
         Ok(Json::Num(number))
+    }
+
+    fn digits(&mut self) {
+        while matches!(self.peek(), Some(b'0'..=b'9')) {
+            self.pos += 1;
+        }
     }
 
     fn string(&mut self) -> Result<String, JsonError> {
@@ -300,8 +338,14 @@ impl Parser<'_> {
             return Ok(Json::Obj(fields));
         }
         loop {
+            if fields.len() >= MAX_OBJECT_MEMBERS {
+                return Err(self.error("too many object members"));
+            }
             self.skip_ws();
             let key = self.string()?;
+            if fields.iter().any(|(name, _)| name == &key) {
+                return Err(self.error("duplicate object key"));
+            }
             self.skip_ws();
             self.expect(b':', "expected ':'")?;
             let value = self.value(depth + 1)?;
@@ -390,6 +434,101 @@ mod tests {
                 .and_then(Json::as_str),
             Some("x\ny é 😀")
         );
+    }
+
+    #[test]
+    fn accepts_rfc_8259_number_forms() {
+        let valid: &[(&[u8], f64)] = &[
+            (b"0", 0.0),
+            (b"-0", -0.0),
+            (b"123", 123.0),
+            (b"-42", -42.0),
+            (b"0.25", 0.25),
+            (b"-0.5", -0.5),
+            (b"1e+2", 100.0),
+            (b"1e-2", 0.01),
+            (b"1E5", 100_000.0),
+        ];
+
+        for &(text, expected) in valid {
+            let Json::Num(actual) = parse(text).expect("valid number parses") else {
+                panic!("number did not parse as a number: {text:?}");
+            };
+            assert_eq!(
+                actual.to_bits(),
+                expected.to_bits(),
+                "wrong value for {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_number_integer_parts() {
+        let invalid: &[&[u8]] = &[
+            b"01", b"00.5", b"-01", b"-.5", b"+-1", b"+1", b"-", b".5", b"0123",
+        ];
+
+        for &text in invalid {
+            assert!(parse(text).is_err(), "invalid number parsed: {text:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_fractions_without_digits() {
+        let invalid: &[&[u8]] = &[b"1.", b"-0.", b"1.e2", b"1.2.3"];
+
+        for &text in invalid {
+            assert!(parse(text).is_err(), "invalid number parsed: {text:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_exponents_without_digits() {
+        let invalid: &[&[u8]] = &[b"1e", b"1e+", b"1e-", b"1E+", b"1e1e1"];
+
+        for &text in invalid {
+            assert!(parse(text).is_err(), "invalid number parsed: {text:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_non_finite_number_results() {
+        assert!(parse(b"1e400").is_err());
+    }
+
+    #[test]
+    fn rejects_duplicate_object_keys() {
+        let duplicates: &[&[u8]] = &[
+            br#"{"a":1,"a":2}"#,
+            br#"{"outer":{"a":1,"a":2}}"#,
+            br#"{"a":1,"\u0061":2}"#,
+        ];
+
+        for &text in duplicates {
+            let error = parse(text).expect_err("duplicate key is rejected");
+            assert_eq!(error.message, "duplicate object key");
+        }
+    }
+
+    #[test]
+    fn enforces_object_member_limit() {
+        let object_with_members = |count: usize| {
+            let fields = (0..count)
+                .map(|index| format!(r#""key{index}":null"#))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("{{{fields}}}")
+        };
+
+        let at_limit = object_with_members(MAX_OBJECT_MEMBERS);
+        let Json::Obj(fields) = parse(at_limit.as_bytes()).expect("object at limit parses") else {
+            panic!("object did not parse as an object");
+        };
+        assert_eq!(fields.len(), MAX_OBJECT_MEMBERS);
+
+        let over_limit = object_with_members(MAX_OBJECT_MEMBERS + 1);
+        let error = parse(over_limit.as_bytes()).expect_err("object over limit is rejected");
+        assert_eq!(error.message, "too many object members");
     }
 
     #[test]
