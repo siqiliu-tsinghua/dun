@@ -138,3 +138,24 @@ fn run_command_kills_non_terminating_commands_after_timeout() {
     let text = app.buffer_state(window.buffer_id).unwrap().buffer.to_text();
     assert!(text.contains("Status: timed out; process killed"));
 }
+
+#[test]
+fn command_capture_deadline_returns_from_background_descendant() {
+    let mut app = AppState::new();
+    app.limits.run_command_timeout_ms = 100;
+    let started = Instant::now();
+
+    app.run_external_command_to_buffer("sleep 3 & echo started");
+
+    let elapsed = started.elapsed();
+    eprintln!("background command capture returned in {elapsed:?}");
+    assert!(
+        elapsed < Duration::from_secs(1),
+        "capture took {elapsed:?}, too close to the descendant's three-second lifetime"
+    );
+    let window = app.workspace.focused_window().unwrap();
+    assert_eq!(window.kind, WindowKind::CommandOutput);
+    let text = app.buffer_state(window.buffer_id).unwrap().buffer.to_text();
+    assert!(text.contains("started"), "command output:\n{text}");
+    assert!(text.contains("Truncated: yes"), "command output:\n{text}");
+}

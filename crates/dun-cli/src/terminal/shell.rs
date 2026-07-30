@@ -1,10 +1,13 @@
 use std::env;
 use std::ffi::OsString;
 use std::io::{self, Read, Write};
+use std::os::fd::AsFd;
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use dun_config::TextCatalog;
+use rustix::event::{PollFd, PollFlags};
+use rustix::io::Errno;
 
 use super::{EventReader, RuntimeAction, SurfaceBackend, TerminalGuard, osc52_read_query};
 use crate::app::AppState;
@@ -91,6 +94,7 @@ pub(crate) fn run_command_capture(
 ) -> io::Result<CommandRunResult> {
     let shell = shell_program();
     let started = Instant::now();
+    let deadline = started + timeout;
     let mut child = Command::new(&shell)
         .arg("-c")
         .arg(command)
@@ -107,12 +111,17 @@ pub(crate) fn run_command_capture(
         .stderr
         .take()
         .ok_or_else(|| io::Error::other("failed to capture command stderr"))?;
-    let stdout_reader = std::thread::spawn(move || read_capped_stream(stdout, stream_limit));
-    let stderr_reader = std::thread::spawn(move || read_capped_stream(stderr, stream_limit));
-    let (status, timed_out) = wait_with_timeout(&mut child, started, timeout)?;
+    let stdout_reader =
+        std::thread::spawn(move || read_capped_stream(stdout, stream_limit, deadline));
+    let stderr_reader =
+        std::thread::spawn(move || read_capped_stream(stderr, stream_limit, deadline));
+    let wait_result = wait_with_timeout(&mut child, deadline);
     let elapsed = started.elapsed();
-    let stdout = join_captured_stream(stdout_reader)?;
-    let stderr = join_captured_stream(stderr_reader)?;
+    let stdout_result = join_captured_stream(stdout_reader);
+    let stderr_result = join_captured_stream(stderr_reader);
+    let (status, timed_out) = wait_result?;
+    let stdout = stdout_result?;
+    let stderr = stderr_result?;
 
     Ok(CommandRunResult {
         command: command.to_string(),
@@ -125,15 +134,12 @@ pub(crate) fn run_command_capture(
     })
 }
 
-/// Poll the child until it exits or the deadline passes; on timeout kill it
-/// so a non-terminating command cannot hang the editor. Killing also closes
-/// the child's pipes, which unblocks the capture reader threads.
+/// Poll the child until it exits or the deadline passes; on timeout kill and
+/// reap it so a non-terminating command cannot hang the editor.
 fn wait_with_timeout(
     child: &mut std::process::Child,
-    started: Instant,
-    timeout: Duration,
+    deadline: Instant,
 ) -> io::Result<(ExitStatus, bool)> {
-    let deadline = started + timeout;
     loop {
         if let Some(status) = child.try_wait()? {
             return Ok((status, false));
@@ -153,12 +159,46 @@ fn shell_program() -> OsString {
         .unwrap_or_else(|| OsString::from("/bin/sh"))
 }
 
-fn read_capped_stream<R: Read>(mut reader: R, limit: usize) -> io::Result<CapturedCommandStream> {
+fn read_capped_stream<R: Read + AsFd>(
+    mut reader: R,
+    limit: usize,
+    deadline: Instant,
+) -> io::Result<CapturedCommandStream> {
     let mut bytes = Vec::new();
     let mut truncated = false;
     let mut chunk = [0u8; 8192];
     loop {
-        let read = reader.read(&mut chunk)?;
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            truncated = true;
+            break;
+        }
+        let timeout_ms = remaining.as_millis().clamp(1, i32::MAX as u128) as i32;
+        let poll_result = {
+            let mut poll_fds = [PollFd::from_borrowed_fd(reader.as_fd(), PollFlags::IN)];
+            rustix::event::poll(&mut poll_fds, timeout_ms)
+                .map(|ready| (ready, poll_fds[0].revents()))
+        };
+        let events = match poll_result {
+            Ok((0, _)) => continue,
+            Ok((_, events)) => events,
+            Err(Errno::INTR) => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if !events.intersects(PollFlags::IN | PollFlags::HUP) {
+            if events.intersects(PollFlags::NVAL | PollFlags::ERR) {
+                return Err(io::Error::other(format!(
+                    "command output polling reported {events:?}"
+                )));
+            }
+            continue;
+        }
+
+        let read = match reader.read(&mut chunk) {
+            Ok(read) => read,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
         if read == 0 {
             break;
         }
@@ -219,5 +259,58 @@ pub(crate) fn duration_status_text(duration: Duration) -> String {
         format!("{:.2}s", duration.as_secs_f64())
     } else {
         format!("{}ms", duration.as_millis())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Command, Duration, Instant, Stdio, read_capped_stream};
+    use std::sync::mpsc;
+
+    #[test]
+    fn command_capture_deadline_releases_open_pipe() {
+        let mut child = Command::new("/bin/sh")
+            .arg("-c")
+            .arg("read ignored")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("open-pipe helper should start");
+        let held_open = child
+            .stdin
+            .take()
+            .expect("open-pipe helper stdin should be piped");
+        let stdout = child
+            .stdout
+            .take()
+            .expect("open-pipe helper stdout should be piped");
+        let started = Instant::now();
+        let deadline = started + Duration::from_millis(100);
+        let (sender, receiver) = mpsc::sync_channel(1);
+        let reader = std::thread::spawn(move || {
+            let result = read_capped_stream(stdout, 16, deadline);
+            sender
+                .send((started.elapsed(), result))
+                .expect("reader result receiver should remain open");
+        });
+
+        let received = receiver.recv_timeout(Duration::from_millis(750));
+        drop(held_open);
+        child
+            .wait()
+            .expect("open-pipe helper should exit after stdin closes");
+        reader.join().expect("capture reader should not panic");
+
+        let (elapsed, captured) = received.unwrap_or_else(|error| {
+            panic!("capture reader missed its deadline and required supervised release: {error}")
+        });
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "capture reader returned too late: {elapsed:?}"
+        );
+        let captured = captured.expect("capture reader should succeed");
+        assert!(captured.bytes.is_empty());
+        assert!(captured.truncated);
     }
 }
