@@ -1,0 +1,123 @@
+#!/bin/sh
+#
+# commit-msg hook — guard the AI co-author trailer's email address.
+#
+# Why: a sibling project once committed a Co-Authored-By trailer whose address
+# was a typo that happened to match a REAL person's address, silently adding
+# that person to the repository's contributor list. That is not self-correcting
+# once pushed, so it is checked before the commit object exists.
+#
+# Rules enforced:
+#   1. Any @anthropic.com address in the message must be exactly
+#      noreply@anthropic.com. (This is the rule that catches the sibling's bug:
+#      a real employee address has the form <name>@anthropic.com.)
+#   2. A Co-Authored-By trailer naming Claude/Anthropic must use
+#      <noreply@anthropic.com>.
+#   3. A Co-Authored-By trailer must be a well-formed "Name <email>".
+#
+# Bypass for a deliberate exception: git commit --no-verify
+#
+# This file is tracked. `.git/hooks/commit-msg` should be a symlink to it, so
+# editing it here takes effect immediately and a fresh clone can install it
+# with one command (see docs/dev/commit-hook.md).
+
+set -u
+
+msg_file=$1
+status=0
+warned=0
+
+fail() {
+    if [ "$status" -eq 0 ]; then
+        printf '\n[commit-msg] COMMIT REJECTED — bad co-author address\n\n' >&2
+    fi
+    printf '  %s\n' "$@" >&2
+    status=1
+}
+
+warn() {
+    if [ "$warned" -eq 0 ]; then
+        printf '\n[commit-msg] WARNING — bad address on a comment line\n\n' >&2
+        warned=1
+    fi
+    printf '  %s\n' "$@" >&2
+}
+
+# `git commit -v` appends the diff below a scissors line. Anything down there is
+# never part of the message, and a diff can legitimately contain any address, so
+# drop it before scanning.
+body=$(sed '/^#.*>8/,$d' "$msg_file")
+
+# Split what git will certainly keep from what it might strip. Comment lines are
+# removed only when the message went through an editor; `git commit -F` and
+# `git commit -m` keep them verbatim (verified: a `#` line lands in the commit
+# object). So comment lines cannot be ignored, but they also cannot be rejected
+# outright -- git may be about to delete them. They warn instead.
+kept=$(printf '%s\n' "$body" | grep -v '^#' || true)
+comments=$(printf '%s\n' "$body" | grep '^#' || true)
+
+anthropic_addrs() {
+    printf '%s\n' "$1" | grep -oiE '[a-zA-Z0-9._%+-]+@anthropic\.com' || true
+}
+
+# --- Rule 1: every @anthropic.com address must be the noreply one ------------
+while IFS= read -r addr; do
+    [ -n "$addr" ] || continue
+    lower=$(printf '%s' "$addr" | tr '[:upper:]' '[:lower:]')
+    if [ "$lower" != "noreply@anthropic.com" ]; then
+        fail "Found '$addr' — the only permitted anthropic.com address is" \
+            "noreply@anthropic.com. A typo here can name a real person."
+    fi
+done <<EOF
+$(anthropic_addrs "$kept")
+EOF
+
+while IFS= read -r addr; do
+    [ -n "$addr" ] || continue
+    lower=$(printf '%s' "$addr" | tr '[:upper:]' '[:lower:]')
+    if [ "$lower" != "noreply@anthropic.com" ]; then
+        warn "Found '$addr' on a comment line. If this commit is being made" \
+            "with -F or -m, that line is kept verbatim and the address will" \
+            "be in the commit. Check it, or remove the line."
+    fi
+done <<EOF
+$(anthropic_addrs "$comments")
+EOF
+
+# --- Rules 2 and 3: Co-Authored-By trailers ---------------------------------
+# Column 0 only: git treats an indented line as a continuation of the previous
+# trailer, not as a trailer of its own, so matching indented lines here would
+# reject something git never reads as a trailer. Rule 1 still covers the
+# address on such a line.
+while IFS= read -r line; do
+    [ -n "$line" ] || continue
+
+    if ! printf '%s' "$line" | grep -qE '^[Cc]o-[Aa]uthored-[Bb]y:[[:space:]]*[^<>]+[[:space:]]+<[^<>[:space:]]+@[^<>[:space:]]+>[[:space:]]*$'; then
+        fail "Malformed trailer: $line" \
+            "Expected: Co-Authored-By: Name <email@example.com>"
+        continue
+    fi
+
+    email=$(printf '%s' "$line" | sed -E 's/.*<([^<>]*)>.*/\1/')
+    name=$(printf '%s' "$line" | sed -E 's/^[^:]*:[[:space:]]*(.*)[[:space:]]+<[^<>]*>.*/\1/')
+    lower_email=$(printf '%s' "$email" | tr '[:upper:]' '[:lower:]')
+    lower_name=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
+
+    case "$lower_name" in
+    *claude* | *anthropic*)
+        if [ "$lower_email" != "noreply@anthropic.com" ]; then
+            fail "Trailer '$line'" \
+                "names an Anthropic model but the address is '$email';" \
+                "it must be noreply@anthropic.com."
+        fi
+        ;;
+    esac
+done <<EOF
+$(printf '%s\n' "$kept" | grep -iE '^co-authored-by:' || true)
+EOF
+
+if [ "$status" -ne 0 ]; then
+    printf '\n  (deliberate exception: git commit --no-verify)\n\n' >&2
+fi
+
+exit "$status"
