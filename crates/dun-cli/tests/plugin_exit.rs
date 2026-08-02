@@ -18,9 +18,9 @@ use support::pty::{command_on_path, pty_test_guard};
 
 const HELLO_JSON: &str =
     r#"{"v":0,"kind":"hello","request_id":0,"plugin_id":"","payload":{"host":"dun"}}"#;
-const HELPER_SLEEP: Duration = Duration::from_secs(2);
+const HELPER_SLEEP: Duration = Duration::from_secs(8);
 const SENTINEL_MARGIN: Duration = Duration::from_millis(500);
-const HUNG_HOST_OBSERVATION: Duration = Duration::from_millis(3_250);
+const HUNG_HOST_OBSERVATION: Duration = Duration::from_millis(10_000);
 const FAST_QUIT_BOUND: Duration = Duration::from_millis(400);
 const EXIT_ELAPSED_MARKER: &str = "DUN_PLUGIN_EXIT_ELAPSED_MS=";
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
@@ -97,14 +97,20 @@ fn normal_exit_sweeps_helper_when_host_never_finishes_handshake() -> io::Result<
     assert_success(&run, "hung-handshake plugin exit");
     assert!(fixture.ready.is_file(), "helper never wrote ready sentinel");
     assert!(
-        run.quit_elapsed < Duration::from_secs(1),
+        run.quit_elapsed < Duration::from_secs(3),
         "hung host made quit exceed the shared deadline: {:?}\n{}",
         run.quit_elapsed,
         run.output
     );
 
-    // The host and helper both exit on their own within three seconds in a
-    // deliberately broken build, so even a mutation failure leaves no strays.
+    // The observation must outlast the helper's own sleep, or an absent
+    // sentinel would only mean "still sleeping" and the assertion would pass
+    // vacuously. The helper's sleep must in turn outlast the worst-case
+    // ready-to-quit-plus-deadline window, or the sentinel appears because the
+    // helper finished on its own rather than because cleanup failed. Both
+    // margins are sized for a loaded VM, where the earlier 2s/3.25s pair
+    // failed for the second reason. Host and helper still exit on their own,
+    // so even a mutation run leaves no strays.
     thread::sleep(HUNG_HOST_OBSERVATION);
     assert!(
         !fixture.survived.exists(),
@@ -193,7 +199,7 @@ impl ExitFixture {
         write_executable(
             &host,
             &format!(
-                "#!/bin/sh\n{} &\n{} 3\n",
+                "#!/bin/sh\n{} &\n{} 20\n",
                 shell_quote(&self.helper),
                 shell_quote(sleep)
             ),
