@@ -66,10 +66,18 @@ jobs:
         run: |
           rustup toolchain install "$DUN_RUST" --profile minimal
           rustup default "$DUN_RUST"
+      # Check each script with the interpreter its shebang names. A blanket
+      # `sh -n` passes on macOS, where /bin/sh is bash, and fails on Ubuntu,
+      # where it is dash -- so it would have been checking a different language
+      # than the one that runs the script.
       - name: Check shell syntax
         run: |
+          set -eu
           for script in scripts/*.sh scripts/hooks/*; do
-            sh -n "$script"
+            case "$(head -n 1 "$script")" in
+              *bash*) bash -n "$script" ;;
+              *) sh -n "$script" ;;
+            esac
           done
       - run: cargo build --release -p dun-cli
       # Stage 11 found two install defects by *running* the editor rather than
