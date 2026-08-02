@@ -328,8 +328,10 @@ Design for these rather than against them:
 - **Timeouts**, per request and per host. A host that stops answering is killed
   and reported, not waited on.
 - **Host-group cleanup on Unix.** A host and the helpers it leaves in its
-  process group are reaped together after forced termination or clean
-  shutdown. Non-Unix builds retain direct-host cleanup.
+  process group are reaped together after forced termination, clean shutdown,
+  or normal editor exit. On exit, `dun` restores the terminal first, asks all
+  hosts to stop, then sweeps any group whose worker misses one shared bounded
+  deadline. Non-Unix builds retain direct-host cleanup.
 - **Revision guards.** A response whose revision no longer matches the buffer or
   stream is discarded.
 - **Validation of every result** before it touches editor state — span ranges,

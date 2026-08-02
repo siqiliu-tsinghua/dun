@@ -1,3 +1,20 @@
+> **SUPERSEDED 2026-08-03 — the premise below is wrong.** There is no relaunch
+> race. The intermittent failure was the test's own helper script, which
+> hardcoded `sleep 2` while `HELPER_SLEEP` was only ever used for the test's
+> waiting, so widening that constant changed nothing and the helper kept
+> writing its survival sentinel two seconds after starting. On Debian the
+> expect-driven startup routinely exceeded that, so the sentinel appeared no
+> matter how well cleanup worked; macOS was fast enough to pass.
+>
+> Measured after interpolating `HELPER_SLEEP` into the script: **0/12 failures**
+> on Debian, against **3/12** before, and **6/6** with the post-deadline sweep
+> removed — so the test is neither vacuous nor flaky. `493caaf`'s
+> implementation was correct all along and is restored unchanged.
+>
+> Codex was right to stop on this brief: it could not reproduce the failure
+> against the "known-bad" implementation because there was no defect there to
+> reproduce. Kept for the record.
+
 # Brief 072 — Plugin exit cleanup, without the relaunch race
 
 Implementation brief. This restores the work reverted at `1651513` and fixes

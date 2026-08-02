@@ -11,6 +11,7 @@ use std::io::Read;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -83,8 +84,7 @@ impl fmt::Display for PluginError {
 pub struct HostClient {
     plugin_id: String,
     child: Child,
-    #[cfg(unix)]
-    process_group: Option<u32>,
+    process_group: Arc<AtomicU32>,
     stdin: ChildStdin,
     frames: Receiver<Result<Vec<u8>, FrameError>>,
     stderr_tail: Arc<Mutex<Vec<u8>>>,
@@ -116,6 +116,27 @@ impl HostClient {
         roles: &[Role],
         config_trust: TrustClass,
     ) -> Result<Self, PluginError> {
+        Self::launch_with_process_group(
+            command_path,
+            plugin_id,
+            policy,
+            roles,
+            config_trust,
+            Arc::new(AtomicU32::new(0)),
+        )
+    }
+
+    /// Launch a configured host and publish its process-group id as soon as
+    /// the child exists, before the protocol handshake can block. The owner
+    /// may use the shared cell to sweep a worker that cannot reach `Drop`.
+    pub fn launch_with_process_group(
+        command_path: &Path,
+        plugin_id: &str,
+        policy: Policy,
+        roles: &[Role],
+        config_trust: TrustClass,
+        process_group: Arc<AtomicU32>,
+    ) -> Result<Self, PluginError> {
         let mut command = Command::new(command_path);
         command
             .stdin(Stdio::piped())
@@ -128,7 +149,7 @@ impl HostClient {
         command.process_group(0);
         let mut child = command.spawn().map_err(PluginError::Spawn)?;
         #[cfg(unix)]
-        let process_group = Some(child.id());
+        process_group.store(child.id(), Ordering::Release);
 
         let stdin = child.stdin.take().expect("child stdin is piped");
         let mut stdout = child.stdout.take().expect("child stdout is piped");
@@ -167,7 +188,6 @@ impl HostClient {
         let mut client = Self {
             plugin_id: plugin_id.to_string(),
             child,
-            #[cfg(unix)]
             process_group,
             stdin,
             frames,
@@ -687,9 +707,10 @@ impl HostClient {
 
     #[cfg(unix)]
     fn sweep_process_group(&mut self) {
-        let Some(child_pid) = self.process_group.take() else {
+        let child_pid = self.process_group.swap(0, Ordering::AcqRel);
+        if child_pid == 0 {
             return;
-        };
+        }
         let own_pgid = getpgrp().as_raw_nonzero().get() as u32;
         let Some(target) = group_kill_target(child_pid, own_pgid) else {
             return;
@@ -701,6 +722,7 @@ impl HostClient {
     fn sweep_process_group(&mut self) {
         // There is no portable process-group primitive here. The direct host
         // is still killed and reaped by `kill`, matching the prior behavior.
+        self.process_group.store(0, Ordering::Release);
     }
 }
 

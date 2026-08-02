@@ -7,6 +7,8 @@
 //! verbatim, only its `use` list is new.
 
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 use std::sync::mpsc;
 use std::time::Instant;
 
@@ -14,10 +16,17 @@ use dun_plugin::{HostClient, InputSnapshot, Policy, Role, StreamChunk, TrustClas
 
 use super::{HighlightJob, HighlightOutcome, HostEvent, RELAUNCH_COOLDOWN, WorkerMessage};
 
+pub(super) struct WorkerContext<'a> {
+    pub(super) messages: &'a mpsc::Receiver<WorkerMessage>,
+    pub(super) events: &'a mpsc::Sender<HostEvent>,
+    pub(super) process_group: Arc<AtomicU32>,
+}
+
 /// One gathered round of worker input: the newest highlight job wins, every
 /// surface action and stream chunk is kept in order, plus whether an eager
 /// launch was requested.
 struct WorkerAction {
+    shutdown: bool,
     launch: bool,
     job: Option<HighlightJob>,
     surface: Vec<String>,
@@ -27,7 +36,8 @@ struct WorkerAction {
 
 impl WorkerAction {
     fn is_empty(&self) -> bool {
-        !self.launch
+        !self.shutdown
+            && !self.launch
             && self.job.is_none()
             && self.surface.is_empty()
             && self.stream.is_empty()
@@ -41,14 +51,24 @@ pub(super) fn host_worker(
     policy: Policy,
     roles: &[Role],
     trust: TrustClass,
-    messages: &mpsc::Receiver<WorkerMessage>,
-    events: &mpsc::Sender<HostEvent>,
+    context: WorkerContext<'_>,
 ) {
+    let WorkerContext {
+        messages,
+        events,
+        process_group,
+    } = context;
     let mut client: Option<HostClient> = None;
     let mut last_failure: Option<Instant> = None;
     let mut unloaded = false;
 
     while let Ok(action) = next_worker_action(messages, &mut client, &mut unloaded) {
+        if action.shutdown {
+            if let Some(active) = client.take() {
+                let _ = active.shutdown();
+            }
+            return;
+        }
         if action.is_empty() {
             continue;
         }
@@ -57,7 +77,14 @@ pub(super) fn host_worker(
             if last_failure.is_some_and(|failed| failed.elapsed() < RELAUNCH_COOLDOWN) {
                 continue;
             }
-            match HostClient::launch(command, plugin_id, policy.clone(), roles, trust) {
+            match HostClient::launch_with_process_group(
+                command,
+                plugin_id,
+                policy.clone(),
+                roles,
+                trust,
+                Arc::clone(&process_group),
+            ) {
                 Ok(launched) => {
                     let _ = events.send(HostEvent::Started {
                         menu: launched.menu().cloned(),
@@ -274,6 +301,7 @@ fn next_worker_action(
     unloaded: &mut bool,
 ) -> Result<WorkerAction, mpsc::RecvError> {
     let mut action = WorkerAction {
+        shutdown: false,
         launch: false,
         job: None,
         surface: Vec::new(),
@@ -285,8 +313,9 @@ fn next_worker_action(
         apply_worker_message(message, client, unloaded, &mut action);
     }
 
-    if *unloaded {
+    if *unloaded && !action.shutdown {
         Ok(WorkerAction {
+            shutdown: false,
             launch: false,
             job: None,
             surface: Vec::new(),
@@ -316,6 +345,14 @@ fn apply_worker_message(
                 let _ = active.shutdown();
             }
             *unloaded = true;
+            action.launch = false;
+            action.job = None;
+            action.surface.clear();
+            action.stream.clear();
+            action.execute.clear();
+        }
+        WorkerMessage::Shutdown => {
+            action.shutdown = true;
             action.launch = false;
             action.job = None;
             action.surface.clear();
