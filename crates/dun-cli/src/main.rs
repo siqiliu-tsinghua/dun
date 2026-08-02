@@ -191,11 +191,7 @@ fn run_tui(config_path: Option<PathBuf>, no_config: bool, path: Option<PathBuf>)
         &mut guard,
         &color_rewrite,
     );
-    let cursor_result = backend.show_cursor();
-    let restore_result = guard.suspend();
-    app.plugin_hosts.shutdown_all();
-    cursor_result?;
-    restore_result?;
+    backend.show_cursor()?;
     result
 }
 

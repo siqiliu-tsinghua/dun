@@ -14,14 +14,13 @@ mod menu;
 mod worker;
 
 use menu::{resolve_plugin_menu, top_level_mnemonic};
+use worker::host_worker;
 #[cfg(test)]
 pub(crate) use worker::next_worker_action_for_tests;
-use worker::{WorkerContext, host_worker};
 
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, mpsc};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -29,21 +28,15 @@ use dun_config::{
     KeyBinding, KeySequence, KeyStroke, Keymap, PluginEntry, PluginRole, PluginTrust,
 };
 use dun_core::{BufferId, EditorCommand, PluginActionKind};
-#[cfg(unix)]
-use dun_plugin::group_kill_target;
 use dun_plugin::{
     Capability, GrantedCapabilities, PluginActionKind as WireActionKind, PluginKeybinding,
     PluginMenu, Policy, Role, StreamChunk, StyleSpan, TrustClass,
 };
 use dun_ui::{MenuItem, built_in_menu_mnemonics};
-#[cfg(unix)]
-use rustix::process::{Signal, getpgrp, kill_process_group};
 
 /// Do not relaunch a failed host more often than this; failures otherwise
 /// turn every editor tick into a spawn attempt.
 pub(super) const RELAUNCH_COOLDOWN: Duration = Duration::from_secs(5);
-const EXIT_SHUTDOWN_GRACE: Duration = Duration::from_millis(500);
-const EXIT_SHUTDOWN_POLL: Duration = Duration::from_millis(10);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HighlightJob {
@@ -71,7 +64,6 @@ pub(crate) enum WorkerMessage {
     Launch,
     Load,
     Unload,
-    Shutdown,
 }
 
 #[derive(Debug)]
@@ -132,8 +124,6 @@ pub(crate) struct PluginHost {
     keybinding: Option<PluginKeybinding>,
     jobs: mpsc::Sender<WorkerMessage>,
     events: mpsc::Receiver<HostEvent>,
-    worker: Option<thread::JoinHandle<()>>,
-    process_group: Arc<AtomicU32>,
     last_request: Option<HighlightRequestKey>,
     last_activity: Instant,
     failed: bool,
@@ -180,20 +170,15 @@ impl PluginHost {
         let plugin_id = entry.id.clone();
         let worker_plugin_id = plugin_id.clone();
         let worker_roles = roles.clone();
-        let process_group = Arc::new(AtomicU32::new(0));
-        let worker_process_group = Arc::clone(&process_group);
-        let worker = thread::spawn(move || {
+        thread::spawn(move || {
             host_worker(
                 &command,
                 &worker_plugin_id,
                 policy,
                 &worker_roles,
                 trust,
-                WorkerContext {
-                    messages: &job_receiver,
-                    events: &event_sender,
-                    process_group: worker_process_group,
-                },
+                &job_receiver,
+                &event_sender,
             );
         });
 
@@ -205,8 +190,6 @@ impl PluginHost {
             keybinding: None,
             jobs: job_sender,
             events: event_receiver,
-            worker: Some(worker),
-            process_group,
             last_request: None,
             last_activity: Instant::now(),
             failed: false,
@@ -219,34 +202,6 @@ impl PluginHost {
             let _ = host.jobs.send(WorkerMessage::Launch);
         }
         host
-    }
-
-    fn reap_finished_worker(&mut self) -> bool {
-        if self
-            .worker
-            .as_ref()
-            .is_some_and(|worker| worker.is_finished())
-        {
-            if let Some(worker) = self.worker.take() {
-                let _ = worker.join();
-            }
-        }
-        self.worker.is_none()
-    }
-
-    #[cfg(unix)]
-    fn sweep_process_group(&self) {
-        let child_pid = self.process_group.swap(0, Ordering::AcqRel);
-        let own_pgid = getpgrp().as_raw_nonzero().get() as u32;
-        let Some(target) = group_kill_target(child_pid, own_pgid) else {
-            return;
-        };
-        let _ = kill_process_group(target, Signal::Kill);
-    }
-
-    #[cfg(not(unix))]
-    fn sweep_process_group(&self) {
-        self.process_group.store(0, Ordering::Release);
     }
 
     pub(crate) fn plugin_id(&self) -> &str {
@@ -495,44 +450,6 @@ impl PluginHosts {
         Self {
             hosts: entries.iter().map(PluginHost::from_entry).collect(),
             menu_rejections: Vec::new(),
-        }
-    }
-
-    /// Stop every plugin worker against one shared deadline. Workers that are
-    /// still blocked when it expires have their published host groups swept;
-    /// exit does not wait for the now-unwedged threads to finish.
-    pub(crate) fn shutdown_all(&mut self) {
-        if self.hosts.is_empty() {
-            return;
-        }
-
-        let deadline = Instant::now() + EXIT_SHUTDOWN_GRACE;
-        for host in &self.hosts {
-            let _ = host.jobs.send(WorkerMessage::Shutdown);
-        }
-
-        loop {
-            for host in &mut self.hosts {
-                host.reap_finished_worker();
-            }
-            if self.hosts.iter().all(|host| host.worker.is_none()) {
-                return;
-            }
-
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                break;
-            }
-            thread::sleep(remaining.min(EXIT_SHUTDOWN_POLL));
-        }
-
-        for host in &mut self.hosts {
-            if host.reap_finished_worker() {
-                continue;
-            }
-            if host.worker.take().is_some() {
-                host.sweep_process_group();
-            }
         }
     }
 
@@ -827,8 +744,6 @@ impl PluginHost {
                 keybinding: None,
                 jobs: job_sender,
                 events: event_receiver,
-                worker: None,
-                process_group: Arc::new(AtomicU32::new(0)),
                 last_request: None,
                 last_activity: Instant::now(),
                 failed: false,
