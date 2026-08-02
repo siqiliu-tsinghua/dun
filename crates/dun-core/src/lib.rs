@@ -19,3 +19,6 @@ pub use workspace::{
     Axis, Direction, LayoutNode, Rect, SplitDragHandle, WindowId, WindowKind, WindowLayout,
     WindowState, Workspace, WorkspaceError,
 };
+
+// Temporary: verifying branch protection blocks a failing PR.
+const   CI_PROTECTION_PROBE:u8=1;
