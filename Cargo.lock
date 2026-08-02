@@ -10,7 +10,7 @@ checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
 
 [[package]]
 name = "dun-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dun-config",
  "dun-core",
@@ -23,7 +23,7 @@ dependencies = [
 
 [[package]]
 name = "dun-config"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dun-core",
  "dun-term",
@@ -31,25 +31,25 @@ dependencies = [
 
 [[package]]
 name = "dun-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "dun-plugin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rustix",
 ]
 
 [[package]]
 name = "dun-term"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "unicode-width",
 ]
 
 [[package]]
 name = "dun-ui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dun-config",
  "dun-core",
