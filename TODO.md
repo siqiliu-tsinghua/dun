@@ -23,9 +23,18 @@ it, plus the review's CI half. Plan: `docs/dev/codex/brief-067-process-cleanup-p
 - [x] **G4** — editor exit shuts hosts down against one shared deadline and
       sweeps whatever has not finished (`a726fe8`). **Process-cleanup track
       complete.**
-- [ ] **Public CI and a formal Release** — the review's other P0. No `.github/`
-      yet. Plan and `gh` capability notes are in CLAUDE.md stage 12. Keep
-      arm64 report-only; the 1 MiB budget is defined on x86_64.
+- [x] **Public CI** (`5178e5f`, `c9f1c74`) — four blocking jobs (fmt/clippy,
+      the test matrix on x86_64/arm64/macOS, an install round trip, a doc link
+      check) plus a report-only size job. `main` is protected by a ruleset
+      requiring those six checks, with Repository admin on the bypass list so
+      the maintainer can still push directly.
+      CI size figures reproduce neither gate platform — Ubuntu 801,056 against
+      Debian's 796,976, macOS-15-intel 727,012 against 727,444 local — which is
+      why the size job reports drift instead of enforcing the budget.
+- [ ] **A formal Release** — the other half of the review's §3. Tag `v0.1.0`
+      exists on the remote; the Releases page is still empty. Needs release
+      notes, a source archive with a SHA-256, the platform matrix, and the
+      known limitations.
 
 Known and deliberately not fixed: process groups are not process-tree
 containment — a command that calls `setsid` escapes, and no primitive portable
