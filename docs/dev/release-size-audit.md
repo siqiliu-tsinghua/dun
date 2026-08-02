@@ -1,5 +1,31 @@
 # Release Size Audit
 
+## 2026-08-03 — deterministic plugin cleanup at editor exit (G4)
+
+Measured at `a726fe8` from a clean `git archive`, all four platforms.
+
+| platform | bytes | previous (`664058f`) | delta | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | 727,444 | 727,428 | +16 | 321,132 |
+| **Debian x86_64** | **796,976** | 796,976 | **0** | **251,600** |
+| FreeBSD x86_64 | 707,768 | 706,440 | +1,328 | 340,808 |
+| Solaris x86_64 | 755,680 | 753,952 | +1,728 | 292,896 |
+
+Nothing on the binding platform; the unquantised platforms show the real cost,
+about 1.3–1.7 KiB for the worker handles, the shared pgid cells and the exit
+path. Debian had slack from G3's page and absorbed it.
+
+Four-platform functional matrix at `a726fe8`: **944 passed / 0 failed** on
+macOS, Debian, FreeBSD and Solaris. The previously flaky exit test was run
+**8 more times on Debian alone: 0/8 failures**, against 3/12 before the fix and
+6/6 with the post-deadline sweep removed — so it is neither flaky nor vacuous.
+
+**This closes the process-cleanup track** (G1 `4b362e7`, G2 `f9bc92d`,
+G3 `664058f`, G4 `a726fe8`), and with it the defect found while verifying the
+external review: a `run-command` that backgrounded anything could hang the
+editor forever, and neither commands nor plugin hosts cleaned up what they
+started.
+
 ## 2026-08-02 — plugin host process-group cleanup (G3)
 
 Measured at `664058f` from a clean `git archive`, all four platforms.

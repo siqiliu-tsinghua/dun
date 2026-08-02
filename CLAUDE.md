@@ -52,8 +52,16 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- **Current: macOS 727,428 / Debian 796,976 at `664058f`** (2026-08-02, plugin
-  host process-group cleanup, G3) — margin **251,600**, four-platform matrix
+- **Current: macOS 727,444 / Debian 796,976 at `a726fe8`** (2026-08-03, plugin
+  exit cleanup, G4 — **process-cleanup track complete**) — margin **251,600**,
+  four-platform matrix **944/0** (FreeBSD 707,768, Solaris 755,680). **No
+  measurement debt.** Zero on the binding platform. One lesson worth keeping:
+  the exit test was reverted once on a wrong diagnosis of mine (a relaunch
+  race). The real cause was the test's helper script hardcoding `sleep 2` while
+  the constant meant to control it fed only the test's own waiting, so Debian's
+  slower startup outran it. Measure the thing you think you changed.
+- macOS 727,428 / Debian 796,976 at `664058f` (2026-08-02, plugin
+  host process-group cleanup, G3) — margin 251,600, four-platform matrix
   **941/0** (FreeBSD 706,440, Solaris 753,952). **No measurement debt.** The
   Debian +4,096 is page quantisation, not a page of code: FreeBSD +352 and
   Solaris +832 are unquantised and show the real cost, because G2 had already

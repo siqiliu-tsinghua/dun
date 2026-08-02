@@ -3,7 +3,7 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
 
-## Active — process cleanup (G4 next, then CI)
+## Active — public CI and a formal Release
 
 The external review of 2026-07-30 is answered on its two parser items
 (`f5891a0`, `8a3dddf`). What is open is the track that came out of verifying
@@ -20,8 +20,9 @@ it, plus the review's CI half. Plan: `docs/dev/codex/brief-067-process-cleanup-p
       violation and after a clean shutdown (`664058f`). The editor-own-group
       guard moved into `dun-plugin` so there is exactly one copy, consumed by
       `dun-cli`; the process-group code sits behind `cfg(unix)`.
-- [ ] **G4** — make editor-exit worker cleanup deterministic; production
-      workers discard their `JoinHandle` at `plugins.rs:167-183`.
+- [x] **G4** — editor exit shuts hosts down against one shared deadline and
+      sweeps whatever has not finished (`a726fe8`). **Process-cleanup track
+      complete.**
 - [ ] **Public CI and a formal Release** — the review's other P0. No `.github/`
       yet. Plan and `gh` capability notes are in CLAUDE.md stage 12. Keep
       arm64 report-only; the 1 MiB budget is defined on x86_64.
