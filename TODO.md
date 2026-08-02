@@ -3,7 +3,7 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
 
-## Active — process cleanup (G3 next)
+## Active — process cleanup (G4 next, then CI)
 
 The external review of 2026-07-30 is answered on its two parser items
 (`f5891a0`, `8a3dddf`). What is open is the track that came out of verifying
@@ -16,9 +16,10 @@ it, plus the review's CI half. Plan: `docs/dev/codex/brief-067-process-cleanup-p
       function with adversarial unit tests. `process_group(0)` verified
       identical on all four platforms, which closes brief 067's stop
       condition.
-- [ ] **G3** — plugin host process-group cleanup (`HostClient::kill` currently
-      kills only the direct child). Lower urgency: all five shipped hosts are
-      single-process, so this is a third-party-host risk.
+- [x] **G3** — plugin host process groups are swept on kill, on protocol
+      violation and after a clean shutdown (`664058f`). The editor-own-group
+      guard moved into `dun-plugin` so there is exactly one copy, consumed by
+      `dun-cli`; the process-group code sits behind `cfg(unix)`.
 - [ ] **G4** — make editor-exit worker cleanup deterministic; production
       workers discard their `JoinHandle` at `plugins.rs:167-183`.
 - [ ] **Public CI and a formal Release** — the review's other P0. No `.github/`

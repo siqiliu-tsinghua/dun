@@ -1,5 +1,29 @@
 # Release Size Audit
 
+## 2026-08-02 — plugin host process-group cleanup (G3)
+
+Measured at `664058f` from a clean `git archive`, all four platforms.
+
+| platform | bytes | previous (`f9bc92d`) | delta | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | 727,428 | 727,428 | 0 | 321,148 |
+| **Debian x86_64** | **796,976** | 792,880 | **+4,096** | **251,600** |
+| FreeBSD x86_64 | 706,440 | 706,088 | +352 | 342,136 |
+| Solaris x86_64 | 753,952 | 753,120 | +832 | 294,624 |
+
+**Read the unquantised platforms for the real cost.** FreeBSD's +352 and
+Solaris's +832 are what this change actually adds; Debian is page-quantised in
+4,096-byte steps and crossed a boundary, and macOS had slack and moved not at
+all. So the page on the binding platform is rounding, not a page's worth of
+code — as expected, because G2 already paid for the mechanism and G3 mostly
+reuses it. Adding rustix to `dun-plugin`'s previously empty dependency table
+introduced no new package: it was already in the workspace and the lock.
+
+Four-platform functional matrix at `664058f`: **941 passed / 0 failed** on
+macOS, Debian, FreeBSD and Solaris (939 at `f9bc92d`, plus one test per
+cleanup route — kill and clean shutdown). Debian release smoke: ELF 64-bit LSB
+pie executable, five `ldd` entries unchanged, `--version` prints `dun 0.1.0`.
+
 ## 2026-08-02 — command process-group cleanup (G2)
 
 Measured at `f9bc92d` from a clean `git archive`. **All four platforms

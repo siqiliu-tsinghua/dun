@@ -52,8 +52,15 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- **Current: macOS 727,428 / Debian 792,880 at `f9bc92d`** (2026-08-02, command
-  process-group cleanup, G2) — margin **255,696**, four-platform matrix
+- **Current: macOS 727,428 / Debian 796,976 at `664058f`** (2026-08-02, plugin
+  host process-group cleanup, G3) — margin **251,600**, four-platform matrix
+  **941/0** (FreeBSD 706,440, Solaris 753,952). **No measurement debt.** The
+  Debian +4,096 is page quantisation, not a page of code: FreeBSD +352 and
+  Solaris +832 are unquantised and show the real cost, because G2 had already
+  paid for the mechanism. The guard against signalling dun's own process group
+  now lives once, in `dun-plugin`, consumed by `dun-cli`.
+- macOS 727,428 / Debian 792,880 at `f9bc92d` (2026-08-02, command
+  process-group cleanup, G2) — margin 255,696, four-platform matrix
   **939/0**, all four platforms re-measured (FreeBSD 706,088, Solaris 753,120).
   **No measurement debt.** **+4,096 on the binding platform**, the track's
   first non-zero delta and the one it was predicted to cost: rustix's `process`

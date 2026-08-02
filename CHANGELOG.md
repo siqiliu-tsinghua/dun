@@ -70,6 +70,14 @@ in [docs/dev/PROGRESS.md](docs/dev/PROGRESS.md).
 
 ### Fixed
 
+- **A plugin host no longer leaves helper processes running behind it.** Each
+  host gets its own process group, cleaned up when the host is killed for a
+  timeout or a protocol violation, when it is unloaded, and when the editor
+  exits — including after a host shuts down cleanly, since one can exit
+  successfully and still have left something running. All five hosts shipped in
+  `hosts/` are single-process, so this changes nothing for them; it matters for
+  a third-party host that spawns helpers.
+
 - **A command no longer leaves processes running behind it.** `Ctrl+X,O` gives
   each command its own process group and cleans that group up when the command
   finishes or times out. A command that backgrounds something — `make &`, a
