@@ -3,7 +3,7 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
 
-## Active — process cleanup (G2 next)
+## Active — process cleanup (G3 next)
 
 The external review of 2026-07-30 is answered on its two parser items
 (`f5891a0`, `8a3dddf`). What is open is the track that came out of verifying
