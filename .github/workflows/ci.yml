@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The size contract is defined on Rust 1.85 (see CLAUDE.md). The repo
+# deliberately carries no rust-toolchain.toml, because the FreeBSD and Solaris
+# test machines build with their pkg-installed toolchains; the version is
+# pinned here instead, where only CI is affected.
+env:
+  DUN_RUST: "1.85.0"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: fmt + clippy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust ${{ env.DUN_RUST }}
+        run: |
+          rustup toolchain install "$DUN_RUST" --profile minimal \
+            --component rustfmt,clippy
+          rustup default "$DUN_RUST"
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust ${{ env.DUN_RUST }}
+        run: |
+          rustup toolchain install "$DUN_RUST" --profile minimal
+          rustup default "$DUN_RUST"
+
+      # tmux and expect are not optional. Six test files skip cleanly when
+      # they are missing, which would leave the suite green while running
+      # materially less than it claims. Install them, then prove they are
+      # there, so a packaging change cannot quietly hollow out the run.
+      - name: Install tmux and expect (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y tmux expect
+      - name: Install tmux and expect (macOS)
+        if: runner.os == 'macOS'
+        run: brew install tmux expect
+      - name: Verify the test tools are present
+        run: |
+          tmux -V
+          expect -v
+      - run: cargo test --workspace --no-fail-fast
+
+  scripts:
+    name: install round trip
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust ${{ env.DUN_RUST }}
+        run: |
+          rustup toolchain install "$DUN_RUST" --profile minimal
+          rustup default "$DUN_RUST"
+      - name: Check shell syntax
+        run: |
+          for script in scripts/*.sh scripts/hooks/*; do
+            sh -n "$script"
+          done
+      - run: cargo build --release -p dun-cli
+      # Stage 11 found two install defects by *running* the editor rather than
+      # listing files, so this installs, runs the binary, and uninstalls.
+      - name: Install, run, uninstall
+        run: |
+          set -eux
+          prefix="$RUNNER_TEMP/dun-prefix"
+          HOME="$RUNNER_TEMP/fakehome"
+          mkdir -p "$HOME"
+          export HOME
+          sh scripts/install.sh --yes --prefix "$prefix"
+          "$prefix/bin/dun" --version
+          "$prefix/bin/dun" --dump-config | head -1
+          test -d "$prefix/share/dun/i18n"
+          sh scripts/uninstall.sh --yes --prefix "$prefix"
+          test ! -e "$prefix/bin/dun"
+
+  docs:
+    name: doc links
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # Docs are load-bearing here (AGENTS.md), and the codex briefs reference
+      # repo paths too, so a moved file breaks more than prose.
+      - name: Check relative links resolve
+        run: |
+          set -eu
+          status=0
+          found=0
+          for file in $(git ls-files '*.md'); do
+            dir=$(dirname "$file")
+            for link in $(grep -o '](\([^)]*\))' "$file" 2>/dev/null \
+              | sed 's/^](//; s/)$//' \
+              | grep -v -E '^(https?:|mailto:|#)'); do
+              target="${link%%#*}"
+              [ -n "$target" ] || continue
+              found=$((found + 1))
+              if [ ! -e "$dir/$target" ]; then
+                echo "$file: broken link -> $target"
+                status=1
+              fi
+            done
+          done
+          echo "checked $found relative links"
+          # Self-check: the first version of this job passed while extracting
+          # zero links, which is the failure mode a link checker is most likely
+          # to have. Refuse to report success on an empty sweep.
+          if [ "$found" -lt 50 ]; then
+            echo "link extraction found only $found links; the checker is broken" >&2
+            exit 1
+          fi
+          exit $status
+
+  size:
+    name: size report (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # Report only. The binding measurement is the Debian VM's, and an Ubuntu
+    # runner is not that machine, so this tracks drift rather than enforcing
+    # the 1 MiB budget. arm64 is deliberately absent: a different ISA cannot
+    # be compared against a contract defined on x86_64.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-15-intel is the last x86_64 macOS image and expires August 2027.
+        os: [ubuntu-24.04, macos-15-intel]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust ${{ env.DUN_RUST }} with rust-src
+        run: |
+          rustup toolchain install "$DUN_RUST" --profile minimal \
+            --component rust-src
+          rustup default "$DUN_RUST"
+      - name: Build with the size-audit contract
+        run: sh scripts/release-build.sh | tee size.txt
+      - name: Report
+        run: |
+          bytes=$(sed -n 's/^size: *\([0-9]*\).*/\1/p' size.txt)
+          echo "### Size report (${{ matrix.os }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$bytes\` bytes. Budget is 1048576 on the gate platforms." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This runner is not a gate platform; see docs/dev/release-size-audit.md for the binding figures." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: size-${{ matrix.os }}
+          path: size.txt
