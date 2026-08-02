@@ -3,7 +3,7 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
 
-## Active — public CI and a formal Release
+## Active — nothing; next stage undecided
 
 The external review of 2026-07-30 is answered on its two parser items
 (`f5891a0`, `8a3dddf`). What is open is the track that came out of verifying
@@ -31,10 +31,11 @@ it, plus the review's CI half. Plan: `docs/dev/codex/brief-067-process-cleanup-p
       CI size figures reproduce neither gate platform — Ubuntu 801,056 against
       Debian's 796,976, macOS-15-intel 727,012 against 727,444 local — which is
       why the size job reports drift instead of enforcing the budget.
-- [ ] **A formal Release** — the other half of the review's §3. Tag `v0.1.0`
-      exists on the remote; the Releases page is still empty. Needs release
-      notes, a source archive with a SHA-256, the platform matrix, and the
-      known limitations.
+- [x] **A formal Release** — **v0.2.0 published 2026-08-03**. Release notes,
+      a reproducible `git archive` tarball with its SHA-256, the four-platform
+      matrix (944/0), the four-platform size table, compiler requirement and
+      six known limitations. No binaries: the size-audited build is not
+      byte-reproducible for an outsider. The review's §3 is answered.
 
 Known and deliberately not fixed: process groups are not process-tree
 containment — a command that calls `setsid` escapes, and no primitive portable
