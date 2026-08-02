@@ -9,6 +9,7 @@ pub(crate) struct CommandRunResult {
     pub(crate) status: ExitStatus,
     pub(crate) elapsed: Duration,
     pub(crate) timed_out: bool,
+    pub(crate) background_processes_killed: bool,
     pub(crate) stdout: CapturedCommandStream,
     pub(crate) stderr: CapturedCommandStream,
 }

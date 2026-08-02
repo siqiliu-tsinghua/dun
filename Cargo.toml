@@ -27,7 +27,7 @@ dun-core = { path = "crates/dun-core" }
 dun-plugin = { path = "crates/dun-plugin" }
 dun-term = { path = "crates/dun-term" }
 dun-ui = { path = "crates/dun-ui" }
-rustix = { version = "0.38", default-features = false, features = ["std", "stdio", "termios", "event"] }
+rustix = { version = "0.38", default-features = false, features = ["std", "stdio", "termios", "event", "process"] }
 signal-hook = { version = "0.3", default-features = false }
 unicode-width = "0.2"
 

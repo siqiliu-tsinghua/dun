@@ -2,6 +2,28 @@
 
 use super::support::*;
 
+struct CommandTempDir {
+    path: PathBuf,
+}
+
+impl CommandTempDir {
+    fn new(name: &str) -> Self {
+        let path = temp_file_path(name);
+        std::fs::create_dir_all(&path).expect("creates command test directory");
+        Self { path }
+    }
+}
+
+impl Drop for CommandTempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+fn shell_quote(path: &Path) -> String {
+    format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
+}
+
 #[test]
 fn run_command_prompt_opens_read_only_output_window() {
     let mut app = AppState::new();
@@ -158,4 +180,106 @@ fn command_capture_deadline_returns_from_background_descendant() {
     let text = app.buffer_state(window.buffer_id).unwrap().buffer.to_text();
     assert!(text.contains("started"), "command output:\n{text}");
     assert!(text.contains("Truncated: yes"), "command output:\n{text}");
+}
+
+#[test]
+fn run_command_kills_background_descendant_before_it_can_survive() {
+    let directory = CommandTempDir::new("command-background-descendant");
+    let helper = directory.path.join("helper.sh");
+    let ready = directory.path.join("ready");
+    let survived = directory.path.join("survived");
+    std::fs::write(
+        &helper,
+        "ready=$1\nsurvived=$2\n: > \"$ready\"\nsleep 2\n: > \"$survived\"\n",
+    )
+    .expect("writes background helper");
+    let command = format!(
+        "/bin/sh {} {} {} & while [ ! -f {} ]; do :; done",
+        shell_quote(&helper),
+        shell_quote(&ready),
+        shell_quote(&survived),
+        shell_quote(&ready),
+    );
+    let mut app = AppState::new();
+    app.limits.run_command_timeout_ms = 4_000;
+    let started = Instant::now();
+
+    app.run_external_command_to_buffer(&command);
+
+    let elapsed = started.elapsed();
+    assert!(
+        ready.exists(),
+        "background helper never reached its ready point"
+    );
+    let observation_period = Duration::from_millis(2_500);
+    std::thread::sleep((started + observation_period).saturating_duration_since(Instant::now()));
+    assert!(
+        !survived.exists(),
+        "background helper survived process-group cleanup"
+    );
+    assert!(
+        elapsed < Duration::from_secs(1),
+        "background capture returned too late: {elapsed:?}"
+    );
+    assert!(
+        app.status_message
+            .as_deref()
+            .is_some_and(|status| status.contains("background processes killed")),
+        "status: {:?}",
+        app.status_message
+    );
+    let window = app.workspace.focused_window().unwrap();
+    let text = app.buffer_state(window.buffer_id).unwrap().buffer.to_text();
+    assert!(
+        text.contains("Status: exit 0; background processes killed"),
+        "command output:\n{text}"
+    );
+}
+
+#[test]
+fn backgrounding_command_returns_well_before_its_deadline() {
+    let timeout = Duration::from_secs(2);
+    let started = Instant::now();
+
+    let result = run_command_capture(
+        "sleep 2 & echo started",
+        COMMAND_OUTPUT_STREAM_SOFT_LIMIT_BYTES,
+        timeout,
+    )
+    .expect("backgrounding command should run");
+
+    let elapsed = started.elapsed();
+    eprintln!("backgrounding command returned in {elapsed:?}");
+    assert!(
+        elapsed < Duration::from_secs(1),
+        "background capture used too much of its {timeout:?} timeout: {elapsed:?}"
+    );
+    assert!(
+        result.background_processes_killed,
+        "successful group cleanup should be recorded"
+    );
+    assert_eq!(result.stdout.bytes, b"started\n");
+}
+
+#[test]
+fn timed_out_command_with_complete_output_is_not_reported_truncated() {
+    let mut app = AppState::new();
+    app.limits.run_command_timeout_ms = 200;
+
+    // Output reaches EOF immediately; the command then outlives the timeout.
+    // Killing its process group must not be mistaken for losing output.
+    app.run_external_command_to_buffer("exec >/dev/null 2>&1; sleep 3");
+
+    let status = app.status_message.as_deref().unwrap_or_default();
+    assert!(
+        status.contains("Command timed out after"),
+        "status: {status:?}"
+    );
+    assert!(
+        !status.contains("truncated"),
+        "nothing was truncated, but the status claims it was: {status:?}"
+    );
+    let window = app.workspace.focused_window().unwrap();
+    let text = app.buffer_state(window.buffer_id).unwrap().buffer.to_text();
+    assert!(text.contains("Truncated: no"), "command output:\n{text}");
 }

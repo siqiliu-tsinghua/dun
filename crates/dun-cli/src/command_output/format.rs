@@ -25,11 +25,12 @@ pub(crate) fn command_output_text(catalog: &TextCatalog, result: &CommandRunResu
     } else {
         localized_exit_status_text(catalog, result.status)
     };
-    out.push_str(&ui_text::tr_fmt(
-        catalog,
-        ui_text::COMMAND_OUTPUT_STATUS,
-        &[&status],
-    ));
+    let status_key = if result.timed_out || !result.background_processes_killed {
+        ui_text::COMMAND_OUTPUT_STATUS
+    } else {
+        ui_text::COMMAND_OUTPUT_STATUS_BACKGROUND_PROCESSES_KILLED
+    };
+    out.push_str(&ui_text::tr_fmt(catalog, status_key, &[&status]));
     out.push('\n');
     out.push_str(&ui_text::tr_fmt(
         catalog,

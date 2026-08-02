@@ -2,12 +2,14 @@ use std::env;
 use std::ffi::OsString;
 use std::io::{self, Read, Write};
 use std::os::fd::AsFd;
+use std::os::unix::process::CommandExt;
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use dun_config::TextCatalog;
 use rustix::event::{PollFd, PollFlags};
 use rustix::io::Errno;
+use rustix::process::{Pid, Signal, getpgrp, kill_process_group};
 
 use super::{EventReader, RuntimeAction, SurfaceBackend, TerminalGuard, osc52_read_query};
 use crate::app::AppState;
@@ -101,6 +103,7 @@ pub(crate) fn run_command_capture(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .process_group(0)
         .spawn()?;
 
     let stdout = child
@@ -116,12 +119,16 @@ pub(crate) fn run_command_capture(
     let stderr_reader =
         std::thread::spawn(move || read_capped_stream(stderr, stream_limit, deadline));
     let wait_result = wait_with_timeout(&mut child, deadline);
-    let elapsed = started.elapsed();
     let stdout_result = join_captured_stream(stdout_reader);
     let stderr_result = join_captured_stream(stderr_reader);
-    let (status, timed_out) = wait_result?;
-    let stdout = stdout_result?;
-    let stderr = stderr_result?;
+    let elapsed = started.elapsed();
+    let (status, timed_out, background_processes_killed) = wait_result?;
+    let mut stdout = stdout_result?;
+    let mut stderr = stderr_result?;
+    if background_processes_killed {
+        stdout.truncated = true;
+        stderr.truncated = true;
+    }
 
     Ok(CommandRunResult {
         command: command.to_string(),
@@ -129,28 +136,58 @@ pub(crate) fn run_command_capture(
         status,
         elapsed,
         timed_out,
+        background_processes_killed,
         stdout,
         stderr,
     })
 }
 
-/// Poll the child until it exits or the deadline passes; on timeout kill and
-/// reap it so a non-terminating command cannot hang the editor.
+/// Poll the child until it exits or the deadline passes, clean up its process
+/// group, and reap the direct child so a command cannot hang the editor or
+/// leave descendants behind.
 fn wait_with_timeout(
     child: &mut std::process::Child,
     deadline: Instant,
-) -> io::Result<(ExitStatus, bool)> {
+) -> io::Result<(ExitStatus, bool, bool)> {
     loop {
         if let Some(status) = child.try_wait()? {
-            return Ok((status, false));
+            let background_processes_killed = kill_command_process_group(child.id())?;
+            return Ok((status, false, background_processes_killed));
         }
         if Instant::now() >= deadline {
-            child.kill()?;
+            let group_kill_result = kill_command_process_group(child.id());
+            if !matches!(group_kill_result, Ok(true)) {
+                child.kill()?;
+            }
             let status = child.wait()?;
-            return Ok((status, true));
+            // The group still holds the foreground shell here, so a successful
+            // signal proves nothing about *background* processes — it only
+            // proves we killed the command we were already reporting as timed
+            // out. Claiming otherwise would also force the output to be
+            // reported truncated when it had completed.
+            return group_kill_result.map(|_| (status, true, false));
         }
         std::thread::sleep(Duration::from_millis(10));
     }
+}
+
+fn kill_command_process_group(child_pid: u32) -> io::Result<bool> {
+    let own_pgid = getpgrp().as_raw_nonzero().get() as u32;
+    let Some(target) = group_kill_target(child_pid, own_pgid) else {
+        return Ok(false);
+    };
+    match kill_process_group(target, Signal::Kill) {
+        Ok(()) => Ok(true),
+        Err(Errno::SRCH) => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn group_kill_target(child_pid: u32, own_pgid: u32) -> Option<Pid> {
+    if child_pid <= 1 || child_pid == own_pgid {
+        return None;
+    }
+    i32::try_from(child_pid).ok().and_then(Pid::from_raw)
 }
 
 fn shell_program() -> OsString {
@@ -237,10 +274,11 @@ pub(crate) fn command_run_status(catalog: &TextCatalog, result: &CommandRunResul
         };
         ui_text::tr_fmt(catalog, key, &[&duration])
     } else {
-        let key = if truncated {
-            ui_text::STATUS_RUN_RETURNED_TRUNCATED
-        } else {
-            ui_text::STATUS_RUN_RETURNED
+        let key = match (truncated, result.background_processes_killed) {
+            (false, false) => ui_text::STATUS_RUN_RETURNED,
+            (true, false) => ui_text::STATUS_RUN_RETURNED_TRUNCATED,
+            (false, true) => ui_text::STATUS_RUN_RETURNED_BACKGROUND_PROCESSES_KILLED,
+            (true, true) => ui_text::STATUS_RUN_RETURNED_TRUNCATED_BACKGROUND_PROCESSES_KILLED,
         };
         let exit = localized_exit_status_text(catalog, result.status);
         ui_text::tr_fmt(catalog, key, &[&exit, &duration])
@@ -264,8 +302,16 @@ pub(crate) fn duration_status_text(duration: Duration) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, Duration, Instant, Stdio, read_capped_stream};
+    use super::{Command, Duration, Instant, Pid, Stdio, group_kill_target, read_capped_stream};
     use std::sync::mpsc;
+
+    #[test]
+    fn group_kill_target_refuses_unsafe_process_groups() {
+        assert_eq!(group_kill_target(42, 7), Pid::from_raw(42));
+        assert_eq!(group_kill_target(42, 42), None);
+        assert_eq!(group_kill_target(0, 7), None);
+        assert_eq!(group_kill_target(1, 7), None);
+    }
 
     #[test]
     fn command_capture_deadline_releases_open_pipe() {

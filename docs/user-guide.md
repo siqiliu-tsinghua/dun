@@ -484,9 +484,11 @@ takes the space.
 shell and the editor comes back with its screen intact.
 
 `Ctrl+X,O` runs a single command and captures its output into a read-only
-**Command Output** pane without leaving the editor. Output is bounded, the
-capture returns within `limits.run_command_timeout_ms` (30 s by default), and
-output still held open at the deadline may be reported as truncated.
+**Command Output** pane without leaving the editor. Each command gets a private
+process group, and `dun` kills anything still in that group when the command
+finishes or times out. It is not a way to launch a background service; use Shell
+Escape (`Ctrl+X,S`) for that. Output is bounded, and capture returns within
+`limits.run_command_timeout_ms` (30 s by default).
 
 Inside Command Output you can view stdout only, stderr only, or the summary;
 search it; jump to a section or a numbered line; save it to a file; and clear
