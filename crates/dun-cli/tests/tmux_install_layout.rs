@@ -174,7 +174,11 @@ fn installed_config_and_user_config_are_both_in_force() -> io::Result<()> {
     // F6 prints the effective theme: the user's `dark`, not the installed
     // `turbo`, and the installed file named as the base layer.
     session.send_keys(&["F6"])?;
-    let screen = session.capture_until_contains("theme:", STARTUP_TIMEOUT)?;
+    // Wait for the line this test actually asserts on. Waiting for `theme:`
+    // and then asserting `base layer:` -- which renders lower -- meant the
+    // capture could return before the asserted line existed; that is how this
+    // passed everywhere and failed on the macOS CI runner.
+    let screen = session.capture_until_contains("base layer:", STARTUP_TIMEOUT)?;
     assert!(
         screen.text.contains("theme: dark"),
         "the user's theme should win over the installed one\n{}",
