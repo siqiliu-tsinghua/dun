@@ -11,13 +11,11 @@ it, plus the review's CI half. Plan: `docs/dev/codex/brief-067-process-cleanup-p
 
 - [x] **G1** — bound the capture read so `run-command` cannot hang the editor
       (`4b362e7`).
-- [ ] **G2** — kill the command's process group, so a backgrounding command
-      returns promptly instead of costing the full timeout and leaving orphans.
-      Needs rustix's `process` feature; adds a `background_processes_killed`
-      status and its ten catalogs. **Guard against ever signalling the
-      editor's own process group, and test the guard** — if `process_group(0)`
-      no-ops on a platform, a group kill takes down dun and everything it is
-      running. Decide there whether `elapsed` moves after the reader joins.
+- [x] **G2** — the command's process group is killed on exit and on timeout
+      (`f9bc92d`). The guard against signalling dun's own group is a pure
+      function with adversarial unit tests. `process_group(0)` verified
+      identical on all four platforms, which closes brief 067's stop
+      condition.
 - [ ] **G3** — plugin host process-group cleanup (`HostClient::kill` currently
       kills only the direct child). Lower urgency: all five shipped hosts are
       single-process, so this is a third-party-host risk.

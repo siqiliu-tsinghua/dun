@@ -70,6 +70,18 @@ in [docs/dev/PROGRESS.md](docs/dev/PROGRESS.md).
 
 ### Fixed
 
+- **A command no longer leaves processes running behind it.** `Ctrl+X,O` gives
+  each command its own process group and cleans that group up when the command
+  finishes or times out. A command that backgrounds something — `make &`, a
+  pipeline whose tail outlives the shell — now returns as soon as the shell
+  exits instead of occupying the whole timeout, and what it started does not
+  survive. The status line says when something was killed. The trade is
+  deliberate: **`Ctrl+X,O` is not a way to launch a background service**, and
+  never reliably was — before this it hung the editor instead. Use Shell Escape
+  (`Ctrl+X,S`) for that. A command that deliberately escapes with `setsid` is
+  still beyond reach; no way of preventing that works across all four supported
+  platforms.
+
 - **`Ctrl+X,O` can no longer hang the editor.** Running a command that left
   anything in the background — `make &`, starting a daemon, any pipeline whose
   tail outlived the shell — froze `dun` for as long as that process lived, with

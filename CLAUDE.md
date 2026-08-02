@@ -52,13 +52,18 @@ and the size gate below.
 The `scripts/release-build.sh` binary must be ≤ 1,048,576 bytes on macOS
 x86_64 AND Debian x86_64.
 
-- **Current: macOS 727,380 / Debian 788,784 at `4b362e7`** (2026-07-30, command
-  capture deadline, G1 of the process-cleanup track) — margin **259,792**,
-  four-platform matrix **935/0**. **No measurement debt.** +4,096 on macOS, **0
-  on the binding platform**: `rustix::event::poll` was already linked for the
-  event reader, so the deadline-aware read only added branches. G2 (kill the
-  command's process group) needs rustix's `process` feature and is the first
-  step of this track likely to cost pages.
+- **Current: macOS 727,428 / Debian 792,880 at `f9bc92d`** (2026-08-02, command
+  process-group cleanup, G2) — margin **255,696**, four-platform matrix
+  **939/0**, all four platforms re-measured (FreeBSD 706,088, Solaris 753,120).
+  **No measurement debt.** **+4,096 on the binding platform**, the track's
+  first non-zero delta and the one it was predicted to cost: rustix's `process`
+  feature, the process-group spawn, the guarded kill, and four status keys.
+  `process_group(0)` behaves identically on all four platforms — that settles
+  brief 067's open portability question, which was a declared stop condition.
+- macOS 727,380 / Debian 788,784 at `4b362e7` (2026-07-30, command capture
+  deadline, G1) — matrix 935/0, **0 on the binding platform**:
+  `rustix::event::poll` was already linked for the event reader, so the
+  deadline-aware read only added branches.
 - macOS 723,284 / Debian 788,784 at `8a3dddf` (2026-07-30,
   external-review parser response) — four-platform matrix **933/0**. Both parser fixes together are
   **byte-identical to `11f56a6`** on the binding platform: the config change

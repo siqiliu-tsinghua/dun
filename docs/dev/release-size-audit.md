@@ -1,5 +1,40 @@
 # Release Size Audit
 
+## 2026-08-02 — command process-group cleanup (G2)
+
+Measured at `f9bc92d` from a clean `git archive`. **All four platforms
+re-measured**, unlike the parser and deadline steps: this one enables a
+dependency feature and touches process handling, so the reference platforms
+could not be carried forward on the argument that the change has no
+platform-specific code.
+
+| platform | bytes | previous | delta | margin |
+| --- | --- | --- | --- | --- |
+| macOS x86_64 | 727,428 | 727,380 (`4b362e7`) | +48 | 321,148 |
+| **Debian x86_64** | **792,880** | 788,784 (`4b362e7`) | **+4,096** | **255,696** |
+| FreeBSD x86_64 | 706,088 | 702,896 (`11f56a6`) | +3,192 | 342,488 |
+| Solaris x86_64 | 753,120 | 750,064 (`11f56a6`) | +3,056 | 295,456 |
+
+**One page on the binding platform** — the first non-zero delta of this track,
+and the step that was predicted to cost one. It buys rustix's `process`
+feature (`kill_process_group`, `getpgrp`), the process-group spawn, the guarded
+kill, and four new status keys. Brief 067 estimated 0–4 KiB for the feature
+plus an 8 KiB reserve for the group code; it came in at 4,096 for both
+together, at the low end.
+
+Four-platform functional matrix at `f9bc92d`: **939 passed / 0 failed** on
+macOS, Debian, FreeBSD and Solaris (935 at `4b362e7`, plus three tests from the
+brief and one regression test written during the gate).
+
+**This settles brief 067's open portability question.** `process_group(0)` was
+unverified outside Linux/macOS, and a FreeBSD or Solaris difference was a
+declared stop condition. All four behave the same: the sentinel test proves a
+backgrounded grandchild is gone after cleanup on every platform.
+
+Debian release smoke: ELF 64-bit LSB pie executable, five `ldd` entries
+unchanged, `--version` prints `dun 0.1.0`, `--dump-config` prints the default
+header.
+
 ## 2026-07-30 — command-capture read deadline (G1)
 
 Measured at `4b362e7` from a clean `git archive`.
