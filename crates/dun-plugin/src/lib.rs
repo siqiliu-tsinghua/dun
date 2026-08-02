@@ -22,6 +22,8 @@ pub mod proto;
 pub mod validate;
 
 pub use capability::{Capability, GrantedCapabilities};
+#[cfg(unix)]
+pub use client::group_kill_target;
 pub use client::{HostClient, PluginError};
 pub use keybinding::{PluginChord, PluginKeybinding};
 pub use menu::{LabelSet, PluginActionKind, PluginMenu, PluginMenuItem};

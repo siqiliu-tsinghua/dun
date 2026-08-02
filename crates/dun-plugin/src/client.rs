@@ -7,12 +7,17 @@
 
 use std::fmt;
 use std::io::Read;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+
+#[cfg(unix)]
+use rustix::process::{Pid, Signal, getpgrp, kill_process_group};
 
 use crate::capability::{Capability, GrantedCapabilities};
 use crate::frame::{FrameError, read_frame, write_frame};
@@ -78,6 +83,8 @@ impl fmt::Display for PluginError {
 pub struct HostClient {
     plugin_id: String,
     child: Child,
+    #[cfg(unix)]
+    process_group: Option<u32>,
     stdin: ChildStdin,
     frames: Receiver<Result<Vec<u8>, FrameError>>,
     stderr_tail: Arc<Mutex<Vec<u8>>>,
@@ -109,13 +116,19 @@ impl HostClient {
         roles: &[Role],
         config_trust: TrustClass,
     ) -> Result<Self, PluginError> {
-        let mut child = Command::new(command_path)
+        let mut command = Command::new(command_path);
+        command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .env_clear()
-            .spawn()
-            .map_err(PluginError::Spawn)?;
+            .env_clear();
+        // Unix hosts own a process group so cleanup can include helpers. On
+        // non-Unix, `kill` retains the previous direct-child fallback.
+        #[cfg(unix)]
+        command.process_group(0);
+        let mut child = command.spawn().map_err(PluginError::Spawn)?;
+        #[cfg(unix)]
+        let process_group = Some(child.id());
 
         let stdin = child.stdin.take().expect("child stdin is piped");
         let mut stdout = child.stdout.take().expect("child stdout is piped");
@@ -154,6 +167,8 @@ impl HostClient {
         let mut client = Self {
             plugin_id: plugin_id.to_string(),
             child,
+            #[cfg(unix)]
+            process_group,
             stdin,
             frames,
             stderr_tail,
@@ -619,6 +634,7 @@ impl HostClient {
         loop {
             match self.child.try_wait() {
                 Ok(Some(status)) => {
+                    self.sweep_process_group();
                     if status.success() {
                         return Ok(());
                     }
@@ -666,6 +682,25 @@ impl HostClient {
     fn kill(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+        self.sweep_process_group();
+    }
+
+    #[cfg(unix)]
+    fn sweep_process_group(&mut self) {
+        let Some(child_pid) = self.process_group.take() else {
+            return;
+        };
+        let own_pgid = getpgrp().as_raw_nonzero().get() as u32;
+        let Some(target) = group_kill_target(child_pid, own_pgid) else {
+            return;
+        };
+        let _ = kill_process_group(target, Signal::Kill);
+    }
+
+    #[cfg(not(unix))]
+    fn sweep_process_group(&mut self) {
+        // There is no portable process-group primitive here. The direct host
+        // is still killed and reaped by `kill`, matching the prior behavior.
     }
 }
 
@@ -684,4 +719,27 @@ fn bounded_message(message: &str) -> String {
         cut -= 1;
     }
     format!("{}...", &message[..cut])
+}
+
+/// Derive a positive process-group target from a child pid while refusing ids
+/// that could address dun's own group or system-special process groups.
+#[cfg(unix)]
+pub fn group_kill_target(child_pid: u32, own_pgid: u32) -> Option<Pid> {
+    if child_pid <= 1 || child_pid == own_pgid {
+        return None;
+    }
+    i32::try_from(child_pid).ok().and_then(Pid::from_raw)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::{Pid, group_kill_target};
+
+    #[test]
+    fn group_kill_target_refuses_unsafe_process_groups() {
+        assert_eq!(group_kill_target(42, 7), Pid::from_raw(42));
+        assert_eq!(group_kill_target(42, 42), None);
+        assert_eq!(group_kill_target(0, 7), None);
+        assert_eq!(group_kill_target(1, 7), None);
+    }
 }

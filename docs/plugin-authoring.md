@@ -104,7 +104,9 @@ cannot paint stale highlighting over edited text.
    you want reported without dying.
 4. `dun` may send `cancel-request`. If you answer synchronously, ignoring it is
    correct.
-5. `dun` sends `shutdown`. Exit.
+5. `dun` sends `shutdown`. Exit. On Unix, `dun` then kills any helpers left in
+   your host's process group, so helpers must not be designed to outlive the
+   host session.
 
 **When you are launched depends on your grant.** A host holding `menu` or
 `window` starts eagerly at editor startup, because only its handshake can
@@ -325,6 +327,9 @@ Design for these rather than against them:
   allocation. Oversized output kills the session.
 - **Timeouts**, per request and per host. A host that stops answering is killed
   and reported, not waited on.
+- **Host-group cleanup on Unix.** A host and the helpers it leaves in its
+  process group are reaped together after forced termination or clean
+  shutdown. Non-Unix builds retain direct-host cleanup.
 - **Revision guards.** A response whose revision no longer matches the buffer or
   stream is discarded.
 - **Validation of every result** before it touches editor state — span ranges,

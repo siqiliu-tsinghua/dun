@@ -7,9 +7,10 @@ use std::process::{Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use dun_config::TextCatalog;
+use dun_plugin::group_kill_target;
 use rustix::event::{PollFd, PollFlags};
 use rustix::io::Errno;
-use rustix::process::{Pid, Signal, getpgrp, kill_process_group};
+use rustix::process::{Signal, getpgrp, kill_process_group};
 
 use super::{EventReader, RuntimeAction, SurfaceBackend, TerminalGuard, osc52_read_query};
 use crate::app::AppState;
@@ -183,13 +184,6 @@ fn kill_command_process_group(child_pid: u32) -> io::Result<bool> {
     }
 }
 
-fn group_kill_target(child_pid: u32, own_pgid: u32) -> Option<Pid> {
-    if child_pid <= 1 || child_pid == own_pgid {
-        return None;
-    }
-    i32::try_from(child_pid).ok().and_then(Pid::from_raw)
-}
-
 fn shell_program() -> OsString {
     env::var_os("SHELL")
         .filter(|value| !value.is_empty())
@@ -302,16 +296,8 @@ pub(crate) fn duration_status_text(duration: Duration) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, Duration, Instant, Pid, Stdio, group_kill_target, read_capped_stream};
+    use super::{Command, Duration, Instant, Stdio, read_capped_stream};
     use std::sync::mpsc;
-
-    #[test]
-    fn group_kill_target_refuses_unsafe_process_groups() {
-        assert_eq!(group_kill_target(42, 7), Pid::from_raw(42));
-        assert_eq!(group_kill_target(42, 42), None);
-        assert_eq!(group_kill_target(0, 7), None);
-        assert_eq!(group_kill_target(1, 7), None);
-    }
 
     #[test]
     fn command_capture_deadline_releases_open_pipe() {

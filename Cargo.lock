@@ -36,6 +36,9 @@ version = "0.1.0"
 [[package]]
 name = "dun-plugin"
 version = "0.1.0"
+dependencies = [
+ "rustix",
+]
 
 [[package]]
 name = "dun-term"

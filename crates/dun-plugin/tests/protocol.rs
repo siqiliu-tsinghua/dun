@@ -2,7 +2,11 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+#[cfg(unix)]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use dun_plugin::frame::FrameError;
 use dun_plugin::proto::ProtocolError;
@@ -12,6 +16,10 @@ use dun_plugin::{
 
 const FIXTURE_HOST: &str = env!("CARGO_BIN_EXE_fixture-host");
 const REVISION: u64 = 41;
+#[cfg(unix)]
+const SENTINEL_OBSERVATION: Duration = Duration::from_millis(2_500);
+#[cfg(unix)]
+static NEXT_SENTINEL_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
 fn policy(timeout: Duration) -> Policy {
     Policy {
@@ -105,6 +113,91 @@ impl ModeLauncher {
     }
 }
 
+/// Gives one sentinel-host run its own directory so parallel tests never share
+/// marker files. The hard link keeps macOS's first-exec assessment attached to
+/// the already-built fixture inode, and the directory is removed on unwind.
+#[cfg(unix)]
+struct SentinelLauncher {
+    directory: PathBuf,
+    path: PathBuf,
+}
+
+#[cfg(unix)]
+impl SentinelLauncher {
+    fn new() -> Self {
+        let fixture = Path::new(FIXTURE_HOST);
+        let parent = fixture.parent().expect("fixture binary has a directory");
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time follows the Unix epoch")
+            .as_nanos();
+        let sequence = NEXT_SENTINEL_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let directory = parent.join(format!(
+            ".fixture-host-sentinel-{}-{timestamp}-{sequence}",
+            std::process::id()
+        ));
+        fs::create_dir(&directory).expect("creates sentinel host directory");
+        let path = directory.join("fixture-host--spawn-sentinel");
+        if let Err(error) = fs::hard_link(fixture, &path) {
+            let _ = fs::remove_dir_all(&directory);
+            panic!("links sentinel host launcher: {error}");
+        }
+        Self { directory, path }
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn ready(&self) -> PathBuf {
+        self.directory.join("ready")
+    }
+
+    fn survived(&self) -> PathBuf {
+        self.directory.join("survived")
+    }
+}
+
+#[cfg(unix)]
+impl Drop for SentinelLauncher {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.directory);
+    }
+}
+
+#[cfg(unix)]
+fn launch_sentinel_host() -> (SentinelLauncher, HostClient) {
+    let launcher = SentinelLauncher::new();
+    let client = HostClient::launch(
+        launcher.path(),
+        "highlight",
+        policy(Duration::from_secs(5)),
+        &[Role::SyntaxHighlight],
+        TrustClass::UserTrustedExternal,
+    )
+    .expect("sentinel fixture host launches");
+    (launcher, client)
+}
+
+#[cfg(unix)]
+fn wait_for_ready_sentinel(launcher: &SentinelLauncher) {
+    let ready = launcher.ready();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !ready.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(ready.exists(), "descendant never wrote its ready sentinel");
+}
+
+#[cfg(unix)]
+fn assert_descendant_did_not_survive(launcher: &SentinelLauncher) {
+    std::thread::sleep(SENTINEL_OBSERVATION);
+    assert!(
+        !launcher.survived().exists(),
+        "host descendant survived process-group cleanup"
+    );
+}
+
 #[test]
 fn happy_path_round_trips_one_validated_span_and_shuts_down() {
     let mut client = launch(policy(Duration::from_secs(5)));
@@ -121,6 +214,29 @@ fn happy_path_round_trips_one_validated_span_and_shuts_down() {
     assert_eq!(spans[0].style, StyleId::Keyword);
 
     client.shutdown().expect("fixture shuts down cleanly");
+}
+
+#[cfg(unix)]
+#[test]
+fn protocol_violation_kills_host_descendants() {
+    let (launcher, mut client) = launch_sentinel_host();
+    wait_for_ready_sentinel(&launcher);
+
+    let error = client
+        .request_highlight(&snapshot("wrong-id-test"))
+        .expect_err("wrong request id is a protocol policy violation");
+    assert!(matches!(error, PluginError::PolicyViolation(_)));
+    assert_descendant_did_not_survive(&launcher);
+}
+
+#[cfg(unix)]
+#[test]
+fn clean_shutdown_kills_leftover_host_descendants() {
+    let (launcher, client) = launch_sentinel_host();
+    wait_for_ready_sentinel(&launcher);
+
+    client.shutdown().expect("fixture host shuts down cleanly");
+    assert_descendant_did_not_survive(&launcher);
 }
 
 #[test]

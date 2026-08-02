@@ -11,3 +11,4 @@ categories.workspace = true
 description = "Host-neutral Dun Plugin Protocol client."
 
 [dependencies]
+rustix.workspace = true

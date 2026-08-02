@@ -121,6 +121,9 @@ For `user-trusted-external` fixture and development hosts:
 - launch the configured executable directly, not through a shell;
 - do not pass editor file descriptors other than stdin/stdout/stderr;
 - pass a minimal environment or an explicit environment whitelist;
+- on Unix, launch each host in its own process group and, after reaping the
+  host, kill any helpers left in that group, including after a clean shutdown;
+  non-Unix builds retain direct-host cleanup;
 - set per-request and per-host timeouts;
 - cap stdin frame size, stdout frame size, stderr capture, and diagnostics;
 - kill the host process on malformed frames, timeout, cancellation failure, or
@@ -506,7 +509,8 @@ The protocol-client stage is complete when:
 2. `dun` has typed protocol, role, policy, and error models;
 3. `dun` can launch a configured external fixture host over framed stdio;
 4. the host handshake, request, response, diagnostic, cancellation, timeout,
-   crash, malformed-frame, and oversized-output paths are tested;
+   crash, malformed-frame, oversized-output, and descendant-cleanup paths are
+   tested;
 5. at least one role is applied end to end after validation;
 6. stale revision results are discarded;
 7. `cargo test --workspace`, clippy, and release smoke pass;

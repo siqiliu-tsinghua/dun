@@ -8,7 +8,10 @@
 //! the program name). Request misbehavior is selected through the request
 //! payload's `language` field.
 
+use std::fs;
 use std::io::{self, Write};
+use std::path::Path;
+use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
@@ -19,13 +22,24 @@ const MAX_FRAME_BYTES: usize = 256 * 1024;
 const FLOOD_SPAN_COUNT: usize = 4097;
 const DIAGNOSTIC_FLOOD_COUNT: usize = 17;
 const STDERR_FLOOD_BYTES: usize = 64 * 1024;
+const SENTINEL_HELPER_SLEEP: Duration = Duration::from_secs(2);
+const SENTINEL_HELPER_MODE: &str = "sentinel-helper";
+const SPAWN_SENTINEL_MODE: &str = "spawn-sentinel";
 
 fn main() -> io::Result<()> {
+    if std::env::args().nth(1).as_deref() == Some(SENTINEL_HELPER_MODE) {
+        return run_sentinel_helper();
+    }
+    let program = std::env::args_os()
+        .next()
+        .ok_or_else(|| io::Error::other("fixture host program path is missing"))?;
     let handshake_mode = std::env::args().nth(1).or_else(|| {
-        let program = std::env::args().next()?;
-        let name = std::path::Path::new(&program).file_name()?.to_str()?;
+        let name = Path::new(&program).file_name()?.to_str()?;
         Some(name.rsplit_once("--")?.1.to_string())
     });
+    if handshake_mode.as_deref() == Some(SPAWN_SENTINEL_MODE) {
+        spawn_sentinel_helper(Path::new(&program))?;
+    }
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut input = stdin.lock();
@@ -104,6 +118,33 @@ fn main() -> io::Result<()> {
             }
         }
     }
+}
+
+fn spawn_sentinel_helper(program: &Path) -> io::Result<()> {
+    let directory = program
+        .parent()
+        .ok_or_else(|| io::Error::other("fixture host directory is missing"))?;
+    Command::new(std::env::current_exe()?)
+        .arg(SENTINEL_HELPER_MODE)
+        .arg(directory.join("ready"))
+        .arg(directory.join("survived"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    Ok(())
+}
+
+fn run_sentinel_helper() -> io::Result<()> {
+    let ready = std::env::args_os()
+        .nth(2)
+        .ok_or_else(|| io::Error::other("sentinel ready path is missing"))?;
+    let survived = std::env::args_os()
+        .nth(3)
+        .ok_or_else(|| io::Error::other("sentinel survived path is missing"))?;
+    fs::write(ready, b"ready")?;
+    thread::sleep(SENTINEL_HELPER_SLEEP);
+    fs::write(survived, b"survived")
 }
 
 fn handle_request(message: &Json, request_id: u64, output: &mut impl Write) -> io::Result<()> {
