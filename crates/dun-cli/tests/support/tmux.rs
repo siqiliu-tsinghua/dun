@@ -46,6 +46,24 @@ pub struct TmuxSession {
     ambiguous_width: AmbiguousWidth,
 }
 
+/// Stretch a tmux wait for slower machines without changing what the tests
+/// mean. The per-file constants are calibrated on a developer laptop; a shared
+/// CI runner -- arm64 especially, where a Python plugin host takes noticeably
+/// longer to hand shake -- can exceed them while behaving correctly. Inflating
+/// the constants themselves would slow every local run and blur real
+/// regressions, so the factor lives in the environment and defaults to 1.
+///
+/// This scales *waiting*, never an assertion: a test that waits longer and
+/// still does not see what it needs still fails.
+fn scaled_timeout(base: Duration) -> Duration {
+    let factor = std::env::var("DUN_TEST_TIMEOUT_FACTOR")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .filter(|factor| *factor >= 1)
+        .unwrap_or(1);
+    base * factor
+}
+
 impl TmuxSession {
     pub fn start_dun(
         label: &str,
@@ -180,6 +198,7 @@ impl TmuxSession {
         needle: &str,
         timeout: Duration,
     ) -> io::Result<TmuxCapture> {
+        let timeout = scaled_timeout(timeout);
         let start = Instant::now();
         loop {
             let capture = self.capture_plain()?;

@@ -12,6 +12,11 @@ on:
 env:
   DUN_RUST: "1.85.0"
   CARGO_TERM_COLOR: always
+  # tmux waits are calibrated on a developer laptop. Shared runners are slower
+  # -- arm64 most of all, where a Python plugin host's handshake has timed out
+  # a correct test -- so stretch the waiting, not the assertions. See
+  # scaled_timeout in crates/dun-cli/tests/support/tmux.rs.
+  DUN_TEST_TIMEOUT_FACTOR: "4"
 
 jobs:
   lint:
