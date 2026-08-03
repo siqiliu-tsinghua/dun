@@ -122,10 +122,10 @@ fn tmux_grid_adopts_resized_pane_dimensions() -> io::Result<()> {
     };
     session.capture_until_contains("Untitled", STARTUP_TIMEOUT)?;
 
-    let (tmux, pane) = resize_tmux_pane(label, 100, 30)?;
+    let (tmux, pane) = resize_tmux_pane(session.socket(), label, 100, 30)?;
     let deadline = Instant::now() + INTERACTION_TIMEOUT;
     let capture = loop {
-        let capture = capture_tmux_pane(&tmux, &pane, 30)?;
+        let capture = capture_tmux_pane(&tmux, session.socket(), &pane, 30)?;
         let lines: Vec<_> = capture.lines().collect();
         if lines.len() == 30
             && str_width(lines[1], session.ambiguous_width()) == 100
@@ -293,13 +293,25 @@ fn tmux_grid_ascii_16_fallback_uses_ascii_chrome_and_no_256_sgr() -> io::Result<
     Ok(())
 }
 
-fn resize_tmux_pane(label: &str, cols: u16, rows: u16) -> io::Result<(std::path::PathBuf, String)> {
+fn resize_tmux_pane(
+    socket: &str,
+    label: &str,
+    cols: u16,
+    rows: u16,
+) -> io::Result<(std::path::PathBuf, String)> {
     let tmux = command_on_path("tmux")
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "tmux is not on PATH"))?;
     let prefix = format!("dun-{label}-{}-", std::process::id());
     let panes = checked_tmux_output(
         Command::new(&tmux)
-            .args(["list-panes", "-a", "-F", "#{session_name} #{pane_id}"])
+            .args([
+                "-L",
+                socket,
+                "list-panes",
+                "-a",
+                "-F",
+                "#{session_name} #{pane_id}",
+            ])
             .output()?,
         "tmux list-panes",
     )?;
@@ -323,6 +335,8 @@ fn resize_tmux_pane(label: &str, cols: u16, rows: u16) -> io::Result<(std::path:
     checked_tmux_output(
         Command::new(&tmux)
             .args([
+                "-L",
+                socket,
                 "resize-window",
                 "-t",
                 session,
@@ -337,6 +351,8 @@ fn resize_tmux_pane(label: &str, cols: u16, rows: u16) -> io::Result<(std::path:
     checked_tmux_output(
         Command::new(&tmux)
             .args([
+                "-L",
+                socket,
                 "resize-pane",
                 "-t",
                 pane,
@@ -351,11 +367,27 @@ fn resize_tmux_pane(label: &str, cols: u16, rows: u16) -> io::Result<(std::path:
     Ok((tmux, pane.to_string()))
 }
 
-fn capture_tmux_pane(tmux: &std::path::Path, pane: &str, rows: u16) -> io::Result<String> {
+fn capture_tmux_pane(
+    tmux: &std::path::Path,
+    socket: &str,
+    pane: &str,
+    rows: u16,
+) -> io::Result<String> {
     let end = rows.saturating_sub(1).to_string();
     let output = checked_tmux_output(
         Command::new(tmux)
-            .args(["capture-pane", "-p", "-t", pane, "-S", "0", "-E", &end])
+            .args([
+                "-L",
+                socket,
+                "capture-pane",
+                "-p",
+                "-t",
+                pane,
+                "-S",
+                "0",
+                "-E",
+                &end,
+            ])
             .output()?,
         "tmux capture-pane",
     )?;

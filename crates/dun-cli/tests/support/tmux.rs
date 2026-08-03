@@ -40,6 +40,12 @@ impl TmuxCapture {
 #[derive(Debug)]
 pub struct TmuxSession {
     tmux: PathBuf,
+    /// Every session gets its own tmux server. Session *names* were already
+    /// unique, but all of them shared the default socket and therefore one
+    /// server -- and tmux shuts a server down when its last session is killed.
+    /// A teardown racing another test's `new-session` produced "server exited
+    /// unexpectedly", which is what failed on the arm64 runner.
+    socket: String,
     name: String,
     cols: u16,
     rows: u16,
@@ -121,9 +127,12 @@ impl TmuxSession {
         }
 
         let name = unique_session_name(label);
+        let socket = format!("dun-{name}");
         let command = shell_command_for_executable(executable, args);
         let output = Command::new(&tmux)
             .args([
+                "-L",
+                &socket,
                 "new-session",
                 "-d",
                 "-s",
@@ -153,6 +162,7 @@ impl TmuxSession {
 
         let mut session = Self {
             tmux,
+            socket,
             name,
             cols,
             rows,
@@ -191,6 +201,12 @@ impl TmuxSession {
 
     pub fn ambiguous_width(&self) -> AmbiguousWidth {
         self.ambiguous_width
+    }
+
+    /// The private tmux server this session owns. Tests that must drive tmux
+    /// directly have to target it; the default socket no longer has a server.
+    pub fn socket(&self) -> &str {
+        &self.socket
     }
 
     pub fn capture_until_contains(
@@ -275,7 +291,9 @@ impl TmuxSession {
     }
 
     fn checked_output(&self, args: &[&str]) -> io::Result<Output> {
-        let output = Command::new(&self.tmux).args(args).output()?;
+        let mut argv: Vec<&str> = vec!["-L", &self.socket];
+        argv.extend_from_slice(args);
+        let output = Command::new(&self.tmux).args(&argv).output()?;
         if output.status.success() {
             Ok(output)
         } else {
@@ -286,22 +304,25 @@ impl TmuxSession {
 
 impl Drop for TmuxSession {
     fn drop(&mut self) {
+        // The socket belongs to this session alone, so killing the server
+        // takes any stray pane with it and cannot disturb another test.
         let _ = Command::new(&self.tmux)
-            .args(["kill-session", "-t", &self.name])
-            .status();
+            .args(["-L", &self.socket, "kill-server"])
+            .output();
     }
 }
 
 struct TmuxProbeSession<'a> {
     tmux: &'a Path,
+    socket: String,
     name: String,
 }
 
 impl Drop for TmuxProbeSession<'_> {
     fn drop(&mut self) {
         let _ = Command::new(self.tmux)
-            .args(["kill-session", "-t", &self.name])
-            .status();
+            .args(["-L", &self.socket, "kill-server"])
+            .output();
     }
 }
 
@@ -312,12 +333,16 @@ pub fn tmux_test_guard() -> MutexGuard<'static, ()> {
 }
 
 fn measure_ambiguous_width(tmux: &Path, label: &str) -> io::Result<AmbiguousWidth> {
+    let name = unique_session_name(&format!("{label}-width-probe"));
     let probe = TmuxProbeSession {
         tmux,
-        name: unique_session_name(&format!("{label}-width-probe")),
+        socket: format!("dun-{name}"),
+        name,
     };
     let output = Command::new(tmux)
         .args([
+            "-L",
+            &probe.socket,
             "new-session",
             "-d",
             "-s",
@@ -339,7 +364,15 @@ fn measure_ambiguous_width(tmux: &Path, label: &str) -> io::Result<AmbiguousWidt
 
     loop {
         let output = Command::new(tmux)
-            .args(["display-message", "-p", "-t", &probe.name, "#{cursor_x}"])
+            .args([
+                "-L",
+                &probe.socket,
+                "display-message",
+                "-p",
+                "-t",
+                &probe.name,
+                "#{cursor_x}",
+            ])
             .output()?;
         if !output.status.success() {
             return Err(output_error(
