@@ -3,7 +3,63 @@
 This file tracks active and near-term work. Completed decisions and finished
 items belong in [PROGRESS.md](./docs/dev/PROGRESS.md).
 
-## Active — nothing; next stage undecided
+## Active — v0.2.0 review response
+
+Second external review, 2026-08-03 (docx in `~/Downloads/`, not in the repo).
+It passed v0.2.0 with no blocking findings and reframed the work: from
+"build the engineering closure" to "make the closure impossible to bypass by
+accident". Its three concrete repo claims were all verified true before acting.
+
+Done this cycle:
+
+- [x] **The 1 MiB ceiling blocks.** The size job carried `continue-on-error`,
+      so a failed `release-build.sh` or a 2 MiB binary blocked nothing. Split
+      into an enforced ceiling and a reported drift; both `size gate` checks
+      are in the branch ruleset. Boundary-tested before shipping.
+- [x] **CI calls `scripts/check-links.py`** instead of the weaker checker I
+      wrote without looking for the existing one (629 targets against 111).
+- [x] **`dun-ui` no longer names Ratatui**; README's four size figures match
+      the v0.2.0 audit and point at it for exact bytes.
+- [x] **tmux tests each own a private server.** Shared default socket plus
+      tmux's "kill the server with its last session" made teardown race
+      `new-session`; this was the arm64 failure, not a timeout.
+- [x] Node 20 action warnings down from 8 to 2 (`upload-artifact@v5` is still
+      on Node 20 upstream); weekly `current stable Rust` lane added.
+
+Open, in the review's priority order:
+
+- [ ] **P0 — release metadata single source of truth.** A machine-readable
+      file carrying version, MSRV, supported platforms, size baselines, build
+      profile and protocol version; README tables generated or validated from
+      it; a `scripts/release-audit` that checks tag / workspace version /
+      `dun --version` / CHANGELOG heading / Release title agree, run as a
+      blocking CI job. **The biggest remaining item; needs a real design pass.**
+- [ ] **P0 — TODO hygiene.** This file still carries completed stages; they
+      belong in PROGRESS/CHANGELOG.
+- [ ] **P1 — plugin resource bounds.** Process groups solved cleanup, not
+      consumption: best-effort `RLIMIT_AS`/`CPU`/`NOFILE`/`NPROC`, an optional
+      RSS watchdog, exponential backoff with a circuit breaker on repeated
+      crashes, and a status page showing PID, exit reason, restart count and
+      whether limits took effect. Explicitly not a sandbox.
+- [ ] **P1 — large-file read-only mode.** Windowed reads, lazy line index,
+      bounded fixed-string search, always-visible read-only state; separate
+      from the editable buffer path. The review rates this above any IDE
+      feature for dun's positioning.
+- [ ] **P1 — protocol evolution.** `PROTOCOL_VERSION = 0` with strict
+      rejection; decide version-range negotiation or major-version plus
+      capability negotiation **before** third-party hosts exist. Put
+      `hosts/check-host.py` in CI against every reference host; add fuzz
+      targets for the JSON, frame, config and terminal-input parsers (test
+      only, so no budget cost).
+- [ ] **P2 — SSH-facing performance baselines.** First frame, keystroke to
+      painted frame, ANSI bytes per interaction, idle CPU and peak RSS, and
+      behaviour under simulated high RTT and low bandwidth. Report-only until
+      the samples are stable.
+
+Unverified: the weekly `current stable Rust` lane has never executed. Its
+`if:` gate skips it on push, and dispatching it needs Actions:write, which the
+PAT lacks. Confirm on the first Monday run, or trigger it once from the
+Actions tab.
 
 The external review of 2026-07-30 is answered on its two parser items
 (`f5891a0`, `8a3dddf`). What is open is the track that came out of verifying
