@@ -101,45 +101,23 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      # Docs are load-bearing here (AGENTS.md), and the codex briefs reference
-      # repo paths too, so a moved file breaks more than prose.
-      - name: Check relative links resolve
-        run: |
-          set -eu
-          status=0
-          found=0
-          for file in $(git ls-files '*.md'); do
-            dir=$(dirname "$file")
-            for link in $(grep -o '](\([^)]*\))' "$file" 2>/dev/null \
-              | sed 's/^](//; s/)$//' \
-              | grep -v -E '^(https?:|mailto:|#)'); do
-              target="${link%%#*}"
-              [ -n "$target" ] || continue
-              found=$((found + 1))
-              if [ ! -e "$dir/$target" ]; then
-                echo "$file: broken link -> $target"
-                status=1
-              fi
-            done
-          done
-          echo "checked $found relative links"
-          # Self-check: the first version of this job passed while extracting
-          # zero links, which is the failure mode a link checker is most likely
-          # to have. Refuse to report success on an empty sweep.
-          if [ "$found" -lt 50 ]; then
-            echo "link extraction found only $found links; the checker is broken" >&2
-            exit 1
-          fi
-          exit $status
+      # The repository already ships a stricter checker than anything worth
+      # writing here: it follows inline links, reference definitions and bare
+      # repository-path mentions in prose, which is what catches a moved file
+      # referenced from a brief. Call it rather than maintaining a second,
+      # weaker implementation that can drift.
+      - name: Check local links resolve
+        run: python3 scripts/check-links.py
 
   size:
-    name: size report (${{ matrix.os }})
+    name: size gate (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # Report only. The binding measurement is the Debian VM's, and an Ubuntu
-    # runner is not that machine, so this tracks drift rather than enforcing
-    # the 1 MiB budget. arm64 is deliberately absent: a different ISA cannot
-    # be compared against a contract defined on x86_64.
-    continue-on-error: true
+    # Two separate questions, previously conflated into one report-only job.
+    # "Does it build and is it under 1 MiB" is a coarse check a hosted runner
+    # can answer, and it blocks. "Did it move by 400 bytes" is a comparison
+    # only the reference machines can make, and it is reported, never enforced
+    # here. arm64 is absent from both: a different ISA cannot be judged against
+    # a contract defined on x86_64.
     strategy:
       fail-fast: false
       matrix:
@@ -154,14 +132,34 @@ jobs:
           rustup default "$DUN_RUST"
       - name: Build with the size-audit contract
         run: sh scripts/release-build.sh | tee size.txt
+      # Blocking. release-build.sh failing outright already fails this step;
+      # this adds the ceiling. Both were previously unenforced because the job
+      # carried continue-on-error.
+      - name: Enforce the 1 MiB ceiling
+        run: |
+          set -eu
+          bytes=$(sed -n 's/^size: *\([0-9]*\).*/\1/p' size.txt)
+          if [ -z "$bytes" ]; then
+            echo "could not parse a size from release-build.sh output" >&2
+            exit 1
+          fi
+          echo "$bytes bytes"
+          if [ "$bytes" -gt 1048576 ]; then
+            echo "over the 1,048,576-byte ceiling by $((bytes - 1048576))" >&2
+            exit 1
+          fi
       - name: Report
         run: |
           bytes=$(sed -n 's/^size: *\([0-9]*\).*/\1/p' size.txt)
-          echo "### Size report (${{ matrix.os }})" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "\`$bytes\` bytes. Budget is 1048576 on the gate platforms." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "This runner is not a gate platform; see docs/dev/release-size-audit.md for the binding figures." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Size (${{ matrix.os }})"
+            echo ""
+            echo "\`$bytes\` bytes, ceiling 1048576."
+            echo ""
+            echo "This runner is not one of the reference machines, so the exact byte"
+            echo "count is not comparable with docs/dev/release-size-audit.md. Only the"
+            echo "ceiling above is enforced here."
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: size-${{ matrix.os }}

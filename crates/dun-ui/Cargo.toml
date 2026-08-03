@@ -8,7 +8,7 @@ authors.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Ratatui-facing UI shell for dun."
+description = "Backend-neutral frame model and Surface renderer for dun."
 
 [dependencies]
 dun-config.workspace = true

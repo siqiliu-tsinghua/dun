@@ -27,10 +27,12 @@ half-written save may be the outage.
 
 `dun` treats those as the primary case rather than the degraded one:
 
-- **It fits in the places you have to work.** The release binary is 770 KiB on
-  Debian x86-64 and 706 KiB on macOS — and 686 KiB on FreeBSD, 732 KiB on
-  Solaris — against a hard 1 MiB budget that every change is measured against.
-  Copy one file to the host and you are done.
+- **It fits in the places you have to work.** At v0.2.0 the release binary is
+  778 KiB on Debian x86-64 and 710 KiB on macOS — and 691 KiB on FreeBSD,
+  738 KiB on Solaris — against a hard 1 MiB budget that every change is
+  measured against. Copy one file to the host and you are done. Exact bytes
+  per release are in
+  [docs/dev/release-size-audit.md](docs/dev/release-size-audit.md).
 - **It degrades on purpose.** Each theme carries 256-color, 16-color, and
   monochrome variants, reached by capability detection or forced by config.
   Box drawing falls back to ASCII. Ambiguous-width glyphs are probed at
