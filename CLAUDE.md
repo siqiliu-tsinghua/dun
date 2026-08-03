@@ -537,6 +537,55 @@ real-terminal OSC 52 read acceptance (user-driven).
     report-only — it is a different ISA and the 1 MiB budget is defined on
     x86_64.
 
+13. **v0.2.0 released, public CI, and the second review — DONE 2026-08-03.**
+    `v0.2.0` is tagged, pushed and published with a reproducible
+    `git archive | gzip -n` tarball and its SHA-256 (verified by downloading
+    the asset back, not by trusting the upload). No binaries: the size-audited
+    build is not byte-reproducible for an outsider. `v0.1.0` stays a bare tag
+    on purpose — its source predates the `Ctrl+X,O` hang fix.
+
+    **Public CI** is `.github/workflows/ci.yml`: fmt/clippy, tests on
+    x86_64/arm64 Linux and macOS, an install→run→uninstall round trip, the
+    repo's own `scripts/check-links.py`, and two **blocking** `size gate` jobs.
+    A weekly `current stable Rust` lane checks the "1.85 or newer" half of the
+    promise nothing else was checking (verified once by hand: rustc 1.97.1,
+    944/0). `main` carries a ruleset with all eight checks required and
+    Repository admin on the bypass list, so direct pushes still work — proven
+    both ways (a failing PR was `BLOCKED`; direct push reports "Bypassed rule
+    violations").
+
+    **Second external review** (2026-08-03 docx, `~/Downloads/`, not in the
+    repo) passed v0.2.0 with no blocking findings and reframed the work as
+    "make the closure impossible to bypass by accident". Its three repo claims
+    were all true and two were mine to have fixed already. Answered this
+    cycle: the 1 MiB ceiling now blocks (it never did — the size job carried
+    `continue-on-error`, so even a failed build passed); CI calls the
+    repository's link checker instead of the weaker one I wrote without
+    grepping for the existing one (629 targets against 111); `dun-ui` no
+    longer names Ratatui; README's size figures match the audit.
+
+    **Open, recorded at the top of TODO.md**: release-metadata single source of
+    truth with a blocking `scripts/release-audit` (the largest remaining P0),
+    TODO history hygiene, plugin resource bounds, large-file read-only mode,
+    protocol evolution before third-party hosts exist, SSH-facing performance
+    baselines.
+
+    Two lessons from this stage, both mine. A flaky arm64 test was **not** a
+    timeout: tmux sessions had unique names but shared the default socket, and
+    tmux shuts a server down with its last session, so a teardown raced
+    `new-session`. I shipped a timeout-scaling fix first, which was aimed at
+    the wrong thing. And I reported "Contents: write is granted" from a probe
+    that sent a deliberately invalid body and read 422 as authorization —
+    GitHub validates the body *before* checking permissions, so the probe
+    proved nothing. **A write cannot be tested without performing it.**
+
+    Not pursued: Termux/Android as a build target. The owner tried it as a
+    convenient arm64 environment; the environment restricts process and signal
+    facilities enough that it is a port, not a build. Not worth a fifth
+    platform for a use case (editing files locally on a phone) that is not
+    dun's. Using a phone as the *terminal* for a remote `dun` stays on-mission
+    and costs no build support.
+
 Previously (still true): the last *folding-era* runtime-code commit is
 `bb62b20`. Figures at `7c97fd9`, all four verified through
 `scripts/release-build.sh`: macOS **719,100**, Debian **784,688** (binding,
