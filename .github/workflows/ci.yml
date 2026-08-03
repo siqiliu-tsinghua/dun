@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The stable lane below only needs to run occasionally.
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
 
 # The size contract is defined on Rust 1.85 (see CLAUDE.md). The repo
 # deliberately carries no rust-toolchain.toml, because the FreeBSD and Solaris
@@ -23,7 +27,7 @@ jobs:
     name: fmt + clippy
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Rust ${{ env.DUN_RUST }}
         run: |
           rustup toolchain install "$DUN_RUST" --profile minimal \
@@ -40,7 +44,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Rust ${{ env.DUN_RUST }}
         run: |
           rustup toolchain install "$DUN_RUST" --profile minimal
@@ -66,7 +70,7 @@ jobs:
     name: install round trip
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Rust ${{ env.DUN_RUST }}
         run: |
           rustup toolchain install "$DUN_RUST" --profile minimal
@@ -105,7 +109,7 @@ jobs:
     name: doc links
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # The repository already ships a stricter checker than anything worth
       # writing here: it follows inline links, reference definitions and bare
       # repository-path mentions in prose, which is what catches a moved file
@@ -129,7 +133,7 @@ jobs:
         # macos-15-intel is the last x86_64 macOS image and expires August 2027.
         os: [ubuntu-24.04, macos-15-intel]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Rust ${{ env.DUN_RUST }} with rust-src
         run: |
           rustup toolchain install "$DUN_RUST" --profile minimal \
@@ -165,7 +169,31 @@ jobs:
             echo "count is not comparable with docs/dev/release-size-audit.md. Only the"
             echo "ceiling above is enforced here."
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: size-${{ matrix.os }}
           path: size.txt
+
+  # The project promises "Rust 1.85 or newer" but gates on 1.85, so nothing
+  # would notice the newer half of that claim breaking. This checks it weekly
+  # rather than on every pull request: stable gains lints and warnings on its
+  # own schedule, and letting that block an unrelated PR trains people to
+  # ignore CI. Deliberately not in the branch ruleset's required checks.
+  stable:
+    name: current stable Rust
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install current stable
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+      - run: sudo apt-get update && sudo apt-get install -y tmux expect
+      - name: Verify the test tools are present
+        run: |
+          tmux -V
+          expect -v
+      - run: cargo build --workspace
+      - run: cargo test --workspace --no-fail-fast
